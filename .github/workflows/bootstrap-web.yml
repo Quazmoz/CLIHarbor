@@ -8,7 +8,7 @@ on:
       - '.github/workflows/bootstrap-web.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   web:
@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
       - uses: actions/setup-node@v7.0.0
         with:
           node-version-file: '.node-version'
@@ -31,6 +33,20 @@ jobs:
         run: npm test --prefix web
       - name: Build
         run: npm run build --prefix web
+      - name: Stage generated frontend outputs
+        run: |
+          rm -rf internal/webui/static
+          mkdir -p internal/webui/static
+          cp -R web/dist/. internal/webui/static/
+      - name: Commit generated frontend outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/package-lock.json internal/webui/static
+          if ! git diff --cached --quiet; then
+            git commit -m "build: commit generated frontend outputs"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
       - name: Upload generated frontend inputs
         uses: actions/upload-artifact@v7.0.1
         with:
