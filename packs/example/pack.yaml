@@ -4,16 +4,21 @@ metadata:
   id: example
   name: Synthetic Example Pack
   version: 0.1.0
-  description: Non-production fixture metadata for exercising CLIHarbor's pack model.
+  description: Non-production fixture metadata for exercising CLIHarbor's pack and discovery model.
 runtime:
   platforms: [windows, linux, darwin]
   tools:
     fixture:
       executableNames: [cliharbor-fixture]
+      versionProbe:
+        args: [--version]
+        parser: semver-text
+        timeoutMillis: 1500
+      versionConstraint: ">=1.0.0 <2.0.0"
 commands:
   inspect:
     name: Inspect fixture data
-    description: Synthetic read-only command shape; this is not vendor syntax and is not executable in Phase 2.
+    description: Synthetic read-only command shape; no fixture executable is shipped with CLIHarbor.
     tool: fixture
     risk: read
     inputs:

@@ -76,7 +76,22 @@
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
           }
         },
-        "versionConstraint": {"type": "string", "maxLength": 128}
+        "versionProbe": {"$ref": "#/$defs/versionProbe"},
+        "versionConstraint": {"type": "string", "minLength": 1, "maxLength": 128}
+      }
+    },
+    "versionProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parser"],
+      "properties": {
+        "args": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {"type": "string", "maxLength": 256}
+        },
+        "parser": {"const": "semver-text"},
+        "timeoutMillis": {"type": "integer", "minimum": 100, "maximum": 10000}
       }
     },
     "command": {
@@ -87,9 +102,7 @@
         "name": {"type": "string", "minLength": 1, "maxLength": 120},
         "description": {"type": "string", "maxLength": 2000},
         "tool": {"$ref": "#/$defs/id"},
-        "risk": {
-          "enum": ["read", "change", "destructive", "credential-sensitive", "interactive"]
-        },
+        "risk": {"enum": ["read", "change", "destructive", "credential-sensitive", "interactive"]},
         "inputs": {
           "type": "array",
           "maxItems": 64,
@@ -142,9 +155,7 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["literal"],
-          "properties": {
-            "literal": {"type": "string", "minLength": 1, "maxLength": 1024}
-          }
+          "properties": {"literal": {"type": "string", "minLength": 1, "maxLength": 1024}}
         },
         {
           "type": "object",
@@ -227,9 +238,7 @@
     "requirements": {
       "type": "object",
       "additionalProperties": false,
-      "properties": {
-        "requiresAuth": {"type": "boolean"}
-      }
+      "properties": {"requiresAuth": {"type": "boolean"}}
     }
   }
 }

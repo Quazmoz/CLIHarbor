@@ -38,7 +38,8 @@ The first product slice will:
 - **Distribution target:** frontend embedded into the Go binary
 - **Transport:** loopback HTTP; streaming transport will be added when execution arrives
 - **Pack format:** versioned YAML (`cliharbor.dev/v1`) validated against the embedded JSON Schema plus deterministic semantic/security checks
-- **Execution:** planned Go `os/exec` using executable + argument arrays; never concatenate untrusted input into a shell command
+- **Discovery/version probes:** direct Go process invocation with pack-authored fixed argv, bounded output, bounded timeout, and semantic-version compatibility checks
+- **Task execution:** planned Go `os/exec` using executable + argument arrays; never concatenate untrusted input into a shell command
 
 Go is used for the standalone runtime because it produces a small self-contained Windows executable, has strong process/HTTP primitives, is easy to embed into an existing CLI, and keeps the local runtime footprint low. If CLIHarbor is later embedded into an existing internal CLI implemented in another language, the browser and pack contracts should remain portable.
 
@@ -72,7 +73,19 @@ Phase 2 adds the trusted pack-definition foundation:
 - an effectively immutable registry that returns isolated copies and supports stable pack/tool/command lookup;
 - a clearly synthetic `packs/example/pack.yaml` used only as a non-production example; it is not automatically trusted or executed.
 
-Tool discovery, process execution, auth orchestration, streaming, pack HTTP/UI exposure, and real Idira/CyberArk workflows are **not implemented yet**. Phase 0 vendor inventory is still required before any real vendor command definitions are added.
+Phase 3 adds tool discovery and version compatibility:
+
+- optional pack-declared fixed version probes using the `semver-text` parser and a bounded timeout;
+- discovery across absolute `PATH` entries only; relative/current-directory PATH entries are deliberately ignored;
+- Windows basename resolution for declared names plus `.exe`/`.com` binary forms without enabling script extensions;
+- explicit backend-only `--tool-path pack/tool=/absolute/path` overrides that are authoritative and never supplied by the browser;
+- ambiguity detection instead of first-match guessing when multiple executable candidates exist;
+- exact resolved executable paths, semantic versions, constraints, and actionable missing/incompatible/probe-failure states;
+- bounded direct version-probe execution with no shell and no raw probe output retained in diagnostics;
+- fail-closed parsing when version output contains no semantic version or multiple distinct semantic versions;
+- startup wiring for explicitly configured packs plus a `cliharbor doctor` diagnostic surface.
+
+The execution planner/executor, command streaming, pack/tool browser UI, auth orchestration, and real Idira/CyberArk workflows are **not implemented yet**. Phase 0 vendor inventory is still required before any real vendor command definitions are added.
 
 Development targets Go 1.27.1 and Node 24.21.0.
 
@@ -84,11 +97,33 @@ Install frontend dependencies once after cloning:
 npm ci --prefix web
 ```
 
-Run the production-style embedded application:
+Run the production-style embedded application without packs:
 
 ```text
 go run ./cmd/cliharbor
 ```
+
+Load an explicitly trusted pack file for discovery:
+
+```text
+go run ./cmd/cliharbor --pack-file packs/example/pack.yaml
+```
+
+Inspect configured packs/tools without opening the browser:
+
+```text
+go run ./cmd/cliharbor doctor --pack-file packs/example/pack.yaml
+```
+
+Pin a tool to an explicit absolute path when PATH is missing or ambiguous:
+
+```text
+go run ./cmd/cliharbor doctor \
+  --pack-file packs/example/pack.yaml \
+  --tool-path example/fixture=/absolute/path/to/cliharbor-fixture
+```
+
+The synthetic example pack does not ship a fixture executable, so it normally reports the tool as missing unless a compatible fixture is deliberately supplied.
 
 CLIHarbor binds to loopback, generates the one-time bootstrap handoff, and requests the default browser. If browser launch fails, the CLI prints the short-lived local bootstrap URL explicitly so it can be opened manually.
 
@@ -114,17 +149,19 @@ go run ./tools/task check
 # build only the embedded Go executable into ./bin
 go run ./tools/task go-build
 
-# rebuild frontend, sync embedded assets, then build the executable
+# rebuild frontend, sync assets, then build the executable
 go run ./tools/task build
 ```
 
 When `web/` changes, commit the synchronized generated files under `internal/webui/static/` together with the source change. CI rebuilds the frontend and rejects generated-asset drift.
 
-## Pack trust boundary
+## Pack and tool trust boundary
 
-Packs are privileged configuration because they define future executable/argument authority. Phase 2 supports only two loader inputs: bytes supplied by trusted built-in application code and local files/directories that a trusted caller explicitly names. CLIHarbor does not scan the current working directory, does not auto-load `packs/` merely because it exists in a checkout, does not load remote URLs, does not download packs, and does not execute plugin code.
+Packs are privileged configuration because they define future executable/argument authority. CLIHarbor supports only bytes supplied by trusted built-in application code and local files/directories that a trusted caller explicitly names. It does not scan the current working directory, auto-load `packs/` merely because it exists in a checkout, load remote URLs, download packs, or execute plugin code.
 
-The repository's example pack is a schema/test fixture, not a real Idira/CyberArk pack. Real vendor definitions remain blocked on verified Phase 0 inventory of deployed CLI versions and command trees.
+Tool discovery similarly does not let the browser provide executable paths. PATH discovery considers only absolute PATH entries and refuses ambiguity. An explicit `--tool-path` override must reference a tool already declared by an explicitly trusted pack and must resolve to a regular executable whose basename matches that tool declaration.
+
+The repository's example pack is a schema/discovery fixture, not a real Idira/CyberArk pack. Real vendor definitions remain blocked on verified Phase 0 inventory of deployed CLI versions and command trees.
 
 ## Development entry points
 
@@ -151,4 +188,4 @@ Those properties reinforce CLIHarbor's core boundary: **invoke the official CLI 
 
 ## Status
 
-Phase 1 local-runtime/browser foundation and Phase 2 versioned pack schema/validation/loader foundation are implemented. The next implementation milestone is Phase 3 tool discovery and version probing. Vendor-specific command definitions and execution remain blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.
+Phases 1-3 are implemented: secure local browser runtime, trusted versioned pack model/loader, and fail-closed tool discovery/version probing with `doctor`. The next implementation milestone is Phase 4: a deterministic typed execution planner and fixture-backed executor/streaming vertical slice. Real vendor command definitions remain blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.

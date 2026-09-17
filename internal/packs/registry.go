@@ -137,6 +137,11 @@ func clonePack(pack Pack) Pack {
 
 func cloneTool(tool Tool) Tool {
 	tool.ExecutableNames = append([]string(nil), tool.ExecutableNames...)
+	if tool.VersionProbe != nil {
+		probe := *tool.VersionProbe
+		probe.Args = append([]string(nil), tool.VersionProbe.Args...)
+		tool.VersionProbe = &probe
+	}
 	return tool
 }
 

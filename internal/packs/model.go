@@ -34,6 +34,8 @@ const (
 	OutputDelimited OutputMode = "delimited"
 )
 
+const VersionParserSemverText = "semver-text"
+
 type Pack struct {
 	APIVersion string             `json:"apiVersion"`
 	Kind       string             `json:"kind"`
@@ -55,8 +57,15 @@ type Runtime struct {
 }
 
 type Tool struct {
-	ExecutableNames   []string `json:"executableNames"`
-	VersionConstraint string   `json:"versionConstraint,omitempty"`
+	ExecutableNames   []string      `json:"executableNames"`
+	VersionProbe      *VersionProbe `json:"versionProbe,omitempty"`
+	VersionConstraint string        `json:"versionConstraint,omitempty"`
+}
+
+type VersionProbe struct {
+	Args          []string `json:"args,omitempty"`
+	Parser        string   `json:"parser"`
+	TimeoutMillis int      `json:"timeoutMillis,omitempty"`
 }
 
 type Command struct {
