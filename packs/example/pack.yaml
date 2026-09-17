@@ -1,0 +1,60 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: example
+  name: Synthetic Example Pack
+  version: 0.1.0
+  description: Non-production fixture metadata for exercising CLIHarbor's pack model.
+runtime:
+  platforms: [windows, linux, darwin]
+  tools:
+    fixture:
+      executableNames: [cliharbor-fixture]
+commands:
+  inspect:
+    name: Inspect fixture data
+    description: Synthetic read-only command shape; this is not vendor syntax and is not executable in Phase 2.
+    tool: fixture
+    risk: read
+    inputs:
+      - id: limit
+        type: integer
+        label: Result limit
+        required: false
+        validation:
+          min: 1
+          max: 1000
+      - id: verbose
+        type: boolean
+        label: Verbose output
+        required: false
+      - id: mode
+        type: enum
+        label: Output detail
+        required: true
+        validation:
+          enum: [safe, detailed]
+          disallowLeadingDash: true
+    argv:
+      - literal: inspect
+      - flag:
+          name: --limit
+          valueFrom: limit
+          omitWhenEmpty: true
+      - switch:
+          name: --verbose
+          enabledFrom: verbose
+      - map:
+          valueFrom: mode
+          values:
+            safe: --safe-mode
+            detailed: --detailed-mode
+    output:
+      mode: json
+      renderer: table
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
