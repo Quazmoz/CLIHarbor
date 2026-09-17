@@ -279,8 +279,8 @@ func newTestServer(t *testing.T, config Config) *Server {
 			if err != nil {
 				t.Errorf("server shutdown: %v", err)
 			}
-		case <-time.After(3 * time.Second):
-			t.Error("server did not shut down")
+		case <-time.After(shutdownTimeout + 2*time.Second):
+			t.Error("server did not shut down within configured shutdown bound")
 		}
 	})
 	return s
