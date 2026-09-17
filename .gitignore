@@ -1,0 +1,14 @@
+# Go
+/bin/
+*.exe
+*.test
+*.out
+
+# Frontend (future React/Vite workspace)
+web/node_modules/
+web/dist/
+
+# Editor/OS
+.DS_Store
+.vscode/
+.idea/
