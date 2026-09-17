@@ -9,6 +9,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -253,6 +254,87 @@ func TestBootstrapURLUsesExpectedOrigin(t *testing.T) {
 	}
 }
 
+func TestShutdownDeadlineForceClosesActiveConnections(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var startOnce sync.Once
+	var releaseOnce sync.Once
+	releaseHandler := func() { releaseOnce.Do(func() { close(release) }) }
+	defer releaseHandler()
+
+	frontend := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		startOnce.Do(func() { close(started) })
+		<-release
+		_, _ = w.Write([]byte("done"))
+	})
+	s, err := New(Config{Frontend: frontend, ShutdownTimeout: 50 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- s.Run(ctx) }()
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("cookie jar: %v", err)
+	}
+	client := &http.Client{
+		Jar: jar,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	bootstrapResponse, err := client.Get(s.BootstrapURL())
+	if err != nil {
+		t.Fatalf("bootstrap request: %v", err)
+	}
+	bootstrapResponse.Body.Close()
+	if bootstrapResponse.StatusCode != http.StatusSeeOther {
+		t.Fatalf("bootstrap status = %d, want %d", bootstrapResponse.StatusCode, http.StatusSeeOther)
+	}
+
+	requestDone := make(chan error, 1)
+	go func() {
+		response, requestErr := client.Get(s.BaseURL() + "/")
+		if response != nil {
+			response.Body.Close()
+		}
+		requestDone <- requestErr
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("frontend request did not become active")
+	}
+
+	cancel()
+	select {
+	case runErr := <-done:
+		if runErr == nil || !strings.Contains(runErr.Error(), "context deadline exceeded") {
+			t.Fatalf("run error = %v, want graceful-shutdown deadline error", runErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("server did not force-close after shutdown deadline")
+	}
+
+	releaseHandler()
+	select {
+	case <-requestDone:
+	case <-time.After(time.Second):
+		t.Fatal("active client request did not unblock after forced close")
+	}
+
+	connection, dialErr := net.DialTimeout("tcp", s.listener.Addr().String(), 100*time.Millisecond)
+	if dialErr == nil {
+		connection.Close()
+		t.Fatal("listener still accepted connections after shutdown deadline")
+	}
+}
+
 func newTestServer(t *testing.T, config Config) *Server {
 	t.Helper()
 	if config.Frontend == nil {
@@ -269,6 +351,10 @@ func newTestServer(t *testing.T, config Config) *Server {
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
+	// Most request-boundary tests are not testing HTTP keep-alive behavior.
+	// Disable it in the shared harness so parallel/race runs do not leave
+	// unrelated persistent connections competing with lifecycle assertions.
+	s.httpServer.SetKeepAlivesEnabled(false)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- s.Run(ctx) }()
