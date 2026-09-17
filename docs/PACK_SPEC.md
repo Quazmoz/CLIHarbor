@@ -2,254 +2,117 @@
 
 ## 1. Purpose
 
-A CLIHarbor **pack** describes how a trusted local command-line tool becomes a guided browser experience.
+A CLIHarbor **pack** describes how a trusted local command-line tool can become a guided browser experience. Packs are privileged declarative configuration: they may describe executable basenames, fixed argument literals, typed user inputs, risk, output metadata, and authentication requirements, but they are not scripts or plugins.
 
-The pack is intentionally declarative. It should describe capabilities and constraints, not provide arbitrary scripting.
+The implemented Phase 2 format is `cliharbor.dev/v1`. Its executable structural contract is `schemas/pack.v1.schema.json`; `internal/packs` implements the additional semantic/security checks and trusted loading rules.
 
-The first pack targets Idira/CyberArk. Later packs may target unrelated tools without modifying CLIHarbor's core execution model.
+No real Idira/CyberArk command pack exists yet. `packs/example/pack.yaml` is intentionally synthetic and non-production. Real vendor commands remain blocked on Phase 0 inventory of the exact deployed CLI versions and command trees.
 
 ## 2. Design goals
 
-- human-readable and reviewable;
-- strongly schema-validated;
-- versioned;
-- explicit allowlist of tools, commands, flags, and inputs;
-- capable of describing forms, risk levels, outputs, and workflows;
-- portable across Windows-first and future platforms;
-- safe to render in a browser;
-- resistant to becoming a general shell language.
+- human-readable and reviewable YAML;
+- strict, versioned structural validation;
+- deterministic semantic validation;
+- explicit allowlists of tools, tasks, flags, and mappings;
+- typed inputs and explicit risk classification;
+- output/auth metadata sufficient for later UI/runtime work;
+- portable platform declarations;
+- resistant to arbitrary-command or scripting behavior;
+- deterministic, bounded, fail-closed loading.
 
 ## 3. Non-goals
 
-The pack format is not:
+The v1 pack format is not:
 
-- a programming language;
-- a shell script format;
+- a programming language or shell script format;
 - an unrestricted plugin mechanism;
 - a place to store credentials;
-- a substitute for vendor API schemas;
+- a remote package format;
+- a source of executable paths supplied by the browser;
+- a generic free-form positional-command facility;
 - a way to execute arbitrary user-entered commands.
 
-## 4. Proposed top-level structure
+Phase 2 does not execute packs at all.
 
-Illustrative only; implementation should formalize this in `schemas/pack.v1.schema.json` before consuming packs.
+## 4. Implemented top-level structure
 
 ```yaml
 apiVersion: cliharbor.dev/v1
 kind: CliPack
 metadata:
-  id: idira
-  name: Idira / CyberArk
+  id: example
+  name: Synthetic Example Pack
   version: 0.1.0
-  description: Guided workflows over official Idira/CyberArk CLIs.
+  description: Non-production example.
 
 runtime:
-  platforms: [windows]
-
+  platforms: [windows, linux, darwin]
   tools:
-    idsec:
-      executableNames: [idsec.exe, idsec]
-      versionProbe:
-        args: [version]
-        parser: text
-      versionConstraint: ">=0.0.0"
-
-    conjur:
-      executableNames: [conjur.exe, conjur]
-      versionProbe:
-        args: [version]
-        parser: text
-
-navigation:
-  - id: identity
-    label: Identity
-    tasks: [identity-status]
+    fixture:
+      executableNames: [cliharbor-fixture]
+      versionConstraint: ">=1.0.0"
 
 commands:
-  identity-status:
-    name: Identity status
-    description: Read-only status check.
-    tool: idsec
+  inspect:
+    name: Inspect fixture data
+    tool: fixture
     risk: read
-    argv:
-      - literal: status
     inputs: []
+    argv:
+      - literal: inspect
     output:
       mode: raw
+    requirements:
+      requiresAuth: false
 ```
 
-The exact Idira command names above are placeholders until validated against the deployed CLI version.
+Unknown fields are rejected by the v1 JSON Schema. Unsupported schema versions fail closed before they can become runtime-authoritative.
 
-## 5. Tool definition
+## 5. Identifiers and metadata
 
-A tool definition may include:
+Pack, tool, command, and input IDs use:
+
+```text
+^[a-z][a-z0-9-]{0,62}$
+```
+
+Pack versions are semantic-version-shaped strings. A pack contains a display name and optional description. Tool and command IDs are scoped to their pack; input IDs are scoped to their command. Duplicate YAML mapping keys are rejected before schema decoding, and duplicate input IDs are rejected semantically.
+
+## 6. Platforms and tools
+
+Implemented platforms are metadata values:
+
+```text
+windows
+linux
+darwin
+```
+
+Each tool declares one or more executable **basenames**, for example:
 
 ```yaml
 tools:
-  example:
-    executableNames: [example.exe, example]
-    search:
-      path: true
-      configuredPaths: true
-    versionProbe:
-      args: [--version]
-      parser: semver-text
-    versionConstraint: ">=1.2.0 <2.0.0"
-    publisherHint: Optional publisher metadata
+  fixture:
+    executableNames: [fixture-cli, fixture-cli.exe]
 ```
 
-### Discovery rules
+Executable paths are not accepted. v1 also rejects known shells/general-purpose interpreters such as `cmd`, PowerShell, POSIX shells, script hosts, Python, Node, Ruby, and Perl. This is defense in depth; pack trust remains the primary control.
 
-- PATH search may be enabled.
-- User/admin path override may be allowed.
-- Packs cannot accept an executable path from a task input.
-- Multiple matches should be reported and resolved by policy/user configuration, not guessed silently.
+`versionConstraint` is retained as bounded metadata for Phase 3 discovery/version compatibility. Phase 2 does not probe binaries or interpret vendor version output.
 
-## 6. Command/task definition
+The browser must never choose an executable or executable path.
 
-A task is the unit shown to users.
+## 7. Commands and risk
 
-```yaml
-commands:
-  list-things:
-    name: List things
-    description: Lists accessible things.
-    tool: example
-    risk: read
-    argv:
-      - literal: thing
-      - literal: list
-      - flag:
-          name: --profile
-          valueFrom: profile
-          omitWhenEmpty: true
-      - flag:
-          name: --limit
-          valueFrom: limit
-    inputs:
-      - id: profile
-        type: string
-        label: Profile
-        required: false
-        validation:
-          maxLength: 100
-      - id: limit
-        type: integer
-        label: Limit
-        default: 100
-        validation:
-          min: 1
-          max: 1000
-    output:
-      mode: json
-      renderer: table
-```
+Each executable command requires:
 
-## 7. Input types
+- display name;
+- declared tool reference;
+- explicit risk classification;
+- at least one constrained argv mapping;
+- output metadata.
 
-Initial types:
-
-- `string`
-- `integer`
-- `boolean`
-- `enum`
-- `path` with explicit file/directory semantics
-- `multiselect`
-- `secret` only for future reviewed flows; prohibited in MVP packs by default
-
-Validation options may include:
-
-- required;
-- min/max;
-- minLength/maxLength;
-- enum choices;
-- regex with bounded/reviewed complexity;
-- allowed file extension;
-- path existence/type;
-- dependencies/mutual exclusions.
-
-Validation must run server-side even when duplicated in the browser.
-
-## 8. Argument construction primitives
-
-The schema should keep these intentionally limited:
-
-### Literal
-
-```yaml
-- literal: list
-```
-
-### Positional value
-
-```yaml
-- valueFrom: resourceId
-```
-
-### Flag with value
-
-```yaml
-- flag:
-    name: --profile
-    valueFrom: profile
-    omitWhenEmpty: true
-```
-
-### Boolean flag
-
-```yaml
-- switch:
-    name: --verbose
-    enabledFrom: verbose
-```
-
-### Enum-mapped literal
-
-```yaml
-- map:
-    valueFrom: mode
-    values:
-      safe: --safe
-      fast: --fast
-```
-
-Do not include generic interpolation like `"--flag={{userInput}}"` if it can be represented structurally.
-
-## 9. Environment variables
-
-Environment mutation is privileged and must be explicit.
-
-Example:
-
-```yaml
-environment:
-  inherit: true
-  set:
-    SOME_NON_SECRET_MODE:
-      literal: safe
-```
-
-For MVP:
-
-- browser input should not be able to set arbitrary environment variable names;
-- secret environment variables are not defined by pack files;
-- packs may allowlist known non-secret context variables if needed.
-
-## 10. Working directory
-
-Default to CLIHarbor's neutral runtime directory unless the wrapped CLI requires another location.
-
-If a task needs a working directory, the pack must define whether it is:
-
-- fixed;
-- repository root;
-- user-selected directory with path validation.
-
-A task must not use a user-controlled path as an executable.
-
-## 11. Risk model
-
-Required command risk field:
+Risk values are:
 
 ```text
 read
@@ -259,43 +122,93 @@ credential-sensitive
 interactive
 ```
 
-Additional metadata:
+The risk value is metadata in Phase 2. Backend enforcement of destructive confirmation belongs to the later planner/executor milestone and must not rely on frontend behavior.
+
+## 8. Implemented input types
+
+v1 supports:
+
+- `string`
+- `integer`
+- `boolean`
+- `enum`
+- `multiselect`
+
+Supported validation metadata includes numeric bounds, string length bounds, RE2-compatible patterns, enum values, and `disallowLeadingDash`.
+
+Semantic validation rejects incompatible combinations, such as numeric bounds on strings or regex constraints on integers. Enum and multiselect inputs require predefined values.
+
+`path` and `secret` input types are deliberately deferred. Their trust, path-normalization, disclosure, and credential-handling semantics require separate reviewed designs rather than being added speculatively.
+
+## 9. Implemented argument primitives
+
+v1 intentionally supports only four argument shapes.
+
+### Literal
 
 ```yaml
-confirmation:
-  required: true
-  style: typed-target
-  targetFrom: resourceId
+- literal: inspect
 ```
 
-`destructive` commands always require confirmation independent of frontend behavior; the backend enforces it.
+Literals are trusted pack-authored argv elements.
 
-## 12. Output definition
+### Flag with value
 
-Modes:
+```yaml
+- flag:
+    name: --limit
+    valueFrom: limit
+    omitWhenEmpty: true
+```
+
+The flag name is schema-constrained. It must reference a declared string, integer, or enum input. Optional values must use `omitWhenEmpty: true`. String/enum inputs used as flag values must declare `disallowLeadingDash: true`; enum choices that themselves begin with `-` are rejected.
+
+### Boolean switch
+
+```yaml
+- switch:
+    name: --verbose
+    enabledFrom: verbose
+```
+
+A switch must reference a declared boolean input. The browser controls only the boolean value; it does not supply the flag text.
+
+### Enum-mapped literal
+
+```yaml
+- map:
+    valueFrom: mode
+    values:
+      safe: --safe-mode
+      detailed: --detailed-mode
+```
+
+A map must reference a declared enum and define exactly one pack-authored literal for every allowed enum value. Extra/missing mapping keys fail validation.
+
+### Deliberately absent in v1
+
+Free-form positional `valueFrom`, shell strings, templated argument strings, browser-selected flag names, browser-selected subcommands, and browser-selected executables are not part of v1. A later positional-value primitive may be added only with planner/runtime semantics that prove one validated input becomes exactly one intended argv element without creating an undeclared flag/subcommand surface.
+
+## 10. Output metadata
+
+Implemented modes:
 
 ```text
 raw
 json
 ndjson
 delimited
-adapter
 ```
 
-Example:
+Optional renderer metadata is limited to:
 
-```yaml
-output:
-  mode: json
-  renderer: table
-  columns:
-    - path: .name
-      label: Name
-    - path: .type
-      label: Type
+```text
+raw
+table
+cards
 ```
 
-Output definitions must specify secret classification where a task can return sensitive values.
+Sensitivity metadata is:
 
 ```yaml
 sensitivity:
@@ -304,86 +217,131 @@ sensitivity:
   revealByDefault: false
 ```
 
-Structured rendering is optional. Raw output remains the ground truth when parsing fails.
+If `containsSecrets` is true, Phase 2 semantic validation rejects `persistRawOutput: true` and `revealByDefault: true`.
 
-## 13. Auth definition
+The future executor/renderer must still treat process output as untrusted data and implement redaction/escaping; pack metadata alone is not a security boundary.
 
-Auth should mostly point to adapter capabilities rather than encode credentials.
+`adapter` output mode and executable parser/plugin code are deliberately not implemented in v1.
 
-Conceptual example:
+## 11. Authentication requirement metadata
 
-```yaml
-auth:
-  adapter: idsec
-  statusTask: auth-status
-  login:
-    mode: external-interactive
-    tool: idsec
-    args: [login]
-  logout:
-    tool: idsec
-    args: [logout]
-```
-
-All exact commands must be validated against the target tool version.
-
-## 14. Composite workflows
-
-Later versions may allow a constrained sequence of existing tasks, e.g.:
+A command may declare:
 
 ```yaml
-workflows:
-  inspect-resource:
-    steps:
-      - task: get-resource
-      - task: list-permissions
+requirements:
+  requiresAuth: true
 ```
 
-Rules:
+This is declarative metadata only. Phase 2 does not capture credentials or implement vendor auth adapters. Vendor-owned authentication/session storage remains the architectural rule in `AUTHENTICATION.md`.
 
-- each step must reference a declared task;
-- no arbitrary script step;
-- outputs passed between steps use typed named fields;
-- every step retains its own risk/authorization policy;
-- a workflow cannot downgrade a destructive task to read-only.
+## 12. Structural validation
 
-Composite workflows are post-MVP unless required by the first real Idira flow.
+Phase 2 uses the embedded Draft 2020-12 schema to enforce, among other things:
 
-## 15. Pack compatibility
+- exact API/kind values;
+- required fields;
+- ID syntax;
+- supported risk/input/output enums;
+- collection/field length bounds;
+- strict unknown-field rejection;
+- executable-basename syntax;
+- constrained argument object shapes;
+- valid platform values;
+- typed object/array/scalar structure.
 
-Each pack declares:
+Before JSON Schema validation, the YAML boundary also rejects:
 
-- CLIHarbor schema/API version;
-- pack semantic version;
-- platform support;
-- tool version constraints.
+- invalid UTF-8;
+- files larger than 256 KiB;
+- multiple YAML documents;
+- aliases and anchors;
+- merge keys;
+- custom/unsupported YAML tags;
+- non-string mapping keys;
+- duplicate mapping keys;
+- excessive YAML depth/node count.
 
-CLIHarbor must reject unsupported schema major versions.
+## 13. Semantic/security validation
 
-## 16. Pack validation stages
+After structural validation, deterministic checks enforce:
 
-1. YAML parse.
-2. JSON Schema validation.
-3. semantic validation (unique IDs, references resolve, legal risk values).
-4. security validation (no forbidden executable/script patterns).
-5. tool discovery/version compatibility.
-6. command-plan validation before each run.
+- every command references a declared tool;
+- input IDs are unique within a command;
+- validation constraints match the input type;
+- regex patterns compile under Go/RE2 semantics;
+- argv mappings reference declared inputs of the expected type;
+- optional flag/value pairs cannot leave malformed layouts;
+- enum maps are complete and contain no undeclared enum keys;
+- user-derived string/enum flag values cannot begin with `-`;
+- executable declarations are basenames, not paths;
+- known shells/interpreters cannot be v1 tool executables;
+- secret-bearing output cannot request raw persistence/default revelation.
 
-## 17. Idira pack development rule
+Validation errors expose codes and schema/object paths where useful but avoid echoing supplied values. Explicit-local load errors display only the pack basename, not its directory path.
 
-Do not invent or assume command trees from memory. Generate the initial inventory by running approved help/version commands against the exact company versions, then encode only verified commands.
+## 14. Trust and loading model
 
-The pack should initially cover a small number of high-value workflows and expand piecemeal.
+Validation is not trust. Packs are privileged configuration.
 
-## 18. Future pack marketplace/community model
+Phase 2 supports two explicit source classes:
 
-A public pack ecosystem is a potential later direction, but it requires:
+1. `builtin`: bytes supplied directly by trusted application code;
+2. `explicit-local`: paths/directories deliberately supplied by a trusted caller.
 
-- signatures;
-- publisher identity;
-- capability declarations;
-- static security linting;
-- review/update policy;
-- clear trust UI.
+The loader does **not**:
 
-None of those are MVP dependencies.
+- scan the current working directory;
+- automatically trust repository-local `packs/` content;
+- recurse through arbitrary directories;
+- follow pack-file/directory symlinks;
+- load HTTP/HTTPS URLs;
+- auto-download packs;
+- execute plugin code.
+
+Local file reads are size-bounded and verify the opened file identity/size around the read. Directory entries are sorted, only direct `.yaml`/`.yml` regular files are considered, and duplicate input paths/pack IDs fail the whole load.
+
+## 15. Registry/runtime representation
+
+A successful load returns an effectively immutable `Registry`:
+
+- packs are deterministically sorted by stable pack ID;
+- duplicate pack IDs are rejected;
+- pack/tool/command lookups use stable IDs;
+- tool/command enumerations are sorted;
+- accessors return deep copies so callers cannot mutate authoritative validated state through returned slices/maps/pointers.
+
+There is no global mutable pack registry.
+
+## 16. Validation stages
+
+Implemented now:
+
+1. bounded UTF-8/YAML parsing;
+2. v1 JSON Schema validation;
+3. semantic cross-reference/type validation;
+4. execution-shape/security validation;
+5. trusted-source deterministic loading;
+6. immutable/effectively immutable registry creation.
+
+Deferred:
+
+7. tool discovery/version compatibility (Phase 3);
+8. typed request validation and deterministic execution-plan construction;
+9. process execution;
+10. output parsing/rendering and auth orchestration.
+
+## 17. Idira/CyberArk development rule
+
+Do not invent or assume command trees from memory. Generate the initial inventory by running approved help/version commands against the exact deployed company versions, then encode only verified commands. The synthetic example pack must never be treated as vendor evidence.
+
+## 18. Future extensions
+
+Potential later additions include path/secret inputs, working-directory/environment policies, constrained positional values, richer output column metadata, auth adapters, composite workflows, signatures/publisher identity, and a reviewed pack distribution model.
+
+Each extension must preserve the central invariant:
+
+```text
+trusted validated pack -> validated typed inputs -> deterministic plan -> exact executable + argv[]
+```
+
+A future feature must not turn packs or the browser into a generic arbitrary-command web shell.
