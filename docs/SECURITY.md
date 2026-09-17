@@ -16,6 +16,7 @@ The security objective is not merely “localhost = safe.” The browser, local 
 - Integrity of CLIHarbor packs and command definitions.
 - Integrity of user intent for mutating/destructive commands.
 - Diagnostic/run metadata.
+- CLIHarbor browser-session and CSRF material.
 
 ## 3. Trust boundaries
 
@@ -36,6 +37,7 @@ The security objective is not merely “localhost = safe.” The browser, local 
 - Environment variables.
 - PATH ordering.
 - Repository-local files in an untrusted checkout.
+- Development frontend/Vite process and its responses.
 - Future third-party packs.
 - Any web content opened in the same browser.
 
@@ -76,6 +78,8 @@ Sensitive values must not be placed in:
 - analytics;
 - crash telemetry;
 - persisted run history.
+
+The one-time local browser bootstrap token is the narrow exception to the general URL rule: it exists only in a short-lived loopback bootstrap URL, is single-use, and is immediately exchanged for a host-only HttpOnly session cookie followed by a redirect to a clean URL.
 
 ### SI-6 Packs are privileged
 
@@ -149,11 +153,17 @@ Pack changes are equivalent to changing executable permissions. They require rev
 
 ### T11 — Browser bootstrap token exposure
 
-**Mitigation:** short-lived single-use secret; exchange immediately for session state; redirect to clean URL; avoid writing bootstrap URLs to logs unless redacted.
+**Mitigation:** short-lived single-use secret; exchange immediately for session state; redirect to clean URL; do not print the token on successful automatic browser launch. Print the bootstrap URL only as an explicit local recovery path when browser launch fails.
 
 ### T12 — Local privilege boundary confusion
 
 CLIHarbor executes as the current user. It must not silently elevate. If an underlying CLI requires elevation, surface that clearly and fail rather than attempting hidden privilege escalation.
+
+### T13 — Development frontend proxy receives session authority
+
+**Threat:** a local Vite/development frontend process receives CLIHarbor's HttpOnly browser-session cookie, authorization headers, CSRF material, or sets cookies onto CLIHarbor's authenticated origin through the reverse proxy.
+
+**Mitigation:** development proxy targets are restricted to an explicit `http://127.0.0.1:<port>` origin; CLIHarbor strips cookies, authorization/proxy-authorization, and its CSRF header before forwarding; `Set-Cookie` is removed from development responses. `/bootstrap` and `/api/*` remain server-owned and never fall through to the frontend proxy.
 
 ## 6. Authentication-specific rules
 
@@ -185,6 +195,7 @@ Key rules:
 
 - passwords/MFA codes;
 - access/refresh tokens;
+- browser-session or CSRF tokens;
 - raw secret values;
 - full environment blocks;
 - secret-bearing stdout/stderr;
@@ -212,6 +223,8 @@ Candidate safe settings:
 - no third-party analytics by default;
 - output rendered as escaped text/data;
 - dependencies pinned and scanned;
+- production assets embedded locally and checked for source/build drift in CI;
+- development frontend proxy never receives CLIHarbor session/auth/CSRF credentials;
 - minimize dangerous clipboard auto-copy behavior;
 - visually distinguish secret values and destructive actions.
 
@@ -233,6 +246,7 @@ Required before MVP release:
 - attempt cross-origin localhost POST from another origin;
 - attempt forged Host/Origin headers;
 - verify bootstrap token expiry/single use;
+- verify development proxy strips CLIHarbor session/auth/CSRF headers and response cookies;
 - feed script/HTML payloads through stdout/stderr and parsed fields;
 - verify secret fields are absent from logs/history/errors;
 - verify pack schema rejects arbitrary executable/argument injection patterns;
