@@ -26,6 +26,8 @@ const (
 	ErrMissingInput     ErrorCode = "missing_input"
 	ErrInvalidInput     ErrorCode = "invalid_input"
 	ErrRiskPolicy       ErrorCode = "risk_policy_required"
+	ErrAuthPolicy       ErrorCode = "auth_policy_required"
+	ErrOutputPolicy     ErrorCode = "output_policy_required"
 	ErrInvalidPlanState ErrorCode = "invalid_plan_state"
 )
 
@@ -90,6 +92,12 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 	}
 	if command.Risk != packs.RiskRead {
 		return zero, &Error{Code: ErrRiskPolicy, Path: "commandId", Message: "this execution milestone permits read-only commands only"}
+	}
+	if command.Requirements.RequiresAuth {
+		return zero, &Error{Code: ErrAuthPolicy, Path: "commandId", Message: "authenticated commands remain disabled until the auth adapter exists"}
+	}
+	if command.Output.Sensitivity.ContainsSecrets {
+		return zero, &Error{Code: ErrOutputPolicy, Path: "commandId", Message: "secret-bearing commands remain disabled until output redaction/reveal policy exists"}
 	}
 
 	toolState, ok := snapshot.Find(discovery.ToolRef{PackID: request.PackID, ToolID: command.Tool})
@@ -246,6 +254,9 @@ func parseValue(input packs.Input, raw json.RawMessage) (value, error) {
 }
 
 func validateString(input packs.Input, text, path string) error {
+	if strings.ContainsRune(text, '\x00') {
+		return &Error{Code: ErrInvalidInput, Path: path, Message: "input cannot contain NUL"}
+	}
 	length := utf8.RuneCountInString(text)
 	if input.Validation.MinLength != nil && length < *input.Validation.MinLength {
 		return &Error{Code: ErrInvalidInput, Path: path, Message: "string is shorter than the allowed minimum"}
