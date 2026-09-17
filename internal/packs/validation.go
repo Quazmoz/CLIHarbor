@@ -456,6 +456,9 @@ func validateArgument(arg Argument, inputs map[string]Input, path string) error 
 		if input.Type != InputEnum {
 			return validationError(ErrSemantic, path+".map.valueFrom", "mapped literals must reference enum inputs")
 		}
+		if !input.Required {
+			return validationError(ErrSemantic, path+".map.valueFrom", "mapped enum inputs must be required so argument layout remains deterministic")
+		}
 		allowed := make(map[string]struct{}, len(input.Validation.Enum))
 		for _, value := range input.Validation.Enum {
 			allowed[value] = struct{}{}
@@ -477,10 +480,14 @@ func validateArgument(arg Argument, inputs map[string]Input, path string) error 
 }
 
 func isForbiddenExecutable(name string) bool {
-	name = strings.ToLower(name)
-	name = strings.TrimSuffix(name, ".exe")
-	switch name {
-	case "cmd", "powershell", "pwsh", "sh", "bash", "zsh", "fish", "wscript", "cscript", "python", "python3", "node", "ruby", "perl":
+	lower := strings.ToLower(name)
+	switch filepath.Ext(lower) {
+	case ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta":
+		return true
+	}
+	base := strings.TrimSuffix(lower, ".exe")
+	switch base {
+	case "cmd", "powershell", "pwsh", "sh", "bash", "zsh", "fish", "wscript", "cscript", "python", "python3", "node", "ruby", "perl", "mshta", "rundll32", "regsvr32", "wsl":
 		return true
 	default:
 		return false
