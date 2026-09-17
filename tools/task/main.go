@@ -64,7 +64,7 @@ func findRepoRoot() (string, error) {
 	}
 	for {
 		content, readErr := os.ReadFile(filepath.Join(dir, "go.mod"))
-		if readErr == nil && strings.HasPrefix(string(content), moduleLine+"\n") {
+		if readErr == nil && hasExpectedModuleLine(content) {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
@@ -73,6 +73,14 @@ func findRepoRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+func hasExpectedModuleLine(content []byte) bool {
+	firstLine := string(content)
+	if end := strings.IndexAny(firstLine, "\r\n"); end >= 0 {
+		firstLine = firstLine[:end]
+	}
+	return strings.TrimSpace(firstLine) == moduleLine
 }
 
 func npmCommand() string {
