@@ -20,7 +20,6 @@ export function App() {
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
 
   const loadStatus = useCallback(async (signal?: AbortSignal) => {
-    setState({ kind: 'loading' });
     try {
       const status = await fetchRuntimeStatus(signal);
       setState({ kind: 'ready', status });
@@ -32,6 +31,11 @@ export function App() {
       setState({ kind: 'error', ...detail });
     }
   }, []);
+
+  const retryStatus = () => {
+    setState({ kind: 'loading' });
+    void loadStatus();
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -73,7 +77,7 @@ export function App() {
             <h2>{state.sessionUnavailable ? 'Browser session unavailable' : 'Runtime status unavailable'}</h2>
             <p>{state.message}</p>
             {!state.sessionUnavailable && (
-              <button type="button" onClick={() => void loadStatus()}>
+              <button type="button" onClick={retryStatus}>
                 Retry status check
               </button>
             )}
