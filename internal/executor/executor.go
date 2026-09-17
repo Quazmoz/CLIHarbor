@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,9 +19,10 @@ import (
 )
 
 const (
-	defaultTimeout       = 30 * time.Second
-	defaultChunkBytes    = 16 << 10
-	defaultMaxOutput     = 2 << 20
+	defaultTimeout    = 30 * time.Second
+	defaultWaitDelay  = 2 * time.Second
+	defaultChunkBytes = 16 << 10
+	defaultMaxOutput  = 2 << 20
 )
 
 type Status string
@@ -37,11 +37,13 @@ const (
 type EventType string
 
 const (
-	EventStarted EventType = "run.started"
-	EventStdout  EventType = "stdout.chunk"
-	EventStderr  EventType = "stderr.chunk"
-	EventExited  EventType = "run.exited"
-	EventFailed  EventType = "run.failed"
+	EventStarted   EventType = "run.started"
+	EventStdout    EventType = "stdout.chunk"
+	EventStderr    EventType = "stderr.chunk"
+	EventExited    EventType = "run.exited"
+	EventCancelled EventType = "run.cancelled"
+	EventTimedOut  EventType = "run.timed-out"
+	EventFailed    EventType = "run.failed"
 )
 
 type Event struct {
@@ -62,6 +64,7 @@ func (f SinkFunc) Emit(event Event) error { return f(event) }
 
 type Config struct {
 	Timeout                 time.Duration
+	WaitDelay               time.Duration
 	ChunkBytes              int
 	MaxOutputBytesPerStream int64
 	Now                     func() time.Time
@@ -70,6 +73,7 @@ type Config struct {
 
 type Executor struct {
 	timeout                 time.Duration
+	waitDelay               time.Duration
 	chunkBytes              int
 	maxOutputBytesPerStream int64
 	now                     func() time.Time
@@ -90,7 +94,6 @@ const (
 	ErrInvalidPlan ErrorCode = "invalid_plan"
 	ErrStart       ErrorCode = "start_failed"
 	ErrOutputLimit ErrorCode = "output_limit"
-	ErrStream      ErrorCode = "stream_failed"
 	ErrSink        ErrorCode = "sink_failed"
 	ErrWait        ErrorCode = "wait_failed"
 )
@@ -106,6 +109,9 @@ func New(config Config) *Executor {
 	if config.Timeout <= 0 {
 		config.Timeout = defaultTimeout
 	}
+	if config.WaitDelay <= 0 {
+		config.WaitDelay = defaultWaitDelay
+	}
 	if config.ChunkBytes <= 0 || config.ChunkBytes > defaultMaxOutput {
 		config.ChunkBytes = defaultChunkBytes
 	}
@@ -119,11 +125,12 @@ func New(config Config) *Executor {
 		config.NewRunID = randomRunID
 	}
 	return &Executor{
-		timeout: config.Timeout,
-		chunkBytes: config.ChunkBytes,
+		timeout:                 config.Timeout,
+		waitDelay:               config.WaitDelay,
+		chunkBytes:              config.ChunkBytes,
 		maxOutputBytesPerStream: config.MaxOutputBytesPerStream,
-		now: config.Now,
-		newRunID: config.NewRunID,
+		now:                     config.Now,
+		newRunID:                config.NewRunID,
 	}
 }
 
@@ -155,53 +162,39 @@ func (e *Executor) Run(ctx context.Context, plan planner.Plan, sink Sink) (Resul
 	}
 	defer func() { _ = os.RemoveAll(workdir) }()
 
+	state := &streamState{sink: sink, cancel: cancel, now: e.now, runID: runID}
+	startedGate := make(chan struct{})
 	cmd := exec.CommandContext(runCtx, plan.ExecutablePath, plan.Args...)
 	cmd.Dir = workdir
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return Result{}, &Error{Code: ErrStart, Message: "open stdout stream"}
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return Result{}, &Error{Code: ErrStart, Message: "open stderr stream"}
-	}
+	cmd.WaitDelay = e.waitDelay
+	cmd.Stdout = &eventWriter{state: state, eventType: EventStdout, started: startedGate, chunkBytes: e.chunkBytes, maxBytes: e.maxOutputBytesPerStream}
+	cmd.Stderr = &eventWriter{state: state, eventType: EventStderr, started: startedGate, chunkBytes: e.chunkBytes, maxBytes: e.maxOutputBytesPerStream}
 
-	started := e.now().UTC()
 	if err := cmd.Start(); err != nil {
-		return Result{RunID: runID, Status: StatusFailed, StartedAt: started, EndedAt: e.now().UTC(), ExitCode: -1}, &Error{Code: ErrStart, Message: "start planned executable"}
+		now := e.now().UTC()
+		return Result{RunID: runID, Status: StatusFailed, StartedAt: now, EndedAt: now, ExitCode: -1}, &Error{Code: ErrStart, Message: "start planned executable"}
 	}
-
-	state := &streamState{sink: sink, cancel: cancel, now: e.now, runID: runID}
+	started := e.now().UTC()
 	if err := state.emit(Event{RunID: runID, Type: EventStarted, Timestamp: started}); err != nil {
-		_ = cmd.Process.Kill()
+		cancel()
+		close(startedGate)
 		_ = cmd.Wait()
 		return Result{RunID: runID, Status: StatusFailed, StartedAt: started, EndedAt: e.now().UTC(), ExitCode: -1}, err
 	}
+	close(startedGate)
 
-	var readers sync.WaitGroup
-	readers.Add(2)
-	go func() {
-		defer readers.Done()
-		e.readStream(state, stdout, EventStdout)
-	}()
-	go func() {
-		defer readers.Done()
-		e.readStream(state, stderr, EventStderr)
-	}()
-	readers.Wait()
 	waitErr := cmd.Wait()
 	ended := e.now().UTC()
 
 	if streamErr := state.err(); streamErr != nil {
-		_ = state.emit(Event{RunID: runID, Type: EventFailed, Timestamp: ended})
 		return Result{RunID: runID, Status: StatusFailed, StartedAt: started, EndedAt: ended, ExitCode: -1}, streamErr
 	}
 	if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
-		_ = state.emit(Event{RunID: runID, Type: EventFailed, Timestamp: ended})
+		_ = state.emit(Event{RunID: runID, Type: EventTimedOut, Timestamp: ended})
 		return Result{RunID: runID, Status: StatusTimedOut, StartedAt: started, EndedAt: ended, ExitCode: -1}, nil
 	}
 	if errors.Is(runCtx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
-		_ = state.emit(Event{RunID: runID, Type: EventFailed, Timestamp: ended})
+		_ = state.emit(Event{RunID: runID, Type: EventCancelled, Timestamp: ended})
 		return Result{RunID: runID, Status: StatusCancelled, StartedAt: started, EndedAt: ended, ExitCode: -1}, nil
 	}
 
@@ -221,30 +214,40 @@ func (e *Executor) Run(ctx context.Context, plan planner.Plan, sink Sink) (Resul
 	return Result{RunID: runID, Status: StatusExited, StartedAt: started, EndedAt: ended, ExitCode: exitCode}, nil
 }
 
-func (e *Executor) readStream(state *streamState, reader io.Reader, eventType EventType) {
-	buffer := make([]byte, e.chunkBytes)
-	var total int64
-	for {
-		n, err := reader.Read(buffer)
-		if n > 0 {
-			total += int64(n)
-			if total > e.maxOutputBytesPerStream {
-				state.fail(&Error{Code: ErrOutputLimit, Message: "process output exceeded the configured per-stream limit"})
-				return
-			}
-			chunk := append([]byte(nil), buffer[:n]...)
-			if emitErr := state.emit(Event{RunID: state.runID, Type: eventType, Timestamp: e.now().UTC(), Data: chunk}); emitErr != nil {
-				return
-			}
-		}
-		if errors.Is(err, io.EOF) {
-			return
-		}
-		if err != nil {
-			state.fail(&Error{Code: ErrStream, Message: "read process output stream"})
-			return
-		}
+type eventWriter struct {
+	mu        sync.Mutex
+	state     *streamState
+	eventType EventType
+	started   <-chan struct{}
+	chunkBytes int
+	maxBytes  int64
+	total     int64
+}
+
+func (w *eventWriter) Write(p []byte) (int, error) {
+	<-w.started
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	original := len(p)
+	if w.total+int64(len(p)) > w.maxBytes {
+		err := &Error{Code: ErrOutputLimit, Message: "process output exceeded the configured per-stream limit"}
+		w.state.fail(err)
+		return 0, err
 	}
+	w.total += int64(len(p))
+	for len(p) > 0 {
+		n := w.chunkBytes
+		if len(p) < n {
+			n = len(p)
+		}
+		chunk := append([]byte(nil), p[:n]...)
+		if err := w.state.emit(Event{RunID: w.state.runID, Type: w.eventType, Timestamp: w.state.now().UTC(), Data: chunk}); err != nil {
+			return 0, err
+		}
+		p = p[n:]
+	}
+	return original, nil
 }
 
 type streamState struct {
