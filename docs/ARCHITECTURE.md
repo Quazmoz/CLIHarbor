@@ -12,13 +12,13 @@ Browser UI
    | loopback HTTP + streaming events
    v
 CLIHarbor local runtime
-   |- pack loader / schema validator
-   |- tool discovery / version probe
-   |- command planner / validation
-   |- process executor
-   |- auth state adapter
-   |- output parsers / redaction
-   |- run metadata
+   |- pack loader / schema validator       [foundation implemented]
+   |- tool discovery / version probe       [planned]
+   |- command planner / validation          [planned]
+   |- process executor                      [planned]
+   |- auth state adapter                    [planned]
+   |- output parsers / redaction            [planned]
+   |- run metadata                          [planned]
    v
 Approved local CLI binary (idsec.exe, conjur.exe, ...)
    |
@@ -30,7 +30,7 @@ Vendor service / existing auth/session model
 
 ### MVP
 
-One local executable starts a loopback server, serves embedded frontend assets, opens the user's default browser, and executes approved local CLI processes as the current user.
+One local executable starts a loopback server, serves embedded frontend assets, opens the user's default browser, and will execute approved local CLI processes as the current user once the planner/executor milestones are implemented.
 
 No daemon, Windows service, cloud server, external database, or privileged helper is required.
 
@@ -52,7 +52,7 @@ Initial default because it offers:
 
 - self-contained Windows binaries;
 - strong standard-library HTTP/process primitives;
-- straightforward `embed` support for frontend assets;
+- straightforward `embed` support for frontend assets and schemas;
 - low runtime overhead;
 - good fit for adding a subcommand to another CLI or shipping a companion binary;
 - cross-platform portability later.
@@ -65,7 +65,9 @@ Development uses a loopback-only Vite server behind an explicit Go reverse-proxy
 
 ### Packs: YAML + JSON Schema
 
-Human-authored YAML is appropriate for command/workflow definitions; JSON Schema provides deterministic validation and tooling. Packs should carry an explicit schema version.
+Human-authored YAML is used for trusted command definitions. `schemas/pack.v1.schema.json` is the implemented Draft 2020-12 structural contract for `cliharbor.dev/v1`; `internal/packs` adds YAML hardening, semantic/security validation, trusted-source loading, and the runtime registry.
+
+YAML validation is deliberately stricter than generic YAML parsing: aliases/anchors/merge keys/custom tags/multiple documents/duplicate keys are rejected, and size/depth/node-count limits are applied before a pack can become authoritative.
 
 ## 4. Backend package boundaries
 
@@ -77,29 +79,29 @@ internal/app/              # application lifecycle / dependency wiring
 internal/server/           # HTTP routes, browser bootstrap, origin checks
 internal/webui/            # embedded frontend + constrained dev reverse proxy
 internal/platform/browser/ # platform default-browser launch boundary
-internal/packs/            # pack loading, schema validation, versioning
-internal/discovery/        # PATH lookup, configured binary paths, version probes
-internal/planner/          # form input -> validated execution plan
-internal/executor/         # process start/stream/cancel/timeout
-internal/auth/             # auth-state adapters and login launch orchestration
-internal/output/           # parsers, structured rendering models
-internal/redact/           # secret-safe diagnostics and invocation views
-internal/runs/             # run state and metadata
+internal/packs/            # IMPLEMENTED: pack model/validation/loading/registry
+internal/discovery/        # planned: PATH lookup, configured binary paths, version probes
+internal/planner/          # planned: form input -> validated execution plan
+internal/executor/         # planned: process start/stream/cancel/timeout
+internal/auth/             # planned: auth-state adapters and login launch orchestration
+internal/output/           # planned: parsers, structured rendering models
+internal/redact/           # planned: secret-safe diagnostics and invocation views
+internal/runs/             # planned: run state and metadata
 tools/task/                # cross-platform repository build/validation entry point
 web/                       # React application source
-packs/                     # built-in CLI packs
-schemas/                   # pack schema(s)
+packs/                     # pack fixtures/built-in pack sources; no cwd auto-trust
+schemas/                   # IMPLEMENTED: embedded pack schema(s)
 ```
 
-Avoid placing vendor-specific behavior in generic packages. Idira/CyberArk-specific logic belongs in its pack or a narrowly-scoped adapter.
+Avoid placing vendor-specific behavior in generic packages. Idira/CyberArk-specific logic belongs in a verified pack or a narrowly-scoped adapter.
 
 ## 5. Server lifecycle
 
 Target lifecycle:
 
 1. Parse CLIHarbor's own flags.
-2. Load trusted built-in/local packs.
-3. Validate schemas and compatibility.
+2. Select explicitly trusted pack sources and load them.
+3. Validate pack schemas/semantics/compatibility metadata.
 4. Resolve required executables and probe versions.
 5. Bind an ephemeral port on loopback.
 6. Generate unpredictable per-launch bootstrap, session, and CSRF secrets.
@@ -109,7 +111,7 @@ Target lifecycle:
 10. Redirect immediately to `/` so the bootstrap token is removed from the navigable URL/history.
 11. Serve UI/API until shutdown.
 
-Phase 1 currently implements steps 1 and 5-11. Pack loading and tool discovery are intentionally deferred to later phases and will be inserted before browser launch as those components become authoritative.
+Phase 1 implements steps 1 and 5-11. Phase 2 implements the pack component required by steps 2-3, but it is deliberately not auto-wired to repository-local files or command execution. A trusted caller can load built-in bytes or explicitly named local files/directories into a validated registry. Startup integration should occur when the application has an explicit pack-source configuration contract; launching CLIHarbor from a checkout must never silently grant that checkout execution authority.
 
 The runtime binds specifically to IPv4 loopback (`127.0.0.1`) today. Do not bind `0.0.0.0` by default.
 
@@ -142,28 +144,53 @@ POST /api/v1/auth/{tool}/logout
 GET  /api/v1/auth/{tool}/status
 ```
 
-The browser sends task IDs and typed field values, never arbitrary executable names or free-form command strings.
+Phase 2 does not expose pack HTTP endpoints. The internal registry is the future API/planner source of already-validated metadata.
 
-The runtime resolves task -> pack definition -> executable/argument vector.
+The browser sends task IDs and typed field values, never arbitrary executable names, executable paths, flag names, or free-form command strings.
 
-## 7. Execution planning
+The future runtime resolves task -> validated pack definition -> deterministic executable/argument vector.
 
-Execution is two-phase:
+## 7. Pack foundation
+
+The Phase 2 pack path is:
+
+```text
+trusted source bytes/file
+  -> bounded UTF-8 + hardened single-document YAML parse
+  -> supported API-version check
+  -> embedded JSON Schema validation
+  -> deterministic semantic/security validation
+  -> deep-copied Registry
+```
+
+The registry:
+
+- sorts packs by stable pack ID;
+- rejects duplicate pack IDs;
+- provides deterministic pack/tool/command enumeration and lookup;
+- returns deep copies so callers cannot mutate authoritative validated state;
+- contains no global mutable registry.
+
+The implemented v1 argv model admits only trusted literals, named flags fed by declared scalar inputs, boolean switches, and enum-to-pack-literal maps. It does not admit executable selection, generic interpolation, or free-form positional user input.
+
+## 8. Execution planning
+
+Execution is future two-phase work:
 
 ### Plan
 
-The planner validates:
+The planner will validate:
 
-- pack/task existence;
-- compatible tool version;
-- field types and constraints;
+- pack/task existence in the validated registry;
+- compatible discovered tool version;
+- browser field types and constraints;
 - required/optional flags;
-- mutually-exclusive values;
+- mutually-exclusive values where later supported;
 - risk policy;
-- working-directory/environment allowlists;
+- working-directory/environment allowlists where later supported;
 - redaction classification.
 
-It emits an immutable `ExecutionPlan` conceptually like:
+It should emit an immutable `ExecutionPlan` conceptually like:
 
 ```text
 runID
@@ -184,9 +211,11 @@ outputMode
 
 The executor accepts only an already-validated plan. It must not reinterpret browser input.
 
-## 8. Process invocation
+Phase 2 does not build plans or spawn processes.
 
-For ordinary commands:
+## 9. Process invocation
+
+For ordinary commands, the future executor should use the equivalent of:
 
 ```go
 exec.CommandContext(ctx, executablePath, args...)
@@ -194,13 +223,13 @@ exec.CommandContext(ctx, executablePath, args...)
 
 Do not translate this to a shell command string.
 
-PowerShell/CMD support is reserved for explicit pack types where a script itself is the intended executable and the security implications are reviewed. Even then, arguments must be structured and constrained.
+The v1 pack validator proactively rejects common shells/general-purpose interpreters as tool executable declarations. This is defense in depth and does not replace the pack trust model.
 
 On Windows, cancellation should account for descendant processes. A Windows Job Object or equivalent process-tree strategy should be evaluated for reliable cleanup.
 
-## 9. Streaming model
+## 10. Streaming model
 
-The executor emits normalized events:
+The executor is expected to emit normalized events:
 
 ```text
 run.started
@@ -217,7 +246,7 @@ SSE is preferable for MVP if communication is primarily server -> browser. WebSo
 
 Output chunks must have bounded buffering/backpressure behavior to avoid memory exhaustion from noisy commands.
 
-## 10. Output parsing
+## 11. Output parsing
 
 Prefer native machine-readable output from the wrapped CLI, especially JSON.
 
@@ -230,11 +259,13 @@ Parsing hierarchy:
 
 Never silently transform parse failures into empty/incorrect tables. Preserve raw output and surface a parser warning.
 
-## 11. Authentication architecture
+Phase 2 stores only output-mode/renderer/sensitivity metadata. It does not implement output parsing or adapters.
+
+## 12. Authentication architecture
 
 Authentication is adapter-driven but vendor-owned.
 
-The runtime may:
+The runtime may eventually:
 
 - query auth/session status through documented CLI commands;
 - invoke the CLI's login/logout flows;
@@ -249,35 +280,38 @@ The runtime should not:
 - copy access tokens into frontend state;
 - read OS keystore contents merely to make login look more integrated.
 
+The pack v1 model includes only `requirements.requiresAuth` metadata. It contains no credential values or auth scripts.
+
 A future embedded PTY must be treated as a security-sensitive feature, not a convenience refactor.
 
-## 12. Pack trust model
+## 13. Pack trust model
 
-Packs are privileged configuration because they can define which local executables and arguments are allowed.
+Packs are privileged configuration because they can define future executable/argument authority. Validation proves shape and invariants; it does not make an untrusted pack trusted.
 
-MVP trust sources:
+Implemented Phase 2 source classes:
 
-- built-in pack compiled/shipped with CLIHarbor;
-- repository-local pack explicitly loaded in development;
-- administrator-approved local pack directory in future.
+- **built-in:** bytes explicitly supplied by trusted application code;
+- **explicit-local:** specific local pack files/directories deliberately supplied by a trusted caller.
 
-Remote pack installation/update is out of MVP scope.
+Explicit-local directory loading is non-recursive and deterministic. Symlink pack files/directories and non-regular YAML entries are rejected. Reads are bounded to 256 KiB per pack and checked around the open/read boundary.
 
-Future pack distribution should require integrity/signature verification and a permission/capability model.
+The loader does not scan the current working directory, auto-load repository-local packs, follow remote URLs, auto-download content, or execute pack/plugin code. `packs/example/pack.yaml` is a synthetic repository fixture and acquires no authority merely by existing in the checkout.
 
-## 13. State and persistence
+Remote pack installation/update is out of MVP scope. Future pack distribution should require integrity/signature verification and a permission/capability model.
+
+## 14. State and persistence
 
 MVP should avoid a database.
 
 Potential state:
 
-- runtime memory: active runs, session bootstrap state;
-- local config file: non-secret settings such as binary path overrides and UI preferences;
+- runtime memory: validated pack registry, active runs, session bootstrap state;
+- local config file: non-secret settings such as explicitly approved pack/binary paths and UI preferences;
 - optional local diagnostics/history file: redacted metadata only, disabled or minimal by default until retention requirements are agreed.
 
 Never persist secret field values.
 
-## 14. Browser launch and frontend serving
+## 15. Browser launch and frontend serving
 
 Use the OS default browser. Do not bundle Chromium/Electron.
 
@@ -293,25 +327,27 @@ Development may be enabled only with an explicit `--web-dev-url http://127.0.0.1
 
 The browser continues to use the CLIHarbor loopback origin and authenticated session. Requests forwarded to Vite have CLIHarbor session/authentication headers stripped, including cookies, authorization headers, and the CSRF header. `Set-Cookie` returned by the development server is also removed before it reaches the browser. This prevents the development server from becoming a holder or setter of CLIHarbor browser-session material.
 
-## 15. Extensibility
+## 16. Extensibility
 
 The engine should support most new CLIs through packs. Add code adapters only when a CLI requires behavior that cannot be expressed safely in the schema, such as:
 
 - nontrivial auth-state discovery;
 - complex output parsing;
 - special process lifecycle;
-- pre/post execution transformations.
+- tightly reviewed pre/post execution transformations.
 
 Adapters should have explicit interfaces and tests; they must not gain unrestricted arbitrary execution hooks.
 
-## 16. Architecture quality gates
+## 17. Architecture quality gates
 
 Before calling the MVP architecture complete:
 
 - no browser-controlled arbitrary executable or shell-string endpoint exists;
 - loopback binding and anti-CSRF/origin controls are tested;
-- pack schema validation is mandatory before execution;
-- process cancellation works on Windows;
+- pack schema + semantic validation are mandatory before future planning/execution;
+- untrusted repository-local files do not automatically become pack authority;
+- deterministic pack loading/duplicate handling is tested;
+- process cancellation works on Windows once execution exists;
 - secrets are redacted in logs, previews, and errors;
-- raw output survives parser failure;
-- a second synthetic CLI pack proves the core is not hard-wired to Idira/CyberArk.
+- raw output survives parser failure once parsing exists;
+- a second synthetic CLI pack can prove the core is not hard-wired to Idira/CyberArk when the planner/UI reach that stage.
