@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchRuntimeStatus, SessionUnavailableError, type RuntimeStatus } from './api/status';
 
 type ViewState =
@@ -16,32 +16,33 @@ function errorMessage(error: unknown): { message: string; sessionUnavailable: bo
   return { message: 'CLIHarbor could not load local runtime status.', sessionUnavailable: false };
 }
 
+function isAbort(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
 export function App() {
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
 
-  const loadStatus = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const status = await fetchRuntimeStatus(signal);
-      setState({ kind: 'ready', status });
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return;
-      }
-      const detail = errorMessage(error);
-      setState({ kind: 'error', ...detail });
-    }
-  }, []);
-
   const retryStatus = () => {
     setState({ kind: 'loading' });
-    void loadStatus();
+    void fetchRuntimeStatus().then(
+      (status) => setState({ kind: 'ready', status }),
+      (error: unknown) => setState({ kind: 'error', ...errorMessage(error) }),
+    );
   };
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadStatus(controller.signal);
+    void fetchRuntimeStatus(controller.signal).then(
+      (status) => setState({ kind: 'ready', status }),
+      (error: unknown) => {
+        if (!isAbort(error)) {
+          setState({ kind: 'error', ...errorMessage(error) });
+        }
+      },
+    );
     return () => controller.abort();
-  }, [loadStatus]);
+  }, []);
 
   return (
     <div className="app-shell">
