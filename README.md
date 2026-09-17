@@ -12,7 +12,7 @@ The long-term product is broader: a reusable local UI engine that can expose man
 - **Local-first.** The default server binds only to loopback and the UI runs in the user's browser.
 - **No credential vault.** Authentication should remain owned by the wrapped CLI and operating-system facilities whenever possible.
 - **No shell-string execution.** Commands are represented as executable + argument arrays and started directly.
-- **Useful before generic.** The first pack is Idira/CyberArk. The generic pack system evolves from real workflows rather than speculative abstraction.
+- **Useful before generic.** The first real pack will be Idira/CyberArk after deployed command inventory is verified. The generic pack system evolves from real workflows rather than speculative abstraction.
 - **Easy to adopt.** A developer should be able to clone the repository, run one development command, and open the UI. A packaged release should be a single local executable where practical.
 - **Safe for enterprise use.** Local binding, command allowlists, input validation, output redaction, auditability, and explicit handling of destructive operations are first-class requirements.
 
@@ -37,7 +37,7 @@ The first product slice will:
 - **Frontend:** React + TypeScript + Vite
 - **Distribution target:** frontend embedded into the Go binary
 - **Transport:** loopback HTTP; streaming transport will be added when execution arrives
-- **Pack format:** planned versioned YAML with JSON Schema validation
+- **Pack format:** versioned YAML (`cliharbor.dev/v1`) validated against the embedded JSON Schema plus deterministic semantic/security checks
 - **Execution:** planned Go `os/exec` using executable + argument arrays; never concatenate untrusted input into a shell command
 
 Go is used for the standalone runtime because it produces a small self-contained Windows executable, has strong process/HTTP primitives, is easy to embed into an existing CLI, and keeps the local runtime footprint low. If CLIHarbor is later embedded into an existing internal CLI implemented in another language, the browser and pack contracts should remain portable.
@@ -61,7 +61,18 @@ Phase 1 provides the production local-runtime and browser foundation:
 - graceful shutdown;
 - Windows and Linux CI covering frontend install/typecheck/lint/tests/build, embedded-asset drift, Go format/vet/tests, and a final embedded executable build, plus the Linux race detector.
 
-Pack loading, tool discovery, process execution, auth orchestration, streaming, and real Idira/CyberArk workflows are **not implemented yet**. Phase 0 vendor inventory is still required before any vendor command definitions are added.
+Phase 2 adds the trusted pack-definition foundation:
+
+- `schemas/pack.v1.schema.json`, embedded into the Go runtime package for structural validation;
+- a typed `internal/packs` model for metadata, tools, commands, inputs, constrained argv mappings, output sensitivity, risk, and auth requirement metadata;
+- bounded UTF-8 YAML parsing with rejection of aliases, anchors, merge keys, multiple documents, duplicate mapping keys, unsupported tags, excessive depth, and excessive node counts;
+- fail-closed rejection of unsupported schema versions, unknown fields, invalid IDs/types/risk values, unresolved tool/input references, unsafe optional argument layouts, browser-selectable execution shapes, and shell/interpreter tool definitions;
+- deterministic loading from built-in bytes or explicitly requested local files/directories only;
+- local-file symlink/non-regular-file rejection, bounded reads, non-recursive directory loading, duplicate pack detection, and deterministic ordering;
+- an effectively immutable registry that returns isolated copies and supports stable pack/tool/command lookup;
+- a clearly synthetic `packs/example/pack.yaml` used only as a non-production example; it is not automatically trusted or executed.
+
+Tool discovery, process execution, auth orchestration, streaming, pack HTTP/UI exposure, and real Idira/CyberArk workflows are **not implemented yet**. Phase 0 vendor inventory is still required before any real vendor command definitions are added.
 
 Development targets Go 1.27.1 and Node 24.21.0.
 
@@ -109,6 +120,12 @@ go run ./tools/task build
 
 When `web/` changes, commit the synchronized generated files under `internal/webui/static/` together with the source change. CI rebuilds the frontend and rejects generated-asset drift.
 
+## Pack trust boundary
+
+Packs are privileged configuration because they define future executable/argument authority. Phase 2 supports only two loader inputs: bytes supplied by trusted built-in application code and local files/directories that a trusted caller explicitly names. CLIHarbor does not scan the current working directory, does not auto-load `packs/` merely because it exists in a checkout, does not load remote URLs, does not download packs, and does not execute plugin code.
+
+The repository's example pack is a schema/test fixture, not a real Idira/CyberArk pack. Real vendor definitions remain blocked on verified Phase 0 inventory of deployed CLI versions and command trees.
+
 ## Development entry points
 
 Read these before implementation:
@@ -117,7 +134,7 @@ Read these before implementation:
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system design and runtime boundaries
 - [`docs/SECURITY.md`](docs/SECURITY.md) — threat model and security invariants
 - [`docs/AUTHENTICATION.md`](docs/AUTHENTICATION.md) — credential/session ownership model
-- [`docs/PACK_SPEC.md`](docs/PACK_SPEC.md) — declarative CLI-pack design
+- [`docs/PACK_SPEC.md`](docs/PACK_SPEC.md) — implemented v1 pack contract and future extensions
 - [`docs/UX.md`](docs/UX.md) — browser UI and interaction model
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — accepted architectural decisions and supersession rules
 - [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) — staged implementation plan
@@ -134,4 +151,4 @@ Those properties reinforce CLIHarbor's core boundary: **invoke the official CLI 
 
 ## Status
 
-Phase 1 local-runtime/browser foundation is implemented. The next implementation milestone is the versioned pack schema and loader. Vendor-specific execution remains blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.
+Phase 1 local-runtime/browser foundation and Phase 2 versioned pack schema/validation/loader foundation are implemented. The next implementation milestone is Phase 3 tool discovery and version probing. Vendor-specific command definitions and execution remain blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.

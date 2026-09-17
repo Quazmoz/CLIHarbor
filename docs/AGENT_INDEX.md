@@ -4,9 +4,9 @@ Use this document as the canonical read order for development agents.
 
 ## Current repository state
 
-CLIHarbor has completed the **Phase 1 local-runtime foundation**. The repository now contains a Go command/runtime, IPv4 loopback listener, one-time browser bootstrap/session boundary, Host/Origin/CSRF protections, hardened browser headers, an authenticated status API, graceful shutdown, a React/TypeScript/Vite UI, locally embedded production frontend assets, automatic default-browser launch, a loopback-only frontend development proxy, cross-platform task tooling, and Windows/Linux CI for both Go and frontend gates.
+CLIHarbor has completed the **Phase 1 local-runtime foundation** and the **Phase 2 pack-schema/loader foundation**. The repository now contains a Go command/runtime, IPv4 loopback listener, one-time browser bootstrap/session boundary, Host/Origin/CSRF protections, hardened browser headers, an authenticated status API, graceful shutdown, a React/TypeScript/Vite UI, locally embedded production frontend assets, automatic default-browser launch, a loopback-only frontend development proxy, cross-platform task tooling, Windows/Linux CI, and a versioned trusted-pack model with strict structural/semantic validation and deterministic registry loading.
 
-The pack loader/schema, binary discovery, planner/executor, auth adapter, streaming execution, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
+The pack foundation supports schema version `cliharbor.dev/v1`, built-in pack bytes, and explicitly requested local YAML files/directories. It does not auto-discover repository-local packs, load remote content, execute plugin code, or execute pack commands. Binary discovery, the execution planner/executor, auth adapter, streaming execution, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
 
 ## Read order
 
@@ -53,7 +53,7 @@ Use for vendor-owned auth/session principles, external terminal login, future PT
 
 Canonical: `PACK_SPEC.md`
 
-Use for declarative tool/task definitions, argument construction, risk metadata, outputs, auth references, and compatibility.
+Use for the implemented v1 declarative model, validation stages, trust model, constrained argument mappings, output metadata, and compatibility rules. The executable schema is `../schemas/pack.v1.schema.json`; code under `../internal/packs/` is source of truth for implemented semantic/security validation.
 
 ### User experience
 
@@ -94,15 +94,18 @@ Use to understand existing tools, upstream Idira/CyberArk status, and demand evi
 ## Source-of-truth rules
 
 - Repository code is source of truth for implemented behavior.
-- PRD/spec docs are source of truth for intended behavior.
+- `schemas/pack.v1.schema.json` plus `internal/packs` are source of truth for the currently supported pack format and semantic validation.
+- PRD/spec docs are source of truth for intended behavior not yet implemented.
 - `DECISIONS.md` is source of truth for accepted architectural decisions.
 - Upstream vendor documentation wins over old assumptions about CLI flags/commands.
 - Before adding Idira/CyberArk task definitions, verify exact commands against the deployed tool version.
 
 ## Current implementation checkpoint
 
-Phase 1 is implemented. The runtime keeps `/bootstrap` and `/api/*` server-owned; frontend production assets are embedded in the executable; development frontend traffic is proxied only from an explicitly configured `http://127.0.0.1:<port>` Vite origin; browser launch failure degrades to the explicit short-lived local bootstrap URL.
+Phases 1 and 2 are implemented. The runtime keeps `/bootstrap` and `/api/*` server-owned; frontend production assets are embedded in the executable; development frontend traffic is proxied only from an explicitly configured `http://127.0.0.1:<port>` Vite origin; browser launch failure degrades to the explicit short-lived local bootstrap URL.
 
-The next bounded implementation milestone is Phase 2: the versioned pack schema and loader described in `DEVELOPMENT_PLAN.md`. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk task definitions.
+The pack layer now parses bounded UTF-8 YAML, rejects aliases/anchors/merge keys/multiple documents and duplicate mapping keys, validates against the embedded strict v1 JSON Schema, applies cross-reference and execution-shape semantic checks, and produces an effectively immutable deterministic registry. Local loading is explicit, non-recursive, symlink-rejecting, and fail-closed. The repository includes only a synthetic example pack; it is not a verified vendor pack and is not automatically granted execution authority.
 
-Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, or guessed Idira/CyberArk commands.
+The next bounded implementation milestone is Phase 3: tool discovery and version probing over already-validated pack tool metadata. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk command definitions.
+
+Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, pack execution, or guessed Idira/CyberArk commands.
