@@ -30,6 +30,7 @@ type Config struct {
 	BootstrapTTL time.Duration
 	Random       io.Reader
 	Now          func() time.Time
+	Frontend     http.Handler
 }
 
 // Server owns one loopback listener and one in-memory browser session.
@@ -52,6 +53,9 @@ type Server struct {
 // New creates a server bound to an ephemeral IPv4 loopback port. It does not
 // start accepting requests until Run is called.
 func New(config Config) (*Server, error) {
+	if config.Frontend == nil {
+		return nil, fmt.Errorf("frontend handler is required")
+	}
 	if config.Version == "" {
 		config.Version = "dev"
 	}
@@ -96,8 +100,10 @@ func New(config Config) (*Server, error) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/bootstrap", s.handleBootstrap)
-	mux.HandleFunc("/api/v1/status", s.requireSession(s.handleStatus))
-	mux.HandleFunc("/", s.requireSession(s.handleIndex))
+	mux.HandleFunc("/bootstrap/", http.NotFound)
+	mux.Handle("/api/v1/status", s.requireSession(http.HandlerFunc(s.handleStatus)))
+	mux.Handle("/api/", s.requireSession(http.HandlerFunc(http.NotFound)))
+	mux.Handle("/", s.requireSession(config.Frontend))
 
 	s.httpServer = &http.Server{
 		Handler:           s.securityHeaders(s.validateRequestBoundary(mux)),
@@ -205,7 +211,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("Cache-Control", "no-store")
-		h.Set("Content-Security-Policy", "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'")
+		h.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'")
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("X-Content-Type-Options", "nosniff")
@@ -252,15 +258,15 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-func (s *Server) requireSession(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *Server) requireSession(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(sessionCookieName)
 		if err != nil || !constantTimeEqual(cookie.Value, s.sessionToken) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		next(w, r)
-	}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -271,34 +277,15 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if err := json.NewEncoder(w).Encode(struct {
-		Name      string `json:"name"`
-		Version   string `json:"version"`
-		Session   string `json:"session"`
-		CSRFToken string `json:"csrfToken"`
+	_ = json.NewEncoder(w).Encode(struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+		Session string `json:"session"`
 	}{
-		Name:      "CLIHarbor",
-		Version:   s.version,
-		Session:   "active",
-		CSRFToken: s.csrfToken,
-	}); err != nil {
-		return
-	}
-}
-
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", http.MethodGet)
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = io.WriteString(w, "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>CLIHarbor</title><body><main><h1>CLIHarbor</h1><p>Secure local runtime is active.</p></main></body></html>")
+		Name:    "CLIHarbor",
+		Version: s.version,
+		Session: "active",
+	})
 }
 
 func constantTimeEqual(a, b string) bool {
