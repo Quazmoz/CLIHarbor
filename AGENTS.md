@@ -29,10 +29,11 @@ Before implementation, read:
 4. `docs/AUTHENTICATION.md`
 5. `docs/PACK_SPEC.md`
 6. `docs/UX.md`
-7. `docs/DEVELOPMENT_PLAN.md`
-8. `docs/TEST_STRATEGY.md`
-9. `docs/ROADMAP.md`
-10. `docs/RESEARCH.md`
+7. `docs/DECISIONS.md`
+8. `docs/DEVELOPMENT_PLAN.md`
+9. `docs/TEST_STRATEGY.md`
+10. `docs/ROADMAP.md`
+11. `docs/RESEARCH.md`
 
 If these documents conflict, security invariants win over convenience; the PRD wins over lower-level implementation notes unless an ADR deliberately supersedes it.
 
