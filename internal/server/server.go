@@ -24,22 +24,25 @@ const (
 )
 
 // Config contains the small set of runtime values needed by the local server.
-// Random and Now are injectable to keep security-sensitive behavior deterministic in tests.
+// Random, Now, and ShutdownTimeout are injectable to keep security/lifecycle
+// behavior deterministic in tests.
 type Config struct {
-	Version      string
-	BootstrapTTL time.Duration
-	Random       io.Reader
-	Now          func() time.Time
-	Frontend     http.Handler
+	Version         string
+	BootstrapTTL    time.Duration
+	ShutdownTimeout time.Duration
+	Random          io.Reader
+	Now             func() time.Time
+	Frontend        http.Handler
 }
 
 // Server owns one loopback listener and one in-memory browser session.
 // It intentionally has no persistence: restarting CLIHarbor invalidates the session.
 type Server struct {
-	listener   net.Listener
-	httpServer *http.Server
-	baseURL    string
-	version    string
+	listener        net.Listener
+	httpServer      *http.Server
+	baseURL         string
+	version         string
+	shutdownTimeout time.Duration
 
 	mu                sync.Mutex
 	now               func() time.Time
@@ -61,6 +64,9 @@ func New(config Config) (*Server, error) {
 	}
 	if config.BootstrapTTL <= 0 {
 		config.BootstrapTTL = defaultBootstrapTTL
+	}
+	if config.ShutdownTimeout <= 0 {
+		config.ShutdownTimeout = shutdownTimeout
 	}
 	if config.Random == nil {
 		config.Random = rand.Reader
@@ -91,6 +97,7 @@ func New(config Config) (*Server, error) {
 		listener:         listener,
 		baseURL:          "http://" + listener.Addr().String(),
 		version:          config.Version,
+		shutdownTimeout:  config.ShutdownTimeout,
 		now:              config.Now,
 		bootstrapToken:   bootstrapToken,
 		bootstrapExpires: config.Now().Add(config.BootstrapTTL),
@@ -133,13 +140,15 @@ func (s *Server) BootstrapURL() string {
 	return s.baseURL + "/bootstrap?" + values.Encode()
 }
 
-// Close immediately releases the listener. It is primarily used when startup
-// fails before Run takes ownership of the lifecycle.
+// Close immediately releases the listener and active HTTP connections. It is
+// primarily used when startup fails before Run takes ownership of the lifecycle.
 func (s *Server) Close() error {
 	return s.httpServer.Close()
 }
 
-// Run serves until the context is cancelled or the HTTP server fails.
+// Run serves until the context is cancelled or the HTTP server fails. Context
+// cancellation first attempts graceful shutdown, then force-closes remaining
+// connections if they do not quiesce within the configured deadline.
 func (s *Server) Run(ctx context.Context) error {
 	errCh := make(chan error, 1)
 	go func() {
@@ -153,12 +162,16 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 		return fmt.Errorf("serve loopback HTTP: %w", err)
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
 		defer cancel()
 
 		shutdownErr := s.httpServer.Shutdown(shutdownCtx)
 		serveErr := <-errCh
 		if shutdownErr != nil {
+			closeErr := s.httpServer.Close()
+			if closeErr != nil && !errors.Is(closeErr, http.ErrServerClosed) {
+				return fmt.Errorf("shutdown loopback HTTP: %w (force close: %v)", shutdownErr, closeErr)
+			}
 			return fmt.Errorf("shutdown loopback HTTP: %w", shutdownErr)
 		}
 		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
