@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cliharbor.dev/schemas/pack.v1.schema.json",
+  "title": "CLIHarbor Pack v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "runtime", "commands"],
+  "properties": {
+    "apiVersion": {"const": "cliharbor.dev/v1"},
+    "kind": {"const": "CliPack"},
+    "metadata": {"$ref": "#/$defs/metadata"},
+    "runtime": {"$ref": "#/$defs/runtime"},
+    "commands": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 128,
+      "propertyNames": {"$ref": "#/$defs/id"},
+      "additionalProperties": {"$ref": "#/$defs/command"}
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "version"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 120},
+        "version": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "description": {"type": "string", "maxLength": 2000}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platforms", "tools"],
+      "properties": {
+        "platforms": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"enum": ["windows", "linux", "darwin"]}
+        },
+        "tools": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 32,
+          "propertyNames": {"$ref": "#/$defs/id"},
+          "additionalProperties": {"$ref": "#/$defs/tool"}
+        }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executableNames"],
+      "properties": {
+        "executableNames": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          }
+        },
+        "versionConstraint": {"type": "string", "maxLength": 128}
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "tool", "risk", "argv", "output"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 120},
+        "description": {"type": "string", "maxLength": 2000},
+        "tool": {"$ref": "#/$defs/id"},
+        "risk": {
+          "enum": ["read", "change", "destructive", "credential-sensitive", "interactive"]
+        },
+        "inputs": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {"$ref": "#/$defs/input"}
+        },
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {"$ref": "#/$defs/argument"}
+        },
+        "output": {"$ref": "#/$defs/output"},
+        "requirements": {"$ref": "#/$defs/requirements"}
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "label"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "type": {"enum": ["string", "integer", "boolean", "enum", "multiselect"]},
+        "label": {"type": "string", "minLength": 1, "maxLength": 120},
+        "required": {"type": "boolean"},
+        "validation": {"$ref": "#/$defs/inputValidation"}
+      }
+    },
+    "inputValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min": {"type": "integer"},
+        "max": {"type": "integer"},
+        "minLength": {"type": "integer", "minimum": 0, "maximum": 4096},
+        "maxLength": {"type": "integer", "minimum": 0, "maximum": 4096},
+        "pattern": {"type": "string", "maxLength": 256},
+        "enum": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {"type": "string", "maxLength": 256}
+        },
+        "disallowLeadingDash": {"type": "boolean"}
+      }
+    },
+    "argument": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["literal"],
+          "properties": {
+            "literal": {"type": "string", "minLength": 1, "maxLength": 1024}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["flag"],
+          "properties": {"flag": {"$ref": "#/$defs/flagArgument"}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["switch"],
+          "properties": {"switch": {"$ref": "#/$defs/switchArgument"}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["map"],
+          "properties": {"map": {"$ref": "#/$defs/mapArgument"}}
+        }
+      ]
+    },
+    "flagArgument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "valueFrom"],
+      "properties": {
+        "name": {"$ref": "#/$defs/flagName"},
+        "valueFrom": {"$ref": "#/$defs/id"},
+        "omitWhenEmpty": {"type": "boolean"}
+      }
+    },
+    "switchArgument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "enabledFrom"],
+      "properties": {
+        "name": {"$ref": "#/$defs/flagName"},
+        "enabledFrom": {"$ref": "#/$defs/id"}
+      }
+    },
+    "mapArgument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valueFrom", "values"],
+      "properties": {
+        "valueFrom": {"$ref": "#/$defs/id"},
+        "values": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 64,
+          "propertyNames": {"type": "string", "maxLength": 256},
+          "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 1024}
+        }
+      }
+    },
+    "flagName": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^--?[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {"enum": ["raw", "json", "ndjson", "delimited"]},
+        "renderer": {"enum": ["raw", "table", "cards"]},
+        "sensitivity": {"$ref": "#/$defs/sensitivity"}
+      }
+    },
+    "sensitivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "containsSecrets": {"type": "boolean"},
+        "persistRawOutput": {"type": "boolean"},
+        "revealByDefault": {"type": "boolean"}
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requiresAuth": {"type": "boolean"}
+      }
+    }
+  }
+}
