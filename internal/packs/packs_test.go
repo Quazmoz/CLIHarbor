@@ -171,6 +171,11 @@ func TestParseRejectsInvalidPacks(t *testing.T) {
 			code: ErrSemantic,
 		},
 		{
+			name: "optional mapped enum cannot create missing positional",
+			data: strings.Replace(richerPack, "        required: true\n        validation:\n          enum: [safe, detailed]", "        required: false\n        validation:\n          enum: [safe, detailed]", 1),
+			code: ErrSemantic,
+		},
+		{
 			name: "unknown field",
 			data: strings.Replace(minimalPack, "  name: Demo\n", "  name: Demo\n  surprise: true\n", 1),
 			code: ErrSchema,
@@ -178,6 +183,11 @@ func TestParseRejectsInvalidPacks(t *testing.T) {
 		{
 			name: "shell executable",
 			data: strings.Replace(minimalPack, "[fixture-cli]", "[powershell.exe]", 1),
+			code: ErrUnsafeExecutable,
+		},
+		{
+			name: "script executable",
+			data: strings.Replace(minimalPack, "[fixture-cli]", "[operator.cmd]", 1),
 			code: ErrUnsafeExecutable,
 		},
 		{
@@ -219,8 +229,14 @@ func TestParseRejectsInvalidUTF8AndOversize(t *testing.T) {
 }
 
 func TestParseRejectsAdversarialYAMLDepth(t *testing.T) {
-	data := strings.Repeat("nested:\n", maxYAMLDepth+2) + "{}\n"
-	_, err := Parse([]byte(data))
+	var builder strings.Builder
+	for depth := 0; depth < maxYAMLDepth+2; depth++ {
+		builder.WriteString(strings.Repeat("  ", depth))
+		builder.WriteString("nested:\n")
+	}
+	builder.WriteString(strings.Repeat("  ", maxYAMLDepth+2))
+	builder.WriteString("{}\n")
+	_, err := Parse([]byte(builder.String()))
 	assertCode(t, err, ErrYAMLFeature)
 }
 
@@ -247,6 +263,33 @@ func TestLoadErrorDoesNotExposeExplicitLocalDirectory(t *testing.T) {
 	}
 	if !strings.Contains(err, "pack.yaml") {
 		t.Fatalf("LoadError() = %q, want basename", err)
+	}
+}
+
+func TestLoadErrorsRedactMissingLocalPaths(t *testing.T) {
+	parent := t.TempDir()
+	missing := filepath.Join(parent, "tenant-secret", "missing.yaml")
+	_, err := NewLoader().LoadFiles([]string{missing})
+	if err == nil {
+		t.Fatal("LoadFiles() error = nil, want missing-file error")
+	}
+	if strings.Contains(err.Error(), parent) || strings.Contains(err.Error(), "tenant-secret") {
+		t.Fatalf("LoadFiles() exposed directory path: %q", err)
+	}
+	if !strings.Contains(err.Error(), "missing.yaml") {
+		t.Fatalf("LoadFiles() error = %q, want file basename", err)
+	}
+
+	missingDirectory := filepath.Join(parent, "tenant-secret")
+	_, err = NewLoader().LoadDirectory(missingDirectory)
+	if err == nil {
+		t.Fatal("LoadDirectory() error = nil, want missing-directory error")
+	}
+	if strings.Contains(err.Error(), parent) {
+		t.Fatalf("LoadDirectory() exposed parent path: %q", err)
+	}
+	if !strings.Contains(err.Error(), "tenant-secret") {
+		t.Fatalf("LoadDirectory() error = %q, want directory basename", err)
 	}
 }
 
