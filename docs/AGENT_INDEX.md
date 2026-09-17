@@ -4,9 +4,9 @@ Use this document as the canonical read order for development agents.
 
 ## Current repository state
 
-CLIHarbor is in the **foundation implementation stage**. The first security-sensitive runtime slice now exists: a Go command entry point, IPv4 loopback listener, one-time browser bootstrap/session boundary, Host/Origin/CSRF protections, security headers, authenticated status endpoint, graceful shutdown, tests, and Windows/Linux CI.
+CLIHarbor has completed the **Phase 1 local-runtime foundation**. The repository now contains a Go command/runtime, IPv4 loopback listener, one-time browser bootstrap/session boundary, Host/Origin/CSRF protections, hardened browser headers, an authenticated status API, graceful shutdown, a React/TypeScript/Vite UI, locally embedded production frontend assets, automatic default-browser launch, a loopback-only frontend development proxy, cross-platform task tooling, and Windows/Linux CI for both Go and frontend gates.
 
-The React/Vite frontend, browser auto-open, pack loader/schema, binary discovery, planner/executor, auth adapter, streaming, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
+The pack loader/schema, binary discovery, planner/executor, auth adapter, streaming execution, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
 
 ## Read order
 
@@ -101,8 +101,8 @@ Use to understand existing tools, upstream Idira/CyberArk status, and demand evi
 
 ## Current implementation checkpoint
 
-The first part of Phase 1 is implemented: the secure loopback/session boundary and lifecycle foundation.
+Phase 1 is complete once the current frontend/browser/CI PR is merged and its Windows/Linux gates are green. The runtime keeps `/bootstrap` and `/api/*` server-owned; frontend production assets are embedded in the executable; development frontend traffic is proxied only from an explicitly configured `http://127.0.0.1:<port>` Vite origin.
 
-The next bounded implementation work should finish Phase 1 by adding the React/Vite development surface, safe browser auto-open, and Windows runtime verification without weakening the existing session boundary. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk task definitions. After Phase 1, proceed to the versioned pack schema/loader described in `DEVELOPMENT_PLAN.md`.
+The next bounded implementation milestone is Phase 2: the versioned pack schema and loader described in `DEVELOPMENT_PLAN.md`. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk task definitions.
 
 Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, or guessed Idira/CyberArk commands.
