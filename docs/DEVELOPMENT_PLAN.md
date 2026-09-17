@@ -10,8 +10,9 @@ Current implementation status:
 
 - Phase 1 — local runtime/browser foundation: **implemented**.
 - Phase 2 — versioned pack schema/validation/trusted loader foundation: **implemented**.
+- Phase 3 — tool discovery/version probing/doctor foundation: **implemented**.
 - Phase 0 — vendor environment inventory: **still required before real Idira/CyberArk command definitions**.
-- Phase 3+ — not implemented unless explicitly noted below.
+- Phase 4+ — not implemented unless explicitly noted below.
 
 ## 2. Phase 0 — Environment inventory
 
@@ -83,55 +84,76 @@ Implemented:
 - regression coverage for the primary structural, semantic, trust, ordering, resource-bound, and injection failure modes;
 - synthetic non-vendor example pack only.
 
-Deliberately deferred from this phase:
+Acceptance achieved at the component boundary: malformed/unsupported packs fail closed; schema compatibility is enforced; valid trusted sources produce deterministic runtime metadata without creating a general execution surface.
 
-- HTTP/UI pack exposure;
-- startup auto-wiring of repository pack paths;
-- binary discovery/version probing;
-- execution-plan construction;
-- process execution;
-- vendor auth adapters;
-- real Idira/CyberArk pack definitions.
+## 5. Phase 3 — Tool discovery and version probing — IMPLEMENTED
 
-Acceptance achieved at the component boundary: malformed/unsupported packs fail closed; schema compatibility is enforced; valid trusted sources produce deterministic runtime metadata without creating an execution surface.
+Created/extended:
 
-## 5. Phase 3 — Tool discovery and version probing — NEXT
+```text
+internal/discovery/
+internal/app/runtime.go
+internal/app/doctor.go
+cmd/cliharbor doctor
+```
 
-Implement against the already-validated pack registry:
+Implemented:
 
-- Windows PATH discovery;
-- optional explicit configured-path override;
-- exact resolved path display;
-- safe version-probe representation/implementation without introducing arbitrary shell strings;
-- version-constraint checking;
-- ambiguous/missing binary UX/model;
-- `cliharbor doctor` baseline;
-- startup/application wiring that injects the validated registry and discovery state without granting cwd/repository files implicit trust.
+- pack-declared fixed version probes using the `semver-text` parser;
+- optional bounded probe timeout metadata;
+- semantic version constraints parsed with `Masterminds/semver`;
+- Windows-first executable discovery with portable core behavior;
+- PATH scanning restricted to absolute entries so empty/relative/current-directory PATH elements do not silently gain executable authority;
+- Windows basename handling for exact names plus `.exe`/`.com` binary forms, without enabling batch/PowerShell/script-host extensions;
+- deterministic candidate de-duplication and ordering;
+- explicit backend-only `--tool-path pack/tool=/absolute/path` overrides;
+- override validation against an already-declared pack/tool executable basename;
+- invalid overrides are authoritative failures rather than triggers to fall back to PATH;
+- missing/ambiguous/incompatible/probe-failed/unsupported-platform state modeling;
+- multiple candidate matches fail closed rather than selecting the first PATH result;
+- direct `os/exec` version probes using fixed pack-authored argv, no shell, bounded stdout/stderr capture, timeout, and sanitized failure messages;
+- semantic-version output parsing that rejects no-version and multiple-distinct-version output instead of guessing;
+- exact resolved executable path and version evidence through `cliharbor doctor`;
+- startup loading/discovery only for explicitly configured pack files/directories; no repository/cwd auto-trust;
+- startup health counts without changing the current generated React assets.
 
-Acceptance:
+Deliberately deferred:
 
-- correct binary/version shown for synthetic fixtures and later verified vendor tools;
-- missing tool produces actionable remediation;
-- incompatible/ambiguous versions block unsupported tasks rather than guessing;
-- browser still cannot choose executable paths.
+- browser tool-status/task UI;
+- persistent tool-path configuration files;
+- publisher/signature/hash validation of discovered binaries;
+- child-process-tree control for version probes beyond the bounded direct process timeout;
+- planner/task execution;
+- real vendor definitions.
+
+Acceptance at this phase boundary:
+
+- a single matching executable resolves deterministically;
+- exact path/version/constraint evidence is available through `doctor`;
+- missing tools produce remediation guidance;
+- ambiguous candidates, incompatible versions, invalid overrides, and probe failures remain unavailable rather than being guessed through;
+- browser input still cannot select executable paths;
+- no pack is loaded merely because it is present in the repository/current directory.
 
 Phase 0 inventory should run in parallel for the real company CLI environment so Phase 4 can use evidence rather than invented syntax.
 
-## 6. Phase 4 — Secure execution vertical slice
+## 6. Phase 4 — Secure execution vertical slice — NEXT
 
-Implement planner + executor first against a purpose-built fixture command. Move to one real read-only Idira/CyberArk command only after Phase 0 evidence exists.
+Implement the deterministic planner and executor first against a purpose-built fixture command. Move to one real read-only Idira/CyberArk command only after Phase 0 evidence exists.
 
 Required:
 
 - typed runtime inputs validated against the already-validated pack definition;
 - immutable deterministic execution plan;
-- executable path sourced only from trusted discovery, never browser input;
+- tool state must be `ready` before a plan can be produced;
+- executable path sourced only from the authoritative discovery snapshot, never browser input;
+- revalidation of the selected executable at the execution boundary where practical to reduce discovery-to-execution drift;
 - executable + args execution via `os/exec` without a shell;
 - stdout/stderr separation;
 - exit code/duration;
 - cancellation;
 - bounded streaming;
-- raw output view;
+- raw output view/model;
 - sanitized invocation preview;
 - run IDs.
 
@@ -139,7 +161,9 @@ Acceptance:
 
 - no shell is invoked for ordinary command execution;
 - metacharacters in input remain literal argument data;
+- missing/ambiguous/incompatible/probe-failed tools cannot execute;
 - a fixture workflow proves exact argv boundaries;
+- duplicate/cancel/timeout behavior has explicit tests;
 - after Phase 0, one verified real read-only CLI workflow completes from browser to vendor service;
 - raw output matches direct CLI behavior.
 
@@ -194,16 +218,17 @@ Do not aim for complete CLI parity.
 Add/complete:
 
 - Windows child-process-tree cancellation strategy;
-- timeouts;
+- timeouts and total deadlines for task execution;
 - output backpressure/size limits;
 - redaction tests;
 - fuzz/property tests for planner/schema boundaries where useful;
 - dependency scanning;
 - frontend accessibility pass;
 - error taxonomy;
-- diagnostic bundle/redacted doctor output.
+- diagnostic bundle/redacted doctor output;
+- optional publisher/signature/hash verification where enterprise policy requires stronger PATH-binary identity.
 
-Some schema/parser resource bounds and adversarial pack tests already exist from Phase 2; continue extending them rather than duplicating validation logic.
+Schema/parser resource bounds, adversarial pack tests, discovery ambiguity handling, and bounded version probes already exist; continue extending them rather than duplicating validation logic.
 
 ## 11. Phase 9 — Prove generic architecture
 
@@ -213,11 +238,11 @@ Goal: prove core discovery/planner/executor code is not Idira-specific.
 
 Acceptance:
 
-- second pack loads with no modifications to executor/planner core;
+- second pack loads/discovers with no modifications to core;
 - different command/input/output shapes render successfully;
 - any required extension point is documented before adding it.
 
-The Phase 2 synthetic example pack proves generic pack parsing only; it does not yet prove generic execution.
+The Phase 2/3 synthetic example pack proves generic pack parsing/discovery only; it does not yet prove generic task execution.
 
 ## 12. Phase 10 — Packaging
 
@@ -255,13 +280,21 @@ go run ./tools/task go-build
 go run ./tools/task build
 ```
 
+Current pack/discovery diagnostics:
+
+```text
+go run ./cmd/cliharbor doctor --pack-file <pack.yaml>
+go run ./cmd/cliharbor doctor --pack-dir <explicit-directory>
+go run ./cmd/cliharbor doctor --pack-file <pack.yaml> --tool-path pack/tool=<absolute-path>
+```
+
 Do not require GNU-specific tooling for Windows contributors.
 
 ## 15. CI target/current state
 
 Current CI covers frontend install/typecheck/lint/tests/build, generated frontend asset drift, Go formatting/vet/tests, Windows/Linux executable builds, and Linux race testing.
 
-Future additions should include pack-specific static/security checks if they add value beyond `go test ./...`, dependency scanning, and later execution fixture/E2E gates.
+Discovery tests are ordinary Go tests and therefore belong to the same Windows/Linux gates. Future additions should include execution fixture/E2E gates, dependency scanning, and any pack-specific static/security checks that add value beyond `go test ./...`.
 
 Do not claim cross-platform runtime support merely because compilation succeeds.
 
@@ -272,12 +305,12 @@ Completed foundations:
 1. Bootstrap Go module + React/Vite frontend.
 2. Loopback server + secure browser bootstrap.
 3. Pack v1 schema/semantic validation/trusted loader/registry.
+4. Windows-first binary discovery/version probes/doctor.
 
 Next:
 
-4. Windows binary discovery/version probe over validated tool metadata.
-5. Execution planner with typed runtime values.
-6. Streaming executor + cancellation.
+5. Execution planner with typed runtime values and discovery-state gating.
+6. Streaming executor + cancellation using fixture executable(s).
 7. First verified read-only Idira workflow after Phase 0 inventory.
 8. Auth adapter + external login orchestration.
 9. Structured result renderer.
