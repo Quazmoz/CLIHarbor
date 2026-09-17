@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchRuntimeStatus, SessionUnavailableError, type RuntimeStatus } from './api/status';
-import './styles.css';
 
 type ViewState =
   | { kind: 'loading' }
