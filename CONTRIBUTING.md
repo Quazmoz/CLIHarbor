@@ -18,28 +18,28 @@ For Idira/CyberArk work, verify command syntax against the exact upstream/deploy
 - Never commit credentials, tenant-specific data, secrets, or internal endpoints.
 - Add tests around security-sensitive boundaries.
 
-## Proposed local workflow
+## Current foundation workflow
 
-The concrete commands will be added with the implementation, but the intended interface is:
+The Go foundation targets Go 1.27.1 (see `.go-version`). Current commands are intentionally simple:
 
 ```text
-# start backend + frontend development environment
-<task> dev
+# start the local runtime; open the printed short-lived bootstrap URL
+# in a browser until auto-open is implemented
+go run ./cmd/cliharbor
 
-# run all tests
-<task> test
+# run the current test suite
+go test ./...
 
-# validate packs/schemas
-<task> validate
+# static checks
+go vet ./...
 
-# build a release binary
-<task> build
-
-# diagnose local wrapped-tool environment
-cliharbor doctor
+# exercise concurrency-sensitive tests locally when supported
+go test -race ./...
 ```
 
-Windows support is mandatory for developer tooling. Do not make a GNU-only build tool the sole entry point.
+GitHub Actions runs format, vet, and tests on Windows and Linux, plus the race detector on Linux.
+
+As the frontend and pack tooling arrive, the repository should add a single cross-platform task entry point for development, validation, tests, and release builds. Windows support remains mandatory; do not make GNU-only tooling the sole entry point.
 
 ## Pull request expectations
 
