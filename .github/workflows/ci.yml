@@ -9,10 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  go:
-    name: Go (${{ matrix.os }})
+  quality:
+    name: Quality (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -23,14 +23,34 @@ jobs:
         with:
           go-version: '1.27.1'
           cache: false
-      - name: Format check
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: '.node-version'
+          package-manager-cache: false
+      - name: Install frontend dependencies
+        run: npm ci --prefix web
+      - name: Frontend typecheck
+        run: npm run typecheck --prefix web
+      - name: Frontend lint
+        run: npm run lint --prefix web
+      - name: Frontend tests
+        run: npm test --prefix web
+      - name: Frontend production build
+        run: npm run build --prefix web
+      - name: Verify embedded frontend is synchronized
+        run: |
+          go run ./tools/task sync-web
+          git diff --exit-code -- internal/webui/static
+      - name: Go format check
         run: |
           go fmt ./...
           git diff --exit-code
-      - name: Vet
+      - name: Go vet
         run: go vet ./...
-      - name: Test
+      - name: Go tests
         run: go test ./...
+      - name: Final embedded Go build
+        run: go run ./tools/task go-build
 
   race:
     name: Go race detector
