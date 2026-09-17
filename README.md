@@ -31,42 +31,83 @@ The first product slice will:
 7. Delegate login/session persistence to the official CLI rather than storing passwords or tokens itself.
 8. Provide an escape hatch to view the exact executable and argument vector before execution.
 
-## Planned stack
-
-The default implementation direction is:
+## Implementation stack
 
 - **Backend / launcher:** Go
 - **Frontend:** React + TypeScript + Vite
-- **Distribution:** frontend embedded into the Go binary for release builds
-- **Transport:** loopback HTTP plus WebSocket or Server-Sent Events for streaming execution events
-- **Pack format:** versioned YAML with JSON Schema validation
-- **Execution:** Go `os/exec` using executable + argument arrays; never concatenate untrusted input into a shell command
+- **Distribution target:** frontend embedded into the Go binary
+- **Transport:** loopback HTTP; streaming transport will be added when execution arrives
+- **Pack format:** planned versioned YAML with JSON Schema validation
+- **Execution:** planned Go `os/exec` using executable + argument arrays; never concatenate untrusted input into a shell command
 
-Go is chosen for the initial standalone implementation because it produces a small self-contained Windows executable, has strong process/HTTP primitives, is easy to embed into an existing CLI, and keeps the local runtime footprint low. If CLIHarbor is later embedded into an existing internal CLI implemented in another language, the protocol and pack model should remain portable.
+Go is used for the standalone runtime because it produces a small self-contained Windows executable, has strong process/HTTP primitives, is easy to embed into an existing CLI, and keeps the local runtime footprint low. If CLIHarbor is later embedded into an existing internal CLI implemented in another language, the browser and pack contracts should remain portable.
 
 ## Current foundation
 
-Implementation has started with the security-sensitive local runtime boundary. The current Go foundation provides:
+Phase 1 provides the production local-runtime and browser foundation:
 
-- a `cliharbor` command entry point;
+- a `cliharbor` Go command entry point;
 - an ephemeral IPv4 loopback listener bound specifically to `127.0.0.1`;
 - a short-lived, single-use browser bootstrap token;
 - an in-memory HttpOnly, SameSite=Strict browser session;
 - exact Host validation plus Origin and CSRF enforcement for state-changing requests;
-- baseline browser security headers;
-- an authenticated `/api/v1/status` endpoint;
+- a restrictive Content Security Policy and browser hardening headers;
+- an authenticated `/api/v1/status` endpoint that exposes only non-secret runtime/session state;
+- automatic default-browser launch using a platform-specific boundary, with Windows using native `ShellExecuteW` rather than a shell;
+- a React + TypeScript + Vite application shell that loads authenticated runtime status and handles session/API failure states;
+- generated Vite assets embedded into the Go executable for production builds;
+- an explicit development mode that proxies frontend requests only to an `http://127.0.0.1:<port>` Vite origin while retaining the Go runtime's browser/session origin;
+- a Go-based cross-platform task entry point for frontend checks, generated-asset synchronization, tests, and production builds;
 - graceful shutdown;
-- automated Go format/vet/test checks on Windows and Linux plus the race detector on Linux.
+- Windows and Linux CI covering frontend install/typecheck/lint/tests/build, embedded-asset drift, Go format/vet/tests, and a final embedded executable build, plus the Linux race detector.
 
-The current page is deliberately a placeholder. Browser auto-open, the React/Vite frontend, pack loading, tool discovery, process execution, auth orchestration, and real Idira/CyberArk workflows are **not implemented yet**.
+Pack loading, tool discovery, process execution, auth orchestration, streaming, and real Idira/CyberArk workflows are **not implemented yet**. Phase 0 vendor inventory is still required before any vendor command definitions are added.
 
-Development currently targets Go 1.27.1. Run the foundation locally with:
+Development targets Go 1.27.1 and Node 24.21.0.
+
+## Development workflow
+
+Install frontend dependencies once after cloning:
+
+```text
+npm ci --prefix web
+```
+
+Run the production-style embedded application:
 
 ```text
 go run ./cmd/cliharbor
 ```
 
-CLIHarbor prints a short-lived local bootstrap URL until browser auto-open is implemented.
+CLIHarbor binds to loopback, generates the one-time bootstrap handoff, and requests the default browser. If browser launch fails, the CLI prints the short-lived local bootstrap URL explicitly so it can be opened manually.
+
+For frontend development, use two terminals:
+
+```text
+# terminal 1: Vite, loopback only
+go run ./tools/task web-dev
+
+# terminal 2: Go runtime; browser still uses the authenticated Go origin
+go run ./cmd/cliharbor --web-dev-url http://127.0.0.1:5173
+```
+
+Cross-platform task commands:
+
+```text
+# frontend install + typecheck + lint + tests + build, then sync embedded assets
+go run ./tools/task web-build
+
+# frontend gates + embedded sync + Go vet/tests
+go run ./tools/task check
+
+# build only the embedded Go executable into ./bin
+go run ./tools/task go-build
+
+# rebuild frontend, sync embedded assets, then build the executable
+go run ./tools/task build
+```
+
+When `web/` changes, commit the synchronized generated files under `internal/webui/static/` together with the source change. CI rebuilds the frontend and rejects generated-asset drift.
 
 ## Development entry points
 
@@ -93,4 +134,4 @@ Those properties reinforce CLIHarbor's core boundary: **invoke the official CLI 
 
 ## Status
 
-Foundation implementation is underway. The secure loopback/session boundary now exists; the frontend, pack engine, CLI discovery/execution pipeline, and first verified Idira/CyberArk workflow remain to be built.
+Phase 1 local-runtime/browser foundation is implemented. The next implementation milestone is the versioned pack schema and loader. Vendor-specific execution remains blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.
