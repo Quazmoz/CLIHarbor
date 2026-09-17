@@ -59,7 +59,9 @@ Initial default because it offers:
 
 ### Frontend: React + TypeScript + Vite
 
-The frontend should be static after build. It should not contain privileged logic or direct filesystem/process access.
+The frontend is static after production build and is embedded into the Go executable. It contains no privileged logic or direct filesystem/process access.
+
+Development uses a loopback-only Vite server behind an explicit Go reverse-proxy mode so the browser still talks to CLIHarbor's authenticated origin.
 
 ### Packs: YAML + JSON Schema
 
@@ -67,50 +69,66 @@ Human-authored YAML is appropriate for command/workflow definitions; JSON Schema
 
 ## 4. Backend package boundaries
 
-Suggested Go module layout:
+Current/planned Go module layout:
 
 ```text
-cmd/cliharbor/            # process entry point
-internal/app/             # application lifecycle / dependency wiring
-internal/server/          # HTTP routes, browser bootstrap, origin checks
-internal/packs/           # pack loading, schema validation, versioning
-internal/discovery/       # PATH lookup, configured binary paths, version probes
-internal/planner/         # form input -> validated execution plan
-internal/executor/        # process start/stream/cancel/timeout
-internal/auth/            # auth-state adapters and login launch orchestration
-internal/output/          # parsers, structured rendering models
-internal/redact/          # secret-safe diagnostics and invocation views
-internal/runs/            # run state and metadata
-internal/platform/windows # Windows-specific process-tree/browser helpers
-web/                      # React app
-packs/                    # built-in CLI packs
-schemas/                  # pack schema(s)
+cmd/cliharbor/             # process entry point
+internal/app/              # application lifecycle / dependency wiring
+internal/server/           # HTTP routes, browser bootstrap, origin checks
+internal/webui/            # embedded frontend + constrained dev reverse proxy
+internal/platform/browser/ # platform default-browser launch boundary
+internal/packs/            # pack loading, schema validation, versioning
+internal/discovery/        # PATH lookup, configured binary paths, version probes
+internal/planner/          # form input -> validated execution plan
+internal/executor/         # process start/stream/cancel/timeout
+internal/auth/             # auth-state adapters and login launch orchestration
+internal/output/           # parsers, structured rendering models
+internal/redact/           # secret-safe diagnostics and invocation views
+internal/runs/             # run state and metadata
+tools/task/                # cross-platform repository build/validation entry point
+web/                       # React application source
+packs/                     # built-in CLI packs
+schemas/                   # pack schema(s)
 ```
 
 Avoid placing vendor-specific behavior in generic packages. Idira/CyberArk-specific logic belongs in its pack or a narrowly-scoped adapter.
 
 ## 5. Server lifecycle
 
+Target lifecycle:
+
 1. Parse CLIHarbor's own flags.
 2. Load trusted built-in/local packs.
 3. Validate schemas and compatibility.
 4. Resolve required executables and probe versions.
 5. Bind an ephemeral port on loopback.
-6. Generate an unpredictable per-launch session/bootstrap secret.
+6. Generate unpredictable per-launch bootstrap, session, and CSRF secrets.
 7. Start HTTP server.
-8. Open browser to a bootstrap URL or equivalent safe handoff.
-9. Exchange bootstrap secret for an HttpOnly/SameSite session cookie or similarly constrained local session mechanism.
-10. Remove the secret from navigable URLs/history as soon as practical.
+8. Open browser to the one-time bootstrap URL.
+9. Exchange the bootstrap secret for an HttpOnly, SameSite=Strict, host-only session cookie.
+10. Redirect immediately to `/` so the bootstrap token is removed from the navigable URL/history.
 11. Serve UI/API until shutdown.
 
-Do not bind `0.0.0.0` by default.
+Phase 1 currently implements steps 1 and 5-11. Pack loading and tool discovery are intentionally deferred to later phases and will be inserted before browser launch as those components become authoritative.
+
+The runtime binds specifically to IPv4 loopback (`127.0.0.1`) today. Do not bind `0.0.0.0` by default.
 
 ## 6. Browser/API contract
 
-Suggested API surface:
+Implemented Phase 1 surface:
 
 ```text
+GET  /bootstrap?token=<one-time-secret>
 GET  /api/v1/status
+GET  /
+GET  /assets/*
+```
+
+`/bootstrap` and `/api/*` are server-owned routes and take precedence over frontend handling. Unknown `/api/*` requests remain behind the browser-session boundary and return not found rather than falling through to frontend routing.
+
+Planned API surface:
+
+```text
 GET  /api/v1/packs
 GET  /api/v1/tools
 GET  /api/v1/tasks
@@ -259,11 +277,21 @@ Potential state:
 
 Never persist secret field values.
 
-## 14. Browser launch
+## 14. Browser launch and frontend serving
 
 Use the OS default browser. Do not bundle Chromium/Electron.
 
-If automatic browser launch fails, print a safe loopback URL and clear instructions.
+The browser launcher receives only a validated URL of the form `http://127.0.0.1:<ephemeral-port>/bootstrap?token=<secret>`. Windows uses native `ShellExecuteW`; normal browser launch does not route through CMD or PowerShell. Linux/macOS use fixed executable + argument invocation with no shell-string evaluation.
+
+A successful automatic launch does not print the bootstrap token to normal CLI output. If automatic browser launch fails, the server remains active and the CLI prints the short-lived bootstrap URL as an explicit recovery path.
+
+Production frontend assets are Vite build output committed under `internal/webui/static/` and embedded with Go `embed`. CI rebuilds `web/` and fails on generated-asset drift.
+
+### Development frontend proxy
+
+Development may be enabled only with an explicit `--web-dev-url http://127.0.0.1:<port>` origin. The runtime rejects non-loopback hosts, HTTPS substitutions, missing/invalid ports, URL credentials, fragments, queries, and path-bearing targets.
+
+The browser continues to use the CLIHarbor loopback origin and authenticated session. Requests forwarded to Vite have CLIHarbor session/authentication headers stripped, including cookies, authorization headers, and the CSRF header. `Set-Cookie` returned by the development server is also removed before it reaches the browser. This prevents the development server from becoming a holder or setter of CLIHarbor browser-session material.
 
 ## 15. Extensibility
 

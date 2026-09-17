@@ -17,29 +17,88 @@ For Idira/CyberArk work, verify command syntax against the exact upstream/deploy
 - Treat packs as privileged configuration.
 - Never commit credentials, tenant-specific data, secrets, or internal endpoints.
 - Add tests around security-sensitive boundaries.
+- Keep `/bootstrap` and `/api/*` server-owned; frontend routing must not weaken the browser/session boundary.
+- Treat generated frontend assets as build output sourced from `web/`, not hand-authored runtime code.
 
-## Current foundation workflow
+## Toolchains
 
-The Go foundation targets Go 1.27.1 (see `.go-version`). Current commands are intentionally simple:
+- Go 1.27.1 (see `.go-version`)
+- Node 24.21.0 (see `.node-version`)
+- npm lockfile at `web/package-lock.json`
+
+Install frontend dependencies with:
 
 ```text
-# start the local runtime; open the printed short-lived bootstrap URL
-# in a browser until auto-open is implemented
+npm ci --prefix web
+```
+
+## Runtime and frontend development
+
+Run the production-style embedded runtime:
+
+```text
 go run ./cmd/cliharbor
+```
 
-# run the current test suite
-go test ./...
+The runtime binds to IPv4 loopback, generates a short-lived one-time browser bootstrap handoff, and requests the system default browser. Browser-launch failure is non-fatal and prints the local bootstrap URL for manual opening.
 
-# static checks
-go vet ./...
+For frontend development, use two terminals:
 
-# exercise concurrency-sensitive tests locally when supported
+```text
+# terminal 1
+go run ./tools/task web-dev
+
+# terminal 2
+go run ./cmd/cliharbor --web-dev-url http://127.0.0.1:5173
+```
+
+The Vite development server is loopback-only. The browser still talks to CLIHarbor's authenticated origin; the Go runtime proxies frontend requests to the explicitly configured loopback Vite origin. Do not add permissive CORS to bypass this model.
+
+## Cross-platform task entry point
+
+The Go task tool is the supported Windows/Linux/macOS command surface; GNU Make is not required.
+
+```text
+# frontend install, typecheck, lint, tests, build, then embedded-asset sync
+go run ./tools/task web-build
+
+# frontend gates + asset sync + Go vet/tests
+go run ./tools/task check
+
+# synchronize an already-built web/dist into internal/webui/static
+go run ./tools/task sync-web
+
+# build embedded CLIHarbor into ./bin
+go run ./tools/task go-build
+
+# rebuild frontend, sync assets, then build the executable
+go run ./tools/task build
+```
+
+For concurrency-sensitive Go changes, also run where supported:
+
+```text
 go test -race ./...
 ```
 
-GitHub Actions runs format, vet, and tests on Windows and Linux, plus the race detector on Linux.
+When frontend source changes, commit the synchronized files under `internal/webui/static/`. CI rebuilds the frontend on Windows and Linux and fails if generated assets differ from committed output.
 
-As the frontend and pack tooling arrive, the repository should add a single cross-platform task entry point for development, validation, tests, and release builds. Windows support remains mandatory; do not make GNU-only tooling the sole entry point.
+## CI gates
+
+GitHub Actions runs on Windows and Linux and validates:
+
+- `npm ci` from the lockfile;
+- frontend TypeScript typecheck;
+- frontend lint;
+- frontend component tests;
+- production Vite build;
+- generated embedded-asset synchronization;
+- Go formatting;
+- `go vet`;
+- Go tests;
+- final embedded Go executable build.
+
+Linux also runs the Go race detector. Passing compilation on a platform is not a claim that all platform-specific desktop behavior has been manually exercised there.
 
 ## Pull request expectations
 
@@ -72,6 +131,7 @@ Changes touching any of these require extra review:
 - process execution;
 - auth/session flows;
 - browser bootstrap/session security;
+- frontend development proxying or static asset serving;
 - pack loading/trust;
 - remote networking;
 - secret handling/redaction;

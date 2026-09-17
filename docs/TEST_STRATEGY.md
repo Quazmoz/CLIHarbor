@@ -6,6 +6,27 @@ CLIHarbor sits between a browser and powerful local CLIs. Tests must focus on pr
 
 The highest-risk code is not the visual UI; it is pack validation, execution planning, auth orchestration, output handling, and Windows process lifecycle.
 
+### Current Phase 1 automated checkpoint
+
+The implemented local-runtime/browser foundation currently verifies:
+
+- IPv4 loopback-only binding and exact Host rejection;
+- bootstrap expiry, invalid-token behavior, one-time consumption, clean post-bootstrap navigation, and session-cookie flags;
+- Origin + CSRF enforcement for state-changing requests without exposing the CSRF value to the current frontend API payload;
+- authenticated `/api/v1/status` behavior;
+- `/bootstrap` and `/api/*` remaining server-owned instead of falling through to frontend handling;
+- restrictive browser security headers/CSP;
+- embedded production asset serving, unknown-path handling, and traversal rejection;
+- loopback-only frontend development proxy configuration;
+- browser-launch URL validation, exact bootstrap handoff, token-free normal startup output, and usable fallback when launch fails;
+- React status loading, unauthenticated/session-unavailable behavior, and transient retry behavior;
+- frontend TypeScript, lint, component tests, and production Vite build;
+- generated frontend asset synchronization;
+- Go format/vet/tests and final embedded executable build on both Windows and Linux CI;
+- Go race detector on Linux.
+
+A green CI build proves the Windows code path compiles/tests and the embedded executable builds there; it does **not** replace manual desktop acceptance of the real default-browser launch on a supported Windows workstation.
+
 ## 2. Test layers
 
 ### Unit tests
@@ -98,15 +119,20 @@ Verify:
 Automate where practical:
 
 - server listens only on loopback;
-- unexpected Host rejected;
+- unexpected Host rejected for both API and frontend assets;
 - unexpected Origin rejected;
 - state-changing requests require valid session/CSRF protection;
 - bootstrap token is unpredictable, short-lived, and single-use;
 - bootstrap URL is cleaned after session establishment;
+- `/api/*` and `/bootstrap` cannot be swallowed by frontend routing;
+- frontend static paths reject traversal and unknown files safely;
+- frontend development proxy accepts only an explicit `http://127.0.0.1:<port>` origin;
 - CORS does not allow arbitrary websites;
-- CSP/header expectations present.
+- CSP/header expectations present and do not require `unsafe-inline` or `unsafe-eval`;
+- normal startup output does not disclose the bootstrap token;
+- browser-launch failure exposes the bootstrap URL only as the intentional interactive recovery path.
 
-Include a small hostile-origin test page in integration tests to attempt localhost requests.
+Include a small hostile-origin test page in integration tests when state-changing APIs arrive to attempt localhost requests through a real browser security model.
 
 ## 7. XSS/rendering tests
 
@@ -122,6 +148,8 @@ invalid UTF-8 replacement scenarios
 ```
 
 Verify output is displayed as inert data and the app remains usable.
+
+The Phase 1 React shell does not use raw-HTML rendering. When CLI output rendering is introduced, add these fixtures before considering that path complete.
 
 ## 8. Redaction tests
 
@@ -179,7 +207,7 @@ Backend tests must prove:
 
 ## 12. UI tests
 
-Use component/unit tests for:
+The current Phase 1 component tests cover authenticated status loading, browser-session loss, transient API failure/retry, and ensure non-consumed API fields are not rendered. Expand component/unit coverage as the product adds:
 
 - task form generation;
 - validation errors;
@@ -190,7 +218,7 @@ Use component/unit tests for:
 - raw/structured output switching;
 - missing/incompatible tool states.
 
-Use browser E2E for the critical happy path and destructive-confirmation path.
+Use browser E2E for the critical happy path and destructive-confirmation path once those user flows exist. Do not add browser E2E that merely re-tests static markup without exercising a consequential contract.
 
 ## 13. Accessibility tests
 
@@ -207,12 +235,14 @@ Automated checks plus manual keyboard/screen-reader smoke test:
 
 At minimum test the supported corporate Windows baseline and latest supported Windows version.
 
+Windows CI is a first-class gate for the frontend build, embedded-asset contract, Go tests, platform-specific browser-launch compilation, and final executable build. Manual Windows acceptance is still required before a release for desktop integration that headless CI cannot prove.
+
 Windows-specific cases:
 
 - PATH discovery;
 - `.exe` resolution;
 - spaces/Unicode paths;
-- browser launch;
+- browser launch through the default-handler mechanism;
 - Windows Terminal absent/present;
 - CMD/PowerShell not used for ordinary execution;
 - process-tree cancellation;
@@ -245,3 +275,5 @@ A Windows MVP release requires:
 - no high-severity known vulnerability without explicit disposition;
 - `doctor` output verified redacted;
 - packaged binary tested on a clean Windows machine/profile.
+
+Phase 1 CI is a foundation gate, not a release qualification: pack/executor/auth/real-tool release criteria above intentionally remain unmet until those features exist.
