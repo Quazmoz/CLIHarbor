@@ -4,7 +4,9 @@ Use this document as the canonical read order for development agents.
 
 ## Current repository state
 
-CLIHarbor is in the **foundation/specification stage**. Product and architecture documents exist; implementation may not yet exist. Never infer that a planned component is already built simply because it is specified.
+CLIHarbor is in the **foundation implementation stage**. The first security-sensitive runtime slice now exists: a Go command entry point, IPv4 loopback listener, one-time browser bootstrap/session boundary, Host/Origin/CSRF protections, security headers, authenticated status endpoint, graceful shutdown, tests, and Windows/Linux CI.
+
+The React/Vite frontend, browser auto-open, pack loader/schema, binary discovery, planner/executor, auth adapter, streaming, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
 
 ## Read order
 
@@ -97,10 +99,10 @@ Use to understand existing tools, upstream Idira/CyberArk status, and demand evi
 - Upstream vendor documentation wins over old assumptions about CLI flags/commands.
 - Before adding Idira/CyberArk task definitions, verify exact commands against the deployed tool version.
 
-## First implementation target
+## Current implementation checkpoint
 
-Unless the repo already progressed beyond it, the first implementation milestone is:
+The first part of Phase 1 is implemented: the secure loopback/session boundary and lifecycle foundation.
 
-> Secure Windows loopback application + pack loader + binary discovery + one verified read-only Idira/CyberArk workflow executed directly through the official CLI.
+The next bounded implementation work should finish Phase 1 by adding the React/Vite development surface, safe browser auto-open, and Windows runtime verification without weakening the existing session boundary. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk task definitions. After Phase 1, proceed to the versioned pack schema/loader described in `DEVELOPMENT_PLAN.md`.
 
-Do not begin with marketplace work, universal AI extraction, a cloud backend, or an embedded terminal.
+Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, or guessed Idira/CyberArk commands.
