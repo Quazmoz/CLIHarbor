@@ -1,6 +1,7 @@
 package packs
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -66,14 +67,14 @@ func (l *Loader) LoadDirectory(directory string) (*Registry, error) {
 	}
 	info, err := os.Lstat(absolute)
 	if err != nil {
-		return nil, fmt.Errorf("inspect explicit pack directory: %w", err)
+		return nil, safeLocalIOError(fmt.Sprintf("inspect explicit pack directory %q", filepath.Base(absolute)), err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 		return nil, validationError(ErrUnsupportedLocalEntry, filepath.Base(absolute), "explicit pack directory must be a real directory, not a symlink")
 	}
 	entries, err := os.ReadDir(absolute)
 	if err != nil {
-		return nil, fmt.Errorf("read explicit pack directory: %w", err)
+		return nil, safeLocalIOError(fmt.Sprintf("read explicit pack directory %q", filepath.Base(absolute)), err)
 	}
 	paths := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -94,7 +95,7 @@ func (l *Loader) loadLocalFile(path string) (LoadedPack, error) {
 	source := Source{Kind: SourceExplicitLocal, Name: path}
 	before, err := os.Lstat(path)
 	if err != nil {
-		return LoadedPack{}, &LoadError{Source: source, Err: fmt.Errorf("inspect local pack: %w", err)}
+		return LoadedPack{}, &LoadError{Source: source, Err: safeLocalIOError("inspect local pack", err)}
 	}
 	if before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() {
 		return LoadedPack{}, &LoadError{Source: source, Err: validationError(ErrUnsupportedLocalEntry, filepath.Base(path), "explicit local pack must be a regular file, not a symlink")}
@@ -102,13 +103,13 @@ func (l *Loader) loadLocalFile(path string) (LoadedPack, error) {
 
 	file, err := os.Open(path)
 	if err != nil {
-		return LoadedPack{}, &LoadError{Source: source, Err: fmt.Errorf("open local pack: %w", err)}
+		return LoadedPack{}, &LoadError{Source: source, Err: safeLocalIOError("open local pack", err)}
 	}
 	defer file.Close()
 
 	afterOpen, err := file.Stat()
 	if err != nil {
-		return LoadedPack{}, &LoadError{Source: source, Err: fmt.Errorf("inspect opened local pack: %w", err)}
+		return LoadedPack{}, &LoadError{Source: source, Err: safeLocalIOError("inspect opened local pack", err)}
 	}
 	if !os.SameFile(before, afterOpen) {
 		return LoadedPack{}, &LoadError{Source: source, Err: validationError(ErrUnsupportedLocalEntry, filepath.Base(path), "local pack changed while opening")}
@@ -119,16 +120,16 @@ func (l *Loader) loadLocalFile(path string) (LoadedPack, error) {
 
 	data, err := io.ReadAll(io.LimitReader(file, l.maxBytes+1))
 	if err != nil {
-		return LoadedPack{}, &LoadError{Source: source, Err: fmt.Errorf("read local pack: %w", err)}
+		return LoadedPack{}, &LoadError{Source: source, Err: safeLocalIOError("read local pack", err)}
 	}
 	if int64(len(data)) > l.maxBytes {
 		return LoadedPack{}, &LoadError{Source: source, Err: validationError(ErrInputTooLarge, "", fmt.Sprintf("pack exceeds %d-byte limit", l.maxBytes))}
 	}
 	afterRead, err := file.Stat()
 	if err != nil {
-		return LoadedPack{}, &LoadError{Source: source, Err: fmt.Errorf("reinspect local pack: %w", err)}
+		return LoadedPack{}, &LoadError{Source: source, Err: safeLocalIOError("reinspect local pack", err)}
 	}
-	if !os.SameFile(afterOpen, afterRead) || afterRead.Size() != int64(len(data)) {
+	if !os.SameFile(afterOpen, afterRead) || afterRead.Size() != int64(len(data)) || !afterOpen.ModTime().Equal(afterRead.ModTime()) {
 		return LoadedPack{}, &LoadError{Source: source, Err: validationError(ErrUnsupportedLocalEntry, filepath.Base(path), "local pack changed while reading")}
 	}
 
@@ -160,4 +161,12 @@ func canonicalizePaths(paths []string) ([]string, error) {
 	}
 	sort.Strings(canonical)
 	return canonical, nil
+}
+
+func safeLocalIOError(operation string, err error) error {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		return fmt.Errorf("%s: %w", operation, pathErr.Err)
+	}
+	return fmt.Errorf("%s: %w", operation, err)
 }
