@@ -3,7 +3,9 @@ package planner
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"sort"
 	"strings"
@@ -23,6 +25,7 @@ const (
 	ErrUnknownInput     ErrorCode = "unknown_input"
 	ErrMissingInput     ErrorCode = "missing_input"
 	ErrInvalidInput     ErrorCode = "invalid_input"
+	ErrRiskPolicy       ErrorCode = "risk_policy_required"
 	ErrInvalidPlanState ErrorCode = "invalid_plan_state"
 )
 
@@ -46,17 +49,17 @@ type Request struct {
 }
 
 type Plan struct {
-	PackID          string
-	PackVersion     string
-	CommandID       string
-	ToolID          string
-	ExecutablePath  string
-	ExecutableName  string
-	ToolVersion     string
-	Args            []string
-	Risk            packs.Risk
-	Output          packs.Output
-	Requirements    packs.Requirements
+	PackID         string
+	PackVersion    string
+	CommandID      string
+	ToolID         string
+	ExecutablePath string
+	ExecutableName string
+	ToolVersion    string
+	Args           []string
+	Risk           packs.Risk
+	Output         packs.Output
+	Requirements   packs.Requirements
 }
 
 func (p Plan) Clone() Plan {
@@ -65,11 +68,11 @@ func (p Plan) Clone() Plan {
 }
 
 type value struct {
-	present bool
-	text    string
-	integer int64
-	boolean bool
-	many    []string
+	present  bool
+	text     string
+	argument string
+	boolean  bool
+	many     []string
 }
 
 func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Request) (Plan, error) {
@@ -84,6 +87,9 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 	command, ok := registry.FindCommand(request.PackID, request.CommandID)
 	if !ok {
 		return zero, &Error{Code: ErrUnknownCommand, Path: "commandId", Message: "command is not declared by the configured pack"}
+	}
+	if command.Risk != packs.RiskRead {
+		return zero, &Error{Code: ErrRiskPolicy, Path: "commandId", Message: "this execution milestone permits read-only commands only"}
 	}
 
 	toolState, ok := snapshot.Find(discovery.ToolRef{PackID: request.PackID, ToolID: command.Tool})
@@ -140,10 +146,10 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 			if !ok {
 				return zero, &Error{Code: ErrInvalidPlanState, Path: path, Message: "validated pack references an unavailable input"}
 			}
-			if !current.present || (argument.Flag.OmitWhenEmpty && current.text == "" && current.many == nil) {
+			if !current.present || (argument.Flag.OmitWhenEmpty && current.argument == "") {
 				continue
 			}
-			args = append(args, argument.Flag.Name, scalarArgument(current))
+			args = append(args, argument.Flag.Name, current.argument)
 		case argument.Switch != nil:
 			current, ok := values[argument.Switch.EnabledFrom]
 			if !ok {
@@ -184,7 +190,8 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 
 func parseValue(input packs.Input, raw json.RawMessage) (value, error) {
 	path := "values." + input.ID
-	if len(bytes.TrimSpace(raw)) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 		return value{}, &Error{Code: ErrInvalidInput, Path: path, Message: "input must not be null"}
 	}
 
@@ -197,7 +204,7 @@ func parseValue(input packs.Input, raw json.RawMessage) (value, error) {
 		if err := validateString(input, text, path); err != nil {
 			return value{}, err
 		}
-		return value{present: true, text: text}, nil
+		return value{present: true, text: text, argument: text}, nil
 	case packs.InputInteger:
 		var integer int64
 		if err := strictJSON(raw, &integer); err != nil {
@@ -209,13 +216,13 @@ func parseValue(input packs.Input, raw json.RawMessage) (value, error) {
 		if input.Validation.Max != nil && integer > *input.Validation.Max {
 			return value{}, &Error{Code: ErrInvalidInput, Path: path, Message: "integer exceeds the allowed maximum"}
 		}
-		return value{present: true, integer: integer}, nil
+		return value{present: true, argument: fmt.Sprintf("%d", integer)}, nil
 	case packs.InputBoolean:
 		var boolean bool
 		if err := strictJSON(raw, &boolean); err != nil {
 			return value{}, &Error{Code: ErrInvalidInput, Path: path, Message: "input must be a boolean"}
 		}
-		return value{present: true, boolean: boolean}, nil
+		return value{present: true, boolean: boolean, argument: fmt.Sprintf("%t", boolean)}, nil
 	case packs.InputMultiselect:
 		var many []string
 		if err := strictJSON(raw, &many); err != nil || many == nil {
@@ -268,34 +275,17 @@ func validateString(input packs.Input, text, path string) error {
 
 func strictJSON(raw json.RawMessage, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		return err
 	}
-	if decoder.More() {
-		return fmt.Errorf("trailing JSON value")
-	}
 	var extra any
-	if err := decoder.Decode(&extra); err == nil {
-		return fmt.Errorf("trailing JSON value")
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return fmt.Errorf("trailing JSON value")
+		}
+		return err
 	}
 	return nil
-}
-
-func scalarArgument(current value) string {
-	if current.text != "" || current.many == nil {
-		if current.text != "" {
-			return current.text
-		}
-		if current.integer != 0 {
-			return fmt.Sprintf("%d", current.integer)
-		}
-		if current.boolean {
-			return "true"
-		}
-		return "0"
-	}
-	return ""
 }
 
 func stringSet(values []string) map[string]struct{} {
