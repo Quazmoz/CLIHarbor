@@ -115,3 +115,36 @@ func TestValidateDevURLAllowsOnlyIPv4LoopbackOrigin(t *testing.T) {
 		})
 	}
 }
+
+func TestDevProxyDoesNotExposeRuntimeCredentialsToVite(t *testing.T) {
+	seen := make(chan http.Header, 1)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.Header.Clone()
+		w.Header().Add("Set-Cookie", "vite=value; Path=/")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer target.Close()
+
+	proxy, err := NewDevProxy(target.URL)
+	if err != nil {
+		t.Fatalf("new dev proxy: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/assets/app.js", nil)
+	request.Header.Set("Cookie", "cliharbor_session=secret-session")
+	request.Header.Set("Authorization", "Bearer secret")
+	request.Header.Set("Proxy-Authorization", "Basic secret")
+	request.Header.Set("X-CLIHarbor-CSRF", "secret-csrf")
+	recorder := httptest.NewRecorder()
+	proxy.ServeHTTP(recorder, request)
+
+	forwarded := <-seen
+	for _, name := range []string{"Cookie", "Authorization", "Proxy-Authorization", "X-CLIHarbor-CSRF"} {
+		if value := forwarded.Get(name); value != "" {
+			t.Errorf("development proxy forwarded %s=%q", name, value)
+		}
+	}
+	if cookie := recorder.Header().Get("Set-Cookie"); cookie != "" {
+		t.Fatalf("development proxy forwarded Set-Cookie response %q", cookie)
+	}
+}
