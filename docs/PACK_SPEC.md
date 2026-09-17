@@ -2,9 +2,9 @@
 
 ## 1. Purpose
 
-A CLIHarbor **pack** describes how a trusted local command-line tool can become a guided browser experience. Packs are privileged declarative configuration: they may describe executable basenames, fixed argument literals, typed user inputs, risk, output metadata, and authentication requirements, but they are not scripts or plugins.
+A CLIHarbor **pack** describes how a trusted local command-line tool can become a guided browser experience. Packs are privileged declarative configuration: they may describe executable basenames, fixed version probes, fixed argument literals, typed user inputs, risk, output metadata, and authentication requirements, but they are not scripts or plugins.
 
-The implemented Phase 2 format is `cliharbor.dev/v1`. Its executable structural contract is `schemas/pack.v1.schema.json`; `internal/packs` implements the additional semantic/security checks and trusted loading rules.
+The implemented format is `cliharbor.dev/v1`. Its structural contract is `schemas/pack.v1.schema.json`; `internal/packs` implements additional semantic/security checks and trusted loading rules. `internal/discovery` consumes already-validated tool metadata for executable discovery and version compatibility.
 
 No real Idira/CyberArk command pack exists yet. `packs/example/pack.yaml` is intentionally synthetic and non-production. Real vendor commands remain blocked on Phase 0 inventory of the exact deployed CLI versions and command trees.
 
@@ -14,11 +14,12 @@ No real Idira/CyberArk command pack exists yet. `packs/example/pack.yaml` is int
 - strict, versioned structural validation;
 - deterministic semantic validation;
 - explicit allowlists of tools, tasks, flags, and mappings;
+- safe, fixed version-probe representation;
 - typed inputs and explicit risk classification;
 - output/auth metadata sufficient for later UI/runtime work;
 - portable platform declarations;
 - resistant to arbitrary-command or scripting behavior;
-- deterministic, bounded, fail-closed loading.
+- deterministic, bounded, fail-closed loading and discovery.
 
 ## 3. Non-goals
 
@@ -32,7 +33,7 @@ The v1 pack format is not:
 - a generic free-form positional-command facility;
 - a way to execute arbitrary user-entered commands.
 
-Phase 2 does not execute packs at all.
+Phase 3 executes only the narrow fixed version probe of an explicitly configured trusted pack tool. Pack task commands are still not executable.
 
 ## 4. Implemented top-level structure
 
@@ -50,7 +51,11 @@ runtime:
   tools:
     fixture:
       executableNames: [cliharbor-fixture]
-      versionConstraint: ">=1.0.0"
+      versionProbe:
+        args: [--version]
+        parser: semver-text
+        timeoutMillis: 1500
+      versionConstraint: ">=1.0.0 <2.0.0"
 
 commands:
   inspect:
@@ -80,7 +85,7 @@ Pack versions are semantic-version-shaped strings. A pack contains a display nam
 
 ## 6. Platforms and tools
 
-Implemented platforms are metadata values:
+Implemented platforms are:
 
 ```text
 windows
@@ -96,15 +101,74 @@ tools:
     executableNames: [fixture-cli, fixture-cli.exe]
 ```
 
-Executable paths are not accepted. v1 also rejects known shells/general-purpose interpreters such as `cmd`, PowerShell, POSIX shells, script hosts, Python, Node, Ruby, and Perl. This is defense in depth; pack trust remains the primary control.
+Executable paths are not accepted in a pack. v1 also rejects known shells/general-purpose interpreters and script/launcher forms such as CMD, PowerShell, POSIX shells, Windows script extensions, Python, Node, Ruby, Perl, `mshta`, `rundll32`, `regsvr32`, and WSL. This is defense in depth; explicit pack trust remains the primary control.
 
-`versionConstraint` is retained as bounded metadata for Phase 3 discovery/version compatibility. Phase 2 does not probe binaries or interpret vendor version output.
+The browser never chooses an executable or executable path.
 
-The browser must never choose an executable or executable path.
+## 7. Version probes and compatibility
 
-## 7. Commands and risk
+A tool may declare one fixed probe:
 
-Each executable command requires:
+```yaml
+versionProbe:
+  args: [--version]
+  parser: semver-text
+  timeoutMillis: 1500
+versionConstraint: ">=1.0.0 <2.0.0"
+```
+
+Rules:
+
+- `versionProbe.args` is pack-authored fixed argv; no browser/user value is interpolated;
+- `parser` is currently only `semver-text`;
+- `timeoutMillis`, when provided, is bounded by schema to 100-10000 ms; runtime default is 3 seconds;
+- probe stdout and stderr are captured separately into bounded buffers and raw output is not retained in discovery state;
+- the probe executable is started directly, never through a shell;
+- a `versionConstraint` requires a `versionProbe` and must parse as a valid `Masterminds/semver` constraint;
+- the `semver-text` parser accepts exactly one distinct valid semantic version from combined probe text; no version or multiple distinct versions is a fail-closed probe error;
+- incompatible versions produce an unavailable discovery state rather than being silently accepted.
+
+Do not encode guessed vendor version arguments. Verify the exact deployed CLI behavior during Phase 0 before adding real vendor probes.
+
+## 8. Discovery semantics
+
+Phase 3 discovery operates only on already-validated pack tools.
+
+PATH discovery:
+
+- only absolute PATH directory entries are considered;
+- empty, relative, and current-directory PATH entries are ignored so cwd contents do not silently gain execution authority;
+- on Windows, an extensionless declared basename may resolve to the exact basename, `.exe`, or `.com`; batch/PowerShell/script extensions are not considered;
+- discovered candidates are resolved to exact paths, de-duplicated, and sorted deterministically;
+- zero matches -> `missing`;
+- one match -> selected candidate;
+- multiple matches -> `ambiguous`; CLIHarbor does not choose the first PATH hit.
+
+Explicit overrides use:
+
+```text
+--tool-path pack/tool=/absolute/path
+```
+
+An override is backend/operator configuration, not browser input. It must reference an already-declared pack/tool and resolve to a regular executable whose basename matches that tool's allowlist. An invalid explicit override is authoritative and fails closed; CLIHarbor does not silently fall back to PATH.
+
+Discovery states currently include:
+
+```text
+ready
+missing
+ambiguous
+incompatible
+probe-failed
+invalid-override
+unsupported-platform
+```
+
+Exact resolved path/version/candidate evidence is available through `cliharbor doctor`. Browser tool-status UI is deferred.
+
+## 9. Commands and risk
+
+Each task command requires:
 
 - display name;
 - declared tool reference;
@@ -122,9 +186,9 @@ credential-sensitive
 interactive
 ```
 
-The risk value is metadata in Phase 2. Backend enforcement of destructive confirmation belongs to the later planner/executor milestone and must not rely on frontend behavior.
+The risk value remains metadata until the planner/executor phase. Backend enforcement of destructive confirmation must not rely on frontend behavior.
 
-## 8. Implemented input types
+## 10. Implemented input types
 
 v1 supports:
 
@@ -138,11 +202,11 @@ Supported validation metadata includes numeric bounds, string length bounds, RE2
 
 Semantic validation rejects incompatible combinations, such as numeric bounds on strings or regex constraints on integers. Enum and multiselect inputs require predefined values.
 
-`path` and `secret` input types are deliberately deferred. Their trust, path-normalization, disclosure, and credential-handling semantics require separate reviewed designs rather than being added speculatively.
+`path` and `secret` input types remain deliberately deferred. Their trust, path-normalization, disclosure, and credential-handling semantics require separate reviewed designs.
 
-## 9. Implemented argument primitives
+## 11. Implemented argument primitives
 
-v1 intentionally supports only four argument shapes.
+v1 intentionally supports only four task-argument shapes.
 
 ### Literal
 
@@ -183,13 +247,13 @@ A switch must reference a declared boolean input. The browser controls only the 
       detailed: --detailed-mode
 ```
 
-A map must reference a declared enum and define exactly one pack-authored literal for every allowed enum value. Extra/missing mapping keys fail validation.
+A map must reference a required enum and define exactly one pack-authored literal for every allowed enum value. Extra/missing mapping keys fail validation.
 
 ### Deliberately absent in v1
 
 Free-form positional `valueFrom`, shell strings, templated argument strings, browser-selected flag names, browser-selected subcommands, and browser-selected executables are not part of v1. A later positional-value primitive may be added only with planner/runtime semantics that prove one validated input becomes exactly one intended argv element without creating an undeclared flag/subcommand surface.
 
-## 10. Output metadata
+## 12. Output metadata
 
 Implemented modes:
 
@@ -217,13 +281,11 @@ sensitivity:
   revealByDefault: false
 ```
 
-If `containsSecrets` is true, Phase 2 semantic validation rejects `persistRawOutput: true` and `revealByDefault: true`.
+If `containsSecrets` is true, semantic validation rejects `persistRawOutput: true` and `revealByDefault: true`.
 
-The future executor/renderer must still treat process output as untrusted data and implement redaction/escaping; pack metadata alone is not a security boundary.
+The future executor/renderer must still treat process output as untrusted data and implement redaction/escaping; pack metadata alone is not a security boundary. `adapter` output mode and executable parser/plugin code are deliberately not implemented in v1.
 
-`adapter` output mode and executable parser/plugin code are deliberately not implemented in v1.
-
-## 11. Authentication requirement metadata
+## 13. Authentication requirement metadata
 
 A command may declare:
 
@@ -232,11 +294,11 @@ requirements:
   requiresAuth: true
 ```
 
-This is declarative metadata only. Phase 2 does not capture credentials or implement vendor auth adapters. Vendor-owned authentication/session storage remains the architectural rule in `AUTHENTICATION.md`.
+This is declarative metadata only. CLIHarbor does not capture credentials or implement vendor auth adapters yet. Vendor-owned authentication/session storage remains the architectural rule in `AUTHENTICATION.md`.
 
-## 12. Structural validation
+## 14. Structural validation
 
-Phase 2 uses the embedded Draft 2020-12 schema to enforce, among other things:
+The embedded Draft 2020-12 schema enforces, among other things:
 
 - exact API/kind values;
 - required fields;
@@ -245,25 +307,16 @@ Phase 2 uses the embedded Draft 2020-12 schema to enforce, among other things:
 - collection/field length bounds;
 - strict unknown-field rejection;
 - executable-basename syntax;
+- bounded version-probe fields;
 - constrained argument object shapes;
 - valid platform values;
 - typed object/array/scalar structure.
 
-Before JSON Schema validation, the YAML boundary also rejects:
+Before JSON Schema validation, the YAML boundary also rejects invalid UTF-8, files larger than 256 KiB, multiple documents, aliases/anchors/merge keys, custom tags, non-string/duplicate mapping keys, and excessive YAML depth/node count.
 
-- invalid UTF-8;
-- files larger than 256 KiB;
-- multiple YAML documents;
-- aliases and anchors;
-- merge keys;
-- custom/unsupported YAML tags;
-- non-string mapping keys;
-- duplicate mapping keys;
-- excessive YAML depth/node count.
+## 15. Semantic/security validation
 
-## 13. Semantic/security validation
-
-After structural validation, deterministic checks enforce:
+Deterministic checks enforce:
 
 - every command references a declared tool;
 - input IDs are unique within a command;
@@ -271,36 +324,30 @@ After structural validation, deterministic checks enforce:
 - regex patterns compile under Go/RE2 semantics;
 - argv mappings reference declared inputs of the expected type;
 - optional flag/value pairs cannot leave malformed layouts;
-- enum maps are complete and contain no undeclared enum keys;
+- enum maps are complete and contain no undeclared keys;
 - user-derived string/enum flag values cannot begin with `-`;
 - executable declarations are basenames, not paths;
-- known shells/interpreters cannot be v1 tool executables;
+- known shells/interpreters/script launchers cannot be v1 tool executables;
+- version constraints parse and require a version probe;
+- version probe arguments cannot contain NUL;
 - secret-bearing output cannot request raw persistence/default revelation.
 
-Validation errors expose codes and schema/object paths where useful but avoid echoing supplied values. Explicit-local load errors display only the pack basename, not its directory path.
+Validation errors avoid echoing supplied values. Explicit-local load errors display only the pack basename, not its directory path.
 
-## 14. Trust and loading model
+## 16. Trust and loading model
 
 Validation is not trust. Packs are privileged configuration.
 
-Phase 2 supports two explicit source classes:
+Supported source classes are:
 
 1. `builtin`: bytes supplied directly by trusted application code;
 2. `explicit-local`: paths/directories deliberately supplied by a trusted caller.
 
-The loader does **not**:
+The loader does **not** scan the current working directory, automatically trust repository-local `packs/`, recurse through arbitrary directories, follow pack-file/directory symlinks, load HTTP/HTTPS URLs, auto-download packs, or execute plugin code.
 
-- scan the current working directory;
-- automatically trust repository-local `packs/` content;
-- recurse through arbitrary directories;
-- follow pack-file/directory symlinks;
-- load HTTP/HTTPS URLs;
-- auto-download packs;
-- execute plugin code.
+Local file reads are size-bounded and verify opened file identity/size around the read. Directory entries are sorted, only direct `.yaml`/`.yml` regular files are considered, and duplicate input paths/pack IDs fail the whole load.
 
-Local file reads are size-bounded and verify the opened file identity/size around the read. Directory entries are sorted, only direct `.yaml`/`.yml` regular files are considered, and duplicate input paths/pack IDs fail the whole load.
-
-## 15. Registry/runtime representation
+## 17. Registry/runtime representation
 
 A successful load returns an effectively immutable `Registry`:
 
@@ -308,40 +355,41 @@ A successful load returns an effectively immutable `Registry`:
 - duplicate pack IDs are rejected;
 - pack/tool/command lookups use stable IDs;
 - tool/command enumerations are sorted;
-- accessors return deep copies so callers cannot mutate authoritative validated state through returned slices/maps/pointers.
+- accessors return deep copies, including version-probe argv, so callers cannot mutate authoritative validated state through returned slices/maps/pointers.
 
-There is no global mutable pack registry.
+Discovery returns an independent immutable-style snapshot with defensive copies of candidate lists.
 
-## 16. Validation stages
+## 18. Validation/runtime stages
 
-Implemented now:
+Implemented:
 
 1. bounded UTF-8/YAML parsing;
 2. v1 JSON Schema validation;
 3. semantic cross-reference/type validation;
 4. execution-shape/security validation;
 5. trusted-source deterministic loading;
-6. immutable/effectively immutable registry creation.
+6. effectively immutable registry creation;
+7. explicit tool discovery/path resolution;
+8. bounded direct version probe and compatibility state.
 
 Deferred:
 
-7. tool discovery/version compatibility (Phase 3);
-8. typed request validation and deterministic execution-plan construction;
-9. process execution;
-10. output parsing/rendering and auth orchestration.
+9. typed request validation and deterministic task execution-plan construction;
+10. task process execution/streaming/cancellation;
+11. output parsing/rendering and auth orchestration.
 
-## 17. Idira/CyberArk development rule
+## 19. Idira/CyberArk development rule
 
-Do not invent or assume command trees from memory. Generate the initial inventory by running approved help/version commands against the exact deployed company versions, then encode only verified commands. The synthetic example pack must never be treated as vendor evidence.
+Do not invent or assume command trees from memory. Generate the initial inventory by running approved help/version commands against the exact deployed company versions, then encode only verified commands and version probes. The synthetic example pack must never be treated as vendor evidence.
 
-## 18. Future extensions
+## 20. Future extensions
 
-Potential later additions include path/secret inputs, working-directory/environment policies, constrained positional values, richer output column metadata, auth adapters, composite workflows, signatures/publisher identity, and a reviewed pack distribution model.
+Potential later additions include path/secret inputs, working-directory/environment policies, constrained positional values, richer output column metadata, auth adapters, composite workflows, signatures/publisher identity, persistent configured tool paths, and a reviewed pack distribution model.
 
 Each extension must preserve the central invariant:
 
 ```text
-trusted validated pack -> validated typed inputs -> deterministic plan -> exact executable + argv[]
+trusted validated pack -> trusted discovered tool -> validated typed inputs -> deterministic plan -> exact executable + argv[]
 ```
 
-A future feature must not turn packs or the browser into a generic arbitrary-command web shell.
+A future feature must not turn packs, discovery, or the browser into a generic arbitrary-command web shell.
