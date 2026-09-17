@@ -101,7 +101,7 @@ Use to understand existing tools, upstream Idira/CyberArk status, and demand evi
 
 ## Current implementation checkpoint
 
-Phase 1 is complete once the current frontend/browser/CI PR is merged and its Windows/Linux gates are green. The runtime keeps `/bootstrap` and `/api/*` server-owned; frontend production assets are embedded in the executable; development frontend traffic is proxied only from an explicitly configured `http://127.0.0.1:<port>` Vite origin.
+Phase 1 is implemented. The runtime keeps `/bootstrap` and `/api/*` server-owned; frontend production assets are embedded in the executable; development frontend traffic is proxied only from an explicitly configured `http://127.0.0.1:<port>` Vite origin; browser launch failure degrades to the explicit short-lived local bootstrap URL.
 
 The next bounded implementation milestone is Phase 2: the versioned pack schema and loader described in `DEVELOPMENT_PLAN.md`. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk task definitions.
 
