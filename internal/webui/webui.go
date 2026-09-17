@@ -84,7 +84,8 @@ func ext(name string) string {
 
 // NewDevProxy creates a reverse proxy for a loopback-only Vite development
 // server. The browser continues to talk only to CLIHarbor's authenticated
-// origin, so the production Host/session boundary is not weakened for dev.
+// origin. CLIHarbor-owned credentials are stripped before proxying so the Vite
+// process never receives the browser session or future API authorization data.
 func NewDevProxy(rawURL string) (http.Handler, error) {
 	target, err := validateDevURL(rawURL)
 	if err != nil {
@@ -96,11 +97,25 @@ func NewDevProxy(rawURL string) (http.Handler, error) {
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
 		req.Host = target.Host
+		stripRuntimeCredentials(req.Header)
+	}
+	proxy.ModifyResponse = func(response *http.Response) error {
+		// A development frontend must not be able to create cookies scoped to
+		// CLIHarbor's authenticated browser origin through the reverse proxy.
+		response.Header.Del("Set-Cookie")
+		return nil
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, _ error) {
 		http.Error(w, "frontend development server unavailable", http.StatusBadGateway)
 	}
 	return proxy, nil
+}
+
+func stripRuntimeCredentials(header http.Header) {
+	header.Del("Cookie")
+	header.Del("Authorization")
+	header.Del("Proxy-Authorization")
+	header.Del("X-CLIHarbor-CSRF")
 }
 
 func validateDevURL(rawURL string) (*url.URL, error) {
