@@ -44,6 +44,30 @@ The default implementation direction is:
 
 Go is chosen for the initial standalone implementation because it produces a small self-contained Windows executable, has strong process/HTTP primitives, is easy to embed into an existing CLI, and keeps the local runtime footprint low. If CLIHarbor is later embedded into an existing internal CLI implemented in another language, the protocol and pack model should remain portable.
 
+## Current foundation
+
+Implementation has started with the security-sensitive local runtime boundary. The current Go foundation provides:
+
+- a `cliharbor` command entry point;
+- an ephemeral IPv4 loopback listener bound specifically to `127.0.0.1`;
+- a short-lived, single-use browser bootstrap token;
+- an in-memory HttpOnly, SameSite=Strict browser session;
+- exact Host validation plus Origin and CSRF enforcement for state-changing requests;
+- baseline browser security headers;
+- an authenticated `/api/v1/status` endpoint;
+- graceful shutdown;
+- automated Go format/vet/test checks on Windows and Linux plus the race detector on Linux.
+
+The current page is deliberately a placeholder. Browser auto-open, the React/Vite frontend, pack loading, tool discovery, process execution, auth orchestration, and real Idira/CyberArk workflows are **not implemented yet**.
+
+Development currently targets Go 1.27.1. Run the foundation locally with:
+
+```text
+go run ./cmd/cliharbor
+```
+
+CLIHarbor prints a short-lived local bootstrap URL until browser auto-open is implemented.
+
 ## Development entry points
 
 Read these before implementation:
@@ -54,6 +78,7 @@ Read these before implementation:
 - [`docs/AUTHENTICATION.md`](docs/AUTHENTICATION.md) — credential/session ownership model
 - [`docs/PACK_SPEC.md`](docs/PACK_SPEC.md) — declarative CLI-pack design
 - [`docs/UX.md`](docs/UX.md) — browser UI and interaction model
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) — accepted architectural decisions and supersession rules
 - [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) — staged implementation plan
 - [`docs/TEST_STRATEGY.md`](docs/TEST_STRATEGY.md) — automated/manual verification
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — sequence from Idira-specific MVP to generic platform
@@ -68,4 +93,4 @@ Those properties reinforce CLIHarbor's core boundary: **invoke the official CLI 
 
 ## Status
 
-Specification/foundation stage. No implementation is claimed yet.
+Foundation implementation is underway. The secure loopback/session boundary now exists; the frontend, pack engine, CLI discovery/execution pipeline, and first verified Idira/CyberArk workflow remain to be built.
