@@ -121,6 +121,39 @@ func TestWriteSHA256ManifestRejectsDuplicatePathAliases(t *testing.T) {
 	}
 }
 
+func TestWriteChecksumFileConcurrentPublishIsNoClobber(t *testing.T) {
+	t.Parallel()
+
+	destination := filepath.Join(t.TempDir(), "EVALUATION_SHA256SUMS")
+	results := make(chan error, 2)
+	start := make(chan struct{})
+	for _, content := range []string{"first\n", "second\n"} {
+		content := content
+		go func() {
+			<-start
+			results <- writeChecksumFile(destination, content)
+		}()
+	}
+	close(start)
+
+	successes := 0
+	for range 2 {
+		if err := <-results; err == nil {
+			successes++
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("concurrent checksum publications succeeded %d times, want exactly 1", successes)
+	}
+	got, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "first\n" && string(got) != "second\n" {
+		t.Fatalf("published checksum content = %q, want one complete writer payload", got)
+	}
+}
+
 func TestRemoveGeneratedChecksumInvalidatesStaleManifest(t *testing.T) {
 	t.Parallel()
 
