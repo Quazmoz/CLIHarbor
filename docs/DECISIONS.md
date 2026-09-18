@@ -341,3 +341,73 @@ The deterministic-rebuild gate reduces undeclared build inputs but does not auth
 - the qualified target architecture or FIPS policy changes;
 - the project adopts independent rebuilders, signed provenance/attestations, or code signing;
 - another release profile needs intentionally different controlled Go build inputs.
+
+
+## ADR-023 — Make support diagnostics an allowlisted, deterministic export
+
+**Date:** 2026-09-18  
+**Status:** Accepted.
+
+### Context
+
+Operator troubleshooting needs a shareable CLIHarbor support artifact, but ordinary `doctor` output can contain executable/candidate paths and arbitrary discovery prose. A generic log/filesystem scraper followed by best-effort regex redaction would make sensitive source data part of the primary design and would be difficult to prove complete.
+
+### Decision
+
+Add `cliharbor diagnostics export <output>` with schema `cliharbor.diagnostics/v1`.
+
+The bundle is constructed only from approved bounded metadata fields: build/runtime identity, pack ID/version, tool ID/status/semantic version/candidate count, non-path configuration mode/counts, and aggregate readiness counts. It has no representation for command output, argv, environment values, executable/candidate paths, pack source paths, browser/session state, arbitrary diagnostics prose, or credential material.
+
+The serialization contains no timestamp and no maps, validates stable ordering, is globally size bounded, and is written through private same-directory staging plus atomic/no-replace activation. Existing/symlink/non-regular targets fail closed; Windows also rejects a reparse-point export parent at the checked boundary. The command does not upload or transmit the file.
+
+### Alternatives considered
+
+1. Scrape `doctor`, logs, environment, and filesystem state then regex-redact secrets.
+2. Reuse Phase 0 evidence as the support artifact.
+3. Emit diagnostics only to stdout.
+
+### Rationale
+
+An allowlisted DTO prevents disallowed data from entering the artifact at all and keeps diagnostics independent from vendor output semantics. A separate schema avoids weakening Phase 0 evidence provenance requirements. Explicit deterministic file export is easier to review, hash, compare, and transfer than terminal output.
+
+### Consequences
+
+Positive:
+
+- support metadata is useful without making paths/output/environment part of the shareable artifact;
+- identical approved runtime state serializes identically;
+- no-clobber publication and bounded output reduce partial-write/race/resource risks;
+- diagnostic data has no import path and cannot become execution authority.
+
+Negative:
+
+- the bundle intentionally contains less detail than local `doctor`;
+- troubleshooting that genuinely requires exact paths or vendor output still needs local operator review and targeted handling;
+- the file mode does not claim Windows ACL hardening beyond operating-system semantics.
+
+### Security / reliability implications
+
+- confidentiality comes from schema allowlisting and semantic validation, not an ever-growing redaction regex set;
+- build/tool identity strings are character/length bounded before serialization;
+- command output, browser secrets, environment values, and filesystem authority are structurally absent;
+- cancellation before activation leaves no published partial artifact;
+- concurrent exports to one destination allow at most one successful publisher;
+- SHA-256 is byte-integrity metadata, not authentication or attestation.
+
+### Verification
+
+- deterministic serialization/schema tests;
+- source-sentinel regression tests proving pack source paths, executable/candidate paths, discovery messages, environment secrets, and output-like strings do not enter the DTO;
+- traversal, existing-file, symlink/non-regular target, cancellation cleanup, Unicode-path, private-mode where portable, and concurrent no-clobber tests;
+- Windows-specific no-replace activation coverage;
+- normal Windows/Linux CI, race detector, vet, formatting, and repository quality gates.
+
+### Revisit when
+
+- a support workflow needs additional metadata: add fields only after proving they are non-sensitive and bounded;
+- enterprise policy requires encrypted/signed diagnostic artifacts;
+- a future authenticated upload transport is proposed; transport must be a separate explicit authority boundary.
+
+### Supersedes / superseded by
+
+- Does not supersede Phase 0 evidence ADRs; support diagnostics and vendor evidence serve different trust/provenance purposes.

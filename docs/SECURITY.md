@@ -271,3 +271,16 @@ Phase 0 export prints a detached SHA-256 for the exact JSON bytes written. The o
 This is a tamper-detection mechanism, not authentication. An attacker able to replace both the evidence and the independently trusted expected digest can still substitute data. A checksum does not prove signer identity, build identity, host identity, or truth of captured vendor output. Signed/attested provenance remains a separate future release/governance problem.
 
 `evidence checksum <file>` validates the Phase 0 document and reports its current SHA-256, but a digest calculated only after receiving the same file cannot by itself establish transfer integrity.
+
+
+## Privacy-preserving support diagnostics
+
+The support diagnostic bundle is a separate trust boundary from `doctor` and Phase 0 evidence. `doctor` is intentionally operator-local and may print exact filesystem paths; it is not a shareable support artifact.
+
+`cliharbor diagnostics export <output>` constructs `cliharbor.diagnostics/v1` exclusively from allowlisted fields: CLIHarbor build identity, Go/OS/architecture identity, pack IDs/versions, tool IDs/status/semantic versions/candidate counts, configuration mode/counts, and aggregate readiness counts. It does not copy discovery messages and has no schema fields for command stdout/stderr, argv, PATH/environment values, absolute executable/candidate paths, pack source paths, usernames/home directories, internal URLs, browser history/bootstrap/session/CSRF material, or wrapped-CLI credentials.
+
+This allowlist is the primary confidentiality control. Regex redaction of arbitrary logs/output is deliberately not used as proof that a field is safe. All exported scalar identities are length/character bounded, status values are enumerated, list counts/order are validated, total JSON is bounded, and serialization is deterministic for equal state.
+
+The destination is explicit; CLIHarbor performs no telemetry or network upload. Export is no-clobber and same-directory staged. Existing/symlink/non-regular targets are rejected; the immediate parent must be a real directory and Windows additionally rejects a parent carrying the reparse-point attribute. The staged file is permission-restricted where portable, synced, closed, then activated without replacement. Cancellation before activation cleans staging; once activation succeeds the completed file is authoritative rather than reporting a late cancellation as failure.
+
+The printed SHA-256 identifies the exact diagnostic bytes. It is integrity metadata only and does not establish signer, host, operator, or environment authenticity.

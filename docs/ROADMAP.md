@@ -224,3 +224,10 @@ This reduces accidental build-environment drift and proves deterministic rebuild
 The production embedded-server browser qualification gate is implemented with a synthetic fixture only. Linux CI drives a real headless Chrome/Chromium instance against the embedded React application and proves one-time bootstrap/session establishment, exact Host/Origin/CSRF behavior, authenticated task discovery, typed read-only execution without browser-selected executable/argv authority, live SSE, replay and forced reconnect using `Last-Event-ID`, bounded reconnect exhaustion with retained-snapshot reconciliation, explicit retry/cancellation, retained-run eviction, single-execution semantics, and inert rendering of hostile markup/control-like output.
 
 This closes the documented browser-runtime hardening gap without changing the vendor-evidence gate. Managed-Windows default-browser/application-control behavior and genuine Idira/CyberArk workflow acceptance remain separate external qualifications.
+
+
+## Privacy-preserving diagnostics checkpoint
+
+A production-safe operator support bundle is now implemented as `cliharbor diagnostics export <output>`. It emits the deterministic, bounded `cliharbor.diagnostics/v1` allowlisted schema and performs no upload. The bundle intentionally excludes command output, argv, environment values, executable/candidate paths, pack source paths, browser session material, and credentials; local `doctor` remains the path-rich operator-only troubleshooting surface.
+
+This closes the generic diagnostic-bundle item in the hardening plan. It does not change the product gate: the first real Idira/CyberArk workflow still requires reviewed Phase 0 evidence from the actual company-managed Windows laptop.

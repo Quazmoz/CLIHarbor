@@ -2,7 +2,7 @@
 
 ## 1. Architecture objective
 
-CLIHarbor is a thin local application. The browser is presentation only; the local Go runtime owns trusted pack loading, executable discovery, version compatibility, execution planning/process lifecycle, future redaction, and browser-session security. The wrapped CLI remains the operational authority.
+CLIHarbor is a thin local application. The browser is presentation only; the local Go runtime owns trusted pack loading, executable discovery, version compatibility, execution planning/process lifecycle, privacy-preserving support diagnostics, future secret-output redaction, and browser-session security. The wrapped CLI remains the operational authority.
 
 ```text
 Browser UI
@@ -16,7 +16,7 @@ CLIHarbor local runtime
    |- process executor                      [implemented: bounded read-only runs]
    |- auth state adapter                    [planned]
    |- structured output parser              [implemented: bounded scalar JSON]
-   |- redaction                              [planned]
+   |- support diagnostics                    [implemented: allowlisted metadata]\n   |- secret-output redaction                [planned for future secret-bearing workflows]
    |- run manager / event replay              [implemented: bounded in-memory]
    v
 Approved local CLI binary (idsec.exe, conjur.exe, ...)
@@ -76,7 +76,7 @@ internal/executor/         # direct process start/stream/cancel/timeout/lifecycl
 internal/runs/             # bounded in-memory run ownership/state/events + final structured DTO
 internal/structured/       # bounded declarative JSON parsing into normalized scalar fields
 internal/auth/             # planned auth adapters/login orchestration
-internal/redact/           # planned secret-safe diagnostics/invocation views
+internal/evidence/         # Phase 0 evidence export/import and transfer-integrity\ninternal/diagnostics/      # bounded allowlisted support bundle + no-clobber export
 tools/task/                # cross-platform repository validation/build entry point
 web/                       # React source
 packs/                     # fixtures/built-in pack sources; never cwd auto-trusted
@@ -370,3 +370,34 @@ evidence file -> bounded stable read -> SHA-256 -> constant-time expected-digest
 ```
 
 A digest mismatch fails before review output is emitted. The same stable file snapshot is hashed and parsed. The checksum path is CLI/operator-only and does not connect to pack loading, discovery, planning, execution, run management, or browser authority.
+
+
+## Production support diagnostics boundary
+
+`cliharbor diagnostics export <output>` is an operator-only local support path. It does not call a vendor command, read logs, enumerate files, inspect browser session state, dump the environment, or upload anything.
+
+The data flow is intentionally narrower than Phase 0 evidence:
+
+```text
+build metadata + host runtime
+        +
+trusted pack registry identities
+        +
+sanitized discovery status/version/counts
+        ↓
+cliharbor.diagnostics/v1 allowlisted DTO
+        ↓
+strict semantic/bounds validation
+        ↓
+deterministic JSON serialization
+        ↓
+same-directory private staging
+        ↓
+atomic/no-replace activation
+```
+
+The DTO has no fields for executable/candidate paths, pack source paths, argv, command output, discovery prose, environment values, usernames/home directories, bootstrap/session/CSRF data, or credential material. This is the primary privacy control; generic regex redaction is not used to make unsafe source fields acceptable.
+
+The export contains no generation timestamp, maps, or filesystem-derived ordering. Pack and tool records come from deterministic registry/discovery snapshots, so identical approved runtime state produces identical serialized bytes. The command prints SHA-256 for the exact emitted bytes for troubleshooting/integrity comparison, but the digest is not a signature or attestation.
+
+Export refuses traversal-bearing relative destinations, symlink/non-regular destinations, existing files, and symlink/reparse-point parents at the checked boundary. Bytes are staged in the destination directory, permission-restricted where portable, synced, and activated without replacement; concurrent writers therefore cannot silently clobber one another. Imported diagnostic files have no execution or browser authority because no diagnostic import path exists.

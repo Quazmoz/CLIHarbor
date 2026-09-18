@@ -288,7 +288,7 @@ Add/complete:
 - dependency scanning with locked-tree `npm audit` and pinned `govulncheck@v1.8.0` in CI; **implemented**
 - frontend accessibility pass;
 - error taxonomy;
-- diagnostic bundle/redacted doctor output;
+- privacy-preserving diagnostic bundle; **implemented** as deterministic allowlisted \`cliharbor.diagnostics/v1\` export with bounded no-clobber filesystem publication;\n- redacted doctor output remains optional/future; current \`doctor\` is explicitly operator-local and may expose exact paths;
 - optional publisher/signature/hash verification where enterprise policy requires stronger PATH-binary identity.
 
 Schema/parser resource bounds, adversarial pack tests, discovery ambiguity handling, and bounded version probes already exist; continue extending them rather than duplicating validation logic.
@@ -427,3 +427,22 @@ This is intentionally detached from `cliharbor.phase0/v1` and does not alter ven
 
 
 Evaluation packaging hardening: `windows-eval` now invalidates stale generated checksum authority, emits root `EVALUATION_SHA256SUMS` as the sole evaluation checksum manifest covering the Windows evaluation executable and shipped trusted Phase 0 pack, and leaves `bin/SHA256SUMS` to ordinary local-build compatibility only. `verify-windows-eval` enforces the exact manifest/path/digest contract, and CI reruns it immediately before uploading exactly the covered files plus the manifest. This is integrity-only and does not replace signing/attestation.
+
+
+## Phase 8 diagnostic-export checkpoint — IMPLEMENTED
+
+Acceptance achieved:
+
+- `cliharbor diagnostics export <output>` is production code, not a log scraper;
+- bundle construction is a strict allowlist and cannot represent stdout/stderr, argv, environment values, executable/candidate paths, pack-source paths, browser secrets, or credential material;
+- schema/version and scalar/list/resource bounds fail closed;
+- records have deterministic ordering and equal state produces equal JSON bytes;
+- output is capped at 64 KiB;
+- destination must be explicit and no-clobber;
+- symlink/non-regular destinations and unsafe parents are rejected, including checked Windows reparse-point parents;
+- same-directory staging is private where portable, synced, cleaned on pre-activation failure/cancellation, and atomically/no-replace activated;
+- concurrent same-destination exports allow exactly one winner;
+- SHA-256 is reported for byte comparison without being described as signing/attestation;
+- regression coverage includes secret/path/environment/output sentinels and filesystem/concurrency failures.
+
+The remaining Phase 8 items should continue independently; this checkpoint does not authorize real vendor commands or secret-bearing workflows.

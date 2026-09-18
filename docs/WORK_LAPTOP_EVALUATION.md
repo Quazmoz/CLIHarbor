@@ -347,3 +347,20 @@ To calculate the digest of the currently received file for troubleshooting:
 Do not treat that calculation alone as an independent transfer check; compare against the value retained separately at export time.
 
 Treat the generated timestamp as a point-in-time claim. If the installed CLI or managed laptop changed after capture, collect new evidence rather than treating an older artifact as current. Promotion of a real vendor workflow remains a human-reviewed repository change.
+
+
+## 14. Export a privacy-preserving support diagnostic bundle
+
+For CLIHarbor-runtime troubleshooting that does **not** require vendor output, create the dedicated support artifact:
+
+```powershell
+.\bin\cliharbor-windows-x64-evaluation.exe diagnostics export --pack-file .\packs\phase0\idira-cyberark-inventory.yaml .\cliharbor-diagnostics.json
+```
+
+The file uses schema `cliharbor.diagnostics/v1` and is deterministic for the same approved runtime/discovery state. It contains build/host identity, sanitized pack/tool identity and readiness metadata, configuration counts, and aggregate health counts.
+
+It intentionally does **not** contain executable or candidate paths, pack source paths, PATH/environment values, command argv, command stdout/stderr, discovery prose, usernames/home-directory paths, browser bootstrap/session/CSRF material, internal URLs, or vendor credentials. CLIHarbor does not upload the bundle or send telemetry.
+
+The export refuses to overwrite an existing path and prints SHA-256 for the exact JSON bytes. That digest is useful for byte comparison only; it is not code signing, evidence authenticity, or host attestation.
+
+Use this bundle for generic CLIHarbor support before sharing `doctor` output. `doctor` remains operator-local because it can expose exact filesystem paths.

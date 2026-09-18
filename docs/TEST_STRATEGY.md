@@ -372,3 +372,25 @@ Regression coverage must prove:
 - checksum calculation alone is never described as signer authentication or environment attestation;
 - no checksum input can become executable, argv, pack, browser, or workflow authority;
 - the packaged Windows evaluation binary completes a vendor-free `inventory --export` -> `evidence checksum` -> checksum-required `evidence inspect` smoke flow before artifact upload.
+
+
+## Privacy-preserving diagnostic export verification
+
+Regression coverage for `cliharbor.diagnostics/v1` must prove:
+
+- identical approved state serializes to identical JSON bytes with stable pack/tool ordering;
+- schema version, build/runtime tokens, enumerated discovery status, counts, and total serialized size are bounded and validated;
+- secret-looking environment values, pack source names/paths, executable/candidate paths, discovery messages, command-output-like values, browser/session/CSRF material, and argv have no route into the DTO;
+- malformed/control-bearing or oversized metadata fails closed rather than being emitted and “cleaned” after the fact;
+- relative parent traversal is rejected;
+- existing, symlink, directory, and special-file destinations are not overwritten;
+- unsafe export parents are rejected, including the Windows reparse-point check;
+- spaces/Unicode in an otherwise valid destination path work;
+- pre-activation cancellation leaves neither destination nor staging debris;
+- concurrent exports to one destination yield one complete valid winner and no overwrite;
+- private permissions are asserted where the platform provides portable mode semantics;
+- Windows no-replace activation works without relying on hard-link support;
+- the emitted SHA-256 corresponds to the exact serialized bytes and is not described as signing or attestation;
+- diagnostic data never becomes pack, planner, executable, argv, browser, or workflow authority.
+
+These tests complement rather than replace local `doctor` and Phase 0 evidence tests because the three surfaces have intentionally different confidentiality/provenance contracts.

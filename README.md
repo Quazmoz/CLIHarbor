@@ -1,275 +1,250 @@
 # CLIHarbor
 
-CLIHarbor is a thin, local browser interface for command-line tools.
+A Windows-first, local browser UI for safely exposing curated workflows from official command-line tools.
 
-The product starts with a concrete internal need: provide a substantially better operator experience for Palo Alto Networks Idira / CyberArk command-line workflows, especially `idsec` and `conjur`, without replacing those CLIs, duplicating their APIs, or becoming a new credential store.
+**Status:** active hardening. The generic local runtime, trusted-pack model, bounded read-only execution path, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, and Windows evaluation qualification are implemented. Real Idira/CyberArk command definitions remain intentionally gated on evidence from the actual company-managed Windows environment.
 
-The long-term product is broader: a reusable local UI engine that can expose many existing CLIs through declarative **packs**. Each pack describes commands, parameters, output rendering, safety rules, and authentication behavior. CLIHarbor remains the orchestration and presentation layer; the underlying CLI remains the source of truth.
+CLIHarbor has **no cloud backend**, does **not** run arbitrary shell strings, and does **not** store vendor credentials.
 
-## Product principles
+## What CLIHarbor is
 
-- **Thin by design.** CLIHarbor invokes installed CLIs rather than reimplementing them.
-- **Local-first.** The default server binds only to loopback and the UI runs in the user's browser.
-- **No credential vault.** Authentication should remain owned by the wrapped CLI and operating-system facilities whenever possible.
-- **No shell-string execution.** Commands are represented as executable + argument arrays and started directly.
-- **Useful before generic.** The first real pack will be Idira/CyberArk after deployed command inventory is verified. The generic pack system evolves from real workflows rather than speculative abstraction.
-- **Easy to adopt.** A developer should be able to clone the repository, run one development command, and open the UI. A packaged release should be a single local executable where practical.
-- **Safe for enterprise use.** Local binding, command allowlists, input validation, output redaction, auditability, and explicit handling of destructive operations are first-class requirements.
-
-## Initial scope
-
-Windows is the first supported platform. Users may normally launch the wrapped tools from PowerShell or CMD, but CLIHarbor should execute the actual program directly (for example `idsec.exe`) rather than launching PowerShell/CMD for ordinary commands.
-
-The first product slice will:
-
-1. Discover supported CLI binaries on `PATH` and/or configured locations.
-2. Detect version/capabilities.
-3. Present a browser UI for curated Idira/CyberArk workflows.
-4. Execute allowlisted commands through a local backend.
-5. Stream stdout/stderr and surface exit state.
-6. Render structured results as tables/cards when reliable structured output exists; otherwise preserve terminal-style output.
-7. Delegate login/session persistence to the official CLI rather than storing passwords or tokens itself.
-8. Provide a safe equivalent-command preview where it can be shown without exposing backend-only executable paths, secrets, or other execution authority.
-
-## Implementation stack
-
-- **Backend / launcher:** Go
-- **Frontend:** React + TypeScript + Vite
-- **Distribution target:** frontend embedded into the Go binary
-- **Transport:** authenticated loopback HTTP with Server-Sent Events for bounded live run-event streaming
-- **Pack format:** versioned YAML (`cliharbor.dev/v1`) validated against the embedded JSON Schema plus deterministic semantic/security checks
-- **Discovery/version probes:** direct Go process invocation with pack-authored fixed argv, bounded output, bounded timeout, and semantic-version compatibility checks
-- **Task execution:** direct Go `os/exec` using an authoritative executable path plus an exact argument array; ordinary execution never concatenates untrusted input into a shell command
-
-Go is used for the standalone runtime because it produces a small self-contained Windows executable, has strong process/HTTP primitives, is easy to embed into an existing CLI, and keeps the local runtime footprint low. If CLIHarbor is later embedded into an existing internal CLI implemented in another language, the browser and pack contracts should remain portable.
-
-## Current foundation
-
-Phase 1 provides the production local-runtime and browser foundation:
-
-- a `cliharbor` Go command entry point;
-- an ephemeral IPv4 loopback listener bound specifically to `127.0.0.1`;
-- a short-lived, single-use browser bootstrap token;
-- an in-memory HttpOnly, SameSite=Strict browser session;
-- exact Host validation plus Origin and CSRF enforcement for state-changing requests;
-- a restrictive Content Security Policy and browser hardening headers;
-- an authenticated `/api/v1/status` endpoint that exposes only non-secret runtime/session state;
-- automatic default-browser launch using a platform-specific boundary, with Windows using native `ShellExecuteW` rather than a shell;
-- a React + TypeScript + Vite application shell that loads authenticated runtime status and handles session/API failure states;
-- generated Vite assets embedded into the Go executable for production builds;
-- an explicit development mode that proxies frontend requests only to an `http://127.0.0.1:<port>` Vite origin while retaining the Go runtime's browser/session origin;
-- a Go-based cross-platform task entry point for frontend checks, generated-asset synchronization, tests, and production builds;
-- graceful shutdown;
-- Windows and Linux CI covering frontend install/typecheck/lint/tests/build, embedded-asset drift, Go format/vet/tests, and a final embedded executable build, plus the Linux race detector.
-
-Phase 2 adds the trusted pack-definition foundation:
-
-- `schemas/pack.v1.schema.json`, embedded into the Go runtime package for structural validation;
-- a typed `internal/packs` model for metadata, tools, commands, inputs, constrained argv mappings, output sensitivity, risk, and auth requirement metadata;
-- bounded UTF-8 YAML parsing with rejection of aliases, anchors, merge keys, multiple documents, duplicate mapping keys, unsupported tags, excessive depth, and excessive node counts;
-- fail-closed rejection of unsupported schema versions, unknown fields, invalid IDs/types/risk values, unresolved tool/input references, unsafe optional argument layouts, browser-selectable execution shapes, and shell/interpreter tool definitions;
-- deterministic loading from built-in bytes or explicitly requested local files/directories only;
-- local-file symlink/non-regular-file rejection, bounded reads, non-recursive directory loading, duplicate pack detection, and deterministic ordering;
-- an effectively immutable registry that returns isolated copies and supports stable pack/tool/command lookup;
-- a clearly synthetic `packs/example/pack.yaml` used only as a non-production example; it is not automatically trusted or executed.
-
-Phase 3 adds tool discovery and version compatibility:
-
-- optional pack-declared fixed version probes using the `semver-text` parser and a bounded timeout;
-- discovery across absolute `PATH` entries only; relative/current-directory PATH entries are deliberately ignored;
-- Windows basename resolution for declared names plus `.exe`/`.com` binary forms without enabling script extensions;
-- explicit backend-only `--tool-path pack/tool=/absolute/path` overrides that are authoritative and never supplied by the browser;
-- ambiguity detection instead of first-match guessing when multiple executable candidates exist;
-- exact resolved executable paths, semantic versions, constraints, and actionable missing/incompatible/probe-failure states;
-- bounded direct version-probe execution with no shell and no raw probe output retained in diagnostics;
-- fail-closed parsing when version output contains no semantic version or multiple distinct semantic versions;
-- startup wiring for explicitly configured packs plus a `cliharbor doctor` diagnostic surface.
-
-Phase 4 adds the low-level secure execution boundary:
-
-- a typed server-side planner that accepts only commands from the validated pack registry and a current `ready` discovery snapshot;
-- exact argv construction from typed values, with unknown/missing/wrongly typed inputs, NUL values, and unsafe leading-dash values rejected rather than reinterpreted;
-- server-side enforcement of the current read-only envelope: auth-required, secret-bearing, change, destructive, interactive, and credential-sensitive commands remain blocked;
-- discovery-time executable file identity plus SHA-256 content fingerprint carried into each plan and revalidated immediately before execution so same-path replacement or metadata-collision content mutation is rejected;
-- direct `os/exec` execution with a neutral temporary working directory, generated run IDs, separate stdout/stderr events, bounded output, deadlines, cancellation, non-zero exit preservation, and `exec.Cmd.WaitDelay` protection against inherited output handles;
-- a platform lifecycle boundary: Windows starts the target suspended, assigns it to a per-run Job Object configured with kill-on-close, then resumes it so descendants cannot escape before ownership is established; cancellation, timeout, output exhaustion, sink failure, and normal run teardown all close or terminate that boundary;
-- regression coverage for argv boundaries, malformed values, executable replacement, spaces/Unicode, cancellation races, setup failure cleanup, and Windows descendant cleanup;
-- Phase 4b integration proofs that load explicit trusted synthetic packs through the real loader, resolve distinct tool IDs/version probes through backend-only overrides, build typed plans, execute exact argv, verify stdout/stderr/exit/cancellation fidelity against direct fixture execution, and prove cross-pack command authority remains isolated.
-
-Phase 4c-A exposes that boundary through authenticated loopback JSON APIs for creating, reading, and cancelling runs. The browser can submit only `packId`, `commandId`, and typed `values`; executable paths, executable names, flag names, and argv remain server-owned. Run state is bounded and in-memory, output chunks are returned as Base64 data inside bounded snapshots, duplicate read-only requests create independent server-generated run IDs, and application shutdown cancels active runs. The existing exact Host, session, Origin, and CSRF boundary applies to run mutations.
-
-Phase 4c-B adds authenticated Server-Sent Events at `GET /api/v1/runs/{runId}/events`, bounded replay using `Last-Event-ID`, per-write deadlines, heartbeat frames, and stream disconnect semantics that do not cancel or recreate executions. Read-only `GET /api/v1/tasks` and `GET /api/v1/tools` surfaces expose runnable safe-task metadata plus sanitized tool readiness/version/remediation. They never expose executable paths or names, candidate lists, file identity, argv, environment, or pack source paths. The React UI keeps the CSRF token only in runtime memory, derives typed controls from that safe metadata, creates/cancels runs through the existing protected APIs, and renders Base64-decoded stdout/stderr strictly as text. Automatic EventSource recovery is bounded to five consecutive failures, then the UI reconciles against the retained run snapshot and requires an explicit retry action before opening another live stream.
-
-Phase 5 adds a generic bounded structured-output path for fixture commands. Trusted packs can declare a strict JSON object of up to 32 scalar fields (`string`, `integer`, or `boolean`) for the cards renderer. The run manager captures at most 64 KiB for parsing after the single executor invocation completes, preserves raw stdout/stderr independently, rejects malformed/unknown/duplicate/nested/type-invalid/UTF-8-invalid/oversized/control-character output, and never converts a non-zero exit into structured success. The normalized result is bound to the same authenticated `run-complete` SSE event as the authoritative run ID/status, so normal completion does not depend on a second status fetch that could race run retention. Snapshot GET remains the reconnect/recovery path. The browser validates the DTO and renders values as inert text. Secret-bearing output and sensitive fields are not eligible for structured rendering in this phase.
-
-There is still **no auth-required or secret-bearing execution, mutating/destructive execution, persisted run history, or real Idira/CyberArk command pack/schema**. Phase 0 vendor inventory remains required before any real vendor command definitions are added.
-
-Development targets Go 1.27.1 and Node 24.21.0.
-
-## Development workflow
-
-Install frontend dependencies once after cloning:
+CLIHarbor is a thin orchestration and presentation layer around installed CLIs. The browser never chooses an executable or constructs argv.
 
 ```text
+Browser UI
+    ↓
+authenticated loopback API
+    ↓
+trusted declarative pack
+    ↓
+validated planner
+    ↓
+direct executable + argv
+    ↓
+official installed CLI
+```
+
+The installed CLI remains the operational authority. CLIHarbor owns only the local UI/runtime boundary: trusted pack loading, deterministic discovery, typed planning, bounded process execution, streaming, structured rendering, and support/evaluation tooling.
+
+## Current capabilities
+
+| Area | Implemented |
+| --- | --- |
+| Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, in-memory HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
+| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, explicit trusted sources only, deterministic registry |
+| Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, fixed bounded semantic-version probes |
+| Planning and execution | Typed inputs, server-owned executable + argv, no ordinary shell execution, exact executable identity revalidation, bounded timeout/output |
+| Windows process lifecycle | Suspended launch, Job Object assignment before resume, descendant containment, cancellation/timeout teardown |
+| Browser runs | Authenticated run APIs, bounded SSE streaming/replay, reconnect reconciliation, cancellation, bounded retained state |
+| Structured results | Strict bounded scalar JSON parsing with inert React rendering and raw-output fallback |
+| Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, detached SHA-256, strict inspection |
+| Support diagnostics | `cliharbor diagnostics export` emits only allowlisted non-secret metadata; no command output, argv, paths, environment values, browser secrets, or credential material |
+| Evaluation qualification | Exact Go toolchain, controlled build inputs, isolated deterministic rebuilds, authoritative `EVALUATION_SHA256SUMS`, vendor-free self-test/evidence smoke |
+
+Not yet implemented or intentionally gated:
+
+- real Idira/CyberArk workflow argv and output schemas;
+- vendor authentication orchestration;
+- mutating/destructive or secret-bearing workflows;
+- credential persistence;
+- code signing/publisher attestation;
+- public pack distribution.
+
+The vendor-specific items are blocked by design until Phase 0 evidence establishes the exact installed CLI behavior. CLIHarbor does not guess enterprise command syntax.
+
+## Security model
+
+The important invariants are simple:
+
+- **Loopback only.** The application server binds to `127.0.0.1`; there is no remote multi-user service.
+- **The browser has no execution authority.** It submits pack/command IDs and typed values, never an executable path, shell command, flag name, or raw argv.
+- **Trusted packs are allowlists.** Packs are explicitly loaded privileged configuration, not discovered from the current directory or downloaded dynamically.
+- **No arbitrary shell.** Normal tasks and probes start the resolved executable directly with an argument array.
+- **Fail closed.** Missing, ambiguous, incompatible, replaced, or otherwise invalid tools do not execute.
+- **No credential store.** Vendor passwords, MFA values, cookies, tokens, and keystore contents are outside CLIHarbor's persistence model.
+- **Outputs and state are bounded.** Run output, structured parsing, replay, retention, probes, evidence, and diagnostics have explicit resource limits.
+- **Execution evidence is exact.** Discovery-time executable identity is revalidated immediately before launch.
+- **Diagnostics are allowlisted, not scraped.** Support export is constructed from approved metadata fields rather than filesystem/log/environment collection or regex-only redaction.
+
+See [Security](docs/SECURITY.md), [Architecture](docs/ARCHITECTURE.md), and [Authentication](docs/AUTHENTICATION.md) for the full threat model and trust boundaries.
+
+## Getting started
+
+### Prerequisites
+
+The repository pins:
+
+- Go **1.27.1** in [`.go-version`](.go-version)
+- Node **24.21.0** in [`.node-version】
+- npm **>=11.6.0 <12** in `web/package.json`
+
+Install frontend dependencies:
+
+```bash
 npm ci --prefix web
 ```
 
-Run the production-style embedded application without packs:
+Run the repository quality task:
 
-```text
-go run ./cmd/cliharbor
+```bash
+go run ./tools/task check
 ```
 
-Load an explicitly trusted pack file for discovery:
+Run the vendor-free local self-test:
 
-```text
-go run ./cmd/cliharbor --pack-file packs/example/pack.yaml
+```bash
+go run ./cmd/cliharbor self-test
 ```
 
-Inspect configured packs/tools without opening the browser:
+Start the production-style embedded application without a pack:
 
-```text
+```bash
+go run ./cmd/cliharbor serve
+```
+
+Load the synthetic example pack for discovery:
+
+```bash
 go run ./cmd/cliharbor doctor --pack-file packs/example/pack.yaml
+go run ./cmd/cliharbor inventory --pack-file packs/example/pack.yaml
 ```
 
-Pin a tool to an explicit absolute path when PATH is missing or ambiguous:
+The example pack does not auto-trust or auto-execute anything; it normally reports its fixture tool as unavailable unless you deliberately provide a compatible executable.
 
-```text
-go run ./cmd/cliharbor doctor \
+### Privacy-preserving diagnostics
+
+Export a support bundle without loading a vendor pack:
+
+```bash
+go run ./cmd/cliharbor diagnostics export ./cliharbor-diagnostics.json
+```
+
+Or include sanitized readiness metadata for an explicitly trusted pack:
+
+```bash
+go run ./cmd/cliharbor diagnostics export \
   --pack-file packs/example/pack.yaml \
-  --tool-path example/fixture=/absolute/path/to/cliharbor-fixture
+  ./cliharbor-diagnostics.json
 ```
 
-The synthetic example pack does not ship a fixture executable, so it normally reports the tool as missing unless a compatible fixture is deliberately supplied.
+The destination is explicit and no-clobber. The `cliharbor.diagnostics/v1` document is deterministic for the same runtime state and excludes command stdout/stderr, argv, executable/candidate paths, PATH/environment values, pack source paths, usernames/home paths, browser bootstrap/session/CSRF material, and credential data. CLIHarbor performs no upload or telemetry step.
 
-CLIHarbor binds to loopback, generates the one-time bootstrap handoff, and requests the default browser. If browser launch fails, the CLI prints the short-lived local bootstrap URL explicitly so it can be opened manually.
+### Frontend development
 
-For frontend development, use two terminals:
+Use two terminals:
 
-```text
-# terminal 1: Vite, loopback only
+```bash
+# Terminal 1: Vite on loopback
 go run ./tools/task web-dev
 
-# terminal 2: Go runtime; browser still uses the authenticated Go origin
-go run ./cmd/cliharbor --web-dev-url http://127.0.0.1:5173
+# Terminal 2: authenticated Go origin proxying to Vite
+go run ./cmd/cliharbor serve --web-dev-url http://127.0.0.1:5173
 ```
 
-Cross-platform task commands:
+Production assets are generated from `web/` and embedded under `internal/webui/static`; do not hand-edit generated assets.
 
-```text
-# frontend install + typecheck + lint + tests + build, then sync embedded assets
-go run ./tools/task web-build
+## Build and verification commands
 
-# frontend gates + embedded sync + Go vet/tests
+```bash
+# Go formatting/static/tests
+go fmt ./...
+go vet ./...
+go test -timeout 2m ./...
+go test -race -timeout 2m ./...
+
+# Repository-owned quality workflow
 go run ./tools/task check
 
-# build the embedded Go executable into ./bin and emit ./bin/SHA256SUMS
+# Embedded local build
 go run ./tools/task go-build
 
-# build the Windows x64 evaluation bundle; emits only authoritative root EVALUATION_SHA256SUMS
+# Windows x64 evaluation candidate
 go run ./tools/task windows-eval
 
-# independently re-verify the evaluation manifest against the files on disk
+# Verify the authoritative evaluation bundle
 go run ./tools/task verify-windows-eval
 
-# verify the evaluation candidate against two isolated deterministic rebuilds
+# Rebuild twice in isolated controlled inputs and compare manifests
 go run ./tools/task verify-windows-eval-repro
-
-# rebuild frontend, sync assets, build the executable, and emit ./bin/SHA256SUMS
-go run ./tools/task build
 ```
 
-When `web/` changes, commit the synchronized generated files under `internal/webui/static/` together with the source change. CI rebuilds the frontend and rejects generated-asset drift.
+CI additionally runs frontend typecheck/lint/tests/build, generated-asset drift checks, module verification, dependency vulnerability scans, the production embedded-browser E2E test, Windows/Linux quality jobs, and the Windows evaluation smoke flow.
 
-## Pack and tool trust boundary
+## Windows evaluation flow
 
-Packs are privileged configuration because they define future executable/argument authority. CLIHarbor supports only bytes supplied by trusted built-in application code and local files/directories that a trusted caller explicitly names. It does not scan the current working directory, auto-load `packs/` merely because it exists in a checkout, load remote URLs, download packs, or execute plugin code.
-
-Tool discovery similarly does not let the browser provide executable paths. PATH discovery considers only absolute PATH entries and refuses ambiguity. An explicit `--tool-path` override must reference a tool already declared by an explicitly trusted pack and must resolve to a regular executable whose basename matches that tool declaration.
-
-The repository's example pack is a schema/discovery fixture, not a real Idira/CyberArk pack. Real vendor definitions remain blocked on verified Phase 0 inventory of deployed CLI versions and command trees.
-
-## Development entry points
-
-Read these before implementation:
-
-- [`docs/PRD.md`](docs/PRD.md) — product requirements and acceptance criteria
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system design and runtime boundaries
-- [`docs/SECURITY.md`](docs/SECURITY.md) — threat model and security invariants
-- [`docs/AUTHENTICATION.md`](docs/AUTHENTICATION.md) — credential/session ownership model
-- [`docs/PACK_SPEC.md`](docs/PACK_SPEC.md) — implemented v1 pack contract and future extensions
-- [`docs/UX.md`](docs/UX.md) — browser UI and interaction model
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — accepted architectural decisions and supersession rules
-- [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) — staged implementation plan
-- [`docs/TEST_STRATEGY.md`](docs/TEST_STRATEGY.md) — automated/manual verification
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — sequence from Idira-specific MVP to generic platform
-- [`docs/RESEARCH.md`](docs/RESEARCH.md) — current ecosystem and upstream CLI notes
-- [`AGENTS.md`](AGENTS.md) — repository rules for coding agents
-
-## Upstream Idira/CyberArk notes
-
-As of September 2026, CyberArk's `idsec-cli-golang` repository describes `idsec` as the official CLI for Idira Identity Security Platform operations. Its login flow can prompt for password/MFA and stores access tokens in the computer keystore for their lifetime. CyberArk's current `conjur-cli-go` repository is the Go CLI for Idira Secrets Manager; the older Python `cyberark-conjur-cli` repository is deprecated and archived.
-
-Those properties reinforce CLIHarbor's core boundary: **invoke the official CLI and let it own authentication/session material rather than copying credentials into CLIHarbor.**
-
-## Status
-
-Phases 1-4 now include the secure local browser runtime, trusted versioned pack model/loader, fail-closed tool discovery/version probing with `doctor`, deterministic read-only planning/execution with Windows descendant ownership, a fixture-backed execution proof, Phase 4c-A authenticated create/status/cancel APIs, and Phase 4c-B bounded SSE replay plus a minimal safe task/run UI. The next product milestone is the first verified read-only Idira workflow after Phase 0 vendor inventory; auth orchestration and structured rendering remain later work. Real vendor command definitions remain blocked on verified inventory of the exact deployed CLI versions and command trees.
-
-## Windows work-laptop evaluation
-
-CLIHarbor now has a dedicated unsigned Windows x64 evaluation build for the Phase 0 company-laptop test.
-
-Build locally from a checkout:
+The evaluation path is intentionally unsigned and evidence-oriented:
 
 ```text
-go run ./tools/task windows-eval
-```
-
-Output:
-
-```text
+windows-eval
+    ↓
 EVALUATION_SHA256SUMS
-bin/cliharbor-windows-x64-evaluation.exe
-packs/phase0/idira-cyberark-inventory.yaml
+    ↓
+verify-windows-eval
+    ↓
+verify-windows-eval-repro
+    ↓
+self-test / evidence smoke
+    ↓
+artifact upload
 ```
 
-For evaluation builds, `EVALUATION_SHA256SUMS` is the only packaged checksum authority and covers both privileged files. The ordinary local `go-build`/`build` path still emits `bin/SHA256SUMS` for local compatibility, but `windows-eval` invalidates that generated compatibility manifest so it cannot be mistaken for part of the qualified evaluation bundle. Evaluation builds also require the exact Go patch version pinned in `.go-version` and run `go build` with workspace/user Go defaults disabled and target-affecting inputs pinned. `verify-windows-eval-repro` first verifies the real evaluation candidate, then rebuilds the bundle twice in distinct temporary roots and requires the candidate and both rebuilds to have byte-identical authoritative manifests. This proves deterministic rebuilding under the same checkout/toolchain/controlled build environment; it is not signer identity, cross-machine provenance, or attestation.
+`EVALUATION_SHA256SUMS` covers the evaluation executable and trusted Phase 0 pack. The deterministic rebuild gate requires the candidate and two isolated rebuilds to produce the same authoritative manifest under the pinned toolchain and controlled build inputs.
 
-CI uploads `cliharbor-windows-x64-evaluation-<commit-sha>` only after Windows/Linux quality, dependency-vulnerability, and race-detector jobs pass. The artifact contains exactly the root `EVALUATION_SHA256SUMS`, the evaluation executable, and the discovery-only `packs/phase0/idira-cyberark-inventory.yaml` pack. CI recomputes the manifest from those files again immediately before upload.
+Checksum equality proves byte integrity/determinism under that qualification contract. It is **not** code signing, publisher identity, host attestation, or independent supply-chain provenance.
 
-Useful evaluation commands:
+For the exact managed-laptop procedure, use [Work-Laptop Evaluation](docs/WORK_LAPTOP_EVALUATION.md).
+
+## Repository layout
 
 ```text
-cliharbor-windows-x64-evaluation.exe version
-cliharbor-windows-x64-evaluation.exe self-test
-cliharbor-windows-x64-evaluation.exe inventory --pack-file ..\packs\phase0\idira-cyberark-inventory.yaml
+cmd/cliharbor/             CLI entry point and operator commands
+internal/app/              application lifecycle and command wiring
+internal/server/           loopback HTTP/session/origin/CSRF boundary
+internal/packs/            pack model, loader, schema and semantic validation
+internal/discovery/        executable discovery, version probes and identity
+internal/planner/          typed input → immutable execution plan
+internal/executor/         direct bounded process execution
+internal/processcontrol/   platform process-lifecycle ownership
+internal/runs/             bounded run state, events and replay
+internal/structured/       bounded structured-result parsing
+internal/evidence/         Phase 0 evidence export/import/integrity
+internal/diagnostics/      allowlisted privacy-preserving support export
+internal/webui/            embedded production frontend assets
+web/                       React + TypeScript + Vite source
+packs/                     synthetic/example and Phase 0 trusted pack sources
+schemas/                   embedded pack JSON Schema
+tools/task/                repository build/verification/evaluation tasks
+test/                      browser E2E support
+docs/                      product, architecture, security and operations docs
 ```
 
-`inventory` is CLI/operator-only. It exposes no browser command/path authority, does not enumerate credentials or the full environment, and only runs evidence probes that are fixed in an explicitly trusted pack and explicitly selected with `--probe`. Evidence export uses the typed bounded `cliharbor.phase0/v1` schema and atomic non-overwriting files.
+## Current vendor integration gate
 
-No Idira/CyberArk help/version argv is guessed in the repository. The supplied Phase 0 pack declares only the `idsec` and `conjur` executable basenames already recorded in project documentation and contains no commands or probes.
+The major blocker is factual, not architectural:
 
-See [docs/WORK_LAPTOP_EVALUATION.md](docs/WORK_LAPTOP_EVALUATION.md) for the exact company-managed-laptop procedure, security caveats, hash verification, browser fallback, troubleshooting, and cleanup.
+> **Real Idira/CyberArk workflow definitions require genuine company-managed Windows Phase 0 evidence.**
 
-## Phase 0 evidence review
+The repository already has the safe collection/review boundary. The next vendor milestone is to run the qualified evaluation artifact on the managed laptop, collect reviewed inventory/help/version evidence using only approved fixed probes, then encode the first verified read-only workflow. Until that evidence exists, adding guessed vendor argv would weaken the security model.
 
-Returned `cliharbor.phase0/v1` files can be validated and summarized without granting them execution authority:
+## Documentation
 
-```text
-cliharbor evidence inspect phase0-evidence.json
-```
+| Document | Purpose |
+| --- | --- |
+| [PRD](docs/PRD.md) | product scope, goals, non-goals, acceptance |
+| [Architecture](docs/ARCHITECTURE.md) | component boundaries, state, execution and evaluation model |
+| [Security](docs/SECURITY.md) | threat model, controls and explicit trust boundaries |
+| [Authentication](docs/AUTHENTICATION.md) | vendor-owned authentication model |
+| [Pack specification](docs/PACK_SPEC.md) | declarative pack contract and safety constraints |
+| [UX](docs/UX.md) | browser/operator interaction model |
+| [Decisions / ADRs](docs/DECISIONS.md) | accepted architecture and security decisions |
+| [Development plan](docs/DEVELOPMENT_PLAN.md) | implementation phases and acceptance gates |
+| [Test strategy](docs/TEST_STRATEGY.md) | risk-based verification contract |
+| [Roadmap](docs/ROADMAP.md) | product stages and current evidence gate |
+| [Work-laptop evaluation](docs/WORK_LAPTOP_EVALUATION.md) | exact safe Windows evaluation procedure |
+| [Contributing](CONTRIBUTING.md) | repository development workflow |
 
-The command is operator-side only. It strictly validates the bounded evidence contract, reports tool/probe observations and gaps, quotes captured output as inert text, and separates internal consistency from what remains unknown or blocked. Validation is not a signature or attestation of the claimed source environment. The command never turns evidence text into a pack or command definition; the first real Idira/CyberArk workflow still requires trusted handling plus factual human review of evidence from the deployed environment or approved documentation.
+## Design position
 
-## Phase 0 transfer integrity
+CLIHarbor is intentionally narrower than a terminal emulator, shell wrapper, remote execution service, or credential manager. Its value comes from making known CLI workflows easier to use while preserving a small, inspectable authority boundary.
 
-`inventory --export <file>` prints the SHA-256 of the exact evidence bytes it created. Retain that digest independently from the JSON. On the review machine, require it during inspection:
-
-```text
-cliharbor evidence inspect --sha256 <64-hex-digest> phase0-evidence.json
-```
-
-CLIHarbor validates the expected digest before rendering any evidence. A mismatch fails closed. `cliharbor evidence checksum <file>` can calculate the current file's digest, but calculating a checksum from the same transferred file is **not** an independent integrity check.
-
-SHA-256 detects byte changes when the expected value is retained through a trusted independent path. It does not identify who produced the file, sign the evidence, or attest that the reported machine/build/vendor observations are genuine.
+If a workflow cannot be represented safely as a trusted executable plus validated argv, it does not belong in the generic execution path.
