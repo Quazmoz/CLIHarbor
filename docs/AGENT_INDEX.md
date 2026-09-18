@@ -140,7 +140,7 @@ The planner accepts only validated pack commands plus current ready discovery st
 
 Phase 4b integration coverage uses an explicitly trusted local fixture pack, backend-only executable override, fixed version probe/constraint, typed planner request, and real executor; it compares stdout/stderr/exit behavior to direct invocation and exercises cancellation after observable output. This is still not exposed through browser run APIs.
 
-Phase 4c-A now exposes authenticated create/get/cancel run APIs with strict JSON/UTF-8/duplicate-key/body-size validation, existing Host/Origin/CSRF/session protections, Base64 output events in bounded snapshots, bounded concurrency/retention, and application-owned shutdown cancellation. The current React shell only retains the CSRF token; it does not yet expose task/run controls.
+Phase 4c-A now exposes authenticated create/get/cancel run APIs with strict JSON/UTF-8/duplicate-key/body-size validation, existing Host/Origin/CSRF/session protections, Base64 output events in bounded snapshots, bounded concurrency/retention, and application-owned shutdown cancellation. The current React shell does not yet consume the CSRF token or expose task/run controls; the authenticated status API provides it for the Phase 4c-B client/UI.
 
 The next bounded milestone is Phase 4c-B: live bounded event streaming and the minimal fixture task/run UI. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk command definitions.
 
