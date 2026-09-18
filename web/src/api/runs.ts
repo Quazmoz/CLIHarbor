@@ -14,6 +14,7 @@ export interface RunComplete {
   sequence: number;
   status: RunStatus;
   exitCode?: number;
+  structured?: StructuredResult;
 }
 
 export type StructuredStatus = 'available' | 'invalid' | 'unavailable';
@@ -177,18 +178,29 @@ function parseComplete(value: unknown): RunComplete {
   if (!isRecord(value)) {
     throw new Error('CLIHarbor returned an invalid run completion event.');
   }
-  const { runId, sequence, status, exitCode } = value;
+  const allowed = new Set(['runId', 'sequence', 'status', 'exitCode', 'structured']);
+  if (Object.keys(value).some((key) => !allowed.has(key))) {
+    throw new Error('CLIHarbor returned an invalid run completion event.');
+  }
+  const { runId, sequence, status, exitCode, structured } = value;
   if (
     typeof runId !== 'string' ||
     typeof sequence !== 'number' ||
     !Number.isSafeInteger(sequence) ||
     sequence < 0 ||
     !isRunStatus(status) ||
-    (exitCode !== undefined && typeof exitCode !== 'number')
+    (exitCode !== undefined && typeof exitCode !== 'number') ||
+    (structured !== undefined && !isRecord(structured))
   ) {
     throw new Error('CLIHarbor returned an invalid run completion event.');
   }
-  return { runId, sequence, status, exitCode };
+  return {
+    runId,
+    sequence,
+    status,
+    exitCode,
+    structured: structured === undefined ? undefined : parseStructured(structured),
+  };
 }
 
 async function mutation<T>(path: string, csrfToken: string, body?: unknown): Promise<T> {
