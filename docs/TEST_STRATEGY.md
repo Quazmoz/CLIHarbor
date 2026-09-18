@@ -334,7 +334,7 @@ Regression and CI coverage must prove:
 - `.go-version` contains one exact `major.minor.patch` toolchain token and evaluation builds fail when the active bundled Go toolchain differs;
 - CI resolves Go from `.go-version` instead of duplicating the patch version in workflow YAML;
 - build-environment overrides replace case-variant inherited values without duplicate effective `GO*` entries;
-- evaluation builds disable the per-user Go environment file and workspace selection, clear inherited `GOFLAGS`, `GOEXPERIMENT`, `GODEBUG`, and `GOROOT`, force `GOTOOLCHAIN=local`, pin `GOAMD64=v1`, `GOFIPS140=off`, and disable cgo;
+- evaluation builds disable the per-user Go environment file and workspace selection, clear inherited `GOFLAGS`, `GOEXPERIMENT`, `GODEBUG`, and `GOROOT`, force `GOTOOLCHAIN=local`, pin `GOAMD64=v1`, `GOFIPS140=off`, disable cgo, and use private `GOCACHE`/`GOTMPDIR` directories per build;
 - the trusted Phase 0 pack is copied from a stable bounded regular-file snapshot into each reproduction root and exact bytes are preserved;
 - two separately staged evaluation bundles built from the same checkout, metadata, exact Go toolchain, and controlled environment produce byte-identical `EVALUATION_SHA256SUMS` manifests;
 - each staged reproduction independently passes the normal authoritative bundle verifier;
