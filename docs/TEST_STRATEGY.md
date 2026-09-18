@@ -79,7 +79,21 @@ Coverage now proves:
 - manager/application shutdown cancels active runs;
 - a full application test performs bootstrap → status/CSRF → POST run → GET run → fixture output verification → shutdown.
 
-Live SSE/backpressure/disconnect coverage remains Phase 4c-B.
+### Phase 4c-B streaming/task UI checkpoint
+
+Coverage now targets:
+
+- manager-backed event replay strictly after a monotonic cursor and rejection of impossible cursors;
+- authenticated SSE framing with `Last-Event-ID` replay, stable completion state, and no executable/argv/environment fields;
+- stream disconnect without implicit run cancellation;
+- slow clients observing bounded manager state rather than sitting on executor output sinks;
+- task metadata filtering to ready, read-only, non-auth, non-secret commands;
+- frontend CSRF retention in runtime memory only;
+- typed task submission containing only pack/command IDs plus values;
+- stdout/stderr rendering as inert React text, including markup-like output;
+- stream completion and cancellation state transitions.
+
+Real-browser reconnect/eviction/slow-reader coverage remains desirable beyond the current HTTP/component boundaries.
 
 A green CI build proves the code compiles/tests on its CI platforms. It does not replace manual Windows acceptance of real default-browser, PATH, filesystem, vendor CLI, authentication, or antivirus/SmartScreen behavior.
 
@@ -103,7 +117,7 @@ Use purpose-built fixture executables rather than real vendor credentials in CI.
 
 ### End-to-end tests
 
-Once browser run APIs exist, exercise browser -> authenticated API -> planner -> fixture executable -> streamed events -> UI. Do not add browser E2E that only rechecks static markup.
+Exercise browser -> authenticated API -> planner -> fixture executable -> streamed events -> UI. Current component and HTTP integration tests cover the individual boundaries; add a production-server real-browser test for reconnect, cancellation, eviction, and hostile-origin behavior before release. Do not add browser E2E that only rechecks static markup.
 
 ### Real-tool acceptance
 
@@ -206,11 +220,11 @@ Verify:
 
 Maintain tests that server binds only loopback, unexpected Host/Origin/mutation requests fail, session/CSRF/bootstrap controls hold, bootstrap URLs clean up and remain token-free in normal startup output, API/bootstrap never fall through to frontend routing, static traversal fails, dev proxy remains explicit loopback-only and strips session/auth/CSRF/cookies, CORS stays restrictive, and CSP avoids unsafe execution.
 
-Add hostile-origin real-browser coverage when consequential state-changing run APIs arrive.
+HTTP boundary tests cover Host/session/Origin/CSRF enforcement for run mutations and authenticated SSE reads. Add hostile-origin real-browser coverage before release so browser behavior is verified in addition to handler semantics.
 
 ## 9. XSS/output rendering tests
 
-When process output reaches the UI, feed HTML/script-like strings, `javascript:` text, ANSI escapes, extremely long strings, malformed encodings, and structured fields containing markup. Output must remain inert data and parsing failure must preserve raw evidence.
+Process output now reaches the UI as Base64-decoded text. Component coverage includes HTML/script-like output remaining inert. Expand the corpus with `javascript:` text, ANSI escapes, extremely long strings, malformed encodings, and future structured fields containing markup. Output must remain inert data and parsing failure must preserve raw non-secret evidence.
 
 ## 10. Redaction tests
 
