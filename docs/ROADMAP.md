@@ -214,7 +214,7 @@ This closes accidental/unauthorized byte-change detection for a correctly retain
 
 ## Evaluation deterministic-rebuild checkpoint
 
-The Windows evaluation pipeline now fixes the Go build toolchain from `.go-version`, disables user workspace/environment/default-flag influence on the qualified build, pins target-affecting Go settings, and builds two isolated evaluation bundles before producing the upload candidate. Both staged bundles must independently pass the normal bundle verifier and produce byte-identical authoritative `EVALUATION_SHA256SUMS` bytes.
+The Windows evaluation pipeline now fixes the Go build toolchain from `.go-version`, disables user workspace/environment/default-flag influence on the qualified build, pins target-affecting Go settings, and builds two isolated evaluation bundles before producing the upload candidate. The produced evaluation candidate and both staged rebuilds must independently pass the normal bundle verifier and produce byte-identical authoritative `EVALUATION_SHA256SUMS` bytes.
 
 This reduces accidental build-environment drift and proves deterministic rebuilding for the same checkout, metadata, exact toolchain, and controlled environment. It is deliberately not described as cross-machine reproducibility, software-supply-chain provenance, signer identity, or host attestation. Those remain future release-governance capabilities.
 
