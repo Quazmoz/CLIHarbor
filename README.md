@@ -166,6 +166,9 @@ go run ./tools/task check
 # build the embedded Go executable into ./bin and emit ./bin/SHA256SUMS
 go run ./tools/task go-build
 
+# build the Windows x64 evaluation bundle; emits bin/SHA256SUMS plus root EVALUATION_SHA256SUMS
+go run ./tools/task windows-eval
+
 # rebuild frontend, sync assets, build the executable, and emit ./bin/SHA256SUMS
 go run ./tools/task build
 ```
