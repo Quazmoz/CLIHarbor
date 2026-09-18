@@ -40,6 +40,8 @@ func main() {
 		err = goBuild(root)
 	case "windows-eval":
 		err = windowsEvalBuild(root)
+	case "verify-windows-eval":
+		err = verifyWindowsEvaluation(root)
 	case "build":
 		if err = webBuild(root); err == nil {
 			err = goBuild(root)
@@ -54,7 +56,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|check|go-build|windows-eval|build>")
+	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|check|go-build|windows-eval|verify-windows-eval|build>")
 }
 
 func fatal(err error) {
@@ -131,11 +133,28 @@ func goBuild(root string) error {
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
-	return buildExecutable(root, filepath.Join(root, "bin", name), "", "", "local-unsigned", "dev")
+	artifact := filepath.Join(root, "bin", name)
+	checksum := filepath.Join(root, "bin", "SHA256SUMS")
+	if err := removeGeneratedChecksum(checksum); err != nil {
+		return err
+	}
+	if err := buildExecutable(root, artifact, "", "", "local-unsigned", "dev"); err != nil {
+		return err
+	}
+	return writeSHA256Sums(artifact, checksum)
 }
 
 func windowsEvalBuild(root string) error {
-	artifact := filepath.Join(root, "bin", "cliharbor-windows-x64-evaluation.exe")
+	manifest := filepath.Join(root, evaluationManifestName)
+	compatibilityManifest := filepath.Join(root, "bin", "SHA256SUMS")
+	if err := removeGeneratedChecksum(manifest); err != nil {
+		return err
+	}
+	if err := removeGeneratedChecksum(compatibilityManifest); err != nil {
+		return err
+	}
+
+	artifact := filepath.Join(root, evaluationExecutablePath)
 	if err := buildExecutable(
 		root,
 		artifact,
@@ -146,10 +165,13 @@ func windowsEvalBuild(root string) error {
 	); err != nil {
 		return err
 	}
-	return writeSHA256Manifest(root, filepath.Join(root, "EVALUATION_SHA256SUMS"), []string{
+	if err := writeSHA256Manifest(root, manifest, []string{
 		artifact,
-		filepath.Join(root, "packs", "phase0", "idira-cyberark-inventory.yaml"),
-	})
+		filepath.Join(root, filepath.FromSlash(evaluationPackPath)),
+	}); err != nil {
+		return err
+	}
+	return verifyWindowsEvaluation(root)
 }
 
 func buildExecutable(root, artifact, goos, goarch, mode, defaultVersion string) error {
@@ -194,7 +216,7 @@ func buildExecutable(root, artifact, goos, goarch, mode, defaultVersion string) 
 	if err := runWithEnv(root, env, "go", args...); err != nil {
 		return err
 	}
-	return writeSHA256Sums(artifact, filepath.Join(binDir, "SHA256SUMS"))
+	return nil
 }
 
 func repositoryCommit(root string) string {
