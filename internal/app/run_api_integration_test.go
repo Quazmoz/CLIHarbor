@@ -81,6 +81,43 @@ func TestRunHTTPAPIExecutesTypedFixtureThroughAuthenticatedBoundary(t *testing.T
 		t.Fatalf("status response = HTTP %d %+v", statusResponse.StatusCode, status)
 	}
 
+	toolResponse, err := client.Get(baseURL + "/api/v1/tools")
+	if err != nil {
+		t.Fatal(err)
+	}
+	toolBody, err := io.ReadAll(toolResponse.Body)
+	toolResponse.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if toolResponse.StatusCode != http.StatusOK {
+		t.Fatalf("tool diagnostics HTTP = %d", toolResponse.StatusCode)
+	}
+	if bytes.Contains(toolBody, []byte(fixture.executable)) || bytes.Contains(bytes.ToLower(toolBody), []byte("executable")) || bytes.Contains(bytes.ToLower(toolBody), []byte("candidate")) {
+		t.Fatalf("tool diagnostics leaked executable authority: %s", toolBody)
+	}
+	var toolPayload struct {
+		Tools []struct {
+			PackID  string `json:"packId"`
+			ToolID  string `json:"toolId"`
+			Status  string `json:"status"`
+			Version string `json:"version"`
+		} `json:"tools"`
+	}
+	if err := json.Unmarshal(toolBody, &toolPayload); err != nil {
+		t.Fatal(err)
+	}
+	seenTools := make(map[string]string, len(toolPayload.Tools))
+	for _, tool := range toolPayload.Tools {
+		seenTools[tool.PackID+"/"+tool.ToolID] = tool.Status + "@" + tool.Version
+	}
+	if got := seenTools["integration/fixture"]; got != "ready@1.2.3" {
+		t.Fatalf("primary tool diagnostic = %q, want ready@1.2.3", got)
+	}
+	if got := seenTools["integration-alt/alternate"]; got != "ready@3.4.5" {
+		t.Fatalf("alternate tool diagnostic = %q, want ready@3.4.5", got)
+	}
+
 	taskResponse, err := client.Get(baseURL + "/api/v1/tasks")
 	if err != nil {
 		t.Fatal(err)
