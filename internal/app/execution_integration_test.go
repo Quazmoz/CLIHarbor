@@ -82,6 +82,79 @@ func TestExecutionIntegrationExactArgvAndStreams(t *testing.T) {
 	}
 }
 
+func TestExecutionIntegrationSecondPackToolIsIsolated(t *testing.T) {
+	fixture := executionFixtureConfigForTest(t)
+	alternatePackPath, alternateRef := alternateExecutionFixturePackForTest(t, fixture.executable)
+	fixture.options.PackFiles = append(fixture.options.PackFiles, alternatePackPath)
+	fixture.options.ToolOverrides[alternateRef] = fixture.executable
+
+	state, err := prepareRuntime(t.Context(), fixture.options)
+	if err != nil {
+		t.Fatalf("prepareRuntime() error = %v", err)
+	}
+
+	primary, ok := state.Discovery.Find(fixture.ref)
+	if !ok || primary.Status != discovery.StatusReady || primary.Version != "1.2.3" {
+		t.Fatalf("primary discovery state = %#v", primary)
+	}
+	alternate, ok := state.Discovery.Find(alternateRef)
+	if !ok || alternate.Status != discovery.StatusReady || alternate.Version != "3.4.5" || !alternate.ExecutableIdentity.Valid() {
+		t.Fatalf("alternate discovery state = %#v", alternate)
+	}
+
+	plan, err := planner.Build(state.Registry, state.Discovery, planner.Request{
+		PackID:    "integration-alt",
+		CommandID: "summarize",
+		Values: map[string]json.RawMessage{
+			"topic":  integrationRawJSON(t, "delta café 雪"),
+			"format": integrationRawJSON(t, "brief"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	wantArgs := []string{
+		"-test.run=^TestExecutionFixtureProcess$",
+		"--",
+		"summarize",
+		"--topic", "delta café 雪",
+		"--brief",
+	}
+	if strings.Join(plan.Args, "\x00") != strings.Join(wantArgs, "\x00") {
+		t.Fatalf("alternate plan args = %#v, want %#v", plan.Args, wantArgs)
+	}
+	if plan.ToolID != "alternate" || plan.ToolVersion != "3.4.5" {
+		t.Fatalf("alternate plan authority = tool %q version %q", plan.ToolID, plan.ToolVersion)
+	}
+
+	directStdout, directStderr, directExit := runExecutionFixtureDirect(t, plan.ExecutablePath, plan.Args)
+	collector := &integrationEventCollector{}
+	result, err := integrationExecutor(10*time.Second).Run(t.Context(), plan, collector)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Status != executor.StatusExited || result.ExitCode != directExit || directExit != 0 {
+		t.Fatalf("alternate result = %#v, direct exit = %d", result, directExit)
+	}
+	if got := collector.data(executor.EventStdout); !bytes.Equal(got, directStdout) {
+		t.Fatalf("alternate stdout = %q, direct = %q", got, directStdout)
+	}
+	if got := collector.data(executor.EventStderr); !bytes.Equal(got, directStderr) {
+		t.Fatalf("alternate stderr = %q, direct = %q", got, directStderr)
+	}
+
+	if _, err := planner.Build(state.Registry, state.Discovery, planner.Request{
+		PackID:    "integration",
+		CommandID: "summarize",
+		Values: map[string]json.RawMessage{
+			"topic":  integrationRawJSON(t, "delta"),
+			"format": integrationRawJSON(t, "brief"),
+		},
+	}); err == nil {
+		t.Fatal("primary pack unexpectedly gained alternate-pack command authority")
+	}
+}
+
 func TestExecutionIntegrationPreservesNonZeroExit(t *testing.T) {
 	state := prepareExecutionFixtureRuntime(t)
 	plan, err := planner.Build(state.Registry, state.Discovery, planner.Request{
@@ -160,9 +233,16 @@ func TestExecutionFixtureProcess(t *testing.T) {
 	case "version":
 		fmt.Fprintln(os.Stdout, "fixture 1.2.3")
 		os.Exit(0)
+	case "version-alt":
+		fmt.Fprintln(os.Stdout, "alternate 3.4.5")
+		os.Exit(0)
 	case "inspect":
 		fmt.Fprint(os.Stdout, "inspect:"+strings.Join(args[1:], "\x1f"))
 		fmt.Fprint(os.Stderr, "fixture-stderr")
+		os.Exit(0)
+	case "summarize":
+		fmt.Fprint(os.Stdout, "summarize:"+strings.Join(args[1:], "\x1f"))
+		fmt.Fprint(os.Stderr, "alternate-stderr")
 		os.Exit(0)
 	case "exit":
 		if len(args) != 3 || args[1] != "--code" {
@@ -353,6 +433,71 @@ commands:
 		executable: executable,
 		ref:        ref,
 	}
+}
+
+func alternateExecutionFixturePackForTest(t *testing.T, executable string) (string, discovery.ToolRef) {
+	t.Helper()
+	executableName := filepath.Base(executable)
+	pack := fmt.Sprintf(`apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: integration-alt
+  name: Phase 4B Alternate Integration Fixture
+  version: 2.0.0
+runtime:
+  platforms: [%s]
+  tools:
+    alternate:
+      executableNames: [%s]
+      versionProbe:
+        args:
+          - "-test.run=^TestExecutionFixtureProcess$"
+          - "--"
+          - "version-alt"
+        parser: semver-text
+        timeoutMillis: 5000
+      versionConstraint: ">=3.0.0 <4.0.0"
+commands:
+  summarize:
+    name: Summarize alternate fixture
+    tool: alternate
+    risk: read
+    inputs:
+      - id: topic
+        type: string
+        label: Topic
+        required: true
+        validation:
+          maxLength: 128
+          disallowLeadingDash: true
+      - id: format
+        type: enum
+        label: Format
+        required: true
+        validation:
+          enum: [brief, full]
+          disallowLeadingDash: true
+    argv:
+      - literal: "-test.run=^TestExecutionFixtureProcess$"
+      - literal: "--"
+      - literal: "summarize"
+      - flag:
+          name: --topic
+          valueFrom: topic
+      - map:
+          valueFrom: format
+          values:
+            brief: --brief
+            full: --full
+    output:
+      mode: raw
+`, runtime.GOOS, executableName)
+
+	packPath := filepath.Join(t.TempDir(), "integration-alt.yaml")
+	if err := os.WriteFile(packPath, []byte(pack), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return packPath, discovery.ToolRef{PackID: "integration-alt", ToolID: "alternate"}
 }
 
 func runExecutionFixtureDirect(t *testing.T, executable string, args []string) ([]byte, []byte, int) {
