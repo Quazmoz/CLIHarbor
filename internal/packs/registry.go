@@ -147,6 +147,11 @@ func cloneTool(tool Tool) Tool {
 
 func cloneCommand(command Command) Command {
 	out := command
+	if command.Output.Structured != nil {
+		structured := *command.Output.Structured
+		structured.Fields = append([]StructuredField(nil), command.Output.Structured.Fields...)
+		out.Output.Structured = &structured
+	}
 	out.Inputs = make([]Input, len(command.Inputs))
 	for i, input := range command.Inputs {
 		out.Inputs[i] = input
