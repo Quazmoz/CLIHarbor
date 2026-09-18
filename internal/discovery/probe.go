@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	semver "github.com/Masterminds/semver/v3"
 
@@ -61,6 +62,12 @@ func (ExecProbeRunner) Run(ctx context.Context, executablePath string, probe pac
 			return "", context.Canceled
 		}
 		return "", fmt.Errorf("version probe exited unsuccessfully")
+	}
+	if stdout.truncated || stderr.truncated {
+		return "", fmt.Errorf("version probe output exceeded limit")
+	}
+	if !utf8.Valid(stdout.buf.Bytes()) || !utf8.Valid(stderr.buf.Bytes()) {
+		return "", fmt.Errorf("version probe output was not valid UTF-8")
 	}
 	return stdout.String() + "\n" + stderr.String(), nil
 }
