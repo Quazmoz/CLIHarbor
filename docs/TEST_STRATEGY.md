@@ -79,7 +79,7 @@ Coverage now proves:
 - output exhaustion fails the run rather than growing memory without bound;
 - explicit cancellation releases capacity;
 - manager/application shutdown cancels active runs;
-- a full application test performs bootstrap → status/CSRF → POST run → GET run → fixture output verification → shutdown.
+- a full application test performs bootstrap → status/CSRF → authenticated multi-pack task metadata → POST run → SSE events/completion → final snapshot/output verification → shutdown.
 
 ### Phase 4c-B streaming/task UI checkpoint
 
@@ -94,7 +94,11 @@ Coverage now targets:
 - frontend CSRF retention in runtime memory only;
 - typed task submission containing only pack/command IDs plus values;
 - stdout/stderr rendering as inert React text, including markup-like output;
-- stream completion and cancellation state transitions.
+- stream completion and cancellation state transitions;
+- server-owned SSE observer cancellation during shutdown;
+- a bounded five-consecutive-failure browser reconnect budget that resets after a successful reopen;
+- one authoritative run-status reconciliation after the retry budget is exhausted, including replay of retained snapshot output;
+- explicit operator-triggered live-stream retry for a still-running reconciled run.
 
 Real-browser reconnect/eviction/slow-reader coverage remains desirable beyond the current HTTP/component boundaries.
 
