@@ -259,6 +259,7 @@ Negative:
 
 - manifest parsing rejects malformed digests, non-canonical paths, traversal, backslashes, drive-like paths, unsorted entries, and case-insensitive aliases appropriate to the Windows target;
 - privileged files and the manifest must be regular non-symlink files;
+- checksum manifest publication stages and syncs bytes before platform-specific atomic no-replace activation; stale manifests are invalidated explicitly by the owning build mode, and concurrent same-destination writers fail closed rather than replacing one another;
 - file hashing/read helpers re-read the same open file and compare identity/size/modification metadata to detect observed concurrent mutation;
 - verification recomputes the required hashes from the on-disk files and rejects unexpected entry counts or a present compatibility manifest;
 - GitHub's artifact archive digest remains separate archive-level integrity evidence;
