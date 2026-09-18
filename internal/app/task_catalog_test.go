@@ -68,8 +68,9 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	}
 
 	task.Inputs[0].Validation.Enum = append(task.Inputs[0].Validation.Enum, "mutated")
+	*task.Inputs[0].Validation.MaxLength = 1
 	second := catalog.ListTasks()
-	if len(second[0].Inputs[0].Validation.Enum) != 0 {
-		t.Fatal("task metadata returned shared validation slices")
+	if len(second[0].Inputs[0].Validation.Enum) != 0 || second[0].Inputs[0].Validation.MaxLength == nil || *second[0].Inputs[0].Validation.MaxLength != 64 {
+		t.Fatal("task metadata returned shared validation state")
 	}
 }
