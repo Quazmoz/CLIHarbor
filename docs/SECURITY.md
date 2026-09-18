@@ -122,7 +122,7 @@ Pack v1 intentionally has no `secret` input. Future support requires explicit se
 - selected basename must match the pack allowlist;
 - version probes/constraints can block incompatible binaries.
 
-**Phase 4 identity control:** discovery captures an opaque in-memory identity for the selected regular file; planning requires that identity; execution rechecks filesystem identity plus size/modification metadata immediately before process creation. Same-path replacement between discovery and execution is rejected.
+**Phase 4 identity control:** discovery captures an opaque in-memory identity for the selected regular file; planning requires that identity; execution rechecks filesystem identity, size/modification metadata, and a SHA-256 content fingerprint immediately before process creation. Same-path replacement and same-size content mutation between discovery and execution are rejected, including metadata-collision cases observed on Windows.
 
 **Residual risk:** name/path/version/file identity does not prove vendor publisher identity. Enterprise publisher/signature/hash validation may be added where required.
 
@@ -221,7 +221,7 @@ Still required before MVP release:
 - real-browser hostile-origin mutation/stream tests beyond the HTTP boundary tests;
 - broader XSS corpus coverage for ANSI/malformed/very-long output and future structured parser fallback;
 - reconnect/eviction/slow-reader end-to-end coverage under a real browser and production HTTP server;
-- stronger publisher/signature/hash verification if enterprise policy requires it;
+- stronger policy-managed publisher/signature/expected-hash verification if enterprise policy requires trusted provenance beyond replacement detection;
 - manual real vendor-path/version/auth/workflow verification on supported Windows environments.
 
 ## 12. Security review triggers
