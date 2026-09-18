@@ -113,33 +113,41 @@ func TestRunHTTPAPIExecutesTypedFixtureThroughAuthenticatedBoundary(t *testing.T
 		t.Fatalf("create response = HTTP %d %#v", createResponse.StatusCode, created)
 	}
 
-	runCtx, stopWaiting := context.WithTimeout(t.Context(), 10*time.Second)
-	defer stopWaiting()
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
+	streamRequest, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/api/v1/runs/"+created.RunID+"/events", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	streamResponse, err := client.Do(streamRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	streamBody, err := io.ReadAll(streamResponse.Body)
+	streamResponse.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if streamResponse.StatusCode != http.StatusOK {
+		t.Fatalf("run stream HTTP = %d", streamResponse.StatusCode)
+	}
+	if !bytes.Contains(streamBody, []byte("event: run-event\n")) || !bytes.Contains(streamBody, []byte("event: run-complete\n")) {
+		t.Fatalf("run stream missing event/completion frames: %q", streamBody)
+	}
+	if bytes.Contains(streamBody, []byte(fixture.executable)) || bytes.Contains(streamBody, []byte("-test.run")) {
+		t.Fatalf("run stream leaked executable or argv authority: %q", streamBody)
+	}
 
+	runResponse, err := client.Get(baseURL + "/api/v1/runs/" + created.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var finished runs.Snapshot
-	for {
-		runResponse, err := client.Get(baseURL + "/api/v1/runs/" + created.RunID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := json.NewDecoder(runResponse.Body).Decode(&finished); err != nil {
-			runResponse.Body.Close()
-			t.Fatal(err)
-		}
+	if err := json.NewDecoder(runResponse.Body).Decode(&finished); err != nil {
 		runResponse.Body.Close()
-		if runResponse.StatusCode != http.StatusOK {
-			t.Fatalf("run status HTTP = %d", runResponse.StatusCode)
-		}
-		if finished.Status != runs.StatusRunning {
-			break
-		}
-		select {
-		case <-ticker.C:
-		case <-runCtx.Done():
-			t.Fatalf("run did not finish: %v", runCtx.Err())
-		}
+		t.Fatal(err)
+	}
+	runResponse.Body.Close()
+	if runResponse.StatusCode != http.StatusOK {
+		t.Fatalf("run status HTTP = %d", runResponse.StatusCode)
 	}
 
 	if finished.Status != runs.StatusExited || finished.ExitCode == nil || *finished.ExitCode != 0 {
