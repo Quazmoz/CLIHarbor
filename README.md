@@ -161,10 +161,10 @@ go run ./tools/task web-build
 # frontend gates + embedded sync + Go vet/tests
 go run ./tools/task check
 
-# build only the embedded Go executable into ./bin
+# build the embedded Go executable into ./bin and emit ./bin/SHA256SUMS
 go run ./tools/task go-build
 
-# rebuild frontend, sync assets, then build the executable
+# rebuild frontend, sync assets, build the executable, and emit ./bin/SHA256SUMS
 go run ./tools/task build
 ```
 
