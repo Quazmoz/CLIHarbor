@@ -34,6 +34,7 @@ type Config struct {
 	Now             func() time.Time
 	Frontend        http.Handler
 	Runs            RunService
+	Tasks           TaskService
 }
 
 // Server owns one loopback listener and one in-memory browser session.
@@ -53,6 +54,7 @@ type Server struct {
 	sessionToken      string
 	csrfToken         string
 	runs              RunService
+	tasks             TaskService
 }
 
 // New creates a server bound to an ephemeral IPv4 loopback port. It does not
@@ -106,6 +108,7 @@ func New(config Config) (*Server, error) {
 		sessionToken:     sessionToken,
 		csrfToken:        csrfToken,
 		runs:             config.Runs,
+		tasks:            config.Tasks,
 	}
 
 	mux := http.NewServeMux()
@@ -115,6 +118,9 @@ func New(config Config) (*Server, error) {
 	if s.runs != nil {
 		mux.Handle("/api/v1/runs", s.requireSession(http.HandlerFunc(s.handleRuns)))
 		mux.Handle("/api/v1/runs/", s.requireSession(http.HandlerFunc(s.handleRunByID)))
+	}
+	if s.tasks != nil {
+		mux.Handle("/api/v1/tasks", s.requireSession(http.HandlerFunc(s.handleTasks)))
 	}
 	mux.Handle("/api/", s.requireSession(http.HandlerFunc(http.NotFound)))
 	mux.Handle("/", s.requireSession(config.Frontend))
