@@ -124,6 +124,31 @@ function appendRunEvent(current: RunView, event: RunEvent): RunView {
   };
 }
 
+function reconcileRunSnapshot(current: RunView, snapshot: RunSnapshot): RunView {
+  if (snapshot.runId !== current.snapshot.runId) {
+    return current;
+  }
+
+  let reconciled: RunView = {
+    ...current,
+    snapshot,
+  };
+  for (const event of snapshot.events ?? []) {
+    reconciled = appendRunEvent(reconciled, {
+      ...event,
+      runId: snapshot.runId,
+    });
+  }
+
+  const running = snapshot.status === 'running';
+  return {
+    ...reconciled,
+    snapshot,
+    streamMessage: running ? current.streamMessage : '',
+    streamStopped: running ? current.streamStopped : false,
+  };
+}
+
 function completeRun(current: RunView, complete: RunComplete): RunView {
   if (complete.runId !== current.snapshot.runId) {
     return current;
@@ -286,14 +311,7 @@ export function App() {
         );
         void fetchRun(activeRunID).then(
           (snapshot) =>
-            setRun((current) =>
-              current === null || current.snapshot.runId !== snapshot.runId
-                ? current
-                : {
-                    ...current,
-                    snapshot,
-                  },
-            ),
+            setRun((current) => (current === null ? current : reconcileRunSnapshot(current, snapshot))),
           () => undefined,
         );
       },
