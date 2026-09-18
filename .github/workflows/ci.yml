@@ -119,16 +119,7 @@ jobs:
           }
           $exportOutput | ForEach-Object { Write-Host $_ }
           $digestMatch = $exportOutput |
-            Select-String -Pattern '^Evidence SHA-256: ([0-9a-f]{64})        uses: actions/upload-artifact@v4.6.2
-        with:
-          name: cliharbor-windows-x64-evaluation-${{ github.sha }}
-          path: |
-            bin/cliharbor-windows-x64-evaluation.exe
-            bin/SHA256SUMS
-            packs/phase0/idira-cyberark-inventory.yaml
-          if-no-files-found: error
-          retention-days: 14
- |
+            Select-String -Pattern '^Evidence SHA-256: ([0-9a-f]{64})$' |
             Select-Object -First 1
           if (-not $digestMatch) {
             throw "inventory export did not emit a canonical SHA-256"
