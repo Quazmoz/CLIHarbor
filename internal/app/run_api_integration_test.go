@@ -18,6 +18,9 @@ import (
 
 func TestRunHTTPAPIExecutesTypedFixtureThroughAuthenticatedBoundary(t *testing.T) {
 	fixture := executionFixtureConfigForTest(t)
+	alternatePackPath, alternateRef := alternateExecutionFixturePackForTest(t, fixture.executable)
+	fixture.options.PackFiles = append(fixture.options.PackFiles, alternatePackPath)
+	fixture.options.ToolOverrides[alternateRef] = fixture.executable
 	launched := make(chan string, 1)
 	fixture.options.Out = io.Discard
 	fixture.options.Version = "phase4c-test"
@@ -76,6 +79,37 @@ func TestRunHTTPAPIExecutesTypedFixtureThroughAuthenticatedBoundary(t *testing.T
 	statusResponse.Body.Close()
 	if statusResponse.StatusCode != http.StatusOK || status.Session != "active" || status.CSRFToken == "" {
 		t.Fatalf("status response = HTTP %d %+v", statusResponse.StatusCode, status)
+	}
+
+	taskResponse, err := client.Get(baseURL + "/api/v1/tasks")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var taskPayload struct {
+		Tasks []struct {
+			PackID      string `json:"packId"`
+			CommandID   string `json:"commandId"`
+			ToolID      string `json:"toolId"`
+			ToolVersion string `json:"toolVersion"`
+		} `json:"tasks"`
+	}
+	if err := json.NewDecoder(taskResponse.Body).Decode(&taskPayload); err != nil {
+		taskResponse.Body.Close()
+		t.Fatal(err)
+	}
+	taskResponse.Body.Close()
+	if taskResponse.StatusCode != http.StatusOK {
+		t.Fatalf("task catalog HTTP = %d", taskResponse.StatusCode)
+	}
+	seenTasks := make(map[string]string, len(taskPayload.Tasks))
+	for _, task := range taskPayload.Tasks {
+		seenTasks[task.PackID+"/"+task.CommandID] = task.ToolID + "@" + task.ToolVersion
+	}
+	if got := seenTasks["integration/inspect"]; got != "fixture@1.2.3" {
+		t.Fatalf("primary task metadata = %q, want fixture@1.2.3", got)
+	}
+	if got := seenTasks["integration-alt/summarize"]; got != "alternate@3.4.5" {
+		t.Fatalf("alternate task metadata = %q, want alternate@3.4.5", got)
 	}
 
 	query := "api snow 雪 & | ;"
