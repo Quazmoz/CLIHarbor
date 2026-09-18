@@ -61,7 +61,7 @@ Use for the implemented v1 declarative model, validation stages, version probes,
 
 Canonical implementation: `../internal/discovery/`.
 
-Use for exact executable resolution, explicit path overrides, ambiguity handling, semantic-version parsing/constraints, bounded direct version probes, and discovery state consumed by startup/doctor. Discovery state is not authorization to add undeclared commands.
+Use for exact executable resolution, explicit path overrides, ambiguity handling, semantic-version parsing/constraints, bounded direct version probes, minimal-environment/neutral-cwd probe isolation, shared platform process-tree ownership, and discovery state consumed by startup/doctor. Discovery state is not authorization to add undeclared commands.
 
 ### Execution planning
 
@@ -156,8 +156,9 @@ The repository now implements the pre-vendor-integration work-laptop evaluation 
 - `cliharbor self-test` validates temp access, pack/registry loading, structured parsing, embedded frontend/session/bootstrap, IPv4 loopback, and direct self-process execution without a vendor CLI or external network;
 - `cliharbor inventory` reports sanitized host/build/tool discovery state for explicitly trusted packs;
 - optional operator-selected version/help evidence probes can use only fixed trusted pack declarations and backend-owned discovery state;
-- evidence probes run directly with Windows process-tree ownership, a neutral temp cwd, minimal environment, strict timeout/output bounds, and discovery-time executable fingerprint revalidation;
-- `cliharbor.phase0/v1` evidence export is typed, bounded, sanitized, atomic, and non-overwriting;
+- discovery-time version probes and operator-selected evidence probes run directly with shared platform process-tree ownership, a neutral temp cwd, minimal environment, and strict timeout/output bounds; Windows uses the same suspended-start Job Object boundary for both, and version discovery fails closed on truncated/invalid-UTF-8 output;
+- evidence probes revalidate discovery-time executable fingerprints immediately before launch;
+- `cliharbor.phase0/v1` evidence export is typed, bounded, sanitized, self-describing with sanitized fixed argv, omits timestamps for probes that did not execute, and uses atomic no-clobber activation;
 - `packs/phase0/idira-cyberark-inventory.yaml` is discovery-only and asserts no vendor command/probe argv;
 - `go run ./tools/task windows-eval` produces `bin/cliharbor-windows-x64-evaluation.exe` and `SHA256SUMS`;
 - CI verifies the Windows evaluation executable's `version` and `self-test` commands and uploads the unsigned artifact only after existing quality/security/race gates;
