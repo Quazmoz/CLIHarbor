@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 	"unicode"
@@ -61,6 +62,7 @@ type ProbeRecord struct {
 	ID         string    `json:"id"`
 	Kind       string    `json:"kind"`
 	Identity   string    `json:"identity"`
+	Arguments  []string  `json:"arguments,omitempty"`
 	Status     string    `json:"status"`
 	StartedAt  time.Time `json:"startedAt,omitempty"`
 	EndedAt    time.Time `json:"endedAt,omitempty"`
@@ -95,10 +97,10 @@ func SanitizeText(raw []byte) string {
 	text = secretAssignmentPattern.ReplaceAllString(text, "$1$2[REDACTED]")
 	text = jwtPattern.ReplaceAllString(text, "[REDACTED_JWT]")
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		text = redactPath(text, home, "[USER_HOME]")
+		text = RedactPath(text, home, "[USER_HOME]")
 	}
 	if temp := os.TempDir(); temp != "" {
-		text = redactPath(text, temp, "[TEMP]")
+		text = RedactPath(text, temp, "[TEMP]")
 	}
 	return trimUTF8Bytes(text, MaxCapturedTextBytes)
 }
@@ -126,6 +128,14 @@ func Validate(bundle Bundle) error {
 		for _, probe := range tool.Probes {
 			if probe.ID == "" || probe.Kind == "" || probe.Identity == "" || probe.Status == "" {
 				return fmt.Errorf("tool %s/%s contains incomplete probe evidence", tool.PackID, tool.ToolID)
+			}
+			if len(probe.Arguments) > 16 {
+				return fmt.Errorf("tool %s/%s probe %s contains too many arguments", tool.PackID, tool.ToolID, probe.ID)
+			}
+			for _, argument := range probe.Arguments {
+				if len(argument) > 256 || strings.ContainsRune(argument, '\x00') {
+					return fmt.Errorf("tool %s/%s probe %s contains an invalid argument", tool.PackID, tool.ToolID, probe.ID)
+				}
 			}
 			if len(probe.Stdout) > MaxCapturedTextBytes || len(probe.Stderr) > MaxCapturedTextBytes {
 				return fmt.Errorf("tool %s/%s probe %s exceeds capture bounds", tool.PackID, tool.ToolID, probe.ID)
@@ -207,18 +217,28 @@ func WriteBundle(ctx context.Context, destination string, bundle Bundle) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := os.Rename(tempName, clean); err != nil {
-		return fmt.Errorf("activate evidence bundle: %w", err)
+	if err := os.Link(tempName, clean); err != nil {
+		if _, statErr := os.Lstat(clean); statErr == nil {
+			return fmt.Errorf("evidence export path already exists")
+		}
+		return fmt.Errorf("activate evidence bundle without overwrite: %w", err)
 	}
 	return nil
 }
 
-func redactPath(value, path, replacement string) string {
+// RedactPath replaces common representations of one local path. On Windows the
+// match is case-insensitive because path casing is not an authority boundary.
+func RedactPath(value, path, replacement string) string {
 	clean := filepath.Clean(path)
 	for _, variant := range []string{clean, filepath.ToSlash(clean), strings.ReplaceAll(clean, "/", "\\")} {
-		if variant != "" && variant != "." {
-			value = strings.ReplaceAll(value, variant, replacement)
+		if variant == "" || variant == "." {
+			continue
 		}
+		if runtime.GOOS == "windows" {
+			value = regexp.MustCompile("(?i)" + regexp.QuoteMeta(variant)).ReplaceAllString(value, replacement)
+			continue
+		}
+		value = strings.ReplaceAll(value, variant, replacement)
 	}
 	return value
 }
