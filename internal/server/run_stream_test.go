@@ -220,7 +220,6 @@ func TestRunEventStreamDisconnectDoesNotCancelExecution(t *testing.T) {
 	}
 }
 
-
 func TestRunEventStreamCapacityIsBounded(t *testing.T) {
 	service := &streamRunService{
 		snapshot: runs.Snapshot{
