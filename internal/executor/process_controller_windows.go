@@ -12,14 +12,14 @@ import (
 )
 
 const (
-	createSuspended                  = 0x00000004
-	processTerminate                 = 0x0001
-	processSetQuota                  = 0x0100
-	processSynchronizeAccess         = 0x00100000
-	threadSuspendResume              = 0x0002
+	createSuspended                        = 0x00000004
+	processTerminate                       = 0x0001
+	processSetQuota                        = 0x0100
+	processSynchronizeAccess               = 0x00100000
+	threadSuspendResume                    = 0x0002
 	jobObjectExtendedLimitInformationClass = 9
-	jobObjectLimitKillOnJobClose     = 0x00002000
-	terminateJobExitCode             = 1
+	jobObjectLimitKillOnJobClose           = 0x00002000
+	terminateJobExitCode                   = 1
 )
 
 var (
