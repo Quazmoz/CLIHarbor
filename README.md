@@ -36,7 +36,7 @@ The first product slice will:
 - **Backend / launcher:** Go
 - **Frontend:** React + TypeScript + Vite
 - **Distribution target:** frontend embedded into the Go binary
-- **Transport:** loopback HTTP; streaming transport will be added when execution arrives
+- **Transport:** authenticated loopback HTTP with Server-Sent Events for bounded live run-event streaming
 - **Pack format:** versioned YAML (`cliharbor.dev/v1`) validated against the embedded JSON Schema plus deterministic semantic/security checks
 - **Discovery/version probes:** direct Go process invocation with pack-authored fixed argv, bounded output, bounded timeout, and semantic-version compatibility checks
 - **Task execution:** direct Go `os/exec` using an authoritative executable path plus an exact argument array; ordinary execution never concatenates untrusted input into a shell command
@@ -98,7 +98,9 @@ Phase 4 adds the low-level secure execution boundary:
 
 Phase 4c-A exposes that boundary through authenticated loopback JSON APIs for creating, reading, and cancelling runs. The browser can submit only `packId`, `commandId`, and typed `values`; executable paths, executable names, flag names, and argv remain server-owned. Run state is bounded and in-memory, output chunks are returned as Base64 data inside bounded snapshots, duplicate read-only requests create independent server-generated run IDs, and application shutdown cancels active runs. The existing exact Host, session, Origin, and CSRF boundary applies to run mutations.
 
-There is still **no task execution UI or live SSE stream**, no auth-required or secret-bearing execution, and no real Idira/CyberArk command pack. Phase 0 vendor inventory remains required before any real vendor command definitions are added.
+Phase 4c-B adds authenticated Server-Sent Events at `GET /api/v1/runs/{runId}/events`, bounded replay using `Last-Event-ID`, per-write deadlines, heartbeat frames, and stream disconnect semantics that do not cancel or recreate executions. A read-only `GET /api/v1/tasks` surface exposes only trusted pack metadata for currently runnable read-only/non-auth/non-secret commands; it never exposes executable paths, argv, environment, or pack source paths. The React UI keeps the CSRF token only in runtime memory, derives typed controls from that safe metadata, creates/cancels runs through the existing protected APIs, and renders Base64-decoded stdout/stderr strictly as text.
+
+There is still **no auth-required or secret-bearing execution, mutating/destructive execution, persisted run history, or real Idira/CyberArk command pack**. Phase 0 vendor inventory remains required before any real vendor command definitions are added.
 
 Development targets Go 1.27.1 and Node 24.21.0.
 
@@ -201,4 +203,4 @@ Those properties reinforce CLIHarbor's core boundary: **invoke the official CLI 
 
 ## Status
 
-Phases 1-4 now include the secure local browser runtime, trusted versioned pack model/loader, fail-closed tool discovery/version probing with `doctor`, deterministic read-only planning/execution with Windows descendant ownership, a fixture-backed execution proof, and Phase 4c-A authenticated create/status/cancel run APIs with bounded in-memory polling. The next bounded milestone is Phase 4c-B live event streaming plus the minimal task/run UI, without widening executable or argv authority. Real vendor command definitions remain blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.
+Phases 1-4 now include the secure local browser runtime, trusted versioned pack model/loader, fail-closed tool discovery/version probing with `doctor`, deterministic read-only planning/execution with Windows descendant ownership, a fixture-backed execution proof, Phase 4c-A authenticated create/status/cancel APIs, and Phase 4c-B bounded SSE replay plus a minimal safe task/run UI. The next product milestone is the first verified read-only Idira workflow after Phase 0 vendor inventory; auth orchestration and structured rendering remain later work. Real vendor command definitions remain blocked on verified inventory of the exact deployed CLI versions and command trees.
