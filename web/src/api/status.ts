@@ -2,6 +2,7 @@ export interface RuntimeStatus {
   name: string;
   version: string;
   session: 'active';
+  csrfToken: string;
 }
 
 export class SessionUnavailableError extends Error {
@@ -20,15 +21,18 @@ function parseRuntimeStatus(value: unknown): RuntimeStatus {
     throw new Error('CLIHarbor returned an invalid status response.');
   }
 
-  const { name, version, session } = value;
+  const { name, version, session, csrfToken } = value;
   if (typeof name !== 'string' || name.length === 0 || typeof version !== 'string' || version.length === 0) {
     throw new Error('CLIHarbor returned an invalid status response.');
   }
   if (session !== 'active') {
     throw new Error('CLIHarbor returned an unknown browser-session state.');
   }
+  if (typeof csrfToken !== 'string' || csrfToken.length === 0) {
+    throw new Error('CLIHarbor returned an invalid session mutation token.');
+  }
 
-  return { name, version, session };
+  return { name, version, session, csrfToken };
 }
 
 export async function fetchRuntimeStatus(signal?: AbortSignal): Promise<RuntimeStatus> {
