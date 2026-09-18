@@ -328,6 +328,12 @@ function headerValue(headers, name) {
   return undefined;
 }
 
+async function waitHTTPStatus(page, requestId, timeoutMs = 15000) {
+  const extra = await page.waitEvent('Network.responseReceivedExtraInfo',
+    (params) => params.requestId === requestId, timeoutMs);
+  return extra.statusCode;
+}
+
 async function navigate(page, url) {
   await page.call('Page.navigate', { url });
 }
@@ -530,20 +536,25 @@ async function main() {
     await waitJS(attacker, 'attacker page', 'document.body.innerText.includes("attacker origin")');
 
     const hostileStreamURL = baseURL + eventPath(firstRunID);
-    const hostileStreamResponse = attacker.waitEvent('Network.responseReceived',
-      (params) => params.response?.url === hostileStreamURL);
+    const hostileStreamRequest = attacker.waitEvent('Network.requestWillBeSent',
+      (params) => params.request?.url === hostileStreamURL && params.request?.method === 'GET');
     await attacker.evaluate('window.__cliharborAttackStream = new EventSource(' +
       JSON.stringify(hostileStreamURL) + ', { withCredentials: true }); true');
-    assert.equal((await hostileStreamResponse).response.status, 403, 'hostile-origin EventSource must be rejected');
+    const hostileStream = await hostileStreamRequest;
+    assert.equal(await waitHTTPStatus(attacker, hostileStream.requestId), 403,
+      'hostile-origin EventSource must be rejected');
 
-    const hostileMutationResponse = attacker.waitEvent('Network.responseReceived',
-      (params) => params.response?.url === baseURL + '/api/v1/runs' && params.response?.status === 403);
+    const hostileMutationURL = baseURL + '/api/v1/runs';
+    const hostileMutationRequest = attacker.waitEvent('Network.requestWillBeSent',
+      (params) => params.request?.url === hostileMutationURL && params.request?.method === 'POST');
     await attacker.evaluate('(() => {' +
       'const frame = document.createElement("iframe"); frame.name = "cliharbor_attack_frame"; document.body.appendChild(frame);' +
-      'const form = document.createElement("form"); form.method = "POST"; form.action = ' + JSON.stringify(baseURL + '/api/v1/runs') + '; form.target = frame.name;' +
+      'const form = document.createElement("form"); form.method = "POST"; form.action = ' + JSON.stringify(hostileMutationURL) + '; form.target = frame.name;' +
       'document.body.appendChild(form); form.submit(); return true;' +
     '})()');
-    assert.equal((await hostileMutationResponse).response.status, 403, 'hostile-origin mutation must be rejected');
+    const hostileMutation = await hostileMutationRequest;
+    assert.equal(await waitHTTPStatus(attacker, hostileMutation.requestId), 403,
+      'hostile-origin mutation must be rejected');
 
     stage('sse reconnect reconciliation and cancellation');
     await chooseTask(page, 'integration/wait');
