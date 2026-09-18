@@ -163,6 +163,12 @@ func windowsEvalBuild(root string) error {
 		return err
 	}
 
+	buildCache, err := os.MkdirTemp("", "cliharbor-eval-gocache-")
+	if err != nil {
+		return fmt.Errorf("create isolated evaluation build cache: %w", err)
+	}
+	defer os.RemoveAll(buildCache)
+
 	artifact := filepath.Join(root, evaluationExecutablePath)
 	if err := buildExecutableWithEnv(
 		root,
@@ -171,7 +177,7 @@ func windowsEvalBuild(root string) error {
 		"amd64",
 		"evaluation-unsigned",
 		"0.0.0-eval",
-		evaluationGoEnvironment(),
+		evaluationBuildEnvironment(buildCache),
 	); err != nil {
 		return err
 	}
