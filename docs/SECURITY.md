@@ -6,7 +6,7 @@ CLIHarbor is deliberately local and thin, but it is security-sensitive because i
 
 “Localhost” is not a security boundary by itself. Browser requests, pack files, PATH, local executables, process output, filesystem state, and user input all cross trust boundaries.
 
-Phases 1-4 implement the browser/session boundary, trusted pack boundary, fail-closed tool-discovery/version-probe boundary, and the read-only planner/executor boundary. Phase 4c-A now permits browser-triggered execution only through authenticated loopback create/get/cancel APIs that accept pack/command IDs plus typed values; executable/path/argv authority remains server-owned.
+Phases 1-4 implement the browser/session boundary, trusted pack boundary, fail-closed tool-discovery/version-probe boundary, and the read-only planner/executor boundary. Phase 4c-A permits browser-triggered execution only through authenticated loopback create/get/cancel APIs that accept pack/command IDs plus typed values; executable/path/argv authority remains server-owned. Phase 5 adds bounded post-execution structured parsing without granting parsed output any execution authority.
 
 ## 2. Assets to protect
 
@@ -58,6 +58,14 @@ Phase 3 version probes use direct `exec.CommandContext` with fixed pack-authored
 ### SI-2 No browser-selected executable
 
 The browser cannot provide executable names or paths. Tool names come from a trusted pack. PATH discovery and `--tool-path` configuration happen in the backend/operator boundary. An explicit override must reference an existing `pack/tool` and match its executable basename allowlist.
+
+### SI-2A Structured output is data, never authority
+
+Structured parsing runs only after the authoritative executor invocation finishes. Pack v1 can declare only a strict top-level JSON object with bounded scalar fields; it cannot declare scripts, executable templates, reflection, nested transformation logic, or arbitrary adapters. The parser caps structured stdout at 64 KiB, caps scalar strings at 8 KiB, rejects duplicate/unknown fields, invalid UTF-8, nested values, numeric overflow, and unsafe control characters, and does not parse a non-zero execution as success.
+
+Raw stdout/stderr events and the executor's run/exit state remain authoritative evidence. Parser failure produces a stable sanitized parser status while leaving raw evidence accessible. Structured results are attached only to the same in-memory run record that captured their stdout, preventing a parser result from becoming a new execution request or being associated by browser input with another run.
+
+Commands whose output is declared secret-bearing cannot enable structured rendering in this phase, and structured fields marked sensitive are rejected at pack validation. CLI-like output remains untrusted even when valid JSON.
 
 ### SI-3 Loopback only
 
