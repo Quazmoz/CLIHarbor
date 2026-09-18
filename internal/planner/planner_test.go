@@ -2,6 +2,8 @@ package planner
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -31,7 +33,7 @@ func TestBuildProducesExactArgvWithoutReparsingUserText(t *testing.T) {
 	if !reflect.DeepEqual(plan.Args, want) {
 		t.Fatalf("args = %#v, want %#v", plan.Args, want)
 	}
-	if plan.ExecutablePath != "/approved/fixture" || plan.Risk != packs.RiskRead {
+	if filepath.Base(plan.ExecutablePath) != "fixture" || !plan.ExecutableIdentity.Valid() || plan.Risk != packs.RiskRead {
 		t.Fatalf("plan authority = %#v", plan)
 	}
 }
@@ -228,9 +230,17 @@ func plannerFixture(t *testing.T, risk packs.Risk, requiresAuth, secret bool) (*
 	if err != nil {
 		t.Fatal(err)
 	}
+	executablePath := filepath.Join(t.TempDir(), "fixture")
+	if err := os.WriteFile(executablePath, []byte("fixture"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := discovery.CaptureExecutableIdentity(executablePath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	snapshot := discovery.NewSnapshot([]discovery.ToolState{{
 		PackID: "demo", PackVersion: "1.0.0", ToolID: "fixture", Status: discovery.StatusReady,
-		Path: "/approved/fixture", ExecutableName: "fixture", Version: "1.2.3",
+		Path: executablePath, ExecutableName: "fixture", Version: "1.2.3", ExecutableIdentity: identity,
 	}})
 	return registry, snapshot
 }
