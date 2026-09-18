@@ -191,15 +191,20 @@ func TestValidateRejectsOversizedCapturedText(t *testing.T) {
 
 func testBundle() Bundle {
 	exit := 0
+	generated := time.Unix(1, 0).UTC()
+	started := generated.Add(time.Second)
+	ended := started.Add(time.Second)
 	return Bundle{
 		SchemaVersion: SchemaVersion,
-		GeneratedAt:   time.Unix(1, 0).UTC(),
+		GeneratedAt:   generated,
 		CLIHarbor:     BuildInfo{Version: "test", Commit: "abc", BuildMode: "test"},
 		Host:          HostInfo{OS: "windows", Architecture: "amd64"},
 		Tools: []ToolRecord{{
 			PackID: "demo", PackVersion: "1.0.0", ToolID: "tool", Status: "ready",
+			CandidateCount: 1, AvailableHelpProbes: []string{"help"},
 			Probes: []ProbeRecord{{
-				ID: "help", Kind: "help", Identity: "demo/tool/help", Arguments: []string{"--help"}, Status: "exited", ExitCode: &exit,
+				ID: "help", Kind: "help", Identity: "demo/tool/help", Arguments: []string{"--help"}, Status: "exited",
+				StartedAt: &started, EndedAt: &ended, ExitCode: &exit,
 			}},
 		}},
 	}

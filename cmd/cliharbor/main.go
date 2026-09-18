@@ -40,6 +40,10 @@ func main() {
 }
 
 func run(args []string) error {
+	if len(args) > 0 && args[0] == "evidence" {
+		return runEvidenceCommand(args[1:])
+	}
+
 	command := "serve"
 	if len(args) > 0 {
 		switch args[0] {
@@ -111,6 +115,13 @@ func run(args []string) error {
 	default:
 		return app.Run(ctx, options)
 	}
+}
+
+func runEvidenceCommand(args []string) error {
+	if len(args) != 2 || args[0] != "inspect" || args[1] == "" {
+		return fmt.Errorf("usage: cliharbor evidence inspect <file>")
+	}
+	return app.InspectEvidence(app.Options{Out: os.Stdout}, args[1])
 }
 
 func parseToolOverrides(values []string) (map[discovery.ToolRef]string, error) {

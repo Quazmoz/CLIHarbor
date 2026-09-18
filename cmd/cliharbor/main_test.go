@@ -64,3 +64,16 @@ func TestInventoryProbeFlagCannotSupplyExecutableOrArgv(t *testing.T) {
 		}
 	}
 }
+
+func TestEvidenceCommandShapeFailsClosed(t *testing.T) {
+	for _, args := range [][]string{
+		{"evidence"},
+		{"evidence", "inspect"},
+		{"evidence", "unknown", "phase0.json"},
+		{"evidence", "inspect", "one.json", "two.json"},
+	} {
+		if err := run(args); err == nil {
+			t.Fatalf("run(%v) unexpectedly succeeded", args)
+		}
+	}
+}

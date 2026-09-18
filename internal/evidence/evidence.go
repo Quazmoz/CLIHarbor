@@ -147,7 +147,7 @@ func Validate(bundle Bundle) error {
 			}
 		}
 	}
-	return nil
+	return validateBundleSemantics(bundle)
 }
 
 func WriteBundle(ctx context.Context, destination string, bundle Bundle) error {
