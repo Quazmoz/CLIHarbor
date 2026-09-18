@@ -144,7 +144,7 @@ Do not silently change an accepted ADR. Add a new ADR section with:
 
 **Why:** The first real integration needs factual data from the company-installed CLI versions without turning CLIHarbor into a diagnostic shell or exposing executable authority to browser input.
 
-**Security/reliability implications:** No arbitrary executable/argv input, no shell, no interactive stdin, minimal child environment, executable identity revalidation, bounded timeout/output, conservative redaction, no credential-store/environment enumeration, and no browser/session secrets in evidence. Raw vendor prose still requires operator review before external sharing because generic redaction cannot prove organization-specific text is non-sensitive.
+**Security/reliability implications:** No arbitrary executable/argv input, no shell, no interactive stdin, neutral temporary working directory, minimal child environment, executable identity revalidation, bounded timeout/output, shared platform process-tree ownership (including Windows Job Objects), conservative redaction, no credential-store/environment enumeration, and no browser/session secrets in evidence. Exported probe provenance includes only sanitized fixed argv from trusted declarations; evidence activation is atomic and no-clobber. Discovery-time version probes fail closed on truncated/invalid-UTF-8 output. Raw vendor prose still requires operator review before external sharing because generic redaction cannot prove organization-specific text is non-sensitive.
 
 **Revisit when:** A verified workflow requires a probe that cannot be represented as fixed read-only argv, or evidence requirements exceed the bounded Phase 0 schema.
 
