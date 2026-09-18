@@ -207,6 +207,13 @@ func verifyWindowsEvaluationReproducible(root string) error {
 	if err := validateEvaluationToolchain(root); err != nil {
 		return err
 	}
+	if err := verifyWindowsEvaluation(root); err != nil {
+		return fmt.Errorf("verify evaluation candidate before reproduction: %w", err)
+	}
+	candidateManifest, err := readStableRegularFile(filepath.Join(root, evaluationManifestName), maxEvaluationManifest)
+	if err != nil {
+		return fmt.Errorf("read evaluation candidate manifest: %w", err)
+	}
 
 	first, err := os.MkdirTemp("", "cliharbor-eval-repro-a-")
 	if err != nil {
@@ -236,6 +243,9 @@ func verifyWindowsEvaluationReproducible(root string) error {
 	}
 	if !bytes.Equal(firstManifest, secondManifest) {
 		return fmt.Errorf("Windows evaluation rebuilds are not byte-deterministic")
+	}
+	if !bytes.Equal(candidateManifest, firstManifest) {
+		return fmt.Errorf("Windows evaluation candidate does not match deterministic rebuilds")
 	}
 	return nil
 }
