@@ -294,7 +294,7 @@ func writeSHA256Manifest(root, destination string, artifacts []string) error {
 		}
 		seen[name] = struct{}{}
 
-		digest, err := sha256File(artifactPath)
+		digest, err := sha256File(artifactPath, info)
 		if err != nil {
 			return err
 		}
@@ -304,18 +304,43 @@ func writeSHA256Manifest(root, destination string, artifacts []string) error {
 	return writeChecksumFile(destination, strings.Join(entries, "\n")+"\n")
 }
 
-func sha256File(path string) ([]byte, error) {
+func sha256File(path string, expected os.FileInfo) ([]byte, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open build artifact for checksum: %w", err)
 	}
+	opened, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("inspect opened build artifact: %w", err)
+	}
+	if !opened.Mode().IsRegular() || !os.SameFile(expected, opened) ||
+		expected.Size() != opened.Size() || !expected.ModTime().Equal(opened.ModTime()) {
+		_ = file.Close()
+		return nil, fmt.Errorf("build artifact changed before checksum")
+	}
+
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {
 		_ = file.Close()
 		return nil, fmt.Errorf("hash build artifact: %w", err)
 	}
+	finished, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("reinspect opened build artifact: %w", err)
+	}
 	if err := file.Close(); err != nil {
 		return nil, fmt.Errorf("close build artifact after checksum: %w", err)
+	}
+	current, err := os.Lstat(path)
+	if err != nil {
+		return nil, fmt.Errorf("reinspect checksum artifact: %w", err)
+	}
+	if current.Mode()&os.ModeSymlink != 0 || !current.Mode().IsRegular() ||
+		!os.SameFile(opened, current) || opened.Size() != finished.Size() ||
+		!opened.ModTime().Equal(finished.ModTime()) {
+		return nil, fmt.Errorf("build artifact changed while checksum was calculated")
 	}
 	return hasher.Sum(nil), nil
 }
