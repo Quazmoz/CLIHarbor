@@ -61,6 +61,8 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 - executor stdout/stderr and exit code are compared with direct invocation of the same fixture executable/argv;
 - non-zero exits remain process results;
 - cancellation after observable output produces the expected cancelled run state;
+- a second explicit-local fixture pack/tool uses a different tool ID, version probe/result, command shape, and input mapping while proving cross-pack command isolation through the same registry/discovery/planner/executor core;
+- authenticated task metadata integration sees both fixture packs with the correct scoped tool/version evidence;
 - the test binary acts only as the synthetic CLI; no external tool, credential, vendor syntax, or browser-selected execution shape is introduced.
 
 ### Phase 4c-A authenticated run API checkpoint
