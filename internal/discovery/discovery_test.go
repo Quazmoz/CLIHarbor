@@ -197,7 +197,7 @@ func TestDiscoverUnsupportedPlatformDoesNotProbe(t *testing.T) {
 	resolver := NewResolver(Config{GOOS: runtime.GOOS, PathValue: t.TempDir(), ProbeRunner: probe})
 	registry, err := packs.NewRegistry([]packs.LoadedPack{{Pack: packs.Pack{
 		Metadata: packs.Metadata{ID: "demo", Version: "1.0.0"},
-		Runtime: packs.Runtime{Platforms: []string{unsupported}, Tools: map[string]packs.Tool{"fixture": {ExecutableNames: []string{"fixture"}}}},
+		Runtime:  packs.Runtime{Platforms: []string{unsupported}, Tools: map[string]packs.Tool{"fixture": {ExecutableNames: []string{"fixture"}}}},
 	}}})
 	if err != nil {
 		t.Fatal(err)
@@ -226,7 +226,7 @@ func testRegistry(t *testing.T, tool packs.Tool) *packs.Registry {
 	t.Helper()
 	registry, err := packs.NewRegistry([]packs.LoadedPack{{Pack: packs.Pack{
 		Metadata: packs.Metadata{ID: "demo", Version: "1.0.0"},
-		Runtime: packs.Runtime{Platforms: []string{runtime.GOOS}, Tools: map[string]packs.Tool{"fixture": tool}},
+		Runtime:  packs.Runtime{Platforms: []string{runtime.GOOS}, Tools: map[string]packs.Tool{"fixture": tool}},
 	}}})
 	if err != nil {
 		t.Fatal(err)
