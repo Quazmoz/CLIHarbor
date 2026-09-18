@@ -72,14 +72,14 @@ type Event struct {
 }
 
 type Snapshot struct {
-	RunID       string     `json:"runId"`
-	PackID      string     `json:"packId"`
-	CommandID   string     `json:"commandId"`
-	ToolID      string     `json:"toolId"`
-	ToolVersion string     `json:"toolVersion,omitempty"`
-	Status      Status     `json:"status"`
-	StartedAt   *time.Time `json:"startedAt,omitempty"`
-	EndedAt     *time.Time `json:"endedAt,omitempty"`
+	RunID       string             `json:"runId"`
+	PackID      string             `json:"packId"`
+	CommandID   string             `json:"commandId"`
+	ToolID      string             `json:"toolId"`
+	ToolVersion string             `json:"toolVersion,omitempty"`
+	Status      Status             `json:"status"`
+	StartedAt   *time.Time         `json:"startedAt,omitempty"`
+	EndedAt     *time.Time         `json:"endedAt,omitempty"`
 	ExitCode    *int               `json:"exitCode,omitempty"`
 	Structured  *structured.Result `json:"structured,omitempty"`
 	Events      []Event            `json:"events,omitempty"`
@@ -122,16 +122,16 @@ type Manager struct {
 }
 
 type record struct {
-	runID       string
-	packID      string
-	commandID   string
-	toolID      string
-	toolVersion string
-	status      Status
-	startedAt   *time.Time
-	endedAt     *time.Time
-	exitCode    *int
-	events      []Event
+	runID              string
+	packID             string
+	commandID          string
+	toolID             string
+	toolVersion        string
+	status             Status
+	startedAt          *time.Time
+	endedAt            *time.Time
+	exitCode           *int
+	events             []Event
 	eventBytes         int64
 	nextSeq            uint64
 	cancel             context.CancelFunc
@@ -246,11 +246,11 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 
 	runCtx, cancel := context.WithCancel(m.ctx)
 	rec := &record{
-		runID:       runID,
-		packID:      plan.PackID,
-		commandID:   plan.CommandID,
-		toolID:      plan.ToolID,
-		toolVersion: plan.ToolVersion,
+		runID:              runID,
+		packID:             plan.PackID,
+		commandID:          plan.CommandID,
+		toolID:             plan.ToolID,
+		toolVersion:        plan.ToolVersion,
 		status:             StatusRunning,
 		cancel:             cancel,
 		done:               make(chan struct{}),
