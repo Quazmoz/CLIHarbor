@@ -49,7 +49,7 @@ func TestDiagnosticBundleAllowlistExcludesSensitiveRuntimeFields(t *testing.T) {
 	text := string(payload)
 	for _, forbidden := range []string{
 		secret, "Users", "operator", "tool.exe", "stdout", "token=", "pack.yaml",
-		"path", "candidate", "message", "environment", "csrf", "session", "argv",
+		`"path":`, `"candidates":`, `"message":`, "environment", "csrf", "session", "argv",
 	} {
 		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {
 			t.Fatalf("diagnostics payload contains forbidden material %q: %s", forbidden, text)

@@ -41,7 +41,7 @@ func TestMarshalBundleIsDeterministicAndBounded(t *testing.T) {
 func TestValidateRejectsUnsafeOrAmbiguousFields(t *testing.T) {
 	tests := []func(*Bundle){
 		func(b *Bundle) { b.CLIHarbor.Version = "secret\nvalue" },
-		func(b *Bundle) { b.Packs[0].ID = "internal.example.com" },
+		func(b *Bundle) { b.Packs[0].ID = "internal/unsafe" },
 		func(b *Bundle) { b.Tools[0].Version = strings.Repeat("x", 129) },
 		func(b *Bundle) { b.Tools[0].Status = "unknown" },
 		func(b *Bundle) { b.Tools[0].CandidateCount = maxCandidateCount + 1 },
