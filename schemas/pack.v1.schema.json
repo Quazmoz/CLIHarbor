@@ -26,7 +26,7 @@
     },
     "commands": {
       "type": "object",
-      "minProperties": 1,
+      "minProperties": 0,
       "maxProperties": 128,
       "propertyNames": {
         "$ref": "#/$defs/id"
@@ -125,10 +125,44 @@
         "versionProbe": {
           "$ref": "#/$defs/versionProbe"
         },
+        "helpProbes": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "$ref": "#/$defs/id"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/helpProbe"
+          }
+        },
         "versionConstraint": {
           "type": "string",
           "minLength": 1,
           "maxLength": 128
+        }
+      }
+    },
+    "helpProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "args"
+      ],
+      "properties": {
+        "args": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "timeoutMillis": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 10000
         }
       }
     },
