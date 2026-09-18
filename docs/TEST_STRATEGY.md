@@ -246,7 +246,9 @@ Once auth orchestration exists, use a fixture CLI for signed-out/login/signed-in
 
 ## 12. Parser resilience
 
-For each structured/custom output parser test canonical/empty/extra/missing/reordered fields, warning text, malformed JSON, unknown enums, and large data. Failure must yield raw output + warning, never fabricated success data.
+The Phase 5 fixture/parser suite now covers valid reordered scalar JSON, optional/missing fields, malformed JSON, wrong primitive types, unknown fields, duplicate keys, nested objects/arrays, boundary and oversized strings/output, invalid UTF-8, signed-integer overflow, floating-point/NaN-equivalent invalid integer input, ANSI/control characters, markup-like strings, Unicode, stdout+stderr, non-zero exit with structured-looking stdout, cancellation, and secret-like/sensitive-field refusal.
+
+The generic run-manager fixture traverses the real trusted registry -> planner -> executor -> retained-run path and proves parser failure preserves the underlying run/exit state, raw stdout/stderr, and exactly one execution. Browser component coverage proves markup-like structured values remain inert React text. Continue adding vendor-specific parser cases only after Phase 0 establishes exact vendor schemas.
 
 ## 13. Risk/confirmation tests
 
