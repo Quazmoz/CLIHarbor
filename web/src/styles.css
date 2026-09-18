@@ -112,7 +112,7 @@ main {
 
 .status-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 1rem;
   padding-bottom: 3rem;
 }
@@ -162,6 +162,42 @@ main {
   margin-top: 0.5rem;
 }
 
+
+.tool-diagnostics {
+  margin-bottom: 1rem;
+}
+
+.tool-list {
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool-list li {
+  padding: 0.9rem 0;
+  border-top: 1px solid #26383f;
+}
+
+.tool-list li:last-child {
+  padding-bottom: 0;
+}
+
+.tool-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.tool-status {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.tool-list p {
+  margin: 0.35rem 0 0;
+}
 
 .workspace-grid {
   display: grid;
