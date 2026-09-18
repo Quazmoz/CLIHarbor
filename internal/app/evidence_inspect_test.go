@@ -20,9 +20,9 @@ func TestInspectEvidenceProducesInertDeterministicReview(t *testing.T) {
 	ended := started.Add(time.Second)
 	bundle := evidence.Bundle{
 		SchemaVersion: evidence.SchemaVersion,
-		GeneratedAt: generated,
-		CLIHarbor: evidence.BuildInfo{Version: "0.0.0-eval", Commit: "abc123", BuildMode: "evaluation-unsigned"},
-		Host: evidence.HostInfo{OS: "windows", OSVersion: "10.0.1", Architecture: "amd64"},
+		GeneratedAt:   generated,
+		CLIHarbor:     evidence.BuildInfo{Version: "0.0.0-eval", Commit: "abc123", BuildMode: "evaluation-unsigned"},
+		Host:          evidence.HostInfo{OS: "windows", OSVersion: "10.0.1", Architecture: "amd64"},
 		Tools: []evidence.ToolRecord{{
 			PackID: "vendor", PackVersion: "1.0.0", ToolID: "cli", Status: "ready",
 			Version: "2.3.4", VersionConstraint: ">= 2.0.0", VersionProbeConfigured: true,
