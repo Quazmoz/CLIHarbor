@@ -45,6 +45,7 @@ const (
 	ErrCapacity       ErrorCode = "capacity"
 	ErrNotFound       ErrorCode = "not_found"
 	ErrClosed         ErrorCode = "closed"
+	ErrInvalidCursor  ErrorCode = "invalid_cursor"
 )
 
 type Error struct {
@@ -80,6 +81,14 @@ type Snapshot struct {
 	EndedAt     *time.Time `json:"endedAt,omitempty"`
 	ExitCode    *int       `json:"exitCode,omitempty"`
 	Events      []Event    `json:"events,omitempty"`
+}
+
+type EventBatch struct {
+	RunID    string
+	Events   []Event
+	Status   Status
+	ExitCode *int
+	Complete bool
 }
 
 type Config struct {
@@ -125,6 +134,7 @@ type record struct {
 	nextSeq     uint64
 	cancel      context.CancelFunc
 	done        chan struct{}
+	changed     chan struct{}
 }
 
 func NewManager(parent context.Context, registry *packs.Registry, snapshot discovery.Snapshot, config Config) (*Manager, error) {
@@ -237,6 +247,7 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 		status:      StatusRunning,
 		cancel:      cancel,
 		done:        make(chan struct{}),
+		changed:     make(chan struct{}),
 	}
 	m.runs[runID] = rec
 	m.order = append(m.order, runID)
@@ -260,6 +271,45 @@ func (m *Manager) Get(runID string) (Snapshot, bool) {
 		return Snapshot{}, false
 	}
 	return rec.snapshot(), true
+}
+
+func (m *Manager) WaitEvents(ctx context.Context, runID string, after uint64) (EventBatch, error) {
+	if m == nil || ctx == nil || !validRunID(runID) {
+		return EventBatch{}, &Error{Code: ErrNotFound}
+	}
+	for {
+		m.mu.Lock()
+		rec, ok := m.runs[runID]
+		if !ok {
+			m.mu.Unlock()
+			return EventBatch{}, &Error{Code: ErrNotFound}
+		}
+		if after > rec.nextSeq {
+			m.mu.Unlock()
+			return EventBatch{}, &Error{Code: ErrInvalidCursor}
+		}
+		events := cloneEventsAfter(rec.events, after)
+		complete := rec.status != StatusRunning
+		if len(events) != 0 || complete {
+			batch := EventBatch{
+				RunID:    rec.runID,
+				Events:   events,
+				Status:   rec.status,
+				ExitCode: cloneInt(rec.exitCode),
+				Complete: complete,
+			}
+			m.mu.Unlock()
+			return batch, nil
+		}
+		changed := rec.changed
+		m.mu.Unlock()
+
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return EventBatch{}, ctx.Err()
+		}
+	}
 }
 
 func (m *Manager) Wait(ctx context.Context, runID string) (Snapshot, error) {
@@ -379,6 +429,7 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 			rec.exitCode = &code
 		}
 	}
+	rec.signalChangedLocked()
 	close(rec.done)
 }
 
@@ -404,6 +455,7 @@ func (m *Manager) recordEvent(rec *record, event executor.Event) error {
 		rec.eventBytes += dataBytes
 	}
 	rec.events = append(rec.events, stored)
+	rec.signalChangedLocked()
 	if event.Type == executor.EventStarted && rec.startedAt == nil {
 		started := event.Timestamp
 		rec.startedAt = &started
@@ -430,6 +482,11 @@ func (m *Manager) makeRetentionRoomLocked() error {
 	return nil
 }
 
+func (r *record) signalChangedLocked() {
+	close(r.changed)
+	r.changed = make(chan struct{})
+}
+
 func (r *record) snapshot() Snapshot {
 	events := make([]Event, len(r.events))
 	for i, event := range r.events {
@@ -448,6 +505,19 @@ func (r *record) snapshot() Snapshot {
 		ExitCode:    cloneInt(r.exitCode),
 		Events:      events,
 	}
+}
+
+func cloneEventsAfter(events []Event, after uint64) []Event {
+	start := 0
+	for start < len(events) && events[start].Sequence <= after {
+		start++
+	}
+	out := make([]Event, len(events)-start)
+	for i, event := range events[start:] {
+		out[i] = event
+		out[i].ExitCode = cloneInt(event.ExitCode)
+	}
+	return out
 }
 
 func classifyPlannerError(err error) error {
