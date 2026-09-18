@@ -201,6 +201,11 @@ func TestParseRejectsInvalidPacks(t *testing.T) {
 			code: ErrYAMLFeature,
 		},
 		{
+			name: "custom yaml tag",
+			data: strings.Replace(minimalPack, "name: Demo", "name: !cliharbor/unsafe Demo", 1),
+			code: ErrYAMLFeature,
+		},
+		{
 			name: "multiple documents",
 			data: minimalPack + "---\n{}\n",
 			code: ErrYAMLFeature,
