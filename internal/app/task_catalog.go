@@ -8,12 +8,29 @@ import (
 
 type taskCatalog struct {
 	tasks []server.Task
+	tools []server.ToolDiagnostic
 }
 
 func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *taskCatalog {
 	catalog := &taskCatalog{}
 	if registry == nil {
 		return catalog
+	}
+	for _, state := range snapshot.Tools() {
+		loaded, ok := registry.FindPack(state.PackID)
+		if !ok {
+			continue
+		}
+		catalog.tools = append(catalog.tools, server.ToolDiagnostic{
+			PackID:            state.PackID,
+			PackName:          loaded.Pack.Metadata.Name,
+			PackVersion:       state.PackVersion,
+			ToolID:            state.ToolID,
+			Status:            string(state.Status),
+			Version:           state.Version,
+			VersionConstraint: state.VersionConstraint,
+			Message:           state.Message,
+		})
 	}
 	for _, loaded := range registry.Packs() {
 		packID := loaded.Pack.Metadata.ID
@@ -77,6 +94,13 @@ func (c *taskCatalog) ListTasks() []server.Task {
 		}
 	}
 	return out
+}
+
+func (c *taskCatalog) ListTools() []server.ToolDiagnostic {
+	if c == nil {
+		return nil
+	}
+	return append([]server.ToolDiagnostic(nil), c.tools...)
 }
 
 func cloneInt64Pointer(value *int64) *int64 {
