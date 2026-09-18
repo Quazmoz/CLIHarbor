@@ -178,8 +178,9 @@ export function subscribeRunEvents(
     try {
       onEvent(parseEvent(JSON.parse((raw as MessageEvent<string>).data)));
     } catch (error) {
-      onError(error instanceof Error ? error : new Error('CLIHarbor returned an invalid run event.'));
+      closed = true;
       source.close();
+      onError(error instanceof Error ? error : new Error('CLIHarbor returned an invalid run event.'));
     }
   };
   const handleComplete = (raw: Event) => {
@@ -188,6 +189,7 @@ export function subscribeRunEvents(
     } catch (error) {
       onError(error instanceof Error ? error : new Error('CLIHarbor returned an invalid run completion event.'));
     } finally {
+      closed = true;
       source.close();
     }
   };
