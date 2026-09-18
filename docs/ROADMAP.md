@@ -37,17 +37,20 @@ Exit condition: a Windows user can complete the workflow from browser to officia
 
 ## Stage 2 — Authentication and structured results
 
+Current status: the generic structured-result foundation is implemented with synthetic fixtures; vendor authentication and vendor-specific schemas remain pending Phase 0 evidence.
+
 Deliverables:
 
 - auth-state adapter;
 - vendor-owned login launch;
 - session status refresh;
 - logout when supported;
-- reliable structured-output parser/renderer for at least one task;
-- raw fallback;
+- reliable structured-output parser/renderer for at least one verified vendor task;
+- raw fallback (**generic foundation implemented**);
+- bounded strict scalar JSON parsing + inert cards UI (**implemented generically**);
 - redaction hardening.
 
-Exit condition: signed-out -> login -> task -> structured result works end-to-end without credential persistence.
+Exit condition: signed-out -> login -> verified vendor task -> structured result works end-to-end without credential persistence.
 
 ## Stage 3 — Useful Idira console
 
