@@ -64,3 +64,19 @@ func TestWriteSHA256SumsWritesDeterministicArtifactEntry(t *testing.T) {
 		t.Fatal("checksum file was not replaced after artifact changed")
 	}
 }
+
+
+func TestValidateBuildVersion(t *testing.T) {
+	t.Parallel()
+
+	for _, version := range []string{"dev", "v1.2.3", "1.2.3-rc.1+build_7"} {
+		if err := validateBuildVersion(version); err != nil {
+			t.Fatalf("validateBuildVersion(%q) error = %v", version, err)
+		}
+	}
+	for _, version := range []string{"release candidate", "-Xmain.other=value", "v1.2.3\nnext", "版本"} {
+		if err := validateBuildVersion(version); err == nil {
+			t.Fatalf("validateBuildVersion(%q) succeeded, want error", version)
+		}
+	}
+}
