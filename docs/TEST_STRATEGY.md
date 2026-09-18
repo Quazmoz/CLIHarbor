@@ -91,6 +91,7 @@ Coverage now targets:
 - bounded concurrent SSE handlers with excess streams rejected before they can consume unbounded server resources;
 - slow clients observing bounded manager state rather than sitting on executor output sinks;
 - task metadata filtering to ready, read-only, non-auth, non-secret commands;
+- authenticated tool diagnostics limited to pack/tool identity, versions, discovery status, and fixed browser-safe remediation, with executable/candidate paths and execution authority excluded;
 - frontend CSRF retention in runtime memory only;
 - typed task submission containing only pack/command IDs plus values;
 - stdout/stderr rendering as inert React text, including markup-like output;
