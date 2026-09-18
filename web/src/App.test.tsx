@@ -452,6 +452,27 @@ describe('App', () => {
           }),
         );
       }
+      if (path === '/api/v1/runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') {
+        return Promise.resolve(
+          response(200, {
+            runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            toolVersion: '1.2.3',
+            status: 'exited',
+            exitCode: 0,
+            structured: {
+              status: 'available',
+              renderer: 'cards',
+              fields: [
+                { key: 'name', label: 'Name', type: 'string', present: true, value: '<script>alert(1)</script>' },
+              ],
+            },
+            events: [],
+          }),
+        );
+      }
       return Promise.resolve(response(404, { error: 'not_found' }));
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -481,7 +502,9 @@ describe('App', () => {
     });
 
     expect(await screen.findByText('<script>alert(1)</script>')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'exited' })).toBeInTheDocument();
+    expect(document.querySelector('script')).toBeNull();
     expect(source?.closed).toBe(true);
   });
 });
