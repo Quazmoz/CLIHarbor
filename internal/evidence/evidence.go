@@ -232,7 +232,7 @@ func WriteBundleWithSHA256(ctx context.Context, destination string, bundle Bundl
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	if err := os.Link(tempName, clean); err != nil {
+	if err := activateEvidenceBundle(tempName, clean); err != nil {
 		if _, statErr := os.Lstat(clean); statErr == nil {
 			return "", fmt.Errorf("evidence export path already exists")
 		}

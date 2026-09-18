@@ -299,7 +299,7 @@ Required cases include:
 - Windows version-probe timeout descendant cleanup through the shared Job Object lifecycle boundary;
 - executable-path/common-secret/control-character redaction;
 - Phase 0 export schema bounds, sanitized fixed-argv provenance, and omission of zero-value timestamps for probes that did not execute;
-- existing-file refusal, relative traversal rejection, cancellation cleanup, restricted staging permissions where supported, and concurrent atomic no-clobber activation;
+- existing-file refusal, relative traversal rejection, cancellation cleanup, restricted staging permissions where supported, concurrent atomic no-clobber activation, and Windows same-directory no-replace move behavior that preserves both an existing destination and the staging file on activation failure;
 - CLI flag scoping so inventory selectors cannot become executable/argv input;
 - Windows/Linux formatting, vet, unit/integration tests, embedded frontend synchronization, and build;
 - Linux `go test -race`;

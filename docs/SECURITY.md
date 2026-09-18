@@ -229,7 +229,6 @@ The production embedded-server browser gate adds real Chrome/Chromium proof of o
 Still required before MVP release:
 
 - broader XSS corpus coverage for malformed/very-long output and future structured parser fallback;
-- low-level socket slow-reader/write-deadline regression coverage remains a server boundary concern rather than a JavaScript-consumption claim;
 - stronger policy-managed publisher/signature/expected-hash verification if enterprise policy requires trusted provenance beyond replacement detection;
 - manual real vendor-path/version/auth/workflow verification on supported Windows environments.
 
@@ -248,7 +247,7 @@ Phase 0 inventory/evidence preserves the existing authority model:
 - executable identity is revalidated immediately before an evidence probe;
 - version and help/evidence probes use direct process launch, no shell, no interactive stdin, a neutral temporary working directory, the shared process-tree lifecycle controller, a minimal child environment, and strict timeout/output bounds;
 - output is normalized to valid UTF-8, unsafe controls are replaced, obvious Authorization credentials/common secret assignments/JWT-shaped material are redacted, and user-home/temp/resolved-executable paths are replaced before display/export;
-- evidence files are strongly typed, size bounded, staged in the target directory, permission-restricted where supported, synced, then activated with atomic create-without-replacement semantics so concurrent exports cannot overwrite an existing destination;
+- evidence files are strongly typed, size bounded, staged in the target directory, permission-restricted where supported, synced, then activated with platform-specific atomic create-without-replacement semantics; Windows uses a same-directory no-replace move instead of requiring hard-link support, and concurrent exports still cannot overwrite an existing destination;
 - selected probe records carry the sanitized fixed trusted argument vector for engineering provenance while excluding the executable path; raw environment dumps, PATH dumps, browser bootstrap/session/CSRF material, vendor credential stores, passwords, tokens, MFA values, cookies, and unrelated file enumeration are outside the evidence schema.
 
 Redaction is defense in depth rather than proof that arbitrary vendor prose is safe. Operators must review the exported JSON before sharing it.

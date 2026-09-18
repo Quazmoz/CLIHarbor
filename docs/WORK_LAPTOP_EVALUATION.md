@@ -177,7 +177,7 @@ Even before approved help/version probes are known, export the discovery evidenc
 .\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file .\packs\phase0\idira-cyberark-inventory.yaml --export .\phase0-evidence.json
 ```
 
-CLIHarbor refuses to overwrite an existing export. Use a new filename for a second capture.
+CLIHarbor refuses to overwrite an existing export. Use a new filename for a second capture. On Windows, export stages the complete JSON in the destination directory and activates it with a no-replace move, so the evidence path does not depend on filesystem hard-link support.
 
 The evidence schema is:
 
