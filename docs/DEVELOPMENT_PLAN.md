@@ -238,9 +238,11 @@ Implemented with synthetic fixture commands only:
 - raw stdout/stderr retained independently of parser outcome;
 - parser status kept separate from authoritative run status/exit code;
 - no second execution and no parsed-data feedback into planner/executor authority;
+- normalized results bound directly to the same-run authenticated SSE completion, with snapshot GET retained only for reconnect recovery;
+- temporary structured parse buffers released after normalization to avoid retained-run memory amplification;
 - structured rendering refused for secret-bearing output or sensitive fields;
 - browser-side DTO validation plus inert React text rendering;
-- fixture coverage for success, malformed/wrong/unknown/large/markup/non-zero/stderr/Unicode/secret-like/duplicate/invalid-UTF8/overflow/nested/control cases.
+- fixture coverage for success, malformed/wrong/unknown/large/markup/non-zero/stderr/Unicode/secret-like/duplicate/invalid-UTF8/overflow/nested/control cases plus completion/replay isolation.
 
 Acceptance achieved for the generic engine. Real Idira/CyberArk structured flags and schemas are still prohibited until Phase 0 inventory verifies them.
 
