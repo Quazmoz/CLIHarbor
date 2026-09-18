@@ -145,7 +145,10 @@ func selfTestLoopback(ctx context.Context, version string) error {
 		<-done
 		return err
 	}
-	client := &http.Client{Jar: jar, Timeout: 5 * time.Second}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Jar: jar, Timeout: 5 * time.Second, Transport: transport}
 	response, err := client.Get(s.BootstrapURL())
 	if err != nil {
 		cancel()
