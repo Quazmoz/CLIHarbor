@@ -36,6 +36,7 @@ type Config struct {
 	Frontend        http.Handler
 	Runs            RunService
 	Tasks           TaskService
+	Tools           ToolService
 	MaxEventStreams int
 }
 
@@ -57,6 +58,7 @@ type Server struct {
 	csrfToken         string
 	runs              RunService
 	tasks             TaskService
+	tools             ToolService
 	runStreamSlots    chan struct{}
 	streamCtx         context.Context
 	streamCancel      context.CancelFunc
@@ -119,6 +121,7 @@ func New(config Config) (*Server, error) {
 		csrfToken:        csrfToken,
 		runs:             config.Runs,
 		tasks:            config.Tasks,
+		tools:            config.Tools,
 		runStreamSlots:   make(chan struct{}, maxEventStreams),
 		streamCtx:        streamCtx,
 		streamCancel:     streamCancel,
@@ -134,6 +137,9 @@ func New(config Config) (*Server, error) {
 	}
 	if s.tasks != nil {
 		mux.Handle("/api/v1/tasks", s.requireSession(http.HandlerFunc(s.handleTasks)))
+	}
+	if s.tools != nil {
+		mux.Handle("/api/v1/tools", s.requireSession(http.HandlerFunc(s.handleTools)))
 	}
 	mux.Handle("/api/", s.requireSession(http.HandlerFunc(http.NotFound)))
 	mux.Handle("/", s.requireSession(config.Frontend))
