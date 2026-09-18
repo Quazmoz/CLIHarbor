@@ -10,7 +10,10 @@ import (
 )
 
 func TestActivateEvidenceBundleWindowsMovesWithoutReplacing(t *testing.T) {
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "evidence path Ω")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 
 	staging := filepath.Join(dir, "staging.tmp")
 	destination := filepath.Join(dir, "phase0.json")
