@@ -274,6 +274,6 @@ After Phase 0 inventory, for each supported deployed version verify exact binary
 
 ## 17. Release gates
 
-A Windows MVP release requires all applicable unit/integration/security/E2E gates green, manual real-tool acceptance, dependency scan review, no undisposed high-severity vulnerability, redacted diagnostics, and packaged-binary testing on a clean Windows profile.
+A Windows MVP release requires all applicable unit/integration/security/E2E gates green, manual real-tool acceptance, dependency scan review, no undisposed high-severity vulnerability, redacted diagnostics, SHA-256 checksum verification for the packaged executable, and packaged-binary testing on a clean Windows profile.
 
 Phases 1-4 low-level foundations are not release qualification. Browser execution integration, auth, output rendering/redaction, real-tool workflows, and release acceptance intentionally remain open.
