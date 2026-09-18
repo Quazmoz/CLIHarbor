@@ -17,6 +17,7 @@ import (
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	"github.com/Quazmoz/CLIHarbor/internal/structured"
 )
 
 const managerHelperEnv = "CLIHARBOR_RUN_MANAGER_HELPER"
@@ -271,6 +272,83 @@ func TestManagerFailsClosedOnPlannerPolicyAndOutputLimit(t *testing.T) {
 	}
 }
 
+
+func TestManagerStructuredOutputFixtureMatrixPreservesRawEvidence(t *testing.T) {
+	t.Setenv(managerHelperEnv, "1")
+	tests := []struct {
+		name       string
+		scenario   string
+		status     structured.Status
+		code       structured.ErrorCode
+		exitCode   int
+		wantName   string
+		wantStderr string
+	}{
+		{name: "valid", scenario: "valid", status: structured.StatusAvailable, wantName: "fixture"},
+		{name: "malformed json", scenario: "malformed", status: structured.StatusInvalid, code: structured.ErrMalformedJSON},
+		{name: "wrong type", scenario: "wrong-type", status: structured.StatusInvalid, code: structured.ErrWrongType},
+		{name: "unknown field", scenario: "unknown", status: structured.StatusInvalid, code: structured.ErrUnexpectedField},
+		{name: "large output", scenario: "large", status: structured.StatusInvalid, code: structured.ErrOutputTooLarge},
+		{name: "markup string", scenario: "markup", status: structured.StatusAvailable, wantName: "<script>alert(1)</script>"},
+		{name: "nonzero", scenario: "nonzero", status: structured.StatusUnavailable, code: structured.ErrNonzeroExit, exitCode: 7},
+		{name: "stdout and stderr", scenario: "stderr", status: structured.StatusAvailable, wantName: "mixed", wantStderr: "fixture warning"},
+		{name: "unicode", scenario: "unicode", status: structured.StatusAvailable, wantName: "雪 café"},
+		{name: "secret-like unknown", scenario: "secret", status: structured.StatusInvalid, code: structured.ErrUnexpectedField},
+		{name: "duplicate keys", scenario: "duplicate", status: structured.StatusInvalid, code: structured.ErrDuplicateKey},
+		{name: "invalid utf8", scenario: "invalid-utf8", status: structured.StatusInvalid, code: structured.ErrInvalidEncoding},
+		{name: "integer overflow", scenario: "overflow", status: structured.StatusInvalid, code: structured.ErrInvalidInteger},
+		{name: "nested object", scenario: "nested", status: structured.StatusInvalid, code: structured.ErrWrongType},
+		{name: "ansi control", scenario: "control", status: structured.StatusInvalid, code: structured.ErrUnsafeControl},
+	}
+	for index, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			registry, snapshot := managerFixture(t)
+			manager := newTestManager(t, registry, snapshot, Config{
+				MaxActive: 1, MaxRetained: 2,
+				MaxOutputBytesPerStream: 128 << 10, MaxEventBytesPerRun: 256 << 10,
+				NewRunID: fixedRunIDs(fmt.Sprintf("%032x", index+1)),
+			})
+			run, err := manager.Start(Request{
+				PackID: "fixture", CommandID: "structured",
+				Values: map[string]json.RawMessage{"scenario": rawRunJSON(t, test.scenario)},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			finished, err := manager.Wait(waitCtx, run.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if finished.Status != StatusExited || finished.ExitCode == nil || *finished.ExitCode != test.exitCode {
+				t.Fatalf("run state = %#v", finished)
+			}
+			if finished.Structured == nil || finished.Structured.Status != test.status || finished.Structured.Error != test.code {
+				t.Fatalf("structured = %#v, want %s/%s", finished.Structured, test.status, test.code)
+			}
+			if test.wantName != "" && (len(finished.Structured.Fields) == 0 || finished.Structured.Fields[0].Value != test.wantName) {
+				t.Fatalf("structured fields = %#v", finished.Structured.Fields)
+			}
+			if len(decodeEventData(t, finished.Events, "stdout.chunk")) == 0 {
+				t.Fatal("raw stdout evidence was not retained")
+			}
+			if test.wantStderr != "" && string(decodeEventData(t, finished.Events, "stderr.chunk")) != test.wantStderr {
+				t.Fatalf("stderr evidence missing")
+			}
+			started := 0
+			for _, event := range finished.Events {
+				if event.Type == "run.started" {
+					started++
+				}
+			}
+			if started != 1 {
+				t.Fatalf("run.started events = %d, want one execution", started)
+			}
+		})
+	}
+}
+
 func TestManagerHelperProcess(t *testing.T) {
 	if os.Getenv(managerHelperEnv) != "1" {
 		return
@@ -308,6 +386,49 @@ func TestManagerHelperProcess(t *testing.T) {
 			os.Exit(92)
 		}
 		os.Exit(code)
+	case "structured":
+		if len(args) != 2 {
+			os.Exit(94)
+		}
+		switch args[1] {
+		case "valid":
+			fmt.Fprint(os.Stdout, `{"name":"fixture","count":7,"ok":true}`)
+		case "malformed":
+			fmt.Fprint(os.Stdout, `{"name":`)
+		case "wrong-type":
+			fmt.Fprint(os.Stdout, `{"name":42}`)
+		case "unknown":
+			fmt.Fprint(os.Stdout, `{"name":"ok","extra":"unexpected"}`)
+		case "large":
+			fmt.Fprint(os.Stdout, `{"name":"`+strings.Repeat("x", structured.MaxInputBytes+1024)+`"}`)
+		case "markup":
+			fmt.Fprint(os.Stdout, `{"name":"<script>alert(1)</script>"}`)
+		case "nonzero":
+			fmt.Fprint(os.Stdout, `{"name":"looks-successful"}`)
+			os.Exit(7)
+		case "stderr":
+			fmt.Fprint(os.Stdout, `{"name":"mixed"}`)
+			fmt.Fprint(os.Stderr, "fixture warning")
+		case "unicode":
+			fmt.Fprint(os.Stdout, `{"name":"雪 café"}`)
+		case "secret":
+			fmt.Fprint(os.Stdout, `{"name":"ok","token":"do-not-render"}`)
+		case "duplicate":
+			fmt.Fprint(os.Stdout, `{"name":"one","name":"two"}`)
+		case "invalid-utf8":
+			data := append([]byte(`{"name":"bad`), byte(0xff))
+			data = append(data, []byte(`"}`)...)
+			_, _ = os.Stdout.Write(data)
+		case "overflow":
+			fmt.Fprint(os.Stdout, `{"name":"ok","count":9223372036854775808}`)
+		case "nested":
+			fmt.Fprint(os.Stdout, `{"name":{"deep":{"deeper":"x"}}}`)
+		case "control":
+			fmt.Fprint(os.Stdout, `{"name":"\u001b[31mred"}`)
+		default:
+			os.Exit(95)
+		}
+		os.Exit(0)
 	default:
 		os.Exit(93)
 	}
@@ -363,6 +484,32 @@ func managerFixture(t *testing.T) (*packs.Registry, discovery.Snapshot) {
 				Argv:   []packs.Argument{{Literal: "never-executed"}},
 				Output: packs.Output{Mode: packs.OutputRaw},
 			},
+		},
+	}
+	scenarios := []string{"valid", "malformed", "wrong-type", "unknown", "large", "markup", "nonzero", "stderr", "unicode", "secret", "duplicate", "invalid-utf8", "overflow", "nested", "control"}
+	mappedScenarios := make(map[string]string, len(scenarios))
+	for _, scenario := range scenarios {
+		mappedScenarios[scenario] = scenario
+	}
+	pack.Commands["structured"] = packs.Command{
+		Name: "Structured", Tool: "fixture", Risk: packs.RiskRead,
+		Inputs: []packs.Input{{
+			ID: "scenario", Type: packs.InputEnum, Label: "Scenario", Required: true,
+			Validation: packs.InputValidation{Enum: scenarios, DisallowLeadingDash: true},
+		}},
+		Argv: []packs.Argument{
+			{Literal: "-test.run=^TestManagerHelperProcess$"},
+			{Literal: "--"},
+			{Literal: "structured"},
+			{Map: &packs.MapArgument{ValueFrom: "scenario", Values: mappedScenarios}},
+		},
+		Output: packs.Output{
+			Mode: packs.OutputJSON, Renderer: "cards",
+			Structured: &packs.StructuredOutput{Fields: []packs.StructuredField{
+				{Key: "name", Label: "Name", Type: packs.StructuredString, Required: true},
+				{Key: "count", Label: "Count", Type: packs.StructuredInteger},
+				{Key: "ok", Label: "Healthy", Type: packs.StructuredBoolean},
+			}},
 		},
 	}
 	registry, err := packs.NewRegistry([]packs.LoadedPack{{Pack: pack}})
