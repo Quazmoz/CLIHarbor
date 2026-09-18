@@ -16,7 +16,7 @@ const (
 	processTerminate                 = 0x0001
 	processSetQuota                  = 0x0100
 	threadSuspendResume              = 0x0002
-	jobObjectExtendedLimitInformation = 9
+	jobObjectExtendedLimitInformationClass = 9
 	jobObjectLimitKillOnJobClose     = 0x00002000
 	terminateJobExitCode             = 1
 )
@@ -82,7 +82,7 @@ func newProcessController() (processController, error) {
 	info.BasicLimitInformation.LimitFlags = jobObjectLimitKillOnJobClose
 	ok, _, callErr := procSetInformationJobObject.Call(
 		handle,
-		uintptr(jobObjectExtendedLimitInformation),
+		uintptr(jobObjectExtendedLimitInformationClass),
 		uintptr(unsafe.Pointer(&info)),
 		unsafe.Sizeof(info),
 	)
