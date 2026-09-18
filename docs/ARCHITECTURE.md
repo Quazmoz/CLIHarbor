@@ -111,23 +111,23 @@ Implemented HTTP surface now includes:
 ```text
 GET  /bootstrap?token=<one-time-secret>
 GET  /api/v1/status
+GET  /api/v1/tasks
 POST /api/v1/runs
 GET  /api/v1/runs/{runId}
+GET  /api/v1/runs/{runId}/events
 POST /api/v1/runs/{runId}/cancel
 GET  /
 GET  /assets/*
 ```
 
-`/bootstrap` and `/api/*` are server-owned and never fall through to frontend routing. Authenticated status returns the per-session CSRF token used by same-origin browser mutations. Run creation accepts only `packId`, `commandId`, and typed `values`; unknown/duplicate authority fields fail closed.
+`/bootstrap` and `/api/*` are server-owned and never fall through to frontend routing. Authenticated status returns the per-session CSRF token used by same-origin browser mutations. Task metadata exposes only currently runnable read-only/non-auth/non-secret commands and typed input constraints, never executable paths, argv, environment, or pack source paths. Run creation accepts only `packId`, `commandId`, and typed `values`; unknown/duplicate authority fields fail closed. Run-event streaming is read-only and authenticated; `Last-Event-ID` is the only replay cursor.
 
 Planned surface still includes:
 
 ```text
 GET  /api/v1/packs
 GET  /api/v1/tools
-GET  /api/v1/tasks
 GET  /api/v1/tasks/{taskId}
-GET  /api/v1/runs/{runId}/events
 POST /api/v1/auth/{tool}/login
 POST /api/v1/auth/{tool}/logout
 GET  /api/v1/auth/{tool}/status
@@ -248,13 +248,15 @@ run.timed-out
 run.failed
 ```
 
-These events are retained only in the bounded in-memory run manager. Phase 4c-A exposes them through authenticated run snapshots for polling; there is no persisted run store. Live SSE/event streaming remains Phase 4c-B.
+These events are retained only in the bounded in-memory run manager; there is no persisted run store. Phase 4c-A exposes them through authenticated run snapshots. Phase 4c-B also exposes manager-backed SSE replay. Sequence numbers are monotonic per run, `Last-Event-ID` resumes strictly after an observed sequence, impossible cursors fail closed, and completion is emitted from authoritative manager state even when an executor terminal event could not be retained.
 
 Phase 4b now proves the production authority chain end to end with a purpose-built fixture: explicit-local trusted pack loading → schema/semantic validation → registry → discovery with backend-only override → fixed version probe/constraint → typed planner → executor → bounded events/result. The fixture execution is compared with direct invocation for argv/output/exit fidelity and includes cancellation after observable output.
 
-Phase 4c-A now exposes only this proven read-only path through authenticated loopback create/get/cancel APIs. The run manager defaults to bounded active and retained run counts, bounded output/event memory, finite execution timeout, server-generated run IDs, and root-context cancellation. Request disconnect after a successful create does not implicitly kill the run; explicit cancellation or application shutdown owns termination.
+Phase 4c-A exposes only this proven read-only path through authenticated loopback create/get/cancel APIs. The run manager defaults to bounded active and retained run counts, bounded output/event memory, finite execution timeout, server-generated run IDs, and root-context cancellation. Request disconnect after a successful create does not implicitly kill the run; explicit cancellation or application shutdown owns termination.
 
-The next architecture boundary is Phase 4c-B live bounded streaming and minimal task/run UI without allowing the browser to choose executable paths, executable names, flags, or arbitrary argv.
+Phase 4c-B observes that same bounded manager state through SSE rather than connecting executor sinks to HTTP writers. Streams share a per-run change signal, do not allocate per-client output queues, never hold the manager lock during network writes, and do not cancel or recreate execution on disconnect/reconnect. The ordinary server write timeout is disabled only for the long-lived stream, while each write/flush receives its own finite deadline and periodic heartbeat. The React task/run UI consumes only safe server metadata and renders process output as untrusted text.
+
+The next architecture boundary is the first verified read-only Idira workflow after Phase 0 vendor inventory, followed by vendor-owned authentication orchestration and structured result parsing.
 
 ## 12. Authentication
 
@@ -283,8 +285,9 @@ Current authoritative runtime state is in memory:
 
 - validated pack registry;
 - discovery snapshot, including opaque executable identities for ready tools;
-- transient planner plans/executor run state when internal execution is invoked;
-- browser bootstrap/session state.
+- bounded in-memory run records, event buffers, monotonic event sequence, cancellation handles, and completion state;
+- transient planner plans/executor process state while execution is active;
+- browser bootstrap/session state and per-session CSRF secret.
 
 Future non-secret local config may hold explicitly approved pack/binary paths and UI preferences. Future run history must be redacted and bounded. Never persist credential material.
 
@@ -308,6 +311,6 @@ Before MVP architecture is complete:
 - ambiguous/missing/incompatible/probe-failed tools cannot execute;
 - planner exact argv construction and the current read-only/auth/output policy envelope remain regression-tested;
 - Windows task execution owns descendants with a per-run Job Object and must remain regression-tested;
-- output is bounded/redacted/escaped and parser failures preserve raw evidence;
+- output is bounded and browser-rendered as inert text; future structured parsers/redaction must preserve raw non-secret evidence on parser failure;
 - a second fixture pack/tool proves discovery/planner/executor are not Idira-specific;
 - real Idira/CyberArk definitions come only from verified Phase 0 inventory.
