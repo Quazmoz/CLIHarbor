@@ -145,7 +145,7 @@ func TestRunEventStreamReplaysAfterLastEventIDAndCompletes(t *testing.T) {
 	if !strings.Contains(text, "\"dataBase64\":\"aGVsbG8=\"") || !strings.Contains(text, "\"status\":\"exited\"") {
 		t.Fatalf("missing safe stream payload: %q", text)
 	}
-	if !strings.Contains(text, ""structured":") || !strings.Contains(text, "\u003cscript\u003ealert(1)\u003c/script\u003e") {
+	if !strings.Contains(text, "\"structured\":") || !strings.Contains(text, "\\u003cscript\\u003ealert(1)\\u003c/script\\u003e") {
 		t.Fatalf("missing safely encoded structured completion: %q", text)
 	}
 }
