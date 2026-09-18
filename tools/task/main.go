@@ -43,6 +43,8 @@ func main() {
 		err = windowsEvalBuild(root)
 	case "verify-windows-eval":
 		err = verifyWindowsEvaluation(root)
+	case "verify-windows-eval-repro":
+		err = verifyWindowsEvaluationReproducible(root)
 	case "build":
 		if err = webBuild(root); err == nil {
 			err = goBuild(root)
@@ -57,7 +59,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|check|go-build|windows-eval|verify-windows-eval|build>")
+	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|check|go-build|windows-eval|verify-windows-eval|verify-windows-eval-repro|build>")
 }
 
 func fatal(err error) {
@@ -149,6 +151,9 @@ func goBuild(root string) error {
 }
 
 func windowsEvalBuild(root string) error {
+	if err := validateEvaluationToolchain(root); err != nil {
+		return err
+	}
 	manifest := filepath.Join(root, evaluationManifestName)
 	compatibilityManifest := filepath.Join(root, "bin", "SHA256SUMS")
 	if err := removeGeneratedChecksum(manifest); err != nil {
@@ -159,13 +164,14 @@ func windowsEvalBuild(root string) error {
 	}
 
 	artifact := filepath.Join(root, evaluationExecutablePath)
-	if err := buildExecutable(
+	if err := buildExecutableWithEnv(
 		root,
 		artifact,
 		"windows",
 		"amd64",
 		"evaluation-unsigned",
 		"0.0.0-eval",
+		evaluationGoEnvironment(),
 	); err != nil {
 		return err
 	}
@@ -179,6 +185,13 @@ func windowsEvalBuild(root string) error {
 }
 
 func buildExecutable(root, artifact, goos, goarch, mode, defaultVersion string) error {
+	return buildExecutableWithEnv(root, artifact, goos, goarch, mode, defaultVersion, nil)
+}
+
+func buildExecutableWithEnv(
+	root, artifact, goos, goarch, mode, defaultVersion string,
+	buildEnv map[string]string,
+) error {
 	binDir := filepath.Dir(artifact)
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return fmt.Errorf("create bin directory: %w", err)
@@ -207,7 +220,10 @@ func buildExecutable(root, artifact, goos, goarch, mode, defaultVersion string) 
 		"-X", "main.buildMode=" + mode,
 	}, " ")
 	args := []string{"build", "-trimpath", "-buildvcs=false", "-ldflags", ldflags, "-o", artifact, "./cmd/cliharbor"}
-	env := map[string]string{}
+	env := make(map[string]string, len(buildEnv)+3)
+	for key, value := range buildEnv {
+		env[key] = value
+	}
 	if goos != "" {
 		env["GOOS"] = goos
 	}
@@ -533,10 +549,7 @@ func runWithEnv(root string, extraEnv map[string]string, name string, args ...st
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = append([]string(nil), os.Environ()...)
-	for key, value := range extraEnv {
-		cmd.Env = append(cmd.Env, key+"="+value)
-	}
+	cmd.Env = mergeEnvironment(os.Environ(), extraEnv)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s failed: %w", name, err)
 	}
