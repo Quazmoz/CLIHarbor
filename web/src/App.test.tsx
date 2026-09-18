@@ -501,8 +501,8 @@ describe('App', () => {
       exitCode: 0,
     });
 
-    expect(await screen.findByText('<script>alert(1)</script>')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
+    expect(screen.getAllByText('<script>alert(1)</script>')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: 'exited' })).toBeInTheDocument();
     expect(document.querySelector('script')).toBeNull();
     expect(source?.closed).toBe(true);
