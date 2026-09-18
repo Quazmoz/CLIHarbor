@@ -517,6 +517,27 @@ async function main() {
     assert.equal(impossibleCursor.status, 400);
     assert.match(impossibleCursor.text, /invalid_cursor/);
 
+    stage('browser native sse reconnect cursor');
+    const reconnectProbeURL = baseURL + eventPath(firstRunID);
+    const reconnectProbeInitialPromise = page.waitEvent('Network.requestWillBeSent',
+      (params) => params.request?.url === reconnectProbeURL && params.request?.method === 'GET');
+    await page.evaluate('window.__cliharborReconnectProbe = new EventSource(' +
+      JSON.stringify(eventPath(firstRunID)) + '); true');
+    const reconnectProbeInitial = await reconnectProbeInitialPromise;
+    const reconnectProbeRequest = await page.waitEvent('Network.requestWillBeSent',
+      (params) => params.request?.url === reconnectProbeURL &&
+        params.request?.method === 'GET' && params.requestId !== reconnectProbeInitial.requestId,
+      10000);
+    let reconnectProbeLastEventID = headerValue(reconnectProbeRequest.request.headers, 'Last-Event-ID');
+    if (!reconnectProbeLastEventID) {
+      const extra = await page.waitEvent('Network.requestWillBeSentExtraInfo',
+        (params) => params.requestId === reconnectProbeRequest.requestId, 3000);
+      reconnectProbeLastEventID = headerValue(extra.headers, 'Last-Event-ID');
+    }
+    assert.ok(reconnectProbeLastEventID && Number(reconnectProbeLastEventID) >= 1,
+      'browser-native EventSource reconnect must carry the last observed SSE event ID');
+    await page.evaluate('window.__cliharborReconnectProbe.close(); true');
+
     stage('hostile origin rejection');
     attackerServer = http.createServer((_request, response) => {
       response.writeHead(200, {
@@ -556,7 +577,24 @@ async function main() {
     assert.equal(await waitHTTPStatus(attacker, hostileMutation.requestId), 403,
       'hostile-origin mutation must be rejected');
 
-    stage('sse reconnect reconciliation and cancellation');
+    stage('sse failure reconciliation and cancellation');
+    const eventSourceTrackerInstalled = await page.evaluate('(() => {' +
+      'if (window.__cliharborNativeEventSource) return true;' +
+      'const NativeEventSource = window.EventSource;' +
+      'window.__cliharborNativeEventSource = NativeEventSource;' +
+      'window.__cliharborE2ESources = [];' +
+      'function TrackedEventSource(...args) {' +
+        'const source = new NativeEventSource(...args);' +
+        'window.__cliharborE2ESources.push(source);' +
+        'return source;' +
+      '}' +
+      'TrackedEventSource.prototype = NativeEventSource.prototype;' +
+      'Object.setPrototypeOf(TrackedEventSource, NativeEventSource);' +
+      'window.EventSource = TrackedEventSource;' +
+      'return true;' +
+    '})()');
+    assert.equal(eventSourceTrackerInstalled, true);
+
     await chooseTask(page, 'integration/wait');
     const waitCreateRequest = page.waitEvent('Network.requestWillBeSent',
       (params) => isRunCreateRequest(params, 'wait'));
@@ -574,50 +612,29 @@ async function main() {
     await page.waitEvent('Network.responseReceived',
       (params) => params.requestId === initialStreamRequest.requestId && params.response?.status === 200);
 
-    await page.call('Network.setBlockedURLs', { urls: ['*://*/api/v1/runs/*/events'] });
-    await page.call('Network.emulateNetworkConditions', {
-      offline: true,
-      latency: 0,
-      downloadThroughput: 0,
-      uploadThroughput: 0,
-    });
-    await page.waitEvent('Network.loadingFailed',
-      (params) => params.requestId === initialStreamRequest.requestId, 8000);
-    await page.call('Network.emulateNetworkConditions', {
-      offline: false,
-      latency: 0,
-      downloadThroughput: -1,
-      uploadThroughput: -1,
-    });
-
-    const reconnectRequest = await page.waitEvent('Network.requestWillBeSent',
-      (params) => params.request?.url === waitEventsURL && params.requestId !== initialStreamRequest.requestId, 10000);
-    let lastEventID = headerValue(reconnectRequest.request.headers, 'Last-Event-ID');
-    if (!lastEventID) {
-      try {
-        const extra = await page.waitEvent('Network.requestWillBeSentExtraInfo',
-          (params) => params.requestId === reconnectRequest.requestId, 2000);
-        lastEventID = headerValue(extra.headers, 'Last-Event-ID');
-      } catch {
-        // requestWillBeSent is authoritative when blocked requests do not emit ExtraInfo.
-      }
-    }
-    assert.ok(lastEventID && Number(lastEventID) >= 1, 'browser reconnect must replay from its last observed SSE event ID');
+    const reconciliationRequest = page.waitEvent('Network.requestWillBeSent',
+      (params) => params.request?.url === baseURL + '/api/v1/runs/' + waitRunID && params.request?.method === 'GET',
+      5000);
+    const forcedStreamFailure = await page.evaluate('(() => {' +
+      'const sources = window.__cliharborE2ESources ?? [];' +
+      'const source = sources[sources.length - 1];' +
+      'if (!source) return false;' +
+      'source.close();' +
+      'for (let index = 0; index < 5; index += 1) source.dispatchEvent(new Event("error"));' +
+      'return true;' +
+    '})()');
+    assert.equal(forcedStreamFailure, true, 'tracked live EventSource should be interruptible by the harness');
 
     await waitJS(page, 'bounded EventSource retry exhaustion',
       'Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Retry live stream")',
-      20000);
-    const reconciliationRequest = await page.waitEvent('Network.requestWillBeSent',
-      (params) => params.request?.url === baseURL + '/api/v1/runs/' + waitRunID && params.request?.method === 'GET',
       5000);
-    assert.equal(reconciliationRequest.request.url, baseURL + '/api/v1/runs/' + waitRunID);
+    assert.equal((await reconciliationRequest).request.url, baseURL + '/api/v1/runs/' + waitRunID);
 
     const reconciled = await fetchJSON(page, '/api/v1/runs/' + waitRunID);
     assert.equal(reconciled.status, 200);
     assert.equal(reconciled.body.status, 'running');
-    assert.equal(reconciled.body.events.filter((event) => event.type === 'run.started').length, 1, 'stream retries must not duplicate execution');
+    assert.equal(reconciled.body.events.filter((event) => event.type === 'run.started').length, 1, 'stream recovery must not duplicate execution');
 
-    await page.call('Network.setBlockedURLs', { urls: [] });
     const retriedStream = page.waitEvent('Network.responseReceived',
       (params) => params.response?.url === waitEventsURL && params.response?.status === 200, 8000);
     await clickButton(page, 'Retry live stream');
