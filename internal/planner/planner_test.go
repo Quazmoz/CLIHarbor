@@ -155,6 +155,13 @@ func TestBuildRequiresReadyCurrentDiscoveryState(t *testing.T) {
 		PackID: "demo", CommandID: "inspect", Values: map[string]json.RawMessage{"mode": rawJSON(t, "safe")},
 	})
 	assertPlannerCode(t, err, ErrStaleDiscovery)
+
+	state.PackVersion = "1.0.0"
+	state.ExecutableIdentity = discovery.ExecutableIdentity{}
+	_, err = Build(registry, discovery.NewSnapshot([]discovery.ToolState{state}), Request{
+		PackID: "demo", CommandID: "inspect", Values: map[string]json.RawMessage{"mode": rawJSON(t, "safe")},
+	})
+	assertPlannerCode(t, err, ErrStaleDiscovery)
 }
 
 func TestBuildBlocksPoliciesNotImplementedYet(t *testing.T) {
