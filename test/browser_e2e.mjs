@@ -277,6 +277,21 @@ class ChromeHarness {
   }
 }
 
+function isRunCreateRequest(params, commandID) {
+  if (params.request?.url === undefined || params.request.url !== new URL('/api/v1/runs', bootstrapURL).href) {
+    return false;
+  }
+  if (params.request.method !== 'POST' || typeof params.request.postData !== 'string') {
+    return false;
+  }
+  try {
+    const body = JSON.parse(params.request.postData);
+    return body?.packId === 'integration' && body?.commandId === commandID;
+  } catch {
+    return false;
+  }
+}
+
 function headerValue(headers, name) {
   if (!headers) {
     return undefined;
@@ -413,7 +428,7 @@ async function main() {
     await setTextInput(page, 'Query', hostileOutput);
 
     const createRequestPromise = page.waitEvent('Network.requestWillBeSent',
-      (params) => params.request?.url === baseURL + '/api/v1/runs' && params.request?.method === 'POST');
+      (params) => isRunCreateRequest(params, 'inspect'));
     await clickButton(page, 'Run task');
     const createRequest = await createRequestPromise;
     const submitted = JSON.parse(createRequest.request.postData);
@@ -510,7 +525,7 @@ async function main() {
     stage('sse reconnect reconciliation and cancellation');
     await chooseTask(page, 'integration/wait');
     const waitCreateRequest = page.waitEvent('Network.requestWillBeSent',
-      (params) => params.request?.url === baseURL + '/api/v1/runs' && params.request?.method === 'POST');
+      (params) => isRunCreateRequest(params, 'wait'));
     await clickButton(page, 'Run task');
     await waitCreateRequest;
     await waitJS(page, 'wait fixture running', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "running"');
