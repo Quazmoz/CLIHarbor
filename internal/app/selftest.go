@@ -176,7 +176,6 @@ func selfTestLoopback(ctx context.Context, version string) error {
 		<-done
 		return fmt.Errorf("read authenticated status: %w", err)
 	}
-	defer statusResponse.Body.Close()
 	if statusResponse.StatusCode != http.StatusOK {
 		cancel()
 		<-done
@@ -188,9 +187,15 @@ func selfTestLoopback(ctx context.Context, version string) error {
 		Session string `json:"session"`
 	}
 	if err := json.NewDecoder(io.LimitReader(statusResponse.Body, 64<<10)).Decode(&payload); err != nil {
+		_ = statusResponse.Body.Close()
 		cancel()
 		<-done
 		return fmt.Errorf("decode authenticated status: %w", err)
+	}
+	if err := statusResponse.Body.Close(); err != nil {
+		cancel()
+		<-done
+		return fmt.Errorf("close authenticated status response: %w", err)
 	}
 	if payload.Name != "CLIHarbor" || payload.Version != version || payload.Session != "active" {
 		cancel()
