@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Quazmoz/CLIHarbor/internal/diagnostics"
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 )
 
@@ -92,5 +95,26 @@ func TestDiagnosticsCommandShapeFailsClosed(t *testing.T) {
 		if err := run(args); err == nil {
 			t.Fatalf("run(%v) unexpectedly succeeded", args)
 		}
+	}
+}
+
+func TestDiagnosticsExportCommandCreatesBundle(t *testing.T) {
+	destination := filepath.Join(t.TempDir(), "diagnostics.json")
+	if err := run([]string{"diagnostics", "export", destination}); err != nil {
+		t.Fatalf("run(diagnostics export) error = %v", err)
+	}
+	data, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bundle diagnostics.Bundle
+	if err := json.Unmarshal(data, &bundle); err != nil {
+		t.Fatalf("decode diagnostics export: %v", err)
+	}
+	if bundle.SchemaVersion != diagnostics.SchemaVersion {
+		t.Fatalf("schemaVersion = %q, want %q", bundle.SchemaVersion, diagnostics.SchemaVersion)
+	}
+	if len(bundle.Packs) != 0 || len(bundle.Tools) != 0 {
+		t.Fatalf("empty-runtime diagnostics unexpectedly contained pack/tool state: %#v", bundle)
 	}
 }
