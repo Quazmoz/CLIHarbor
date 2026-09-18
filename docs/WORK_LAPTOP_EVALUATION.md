@@ -17,10 +17,13 @@ cliharbor-windows-x64-evaluation-<commit-sha>
 The artifact contains:
 
 ```text
+EVALUATION_SHA256SUMS
 bin/cliharbor-windows-x64-evaluation.exe
 bin/SHA256SUMS
 packs/phase0/idira-cyberark-inventory.yaml
 ```
+
+`EVALUATION_SHA256SUMS` covers both files that define the evaluation execution boundary: the executable and the explicitly trusted Phase 0 pack. `bin/SHA256SUMS` remains the executable-only checksum emitted by the normal build path.
 
 The executable embeds the production React frontend. The work laptop does not need the source tree or frontend tooling.
 
@@ -36,7 +39,7 @@ Expected executable location:
 bin/cliharbor-windows-x64-evaluation.exe
 ```
 
-The build task emits `bin/SHA256SUMS`. Evaluation builds report `build: evaluation-unsigned`.
+The build task emits `bin/SHA256SUMS` plus the root `EVALUATION_SHA256SUMS` bundle manifest. Evaluation builds report `build: evaluation-unsigned`.
 
 ## 2. Copy to a user-writable directory
 
@@ -58,23 +61,34 @@ cd /d <extracted-artifact-directory>
 
 Paths containing spaces are supported. Quote the path when invoking the executable from another directory.
 
-## 3. Verify SHA-256 before running
+## 3. Verify the evaluation bundle SHA-256 before running
 
 PowerShell:
 
 ```powershell
+Get-Content .\EVALUATION_SHA256SUMS
 Get-FileHash .\bin\cliharbor-windows-x64-evaluation.exe -Algorithm SHA256
+Get-FileHash .\packs\phase0\idira-cyberark-inventory.yaml -Algorithm SHA256
 Get-Content .\bin\SHA256SUMS
 ```
 
 CMD:
 
 ```bat
+type .\EVALUATION_SHA256SUMS
 certutil -hashfile .\bin\cliharbor-windows-x64-evaluation.exe SHA256
+certutil -hashfile .\packs\phase0\idira-cyberark-inventory.yaml SHA256
 type .\bin\SHA256SUMS
 ```
 
-The computed SHA-256 must exactly match the hash in `SHA256SUMS`. Do not run the executable if it does not match.
+The root `EVALUATION_SHA256SUMS` must contain exactly these two relative paths:
+
+```text
+bin/cliharbor-windows-x64-evaluation.exe
+packs/phase0/idira-cyberark-inventory.yaml
+```
+
+The computed SHA-256 for **both** files must exactly match the corresponding manifest entry. The executable hash must also match the executable-only `bin/SHA256SUMS`. Do not run CLIHarbor or load the pack if any value differs. The GitHub artifact ZIP digest, when retained separately, is a distinct archive-level integrity value and must not be substituted for either file checksum.
 
 ## 4. Confirm build identity
 
