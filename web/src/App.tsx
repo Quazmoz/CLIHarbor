@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { fetchRuntimeStatus, SessionUnavailableError, type RuntimeStatus } from './api/status';
 import { fetchTasks, type Task, type TaskInput } from './api/tasks';
+import { fetchTools, type ToolDiagnostic } from './api/tools';
 import {
   cancelRun,
   createRun,
@@ -14,7 +15,7 @@ import {
 
 type ViewState =
   | { kind: 'loading' }
-  | { kind: 'ready'; status: RuntimeStatus; tasks: Task[] }
+  | { kind: 'ready'; status: RuntimeStatus; tasks: Task[]; tools: ToolDiagnostic[] }
   | { kind: 'error'; message: string; sessionUnavailable: boolean };
 
 type FormValue = string | boolean | string[];
@@ -42,10 +43,12 @@ function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
-async function loadRuntime(signal?: AbortSignal): Promise<{ status: RuntimeStatus; tasks: Task[] }> {
+async function loadRuntime(
+  signal?: AbortSignal,
+): Promise<{ status: RuntimeStatus; tasks: Task[]; tools: ToolDiagnostic[] }> {
   const status = await fetchRuntimeStatus(signal);
-  const tasks = await fetchTasks(signal);
-  return { status, tasks };
+  const [tasks, tools] = await Promise.all([fetchTasks(signal), fetchTools(signal)]);
+  return { status, tasks, tools };
 }
 
 function initialValues(task: Task | undefined): Record<string, FormValue> {
@@ -249,6 +252,8 @@ export function App() {
   const [starting, setStarting] = useState(false);
   const [streamAttempt, setStreamAttempt] = useState(0);
 
+  const readyToolCount = state.kind === 'ready' ? state.tools.filter((tool) => tool.status === 'ready').length : 0;
+
   const selectedTask = useMemo(() => {
     if (state.kind !== 'ready') {
       return undefined;
@@ -256,8 +261,8 @@ export function App() {
     return state.tasks.find((task) => `${task.packId}/${task.commandId}` === selectedTaskKey) ?? state.tasks[0];
   }, [selectedTaskKey, state]);
 
-  const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[]) => {
-    setState({ kind: 'ready', status, tasks });
+  const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[], tools: ToolDiagnostic[]) => {
+    setState({ kind: 'ready', status, tasks, tools });
     const firstTask = tasks[0];
     if (firstTask === undefined) {
       setSelectedTaskKey('');
@@ -271,7 +276,7 @@ export function App() {
   const retryStatus = () => {
     setState({ kind: 'loading' });
     void loadRuntime().then(
-      ({ status, tasks }) => acceptRuntime(status, tasks),
+      ({ status, tasks, tools }) => acceptRuntime(status, tasks, tools),
       (error: unknown) => setState({ kind: 'error', ...errorMessage(error) }),
     );
   };
@@ -279,7 +284,7 @@ export function App() {
   useEffect(() => {
     const controller = new AbortController();
     void loadRuntime(controller.signal).then(
-      ({ status, tasks }) => acceptRuntime(status, tasks),
+      ({ status, tasks, tools }) => acceptRuntime(status, tasks, tools),
       (error: unknown) => {
         if (!isAbort(error)) {
           setState({ kind: 'error', ...errorMessage(error) });
@@ -428,10 +433,42 @@ export function App() {
                 <p>Bound to this computer only.</p>
               </article>
               <article className="panel">
+                <p className="status-label">Tools ready</p>
+                <h2>
+                  {readyToolCount}/{state.tools.length}
+                </h2>
+                <p>Discovery state is sanitized before it reaches the browser.</p>
+              </article>
+              <article className="panel">
                 <p className="status-label">Safe tasks</p>
                 <h2>{state.tasks.length}</h2>
                 <p>Only read-only, non-secret tasks with a ready tool are exposed.</p>
               </article>
+            </section>
+
+            <section className="panel tool-diagnostics" aria-labelledby="tool-diagnostics-heading">
+              <p className="status-label">Tool diagnostics</p>
+              <h2 id="tool-diagnostics-heading">Configured CLI tools</h2>
+              {state.tools.length === 0 ? (
+                <p>No tools are configured. Load an explicitly trusted pack to inspect tool availability.</p>
+              ) : (
+                <ul className="tool-list">
+                  {state.tools.map((tool) => (
+                    <li key={`${tool.packId}/${tool.toolId}`}>
+                      <div className="tool-summary">
+                        <strong>{tool.packName} — {tool.toolId}</strong>
+                        <span className="tool-status">{tool.status}</span>
+                      </div>
+                      <p>
+                        Pack {tool.packVersion}
+                        {tool.version ? ` · Detected ${tool.version}` : ''}
+                        {tool.versionConstraint ? ` · Required ${tool.versionConstraint}` : ''}
+                      </p>
+                      {tool.message && <p>{tool.message}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
 
             <section className="workspace-grid">
