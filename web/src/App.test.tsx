@@ -25,6 +25,7 @@ class FakeEventSource {
 
   readonly url: string;
   onerror: ((event: Event) => void) | null = null;
+  onopen: ((event: Event) => void) | null = null;
   private readonly listeners = new Map<string, EventListener>();
   closed = false;
 
@@ -318,9 +319,14 @@ describe('App', () => {
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
 
     const first = FakeEventSource.instances[0];
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    first.onerror?.(new Event('error'));
+    first.onerror?.(new Event('error'));
+    first.onopen?.(new Event('open'));
+    for (let attempt = 0; attempt < 4; attempt += 1) {
       first.onerror?.(new Event('error'));
     }
+    expect(first.closed).toBe(false);
+    first.onerror?.(new Event('error'));
 
     expect(await screen.findByRole('button', { name: 'Retry live stream' })).toBeInTheDocument();
     expect(first.closed).toBe(true);
