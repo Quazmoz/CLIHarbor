@@ -24,6 +24,7 @@ const (
 	defaultChunkBytes      = 16 << 10
 	defaultMaxOutputStream = 256 << 10
 	defaultMaxEventBytes   = 1 << 20
+	defaultMaxEvents       = 1024
 )
 
 type Status string
@@ -89,6 +90,7 @@ type Config struct {
 	ChunkBytes              int
 	MaxOutputBytesPerStream int64
 	MaxEventBytesPerRun     int64
+	MaxEventsPerRun         int
 	NewRunID                func() (string, error)
 }
 
@@ -156,6 +158,9 @@ func NewManager(parent context.Context, registry *packs.Registry, snapshot disco
 	if config.MaxEventBytesPerRun <= 0 {
 		config.MaxEventBytesPerRun = defaultMaxEventBytes
 	}
+	if config.MaxEventsPerRun <= 0 {
+		config.MaxEventsPerRun = defaultMaxEvents
+	}
 	minEventBytes := config.MaxOutputBytesPerStream * 2
 	if config.MaxEventBytesPerRun < minEventBytes {
 		return nil, fmt.Errorf("max event bytes per run must cover both output streams")
@@ -181,9 +186,13 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 	}
 	m.mu.Lock()
 	closed := m.closed || m.ctx.Err() != nil
+	atCapacity := m.active >= m.config.MaxActive
 	m.mu.Unlock()
 	if closed {
 		return Snapshot{}, &Error{Code: ErrClosed}
+	}
+	if atCapacity {
+		return Snapshot{}, &Error{Code: ErrCapacity}
 	}
 
 	plan, err := planner.Build(m.registry, m.discovery, planner.Request{
@@ -380,7 +389,7 @@ func (m *Manager) recordEvent(rec *record, event executor.Event) error {
 		return errors.New("run is no longer active")
 	}
 	dataBytes := int64(len(event.Data))
-	if rec.eventBytes+dataBytes > m.config.MaxEventBytesPerRun {
+	if rec.eventBytes+dataBytes > m.config.MaxEventBytesPerRun || len(rec.events) >= m.config.MaxEventsPerRun {
 		return errors.New("run event buffer exhausted")
 	}
 	rec.nextSeq++
