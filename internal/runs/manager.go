@@ -122,6 +122,7 @@ type record struct {
 	eventBytes  int64
 	nextSeq     uint64
 	cancel      context.CancelFunc
+	done        chan struct{}
 }
 
 func NewManager(parent context.Context, registry *packs.Registry, snapshot discovery.Snapshot, config Config) (*Manager, error) {
@@ -219,6 +220,7 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 		toolVersion: plan.ToolVersion,
 		status:      StatusRunning,
 		cancel:      cancel,
+		done:        make(chan struct{}),
 	}
 	m.runs[runID] = rec
 	m.order = append(m.order, runID)
@@ -242,6 +244,35 @@ func (m *Manager) Get(runID string) (Snapshot, bool) {
 		return Snapshot{}, false
 	}
 	return rec.snapshot(), true
+}
+
+func (m *Manager) Wait(ctx context.Context, runID string) (Snapshot, error) {
+	if m == nil || !validRunID(runID) {
+		return Snapshot{}, &Error{Code: ErrNotFound}
+	}
+	m.mu.Lock()
+	rec, ok := m.runs[runID]
+	if !ok {
+		m.mu.Unlock()
+		return Snapshot{}, &Error{Code: ErrNotFound}
+	}
+	if rec.status != StatusRunning {
+		snapshot := rec.snapshot()
+		m.mu.Unlock()
+		return snapshot, nil
+	}
+	done := rec.done
+	m.mu.Unlock()
+
+	select {
+	case <-done:
+		m.mu.Lock()
+		snapshot := rec.snapshot()
+		m.mu.Unlock()
+		return snapshot, nil
+	case <-ctx.Done():
+		return Snapshot{}, ctx.Err()
+	}
 }
 
 func (m *Manager) Cancel(runID string) error {
@@ -332,6 +363,7 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 			rec.exitCode = &code
 		}
 	}
+	close(rec.done)
 }
 
 func (m *Manager) recordEvent(rec *record, event executor.Event) error {
@@ -383,7 +415,11 @@ func (m *Manager) makeRetentionRoomLocked() error {
 }
 
 func (r *record) snapshot() Snapshot {
-	events := append([]Event(nil), r.events...)
+	events := make([]Event, len(r.events))
+	for i, event := range r.events {
+		events[i] = event
+		events[i].ExitCode = cloneInt(event.ExitCode)
+	}
 	return Snapshot{
 		RunID:       r.runID,
 		PackID:      r.packID,
