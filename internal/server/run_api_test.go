@@ -164,6 +164,27 @@ func TestRunAPIFailsClosedOnExecutionAuthorityFieldsAndMalformedJSON(t *testing.
 	}
 }
 
+func TestRunAPIRejectsMalformedUTF8BeforePlanning(t *testing.T) {
+	service := &fakeRunService{
+		snapshot: runs.Snapshot{RunID: strings.Repeat("d", 32), Status: runs.StatusRunning},
+	}
+	s := newTestServer(t, Config{Runs: service})
+	client := sessionClient(t)
+	bootstrap(t, client, s)
+	csrf := fetchStatus(t, client, s).CSRFToken
+
+	body := append([]byte(`{"packId":"fixture","commandId":"inspect","values":{"query":"`), 0xff)
+	body = append(body, []byte(`"}}`)...)
+	response := doAuthorizedRunPost(t, client, s, csrf, "/api/v1/runs", body)
+	response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusBadRequest)
+	}
+	if calls := service.startCalls(); calls != 0 {
+		t.Fatalf("run service start calls = %d, want 0", calls)
+	}
+}
+
 func TestRunAPIRejectsOversizeRequestBeforePlanning(t *testing.T) {
 	service := &fakeRunService{
 		snapshot: runs.Snapshot{RunID: strings.Repeat("c", 32), Status: runs.StatusRunning},
