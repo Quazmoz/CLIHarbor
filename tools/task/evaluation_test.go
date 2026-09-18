@@ -257,6 +257,23 @@ func TestEvaluationGoEnvironmentPinsBuildAffectingInputs(t *testing.T) {
 	}
 }
 
+func TestVerifyEvaluationReproductionManifests(t *testing.T) {
+	t.Parallel()
+
+	canonical := []byte("manifest\n")
+	if err := verifyEvaluationReproductionManifests(canonical, canonical, canonical); err != nil {
+		t.Fatalf("matching manifests rejected: %v", err)
+	}
+	if err := verifyEvaluationReproductionManifests(canonical, []byte("first\n"), []byte("second\n")); err == nil ||
+		!strings.Contains(err.Error(), "not byte-deterministic") {
+		t.Fatalf("rebuild mismatch error = %v, want deterministic-rebuild rejection", err)
+	}
+	if err := verifyEvaluationReproductionManifests([]byte("candidate\n"), canonical, canonical); err == nil ||
+		!strings.Contains(err.Error(), "candidate does not match") {
+		t.Fatalf("candidate mismatch error = %v, want candidate rejection", err)
+	}
+}
+
 func TestRequiredEvaluationGoVersionRequiresExactPatchVersion(t *testing.T) {
 	t.Parallel()
 
