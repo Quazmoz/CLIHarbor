@@ -98,12 +98,12 @@ func TestRunEventStreamReplaysAfterLastEventIDAndCompletes(t *testing.T) {
 		PackID:    "fixture",
 		CommandID: "inspect",
 		ToolID:    "fixture",
-		Status:   runs.StatusExited,
-		ExitCode: &exitCode,
+		Status:    runs.StatusExited,
+		ExitCode:  &exitCode,
 		Structured: &structured.Result{
-			Status: structured.StatusAvailable,
+			Status:   structured.StatusAvailable,
 			Renderer: "cards",
-			Fields: []structured.Field{{Key: "name", Label: "Name", Type: "string", Present: true, Value: "<script>alert(1)</script>"}},
+			Fields:   []structured.Field{{Key: "name", Label: "Name", Type: "string", Present: true, Value: "<script>alert(1)</script>"}},
 		},
 		Events: []runs.Event{
 			{Sequence: 1, Type: "run.started", Timestamp: time.Date(2026, 9, 18, 10, 0, 0, 0, time.UTC)},
