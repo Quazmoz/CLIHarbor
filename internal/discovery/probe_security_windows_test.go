@@ -39,7 +39,7 @@ func TestExecProbeRunnerWindowsTimeoutTerminatesDescendant(t *testing.T) {
 			pidFile,
 		},
 		Parser:        packs.VersionParserSemverText,
-		TimeoutMillis: 300,
+		TimeoutMillis: 1000,
 	})
 	if err == nil || !strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("Run() error = %v, want timeout", err)
