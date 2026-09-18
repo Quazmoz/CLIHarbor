@@ -183,3 +183,16 @@ Do not silently change an accepted ADR. Add a new ADR section with:
 **Security/reliability implications:** The same bounded stable file snapshot is hashed and parsed; expected digests are strictly decoded and compared in constant time. SHA-256 is not a signature or attestation. Keeping the digest only beside the evidence file does not establish an independent trust path, and no checksum can promote evidence into executable pack authority.
 
 **Revisit when:** The organization has an approved artifact/evidence signing or attestation mechanism with defined key ownership, verification policy, rotation/revocation, and release integration.
+
+
+## ADR-019 — Windows evaluation checksums cover executable and trusted pack
+
+**Status:** Accepted.
+
+**Decision:** The Windows x64 evaluation build emits a deterministic root `EVALUATION_SHA256SUMS` manifest covering the evaluation executable and the explicitly trusted Phase 0 pack. CI recomputes every required entry before artifact upload. The existing `bin/SHA256SUMS` remains executable-only for local-build compatibility.
+
+**Why:** The executable and pack jointly define the Phase 0 execution authority. Hashing only the binary left a substitution gap where the shipped trusted pack could change independently after qualification.
+
+**Security/reliability implications:** Manifest generation rejects files outside the repository root, duplicate entries, symlinks, and non-regular files; relative paths are normalized and sorted for deterministic output. A matching manifest detects byte changes to the covered files but is not a signature, publisher proof, build attestation, or host attestation. The GitHub artifact ZIP digest is separate archive-level evidence.
+
+**Revisit when:** The evaluation bundle contains additional privileged configuration, or an organization-approved signing/attestation model supersedes checksum-only integrity.
