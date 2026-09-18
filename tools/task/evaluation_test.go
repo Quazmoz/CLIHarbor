@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"slices"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -169,6 +170,137 @@ func TestRemoveGeneratedChecksumInvalidatesStaleManifest(t *testing.T) {
 	}
 	if err := removeGeneratedChecksum(path); err != nil {
 		t.Fatalf("second removeGeneratedChecksum() error = %v", err)
+	}
+}
+
+func TestMergeEnvironmentOverridesBuildInputsCaseInsensitively(t *testing.T) {
+	t.Parallel()
+
+	base := []string{
+		"Path=C:\\Tools",
+		"GOFLAGS=-race",
+		"goenv=C:\\Users\\test\\go-env",
+		"KEEP=value",
+	}
+	merged := mergeEnvironment(base, map[string]string{
+		"GOENV":   "off",
+		"GOFLAGS": "",
+	})
+
+	var goenvCount, goflagsCount int
+	for _, entry := range merged {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		switch {
+		case strings.EqualFold(key, "GOENV"):
+			goenvCount++
+			if value != "off" {
+				t.Fatalf("GOENV = %q, want off", value)
+			}
+		case strings.EqualFold(key, "GOFLAGS"):
+			goflagsCount++
+			if value != "" {
+				t.Fatalf("GOFLAGS = %q, want empty", value)
+			}
+		}
+	}
+	if goenvCount != 1 || goflagsCount != 1 {
+		t.Fatalf("override counts = GOENV:%d GOFLAGS:%d, want exactly one each", goenvCount, goflagsCount)
+	}
+	if !slices.Contains(merged, "KEEP=value") {
+		t.Fatalf("unrelated environment entry was lost: %v", merged)
+	}
+}
+
+func TestEvaluationGoEnvironmentPinsBuildAffectingInputs(t *testing.T) {
+	t.Parallel()
+
+	env := evaluationGoEnvironment()
+	want := map[string]string{
+		"CGO_ENABLED": "0",
+		"GODEBUG":     "",
+		"GOENV":       "off",
+		"GOEXPERIMENT": "",
+		"GOFLAGS":     "",
+		"GOFIPS140":   "off",
+		"GOAMD64":     "v1",
+		"GOROOT":      "",
+		"GOTOOLCHAIN": "local",
+		"GOWORK":      "off",
+	}
+	for key, value := range want {
+		if got, ok := env[key]; !ok || got != value {
+			t.Fatalf("evaluation build env %s = %q, present=%v, want %q", key, got, ok, value)
+		}
+	}
+}
+
+func TestRequiredEvaluationGoVersionRequiresExactPatchVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		content string
+		want    string
+		ok      bool
+	}{
+		"valid":          {content: "1.27.1\n", want: "1.27.1", ok: true},
+		"no final newline": {content: "1.27.1", want: "1.27.1", ok: true},
+		"minor only":     {content: "1.27\n"},
+		"extra line":     {content: "1.27.1\n1.27.2\n"},
+		"leading space":  {content: " 1.27.1\n"},
+		"release suffix": {content: "1.28.0-rc.1\n"},
+		"crlf":           {content: "1.27.1\r\n"},
+	}
+
+	for name, tc := range tests {
+		name, tc := name, tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, ".go-version"), []byte(tc.content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			got, err := requiredEvaluationGoVersion(root)
+			if tc.ok {
+				if err != nil {
+					t.Fatalf("requiredEvaluationGoVersion() error = %v", err)
+				}
+				if got != tc.want {
+					t.Fatalf("requiredEvaluationGoVersion() = %q, want %q", got, tc.want)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("requiredEvaluationGoVersion() = %q, want error", got)
+			}
+		})
+	}
+}
+
+func TestCopyEvaluationPackPreservesExactBytes(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	source := filepath.Join(root, filepath.FromSlash(evaluationPackPath))
+	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("apiVersion: cliharbor.dev/v1\nkind: CliPack\n")
+	if err := os.WriteFile(source, want, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bundleRoot := t.TempDir()
+	if err := copyEvaluationPack(root, bundleRoot); err != nil {
+		t.Fatalf("copyEvaluationPack() error = %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(bundleRoot, filepath.FromSlash(evaluationPackPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("copied pack = %q, want %q", got, want)
 	}
 }
 
