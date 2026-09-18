@@ -9,32 +9,81 @@ function response(status: number, body: unknown): Response {
   });
 }
 
+function requestPath(input: RequestInfo | URL): string {
+  if (typeof input === 'string') {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.pathname;
+  }
+  return new URL(input.url).pathname;
+}
+
+class FakeEventSource {
+  static latest: FakeEventSource | undefined;
+
+  readonly url: string;
+  onerror: ((event: Event) => void) | null = null;
+  private readonly listeners = new Map<string, EventListener>();
+  closed = false;
+
+  constructor(url: string | URL) {
+    this.url = String(url);
+    FakeEventSource.latest = this;
+  }
+
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
+    if (typeof listener === 'function') {
+      this.listeners.set(type, listener);
+    } else {
+      this.listeners.set(type, (event) => listener.handleEvent(event));
+    }
+  }
+
+  close(): void {
+    this.closed = true;
+  }
+
+  emit(type: string, body: unknown): void {
+    const listener = this.listeners.get(type);
+    listener?.(new MessageEvent(type, { data: JSON.stringify(body) }));
+  }
+}
+
 afterEach(() => {
+  FakeEventSource.latest = undefined;
   vi.unstubAllGlobals();
 });
 
 describe('App', () => {
-  test('loads authenticated runtime status and renders local-only state', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        response(200, {
-          name: 'CLIHarbor',
-          version: '1.2.3-test',
-          session: 'active',
-          csrfToken: 'intentionally-ignored-by-ui',
-        }),
-      ),
-    );
+  test('loads authenticated runtime status and safe task metadata without rendering the CSRF token', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, {
+            name: 'CLIHarbor',
+            version: '1.2.3-test',
+            session: 'active',
+            csrfToken: 'runtime-only-csrf',
+          }),
+        );
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(response(200, { tasks: [] }));
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'CLIHarbor' })).toBeInTheDocument();
-    expect(screen.getByText('1.2.3-test')).toBeInTheDocument();
+    expect(await screen.findByText('1.2.3-test')).toBeInTheDocument();
     expect(screen.getByText('Running')).toBeInTheDocument();
-    expect(screen.getByText('Active')).toBeInTheDocument();
     expect(screen.getByText('Local only')).toBeInTheDocument();
-    expect(screen.queryByText('intentionally-ignored-by-ui')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '0' })).toBeInTheDocument();
+    expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   test('shows a recoverable session-expired state for unauthenticated requests', async () => {
@@ -47,11 +96,24 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
 
-  test('retries transient status failures', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(response(503, { error: 'unavailable' }))
-      .mockResolvedValueOnce(response(200, { name: 'CLIHarbor', version: 'dev', session: 'active' }));
+  test('retries transient status failures and then loads task metadata', async () => {
+    let statusCalls = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        statusCalls += 1;
+        if (statusCalls === 1) {
+          return Promise.resolve(response(503, { error: 'unavailable' }));
+        }
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf' }),
+        );
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(response(200, { tasks: [] }));
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
@@ -59,6 +121,92 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Retry status check' }));
 
     await waitFor(() => expect(screen.getByText('Running')).toBeInTheDocument());
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  test('submits only typed task values and renders streamed output as inert text', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+        );
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                toolVersion: '1.2.3',
+                inputs: [
+                  {
+                    id: 'query',
+                    type: 'string',
+                    label: 'Query',
+                    required: true,
+                    validation: { maxLength: 64, disallowLeadingDash: true },
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        const headers = new Headers(init.headers);
+        expect(headers.get('X-CLIHarbor-CSRF')).toBe('csrf-runtime-only');
+        expect(JSON.parse(String(init.body))).toEqual({
+          packId: 'fixture',
+          commandId: 'inspect',
+          values: { query: '<script>alert(1)</script>' },
+        });
+        return Promise.resolve(
+          response(202, {
+            runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            toolVersion: '1.2.3',
+            status: 'running',
+          }),
+        );
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    const query = await screen.findByRole('textbox', { name: 'Query' });
+    fireEvent.change(query, { target: { value: '<script>alert(1)</script>' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+
+    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
+    const source = FakeEventSource.latest;
+    expect(source?.url).toContain('/api/v1/runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/events');
+
+    source?.emit('run-event', {
+      runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      sequence: 1,
+      type: 'stdout.chunk',
+      timestamp: '2026-09-18T10:00:00Z',
+      dataBase64: btoa('<script>alert(1)</script>'),
+    });
+    source?.emit('run-complete', {
+      runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      sequence: 1,
+      status: 'exited',
+      exitCode: 0,
+    });
+
+    expect(await screen.findByText('<script>alert(1)</script>')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'exited' })).toBeInTheDocument();
+    expect(source?.closed).toBe(true);
   });
 });
