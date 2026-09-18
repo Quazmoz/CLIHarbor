@@ -15,6 +15,7 @@ const (
 	createSuspended                  = 0x00000004
 	processTerminate                 = 0x0001
 	processSetQuota                  = 0x0100
+	processSynchronizeAccess         = 0x00100000
 	threadSuspendResume              = 0x0002
 	jobObjectExtendedLimitInformationClass = 9
 	jobObjectLimitKillOnJobClose     = 0x00002000
@@ -76,6 +77,7 @@ type threadEntry32 struct {
 type windowsProcessController struct {
 	mu         sync.Mutex
 	job        syscall.Handle
+	process    syscall.Handle
 	assigned   bool
 	terminated bool
 	closed     bool
@@ -127,16 +129,17 @@ func (c *windowsProcessController) afterStart(cmd *exec.Cmd) error {
 		return fmt.Errorf("process lifecycle boundary is closed")
 	}
 
-	processHandle, err := syscall.OpenProcess(processSetQuota|processTerminate, false, uint32(cmd.Process.Pid))
+	processHandle, err := syscall.OpenProcess(processSetQuota|processTerminate|processSynchronizeAccess, false, uint32(cmd.Process.Pid))
 	if err != nil {
 		return fmt.Errorf("open started process for job assignment: %w", err)
 	}
-	defer syscall.CloseHandle(processHandle)
 
 	ok, _, callErr := procAssignProcessToJobObject.Call(uintptr(c.job), uintptr(processHandle))
 	if ok == 0 {
+		_ = syscall.CloseHandle(processHandle)
 		return win32CallError("AssignProcessToJobObject", callErr)
 	}
+	c.process = processHandle
 	c.assigned = true
 
 	if err := resumeSuspendedProcess(uint32(cmd.Process.Pid)); err != nil {
@@ -156,6 +159,18 @@ func (c *windowsProcessController) cancel(cmd *exec.Cmd) error {
 		return nil
 	}
 	if c.assigned && c.job != 0 {
+		if c.process != 0 {
+			status, waitErr := syscall.WaitForSingleObject(c.process, 0)
+			if waitErr != nil {
+				return fmt.Errorf("inspect root process state: %w", waitErr)
+			}
+			if status == syscall.WAIT_OBJECT_0 {
+				return os.ErrProcessDone
+			}
+			if status != syscall.WAIT_TIMEOUT {
+				return fmt.Errorf("inspect root process state: unexpected wait status %d", status)
+			}
+		}
 		ok, _, callErr := procTerminateJobObject.Call(uintptr(c.job), terminateJobExitCode)
 		if ok == 0 {
 			return win32CallError("TerminateJobObject", callErr)
@@ -180,15 +195,22 @@ func (c *windowsProcessController) close() error {
 		return nil
 	}
 	c.closed = true
-	handle := c.job
+	jobHandle := c.job
+	processHandle := c.process
 	c.job = 0
-	if handle == 0 {
-		return nil
+	c.process = 0
+	var first error
+	if jobHandle != 0 {
+		if err := syscall.CloseHandle(jobHandle); err != nil {
+			first = fmt.Errorf("close process job: %w", err)
+		}
 	}
-	if err := syscall.CloseHandle(handle); err != nil {
-		return fmt.Errorf("close process job: %w", err)
+	if processHandle != 0 {
+		if err := syscall.CloseHandle(processHandle); err != nil && first == nil {
+			first = fmt.Errorf("close root process handle: %w", err)
+		}
 	}
-	return nil
+	return first
 }
 
 func resumeSuspendedProcess(pid uint32) error {
