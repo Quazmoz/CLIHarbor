@@ -8,7 +8,7 @@ CLIHarbor has completed the **Phase 1 local-runtime foundation**, **Phase 2 pack
 
 The pack foundation supports schema version `cliharbor.dev/v1`, built-in pack bytes, and explicitly requested local YAML files/directories. Tool discovery considers only absolute PATH entries or explicit backend-only overrides tied to declared pack/tool IDs; it rejects ambiguity rather than taking the first match. Version probes are fixed pack-authored argv with bounded time/output and no shell. Repository/cwd packs still receive no implicit trust.
 
-The internal planner/executor exists for the constrained read-only safety envelope, and Phase 4b proves the explicit-local pack → discovery/version probe → planner → executor path with a synthetic fixture CLI. Phase 4c-A adds authenticated create/get/cancel run APIs backed by a bounded in-memory run manager. Browser requests still cannot choose executable/path/argv authority. Live event streaming/task UI, auth execution, secret-bearing output handling, mutating/destructive execution, persisted run state, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
+The internal planner/executor exists for the constrained read-only safety envelope, and Phase 4b proves the explicit-local pack → discovery/version probe → planner → executor path with a synthetic fixture CLI. Phase 4c-A adds authenticated create/get/cancel run APIs backed by a bounded in-memory run manager. Phase 4c-B adds bounded authenticated SSE replay plus safe task metadata and a minimal React task/run UI. Browser requests still cannot choose executable/path/argv authority. Auth execution, secret-bearing output handling, mutating/destructive execution, persisted run state, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
 
 ## Read order
 
@@ -79,7 +79,7 @@ Use for direct `os/exec` invocation, run events, output bounds, timeout/cancella
 
 Canonical implementation: `../internal/runs/` and `../internal/server/run_api.go`.
 
-Use for bounded in-memory run ownership, create/get/cancel semantics, browser-safe snapshots, concurrency/retention limits, and the authenticated loopback run API.
+Use for bounded in-memory run ownership, create/get/cancel semantics, browser-safe snapshots, monotonic event sequencing/replay, concurrency/retention limits, and the authenticated loopback run/SSE APIs.
 
 ### User experience
 
@@ -138,10 +138,12 @@ The discovery layer resolves declared executable basenames across absolute PATH 
 
 The planner accepts only validated pack commands plus current ready discovery state, validates typed runtime values, constructs exact argv, and currently permits read-only/non-auth/non-secret commands only. The executor revalidates executable identity, invokes the executable directly without a shell, bounds output/time, preserves exit semantics, and owns Windows descendants through a per-run Job Object established before the process resumes.
 
-Phase 4b integration coverage uses an explicitly trusted local fixture pack, backend-only executable override, fixed version probe/constraint, typed planner request, and real executor; it compares stdout/stderr/exit behavior to direct invocation and exercises cancellation after observable output. This is still not exposed through browser run APIs.
+Phase 4b integration coverage uses an explicitly trusted local fixture pack, backend-only executable override, fixed version probe/constraint, typed planner request, and real executor; it compares stdout/stderr/exit behavior to direct invocation and exercises cancellation after observable output.
 
-Phase 4c-A now exposes authenticated create/get/cancel run APIs with strict JSON/UTF-8/duplicate-key/body-size validation, existing Host/Origin/CSRF/session protections, Base64 output events in bounded snapshots, bounded concurrency/retention, and application-owned shutdown cancellation. The current React shell does not yet consume the CSRF token or expose task/run controls; the authenticated status API provides it for the Phase 4c-B client/UI.
+Phase 4c-A exposes authenticated create/get/cancel run APIs with strict JSON/UTF-8/duplicate-key/body-size validation, existing Host/Origin/CSRF/session protections, Base64 output events in bounded snapshots, bounded concurrency/retention, and application-owned shutdown cancellation.
 
-The next bounded milestone is Phase 4c-B: live bounded event streaming and the minimal fixture task/run UI. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk command definitions.
+Phase 4c-B adds `GET /api/v1/runs/{runId}/events` with bounded manager-backed SSE replay, strict `Last-Event-ID` parsing, independent slow-client writes, and explicit stream-disconnect semantics. `GET /api/v1/tasks` exposes only currently runnable read-only/non-auth/non-secret metadata. The React client keeps CSRF only in runtime memory, derives typed controls from server metadata, streams stdout/stderr as inert text, and uses the existing cancellation endpoint.
+
+The next product milestone is the first verified read-only Idira workflow after Phase 0 inventory. Authentication orchestration and structured output remain subsequent milestones.
 
 Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, or guessed Idira/CyberArk commands.
