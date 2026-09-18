@@ -73,6 +73,9 @@ describe('App', () => {
           }),
         );
       }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
       if (path === '/api/v1/tasks') {
         return Promise.resolve(response(200, { tasks: [] }));
       }
@@ -87,7 +90,7 @@ describe('App', () => {
     expect(screen.getByText('Local only')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '0' })).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   test('shows a recoverable session-expired state for unauthenticated requests', async () => {
@@ -113,6 +116,9 @@ describe('App', () => {
           response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf' }),
         );
       }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
       if (path === '/api/v1/tasks') {
         return Promise.resolve(response(200, { tasks: [] }));
       }
@@ -128,6 +134,47 @@ describe('App', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  test('renders sanitized unavailable-tool diagnostics without executable authority', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+        );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(
+          response(200, {
+            tools: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture Pack',
+                packVersion: '1.0.0',
+                toolId: 'fixture',
+                status: 'missing',
+                versionConstraint: '>=1.0.0 <2.0.0',
+                message: 'tool was not found on absolute PATH entries; install it or configure an explicit tool path',
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(response(200, { tasks: [] }));
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByText('Fixture Pack — fixture')).toBeInTheDocument();
+    expect(screen.getByText('missing')).toBeInTheDocument();
+    expect(screen.getByText(/tool was not found on absolute PATH entries/i)).toBeInTheDocument();
+    expect(screen.getByText(/Pack 1\.0\.0 · Required >=1\.0\.0 <2\.0\.0/)).toBeInTheDocument();
+    expect(screen.queryByText(/C:\\/i)).not.toBeInTheDocument();
+  });
+
   test('rejects browser integers outside the exact JavaScript range before mutation', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = requestPath(input);
@@ -135,6 +182,9 @@ describe('App', () => {
         return Promise.resolve(
           response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
         );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
       }
       if (path === '/api/v1/tasks') {
         return Promise.resolve(
@@ -182,6 +232,9 @@ describe('App', () => {
         return Promise.resolve(
           response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
         );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
       }
       if (path === '/api/v1/tasks') {
         return Promise.resolve(
@@ -270,6 +323,9 @@ describe('App', () => {
           response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
         );
       }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
       if (path === '/api/v1/tasks') {
         return Promise.resolve(
           response(200, {
@@ -348,6 +404,9 @@ describe('App', () => {
         return Promise.resolve(
           response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
         );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
       }
       if (path === '/api/v1/tasks') {
         return Promise.resolve(
