@@ -54,7 +54,8 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 		{PackID: "fixture", ToolID: "missing", Status: discovery.StatusMissing},
 	})
 
-	tasks := newTaskCatalog(registry, snapshot).ListTasks()
+	catalog := newTaskCatalog(registry, snapshot)
+	tasks := catalog.ListTasks()
 	if len(tasks) != 1 {
 		t.Fatalf("task count = %d, want 1: %#v", len(tasks), tasks)
 	}
@@ -67,7 +68,7 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	}
 
 	task.Inputs[0].Validation.Enum = append(task.Inputs[0].Validation.Enum, "mutated")
-	second := newTaskCatalog(registry, snapshot).ListTasks()
+	second := catalog.ListTasks()
 	if len(second[0].Inputs[0].Validation.Enum) != 0 {
 		t.Fatal("task metadata returned shared validation slices")
 	}
