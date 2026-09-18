@@ -1,0 +1,15 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: idira-cyberark-phase0
+  name: Idira/CyberArk Phase 0 Inventory
+  version: 0.1.0
+  description: Discovery-only Phase 0 inventory for executable basenames already recorded in CLIHarbor product documentation. No vendor command or probe argv is asserted.
+runtime:
+  platforms: [windows]
+  tools:
+    idsec:
+      executableNames: [idsec]
+    conjur:
+      executableNames: [conjur]
+commands: {}
