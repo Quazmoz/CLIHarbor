@@ -373,7 +373,7 @@ Next:
 11. Auth adapter + external login orchestration.
 12. Structured result renderer.
 13. Additional security hardening/evals.
-14. Second executable fixture pack scenario.
+14. Second executable fixture pack scenario. **Implemented.**
 15. Windows release qualification.
 
 ## 17. Implementation guardrail
