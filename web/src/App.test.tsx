@@ -499,6 +499,13 @@ describe('App', () => {
       sequence: 1,
       status: 'exited',
       exitCode: 0,
+      structured: {
+        status: 'available',
+        renderer: 'cards',
+        fields: [
+          { key: 'name', label: 'Name', type: 'string', present: true, value: '<script>alert(1)</script>' },
+        ],
+      },
     });
 
     expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
@@ -506,5 +513,10 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'exited' })).toBeInTheDocument();
     expect(document.querySelector('script')).toBeNull();
     expect(source?.closed).toBe(true);
+    expect(
+      fetchMock.mock.calls.some(
+        ([input]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      ),
+    ).toBe(false);
   });
 });
