@@ -197,10 +197,15 @@ func TestPlanCloneDoesNotShareArgSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	plan.Output.Structured = &packs.StructuredOutput{Fields: []packs.StructuredField{{Key: "name", Label: "Name", Type: packs.StructuredString}}}
 	clone := plan.Clone()
 	clone.Args[0] = "mutated"
+	clone.Output.Structured.Fields[0].Key = "tampered"
 	if plan.Args[0] != "inspect" {
 		t.Fatalf("plan mutated through clone: %#v", plan.Args)
+	}
+	if plan.Output.Structured.Fields[0].Key != "name" {
+		t.Fatal("structured output mutated through plan clone")
 	}
 }
 
