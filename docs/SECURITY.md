@@ -197,7 +197,7 @@ Current CLI configuration is process-local via explicit `--pack-file`, `--pack-d
 
 ## 10. Dependency/supply chain
 
-Keep dependencies narrow and pinned/checksummed. Current pack/discovery dependencies include YAML v3, jsonschema v6, and Masterminds semver v3.5.0. CI verifies `go.sum` module integrity, audits the locked frontend dependency tree, and runs pinned `govulncheck@v1.8.0` against reachable Go code. Local builds emit SHA-256 executable checksums. Windows evaluation builds additionally emit a deterministic `EVALUATION_SHA256SUMS` manifest covering both the evaluation executable and the explicitly trusted Phase 0 pack, and CI recomputes both hashes before uploading the artifact. Reproducible release artifacts, SBOM generation, and eventual Windows signing remain release-hardening work.
+Keep dependencies narrow and pinned/checksummed. Current pack/discovery dependencies include YAML v3, jsonschema v6, and Masterminds semver v3.5.0. CI verifies `go.sum` module integrity, audits the locked frontend dependency tree, and runs pinned `govulncheck@v1.8.0` against reachable Go code. Ordinary local builds emit the compatibility checksum `bin/SHA256SUMS`. Windows evaluation builds instead invalidate that generated compatibility manifest and emit one authoritative `EVALUATION_SHA256SUMS` covering both the evaluation executable and the explicitly trusted Phase 0 pack. The same Go verifier rejects malformed/aliased entries, unexpected entry counts, non-regular privileged files, a present compatibility manifest, and digest mismatches; CI reruns it immediately before uploading exactly the covered privileged files plus the root manifest. Reproducible release artifacts, SBOM generation, and eventual Windows signing remain release-hardening work.
 
 ## 11. Security verification
 
@@ -254,7 +254,7 @@ Redaction is defense in depth rather than proof that arbitrary vendor prose is s
 
 The Windows evaluation executable is intentionally unsigned. CLIHarbor does not attempt to evade application control, SmartScreen, EDR, antivirus, proxy policy, or browser policy. An environment that blocks the binary requires the organization's approved allowlisting/signing process.
 
-The evaluation artifact's root `EVALUATION_SHA256SUMS` covers the executable and the shipped trusted Phase 0 pack. This closes an intra-bundle substitution gap: changing either file after qualification is detectable when the manifest is retained with the qualified artifact. It does not authenticate GitHub, a signer, a developer, or the target laptop; the GitHub artifact archive digest remains a separate archive-level integrity value, and code signing/attestation remains out of scope until an approved identity/key model exists.
+The evaluation artifact's root `EVALUATION_SHA256SUMS` is its sole packaged checksum authority and covers the executable and the shipped trusted Phase 0 pack. `bin/SHA256SUMS` is not part of the evaluation artifact. This closes an intra-bundle substitution gap and removes duplicate checksum authority: changing either privileged file after qualification is detectable when the manifest is retained with the qualified artifact. It does not authenticate GitHub, a signer, a developer, or the target laptop; the GitHub artifact archive digest remains separate archive-level integrity evidence, and code signing/attestation remains out of scope until an approved identity/key model exists.
 
 ## Imported Phase 0 evidence
 
