@@ -53,7 +53,7 @@ trusted pack task + validated typed values + ready discovery state
 
 CMD/PowerShell/POSIX shell command-string execution is forbidden for normal tasks. Pack v1 also rejects common shells, general interpreters, Windows script extensions, and several launcher binaries as tool declarations.
 
-Phase 3 version probes use direct `exec.CommandContext` with fixed pack-authored argv and no shell. Phase 4 task planning validates typed values against trusted command definitions and the executor invokes only the resulting executable path plus exact argv; it does not reinterpret values through a shell.
+Phase 3 version probes use fixed pack-authored argv and no shell. They now share the platform process-lifecycle controller used by execution/evidence probes, run from a neutral temporary directory with a minimal inherited environment, and fail closed on timeout, non-zero exit, oversized/truncated output, invalid UTF-8, or ambiguous/no semantic version. Phase 4 task planning validates typed values against trusted command definitions and the executor invokes only the resulting executable path plus exact argv; it does not reinterpret values through a shell.
 
 ### SI-2 No browser-selected executable
 
@@ -142,7 +142,7 @@ Controls include explicit source trust, 256 KiB bound, UTF-8 requirement, single
 
 **Threat:** a pack uses discovery as a general execution hook or a tool emits sensitive/unbounded output.
 
-**Controls:** only an explicitly trusted pack may define a probe; probe argv is fixed pack-authored data with max-item/string schema bounds; only `semver-text` parser is supported; timeout is bounded (100-10000 ms, default 3 s); stdout/stderr use bounded buffers; the process is launched directly without a shell; non-zero exit/timeouts produce sanitized states; raw probe text is not emitted by normal diagnostics.
+**Controls:** only an explicitly trusted pack may define a probe; probe argv is fixed pack-authored data with max-item/string schema bounds; only `semver-text` parser is supported; timeout is bounded (100-10000 ms, default 3 s); stdout/stderr use bounded buffers and truncation/invalid UTF-8 fail closed; the process is launched directly without a shell from a neutral temporary directory with a minimal environment; the shared lifecycle controller owns timeout/cancellation and Windows descendants through a Job Object; non-zero exit/timeouts produce sanitized states; raw probe text is not emitted by normal diagnostics.
 
 Version probing remains privileged execution of the selected binary and therefore depends on explicit pack trust plus discovery policy.
 
@@ -245,10 +245,10 @@ Phase 0 inventory/evidence preserves the existing authority model:
 - `--probe` selects only a declared `pack/tool/probe` identity;
 - resolved executable and ambiguous candidate paths stay operator/backend-side and are not serialized in Phase 0 evidence;
 - executable identity is revalidated immediately before an evidence probe;
-- probes use direct process launch, no shell, no interactive stdin, a neutral temporary working directory, the existing process-tree lifecycle controller, a minimal child environment, and strict timeout/output bounds;
+- version and help/evidence probes use direct process launch, no shell, no interactive stdin, a neutral temporary working directory, the shared process-tree lifecycle controller, a minimal child environment, and strict timeout/output bounds;
 - output is normalized to valid UTF-8, unsafe controls are replaced, obvious Authorization credentials/common secret assignments/JWT-shaped material are redacted, and user-home/temp/resolved-executable paths are replaced before display/export;
-- evidence files are strongly typed, size bounded, staged in the target directory, permission-restricted where supported, synced, atomically renamed, and never overwrite an existing destination;
-- raw environment dumps, PATH dumps, browser bootstrap/session/CSRF material, vendor credential stores, passwords, tokens, MFA values, cookies, and unrelated file enumeration are outside the evidence schema.
+- evidence files are strongly typed, size bounded, staged in the target directory, permission-restricted where supported, synced, then activated with atomic create-without-replacement semantics so concurrent exports cannot overwrite an existing destination;
+- selected probe records carry the sanitized fixed trusted argument vector for engineering provenance while excluding the executable path; raw environment dumps, PATH dumps, browser bootstrap/session/CSRF material, vendor credential stores, passwords, tokens, MFA values, cookies, and unrelated file enumeration are outside the evidence schema.
 
 Redaction is defense in depth rather than proof that arbitrary vendor prose is safe. Operators must review the exported JSON before sharing it.
 
