@@ -211,6 +211,57 @@ func TestRunEventStreamDisconnectDoesNotCancelExecution(t *testing.T) {
 	}
 }
 
+
+func TestRunEventStreamCapacityIsBounded(t *testing.T) {
+	service := &streamRunService{
+		snapshot: runs.Snapshot{
+			RunID:  strings.Repeat("e", 32),
+			Status: runs.StatusRunning,
+		},
+		waitStarted: make(chan struct{}),
+		waitDone:    make(chan struct{}),
+	}
+	s := newTestServer(t, Config{Runs: service, MaxEventStreams: 1})
+	client := sessionClient(t)
+	bootstrap(t, client, s)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	firstRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, s.BaseURL()+"/api/v1/runs/"+service.snapshot.RunID+"/events", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstResponse, err := client.Do(firstRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer firstResponse.Body.Close()
+
+	select {
+	case <-service.waitStarted:
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("first stream did not acquire a stream slot")
+	}
+
+	secondResponse, err := client.Get(s.BaseURL() + "/api/v1/runs/" + service.snapshot.RunID + "/events")
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	secondResponse.Body.Close()
+	if secondResponse.StatusCode != http.StatusTooManyRequests {
+		cancel()
+		t.Fatalf("second stream status = %d, want %d", secondResponse.StatusCode, http.StatusTooManyRequests)
+	}
+
+	cancel()
+	select {
+	case <-service.waitDone:
+	case <-time.After(time.Second):
+		t.Fatal("first stream did not release after cancellation")
+	}
+}
+
 func TestRunEventStreamRequiresAuthenticatedSession(t *testing.T) {
 	service := &streamRunService{snapshot: runs.Snapshot{
 		RunID:  strings.Repeat("d", 32),
