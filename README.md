@@ -29,7 +29,7 @@ The first product slice will:
 5. Stream stdout/stderr and surface exit state.
 6. Render structured results as tables/cards when reliable structured output exists; otherwise preserve terminal-style output.
 7. Delegate login/session persistence to the official CLI rather than storing passwords or tokens itself.
-8. Provide an escape hatch to view the exact executable and argument vector before execution.
+8. Provide a safe equivalent-command preview where it can be shown without exposing backend-only executable paths, secrets, or other execution authority.
 
 ## Implementation stack
 
@@ -100,7 +100,7 @@ Phase 4c-A exposes that boundary through authenticated loopback JSON APIs for cr
 
 Phase 4c-B adds authenticated Server-Sent Events at `GET /api/v1/runs/{runId}/events`, bounded replay using `Last-Event-ID`, per-write deadlines, heartbeat frames, and stream disconnect semantics that do not cancel or recreate executions. Read-only `GET /api/v1/tasks` and `GET /api/v1/tools` surfaces expose runnable safe-task metadata plus sanitized tool readiness/version/remediation. They never expose executable paths or names, candidate lists, file identity, argv, environment, or pack source paths. The React UI keeps the CSRF token only in runtime memory, derives typed controls from that safe metadata, creates/cancels runs through the existing protected APIs, and renders Base64-decoded stdout/stderr strictly as text. Automatic EventSource recovery is bounded to five consecutive failures, then the UI reconciles against the retained run snapshot and requires an explicit retry action before opening another live stream.
 
-Phase 5 adds a generic bounded structured-output path for fixture commands. Trusted packs can declare a strict JSON object of up to 32 scalar fields (`string`, `integer`, or `boolean`) for the cards renderer. The run manager captures at most 64 KiB for parsing after the single executor invocation completes, preserves raw stdout/stderr independently, rejects malformed/unknown/duplicate/nested/type-invalid/UTF-8-invalid/oversized/control-character output, and never converts a non-zero exit into structured success. The browser consumes a normalized validated DTO and renders values as inert text. Secret-bearing output and sensitive fields are not eligible for structured rendering in this phase.
+Phase 5 adds a generic bounded structured-output path for fixture commands. Trusted packs can declare a strict JSON object of up to 32 scalar fields (`string`, `integer`, or `boolean`) for the cards renderer. The run manager captures at most 64 KiB for parsing after the single executor invocation completes, preserves raw stdout/stderr independently, rejects malformed/unknown/duplicate/nested/type-invalid/UTF-8-invalid/oversized/control-character output, and never converts a non-zero exit into structured success. The normalized result is bound to the same authenticated `run-complete` SSE event as the authoritative run ID/status, so normal completion does not depend on a second status fetch that could race run retention. Snapshot GET remains the reconnect/recovery path. The browser validates the DTO and renders values as inert text. Secret-bearing output and sensitive fields are not eligible for structured rendering in this phase.
 
 There is still **no auth-required or secret-bearing execution, mutating/destructive execution, persisted run history, or real Idira/CyberArk command pack/schema**. Phase 0 vendor inventory remains required before any real vendor command definitions are added.
 
