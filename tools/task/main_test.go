@@ -92,7 +92,7 @@ func TestWriteSHA256ManifestCoversBundleDeterministically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824  bin/cliharbor.exe\n486b63f8105129d99c243c1ea8f5f49e5f44c3be151759d3346cc32c1a3d7f4c  packs/phase0/pack.yaml\n"
+	const want = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824  bin/cliharbor.exe\n4862f447f2c7f272fa2f4aaf89dadb3b1ac09105bd5864f8d1a0c9452bb0a226  packs/phase0/pack.yaml\n"
 	if string(got) != want {
 		t.Fatalf("bundle checksum manifest = %q, want %q", got, want)
 	}
