@@ -27,19 +27,18 @@ var evaluationRequiredPaths = []string{
 	evaluationPackPath,
 }
 
-
 func evaluationGoEnvironment() map[string]string {
 	return map[string]string{
-		"CGO_ENABLED": "0",
-		"GODEBUG":     "",
-		"GOENV":       "off",
+		"CGO_ENABLED":  "0",
+		"GODEBUG":      "",
+		"GOENV":        "off",
 		"GOEXPERIMENT": "",
-		"GOFLAGS":     "",
-		"GOFIPS140":   "off",
-		"GOAMD64":     "v1",
-		"GOROOT":      "",
-		"GOTOOLCHAIN": "local",
-		"GOWORK":      "off",
+		"GOFLAGS":      "",
+		"GOFIPS140":    "off",
+		"GOAMD64":      "v1",
+		"GOROOT":       "",
+		"GOTOOLCHAIN":  "local",
+		"GOWORK":       "off",
 	}
 }
 
