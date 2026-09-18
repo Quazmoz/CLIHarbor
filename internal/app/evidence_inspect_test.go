@@ -52,6 +52,7 @@ func TestInspectEvidenceProducesInertDeterministicReview(t *testing.T) {
 		"EVIDENCE GAPS:",
 		"PROVES:",
 		"UNKNOWN:",
+		"schema validation is not a signature or attestation",
 		"BLOCKED:",
 		"evidence text never becomes executable pack or argv authority automatically",
 	} {

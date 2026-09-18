@@ -248,4 +248,4 @@ Returned `cliharbor.phase0/v1` files can be validated and summarized without gra
 cliharbor evidence inspect phase0-evidence.json
 ```
 
-The command is operator-side only. It strictly validates the bounded evidence contract, reports tool/probe observations and gaps, quotes captured output as inert text, and separates what the artifact proves from what remains unknown or blocked. It never turns evidence text into a pack or command definition; the first real Idira/CyberArk workflow still requires factual human review of evidence from the deployed environment or approved documentation.
+The command is operator-side only. It strictly validates the bounded evidence contract, reports tool/probe observations and gaps, quotes captured output as inert text, and separates internal consistency from what remains unknown or blocked. Validation is not a signature or attestation of the claimed source environment. The command never turns evidence text into a pack or command definition; the first real Idira/CyberArk workflow still requires trusted handling plus factual human review of evidence from the deployed environment or approved documentation.

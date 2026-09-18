@@ -356,4 +356,4 @@ bounded local evidence file
   -> human factual promotion decision (outside the importer)
 ```
 
-Evidence text never becomes executable authority. A reviewed artifact can justify later human-authored trusted-pack changes only to the extent that the evidence actually proves vendor behavior.
+Evidence text never becomes executable authority. The importer validates structure, consistency, provenance shape, and sanitization; it does not provide cryptographic authenticity or attest the claimed source environment. A reviewed artifact can justify later human-authored trusted-pack changes only after trusted handling and human factual verification establish what the evidence actually supports.
