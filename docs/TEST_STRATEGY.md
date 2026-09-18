@@ -50,6 +50,19 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 - neutral temporary working directories are removed after runs;
 - Windows-only tests cover normal descendant completion, case-insensitive executable paths, explicit cancellation, timeout, output-limit and sink-failure descendant cleanup, plus inherited stdout/stderr handles using a per-run Job Object.
 
+### Phase 4b integration checkpoint
+
+`internal/app/execution_integration_test.go` exercises the real internal authority chain without vendor credentials or shell wrappers:
+
+- an explicit-local synthetic pack passes the production YAML/schema/semantic loader;
+- discovery uses a backend-only absolute override tied to the declared tool;
+- a fixed pack-authored version probe resolves `1.2.3` and satisfies the declared semantic-version constraint;
+- typed planner inputs produce exact argv including a zero integer, Unicode, spaces, and shell metacharacters;
+- executor stdout/stderr and exit code are compared with direct invocation of the same fixture executable/argv;
+- non-zero exits remain process results;
+- cancellation after observable output produces the expected cancelled run state;
+- the test binary acts only as the synthetic CLI; no external tool, credential, vendor syntax, or browser-selected execution shape is introduced.
+
 A green CI build proves the code compiles/tests on its CI platforms. It does not replace manual Windows acceptance of real default-browser, PATH, filesystem, vendor CLI, authentication, or antivirus/SmartScreen behavior.
 
 ## 2. Test layers
