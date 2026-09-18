@@ -142,6 +142,14 @@ func cloneTool(tool Tool) Tool {
 		probe.Args = append([]string(nil), tool.VersionProbe.Args...)
 		tool.VersionProbe = &probe
 	}
+	if tool.HelpProbes != nil {
+		tool.HelpProbes = make(map[string]HelpProbe, len(tool.HelpProbes))
+		for id, source := range tool.HelpProbes {
+			probe := source
+			probe.Args = append([]string(nil), source.Args...)
+			tool.HelpProbes[id] = probe
+		}
+	}
 	return tool
 }
 
