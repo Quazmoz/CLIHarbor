@@ -71,6 +71,9 @@ func TestEvidenceCommandShapeFailsClosed(t *testing.T) {
 		{"evidence", "inspect"},
 		{"evidence", "unknown", "phase0.json"},
 		{"evidence", "inspect", "one.json", "two.json"},
+		{"evidence", "checksum"},
+		{"evidence", "checksum", "one.json", "two.json"},
+		{"evidence", "inspect", "--sha256", "abc", "missing.json"},
 	} {
 		if err := run(args); err == nil {
 			t.Fatalf("run(%v) unexpectedly succeeded", args)

@@ -122,3 +122,34 @@ func TestReadBundleRejectsSymlinkAndAcceptsRegularFile(t *testing.T) {
 		t.Fatal("ReadBundle(symlink) unexpectedly succeeded")
 	}
 }
+
+func TestReadBundleWithSHA256AndVerify(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "phase0.json")
+	written, err := WriteBundleWithSHA256(nil, path, testBundle())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle, readDigest, err := ReadBundleWithSHA256(path)
+	if err != nil {
+		t.Fatalf("ReadBundleWithSHA256() error = %v", err)
+	}
+	if bundle.SchemaVersion != SchemaVersion || readDigest != written {
+		t.Fatalf("read bundle/digest mismatch: schema=%q read=%q written=%q", bundle.SchemaVersion, readDigest, written)
+	}
+	if err := VerifySHA256(readDigest, strings.ToUpper(written)); err != nil {
+		t.Fatalf("VerifySHA256() uppercase expected error = %v", err)
+	}
+	bad := strings.Repeat("0", 64)
+	if bad == written {
+		bad = strings.Repeat("1", 64)
+	}
+	if err := VerifySHA256(readDigest, bad); err == nil {
+		t.Fatal("VerifySHA256() accepted mismatched digest")
+	}
+	for _, invalid := range []string{"", "abc", strings.Repeat("z", 64), strings.Repeat("0", 65)} {
+		if _, err := NormalizeSHA256(invalid); err == nil {
+			t.Fatalf("NormalizeSHA256(%q) unexpectedly succeeded", invalid)
+		}
+	}
+}

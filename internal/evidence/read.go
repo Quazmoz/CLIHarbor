@@ -2,6 +2,9 @@ package evidence
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -51,59 +54,109 @@ var validProbeStatuses = map[string]struct{}{
 // descriptor and rejects replacement or mutation observed during the read.
 // Evidence is data only; this function grants no pack or command authority.
 func ReadBundle(path string) (Bundle, error) {
+	bundle, _, err := ReadBundleWithSHA256(path)
+	return bundle, err
+}
+
+// ReadBundleWithSHA256 validates one stable evidence-file snapshot and returns
+// the SHA-256 of those exact bytes. The digest does not authenticate the source.
+func ReadBundleWithSHA256(path string) (Bundle, string, error) {
 	var zero Bundle
+	data, err := readStableFile(path)
+	if err != nil {
+		return zero, "", err
+	}
+	bundle, err := Parse(data)
+	if err != nil {
+		return zero, "", err
+	}
+	return bundle, fmt.Sprintf("%x", sha256.Sum256(data)), nil
+}
+
+func readStableFile(path string) ([]byte, error) {
 	if path == "" {
-		return zero, fmt.Errorf("evidence file path is required")
+		return nil, fmt.Errorf("evidence file path is required")
 	}
 	clean := filepath.Clean(path)
 	before, err := os.Lstat(clean)
 	if err != nil {
-		return zero, fmt.Errorf("inspect evidence file: %w", err)
+		return nil, fmt.Errorf("inspect evidence file: %w", err)
 	}
 	if before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() {
-		return zero, fmt.Errorf("evidence input must be a regular non-symlink file")
+		return nil, fmt.Errorf("evidence input must be a regular non-symlink file")
 	}
 	if before.Size() > maxSerializedBundle {
-		return zero, fmt.Errorf("evidence file exceeds %d-byte limit", maxSerializedBundle)
+		return nil, fmt.Errorf("evidence file exceeds %d-byte limit", maxSerializedBundle)
 	}
 
 	file, err := os.Open(clean)
 	if err != nil {
-		return zero, fmt.Errorf("open evidence file: %w", err)
+		return nil, fmt.Errorf("open evidence file: %w", err)
 	}
 	defer file.Close()
 
 	opened, err := file.Stat()
 	if err != nil {
-		return zero, fmt.Errorf("inspect opened evidence file: %w", err)
+		return nil, fmt.Errorf("inspect opened evidence file: %w", err)
 	}
 	if !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
-		return zero, fmt.Errorf("evidence file changed before it could be read safely")
+		return nil, fmt.Errorf("evidence file changed before it could be read safely")
 	}
 
 	data, err := io.ReadAll(io.LimitReader(file, maxSerializedBundle+1))
 	if err != nil {
-		return zero, fmt.Errorf("read evidence file: %w", err)
+		return nil, fmt.Errorf("read evidence file: %w", err)
 	}
 	if len(data) > maxSerializedBundle {
-		return zero, fmt.Errorf("evidence file exceeds %d-byte limit", maxSerializedBundle)
+		return nil, fmt.Errorf("evidence file exceeds %d-byte limit", maxSerializedBundle)
 	}
 
 	afterDescriptor, err := file.Stat()
 	if err != nil {
-		return zero, fmt.Errorf("reinspect evidence file: %w", err)
+		return nil, fmt.Errorf("reinspect evidence file: %w", err)
 	}
 	afterPath, err := os.Lstat(clean)
 	if err != nil {
-		return zero, fmt.Errorf("reinspect evidence path: %w", err)
+		return nil, fmt.Errorf("reinspect evidence path: %w", err)
 	}
 	if afterPath.Mode()&os.ModeSymlink != 0 || !afterPath.Mode().IsRegular() ||
 		!os.SameFile(opened, afterDescriptor) || !os.SameFile(opened, afterPath) ||
 		opened.Size() != afterDescriptor.Size() || !opened.ModTime().Equal(afterDescriptor.ModTime()) {
-		return zero, fmt.Errorf("evidence file changed while it was being read")
+		return nil, fmt.Errorf("evidence file changed while it was being read")
 	}
+	return data, nil
+}
 
-	return Parse(data)
+// NormalizeSHA256 accepts exactly one raw 32-byte SHA-256 encoded as 64 hex
+// characters and returns its canonical lowercase form.
+func NormalizeSHA256(value string) (string, error) {
+	if len(value) != sha256.Size*2 {
+		return "", fmt.Errorf("expected SHA-256 must contain exactly %d hexadecimal characters", sha256.Size*2)
+	}
+	decoded, err := hex.DecodeString(value)
+	if err != nil || len(decoded) != sha256.Size {
+		return "", fmt.Errorf("expected SHA-256 must contain exactly %d hexadecimal characters", sha256.Size*2)
+	}
+	return fmt.Sprintf("%x", decoded), nil
+}
+
+// VerifySHA256 compares canonical digest bytes in constant time. A checksum
+// mismatch proves only that the supplied expected digest and file differ.
+func VerifySHA256(actual, expected string) error {
+	actualNormalized, err := NormalizeSHA256(actual)
+	if err != nil {
+		return fmt.Errorf("invalid calculated evidence SHA-256: %w", err)
+	}
+	expectedNormalized, err := NormalizeSHA256(expected)
+	if err != nil {
+		return err
+	}
+	actualBytes, _ := hex.DecodeString(actualNormalized)
+	expectedBytes, _ := hex.DecodeString(expectedNormalized)
+	if subtle.ConstantTimeCompare(actualBytes, expectedBytes) != 1 {
+		return fmt.Errorf("evidence SHA-256 mismatch")
+	}
+	return nil
 }
 
 // Parse strictly decodes a cliharbor.phase0/v1 evidence document. Unknown

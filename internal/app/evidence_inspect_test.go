@@ -78,3 +78,73 @@ func TestInspectEvidenceRejectsUntrustedJSONBeforeRendering(t *testing.T) {
 		t.Fatalf("invalid evidence produced partial review: %q", out.String())
 	}
 }
+
+func TestInspectEvidenceExpectedSHA256MustMatchBeforeRendering(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "phase0.json")
+	exit := 0
+	generated := time.Unix(100, 0).UTC()
+	started := generated.Add(time.Second)
+	ended := started.Add(time.Second)
+	bundle := evidence.Bundle{
+		SchemaVersion: evidence.SchemaVersion,
+		GeneratedAt:   generated,
+		CLIHarbor:     evidence.BuildInfo{Version: "test", Commit: "abc123", BuildMode: "test"},
+		Host:          evidence.HostInfo{OS: "windows", Architecture: "amd64"},
+		Tools: []evidence.ToolRecord{{
+			PackID: "demo", PackVersion: "1.0.0", ToolID: "tool", Status: "ready", CandidateCount: 1,
+			AvailableHelpProbes: []string{"root"},
+			Probes: []evidence.ProbeRecord{{
+				ID: "root", Kind: "help", Identity: "demo/tool/root", Status: "exited",
+				StartedAt: &started, EndedAt: &ended, ExitCode: &exit,
+			}},
+		}},
+	}
+	digest, err := evidence.WriteBundleWithSHA256(nil, path, bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var verified bytes.Buffer
+	if err := InspectEvidenceWithConfig(Options{Out: &verified}, path, EvidenceInspectConfig{ExpectedSHA256: strings.ToUpper(digest)}); err != nil {
+		t.Fatalf("verified inspect error = %v", err)
+	}
+	if !strings.Contains(verified.String(), "Transfer integrity: verified against independently supplied expected digest") {
+		t.Fatalf("verified review missing integrity status: %s", verified.String())
+	}
+
+	var mismatch bytes.Buffer
+	bad := strings.Repeat("0", 64)
+	if bad == digest {
+		bad = strings.Repeat("1", 64)
+	}
+	if err := InspectEvidenceWithConfig(Options{Out: &mismatch}, path, EvidenceInspectConfig{ExpectedSHA256: bad}); err == nil {
+		t.Fatal("mismatched digest unexpectedly accepted")
+	}
+	if mismatch.Len() != 0 {
+		t.Fatalf("checksum mismatch produced partial review: %q", mismatch.String())
+	}
+}
+
+func TestPrintEvidenceChecksumValidatesEvidenceAndPrintsDigest(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "phase0.json")
+	digest, err := evidence.WriteBundleWithSHA256(nil, path, testEvidenceBundleForChecksum())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := PrintEvidenceChecksum(Options{Out: &out}, path); err != nil {
+		t.Fatalf("PrintEvidenceChecksum() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "Evidence SHA-256: "+digest {
+		t.Fatalf("checksum output = %q", got)
+	}
+}
+
+func testEvidenceBundleForChecksum() evidence.Bundle {
+	return evidence.Bundle{
+		SchemaVersion: evidence.SchemaVersion,
+		GeneratedAt:   time.Unix(100, 0).UTC(),
+		CLIHarbor:     evidence.BuildInfo{Version: "test", Commit: "abc123", BuildMode: "test"},
+		Host:          evidence.HostInfo{OS: "windows", Architecture: "amd64"},
+	}
+}

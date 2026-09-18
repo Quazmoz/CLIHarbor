@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -150,5 +151,27 @@ func TestRunInventoryProbeIncludesSanitizedDeclaredArgumentsWhenUnavailable(t *t
 	}
 	if strings.Contains(record.Arguments[1], "supersecret") || !strings.Contains(record.Arguments[1], "[REDACTED]") {
 		t.Fatalf("secret-like argument not sanitized: %#v", record.Arguments)
+	}
+}
+
+func TestInventoryExportPrintsExactEvidenceSHA256(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "phase0.json")
+	var out bytes.Buffer
+	err := Inventory(context.Background(), Options{
+		Out: &out, Version: "test", Commit: "abc123", BuildMode: "test",
+	}, InventoryConfig{ExportPath: path})
+	if err != nil {
+		t.Fatalf("Inventory() export error = %v", err)
+	}
+	_, digest, err := evidence.ReadBundleWithSHA256(path)
+	if err != nil {
+		t.Fatalf("ReadBundleWithSHA256() error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "Evidence SHA-256: "+digest) {
+		t.Fatalf("inventory export output missing exact digest: %q", got)
+	}
+	if !strings.Contains(got, "not a signature or attestation") {
+		t.Fatalf("inventory export output missing integrity limitation: %q", got)
 	}
 }

@@ -118,10 +118,31 @@ func run(args []string) error {
 }
 
 func runEvidenceCommand(args []string) error {
-	if len(args) != 2 || args[0] != "inspect" || args[1] == "" {
-		return fmt.Errorf("usage: cliharbor evidence inspect <file>")
+	if len(args) == 0 {
+		return fmt.Errorf("usage: cliharbor evidence <inspect|checksum> ...")
 	}
-	return app.InspectEvidence(app.Options{Out: os.Stdout}, args[1])
+	switch args[0] {
+	case "inspect":
+		flags := flag.NewFlagSet("cliharbor evidence inspect", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		expectedSHA256 := flags.String("sha256", "", "independently retained expected SHA-256")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() != 1 || flags.Arg(0) == "" {
+			return fmt.Errorf("usage: cliharbor evidence inspect [--sha256 <64-hex-digest>] <file>")
+		}
+		return app.InspectEvidenceWithConfig(app.Options{Out: os.Stdout}, flags.Arg(0), app.EvidenceInspectConfig{
+			ExpectedSHA256: *expectedSHA256,
+		})
+	case "checksum":
+		if len(args) != 2 || args[1] == "" {
+			return fmt.Errorf("usage: cliharbor evidence checksum <file>")
+		}
+		return app.PrintEvidenceChecksum(app.Options{Out: os.Stdout}, args[1])
+	default:
+		return fmt.Errorf("usage: cliharbor evidence <inspect|checksum> ...")
+	}
 }
 
 func parseToolOverrides(values []string) (map[discovery.ToolRef]string, error) {

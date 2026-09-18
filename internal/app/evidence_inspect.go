@@ -16,18 +16,53 @@ const evidencePreviewBytes = 240
 // deterministic operator-side review. The artifact remains inert data: review
 // never loads a pack, discovers an executable, plans a command, or starts a
 // process.
+type EvidenceInspectConfig struct {
+	ExpectedSHA256 string
+}
+
 func InspectEvidence(options Options, path string) error {
+	return InspectEvidenceWithConfig(options, path, EvidenceInspectConfig{})
+}
+
+func InspectEvidenceWithConfig(options Options, path string, config EvidenceInspectConfig) error {
 	if options.Out == nil {
 		return fmt.Errorf("evidence review output writer is required")
 	}
-	bundle, err := evidence.ReadBundle(path)
+	expected := ""
+	if config.ExpectedSHA256 != "" {
+		var err error
+		expected, err = evidence.NormalizeSHA256(config.ExpectedSHA256)
+		if err != nil {
+			return err
+		}
+	}
+	bundle, digest, err := evidence.ReadBundleWithSHA256(path)
 	if err != nil {
 		return err
 	}
-	return printEvidenceReview(options.Out, bundle)
+	verified := false
+	if expected != "" {
+		if err := evidence.VerifySHA256(digest, expected); err != nil {
+			return err
+		}
+		verified = true
+	}
+	return printEvidenceReview(options.Out, bundle, digest, verified)
 }
 
-func printEvidenceReview(out io.Writer, bundle evidence.Bundle) error {
+func PrintEvidenceChecksum(options Options, path string) error {
+	if options.Out == nil {
+		return fmt.Errorf("evidence checksum output writer is required")
+	}
+	_, digest, err := evidence.ReadBundleWithSHA256(path)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(options.Out, "Evidence SHA-256: %s\n", digest)
+	return err
+}
+
+func printEvidenceReview(out io.Writer, bundle evidence.Bundle, digest string, verified bool) error {
 	if _, err := fmt.Fprintf(out,
 		"CLIHarbor Phase 0 evidence review\nSchema: %s\nGenerated: %s\nArtifact: version=%s commit=%s build=%s\nHost: %s",
 		bundle.SchemaVersion, bundle.GeneratedAt.Format("2006-01-02T15:04:05.999999999Z07:00"),
@@ -41,6 +76,13 @@ func printEvidenceReview(out io.Writer, bundle evidence.Bundle) error {
 		}
 	}
 	if _, err := fmt.Fprintf(out, "/%s\nTools: %d\n", bundle.Host.Architecture, len(bundle.Tools)); err != nil {
+		return err
+	}
+	integrity := "calculated only; no independent expected digest supplied"
+	if verified {
+		integrity = "verified against independently supplied expected digest"
+	}
+	if _, err := fmt.Fprintf(out, "Evidence SHA-256: %s\nTransfer integrity: %s\n", digest, integrity); err != nil {
 		return err
 	}
 
@@ -119,7 +161,7 @@ func printEvidenceReview(out io.Writer, bundle evidence.Bundle) error {
 			}
 		}
 	}
-	_, err := fmt.Fprint(out, "\nPROVES:\n- the file satisfies the strict cliharbor.phase0/v1 structural, bounds, internal-consistency, provenance-shape, and sanitization contract\n- tool/probe identities, state combinations, timestamps, and declared probe relationships are internally consistent\n- captured strings passed the evidence bounds and sanitization checks\n\nUNKNOWN:\n- whether the file is authentic or unmodified since export; schema validation is not a signature or attestation\n- whether the reported build, host, and observations genuinely came from the claimed environment\n- whether the evidence is still current after its generated timestamp\n- vendor authentication/session semantics, undocumented command behavior, and output contracts not directly captured here\n- any executable path, candidate path, environment, credential, or backend authority intentionally excluded from the schema\n\nBLOCKED:\n- evidence text never becomes executable pack or argv authority automatically\n- real vendor workflow promotion requires factual human review against the deployed CLI and/or approved documentation\n- auth-required, credential-sensitive, mutating, destructive, and interactive workflows remain outside this Phase 0 review\n")
+	_, err := fmt.Fprint(out, "\nPROVES:\n- the file satisfies the strict cliharbor.phase0/v1 structural, bounds, internal-consistency, provenance-shape, and sanitization contract\n- when transfer integrity is marked verified above, the file bytes match the independently supplied SHA-256\n- tool/probe identities, state combinations, timestamps, and declared probe relationships are internally consistent\n- captured strings passed the evidence bounds and sanitization checks\n\nUNKNOWN:\n- whether the file is authentic or unmodified since export; schema validation is not a signature or attestation\n- whether the reported build, host, and observations genuinely came from the claimed environment\n- whether the evidence is still current after its generated timestamp\n- vendor authentication/session semantics, undocumented command behavior, and output contracts not directly captured here\n- any executable path, candidate path, environment, credential, or backend authority intentionally excluded from the schema\n\nBLOCKED:\n- evidence text never becomes executable pack or argv authority automatically\n- real vendor workflow promotion requires factual human review against the deployed CLI and/or approved documentation\n- auth-required, credential-sensitive, mutating, destructive, and interactive workflows remain outside this Phase 0 review\n")
 	return err
 }
 

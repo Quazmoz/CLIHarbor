@@ -2,6 +2,7 @@ package evidence
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -151,84 +152,93 @@ func Validate(bundle Bundle) error {
 }
 
 func WriteBundle(ctx context.Context, destination string, bundle Bundle) error {
+	_, err := WriteBundleWithSHA256(ctx, destination, bundle)
+	return err
+}
+
+// WriteBundleWithSHA256 atomically creates the evidence bundle and returns the
+// SHA-256 of the exact serialized bytes activated at destination. The digest is
+// transfer-integrity evidence only; it is not a signature or attestation.
+func WriteBundleWithSHA256(ctx context.Context, destination string, bundle Bundle) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return "", err
 	}
 	if err := Validate(bundle); err != nil {
-		return err
+		return "", err
 	}
 	if destination == "" {
-		return fmt.Errorf("evidence export path is required")
+		return "", fmt.Errorf("evidence export path is required")
 	}
 	if !filepath.IsAbs(destination) && containsParentTraversal(destination) {
-		return fmt.Errorf("relative evidence export path may not contain parent traversal")
+		return "", fmt.Errorf("relative evidence export path may not contain parent traversal")
 	}
 	clean := filepath.Clean(destination)
 	if info, err := os.Lstat(clean); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("evidence export path must not be a symlink")
+			return "", fmt.Errorf("evidence export path must not be a symlink")
 		}
-		return fmt.Errorf("evidence export path already exists")
+		return "", fmt.Errorf("evidence export path already exists")
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("inspect evidence export path: %w", err)
+		return "", fmt.Errorf("inspect evidence export path: %w", err)
 	}
 
 	parent := filepath.Dir(clean)
 	info, err := os.Stat(parent)
 	if err != nil {
-		return fmt.Errorf("inspect evidence export directory: %w", err)
+		return "", fmt.Errorf("inspect evidence export directory: %w", err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("evidence export parent is not a directory")
+		return "", fmt.Errorf("evidence export parent is not a directory")
 	}
 
 	payload, err := json.MarshalIndent(bundle, "", "  ")
 	if err != nil {
-		return fmt.Errorf("encode evidence bundle: %w", err)
+		return "", fmt.Errorf("encode evidence bundle: %w", err)
 	}
 	payload = append(payload, '\n')
 	if len(payload) > maxSerializedBundle {
-		return fmt.Errorf("evidence bundle exceeds %d-byte serialized limit", maxSerializedBundle)
+		return "", fmt.Errorf("evidence bundle exceeds %d-byte serialized limit", maxSerializedBundle)
 	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(payload))
 	if err := ctx.Err(); err != nil {
-		return err
+		return "", err
 	}
 
 	temp, err := os.CreateTemp(parent, ".cliharbor-evidence-*.tmp")
 	if err != nil {
-		return fmt.Errorf("create evidence staging file: %w", err)
+		return "", fmt.Errorf("create evidence staging file: %w", err)
 	}
 	tempName := temp.Name()
 	cleanup := func() { _ = os.Remove(tempName) }
 	defer cleanup()
 	if err := temp.Chmod(evidenceFilePermission); err != nil {
 		_ = temp.Close()
-		return fmt.Errorf("protect evidence staging file: %w", err)
+		return "", fmt.Errorf("protect evidence staging file: %w", err)
 	}
 	if _, err := temp.Write(payload); err != nil {
 		_ = temp.Close()
-		return fmt.Errorf("write evidence staging file: %w", err)
+		return "", fmt.Errorf("write evidence staging file: %w", err)
 	}
 	if err := temp.Sync(); err != nil {
 		_ = temp.Close()
-		return fmt.Errorf("sync evidence staging file: %w", err)
+		return "", fmt.Errorf("sync evidence staging file: %w", err)
 	}
 	if err := temp.Close(); err != nil {
-		return fmt.Errorf("close evidence staging file: %w", err)
+		return "", fmt.Errorf("close evidence staging file: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return "", err
 	}
 	if err := os.Link(tempName, clean); err != nil {
 		if _, statErr := os.Lstat(clean); statErr == nil {
-			return fmt.Errorf("evidence export path already exists")
+			return "", fmt.Errorf("evidence export path already exists")
 		}
-		return fmt.Errorf("activate evidence bundle without overwrite: %w", err)
+		return "", fmt.Errorf("activate evidence bundle without overwrite: %w", err)
 	}
-	return nil
+	return digest, nil
 }
 
 // RedactPath replaces common representations of one local path. On Windows the

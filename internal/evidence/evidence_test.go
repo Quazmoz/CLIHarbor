@@ -3,7 +3,9 @@ package evidence
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -62,8 +64,9 @@ func TestWriteBundleCreatesProtectedAtomicJSONAndRefusesOverwrite(t *testing.T) 
 	destination := filepath.Join(dir, "phase0.json")
 	bundle := testBundle()
 
-	if err := WriteBundle(context.Background(), destination, bundle); err != nil {
-		t.Fatalf("WriteBundle() error = %v", err)
+	digest, err := WriteBundleWithSHA256(context.Background(), destination, bundle)
+	if err != nil {
+		t.Fatalf("WriteBundleWithSHA256() error = %v", err)
 	}
 	data, err := os.ReadFile(destination)
 	if err != nil {
@@ -75,6 +78,10 @@ func TestWriteBundleCreatesProtectedAtomicJSONAndRefusesOverwrite(t *testing.T) 
 	}
 	if decoded.SchemaVersion != SchemaVersion || len(decoded.Tools) != 1 {
 		t.Fatalf("decoded export = %#v", decoded)
+	}
+	wantDigest := fmt.Sprintf("%x", sha256.Sum256(data))
+	if digest != wantDigest {
+		t.Fatalf("digest = %q, want %q", digest, wantDigest)
 	}
 	if bytes.Contains(data, []byte("0001-01-01")) {
 		t.Fatalf("export serialized zero-value probe timestamp: %s", data)

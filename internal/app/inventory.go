@@ -104,11 +104,15 @@ func Inventory(ctx context.Context, options Options, config InventoryConfig) err
 		return err
 	}
 	if config.ExportPath != "" {
-		if err := evidence.WriteBundle(ctx, config.ExportPath, bundle); err != nil {
+		digest, err := evidence.WriteBundleWithSHA256(ctx, config.ExportPath, bundle)
+		if err != nil {
 			return fmt.Errorf("export Phase 0 evidence: %w", err)
 		}
-		if _, err := fmt.Fprintf(options.Out, "\nSanitized Phase 0 evidence exported to: %s\n", config.ExportPath); err != nil {
+		if _, err := fmt.Fprintf(options.Out, "\nSanitized Phase 0 evidence exported to: %s\nEvidence SHA-256: %s\n", config.ExportPath, digest); err != nil {
 			return fmt.Errorf("write inventory export status: %w", err)
+		}
+		if _, err := fmt.Fprintln(options.Out, "Retain the SHA-256 independently from the JSON and verify it during review; a checksum detects byte changes but is not a signature or attestation."); err != nil {
+			return fmt.Errorf("write inventory integrity guidance: %w", err)
 		}
 		if _, err := fmt.Fprintln(options.Out, "Review the JSON before sharing it; CLIHarbor intentionally excludes executable paths, environment dumps, browser secrets, and credential-store contents."); err != nil {
 			return fmt.Errorf("write inventory export guidance: %w", err)
