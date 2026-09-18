@@ -93,7 +93,8 @@ Phase 4 adds the low-level secure execution boundary:
 - discovery-time executable file identity carried into each plan and revalidated immediately before execution so a same-path replacement is rejected;
 - direct `os/exec` execution with a neutral temporary working directory, generated run IDs, separate stdout/stderr events, bounded output, deadlines, cancellation, non-zero exit preservation, and `exec.Cmd.WaitDelay` protection against inherited output handles;
 - a platform lifecycle boundary: Windows starts the target suspended, assigns it to a per-run Job Object configured with kill-on-close, then resumes it so descendants cannot escape before ownership is established; cancellation, timeout, output exhaustion, sink failure, and normal run teardown all close or terminate that boundary;
-- regression coverage for argv boundaries, malformed values, executable replacement, spaces/Unicode, cancellation races, setup failure cleanup, and Windows descendant cleanup.
+- regression coverage for argv boundaries, malformed values, executable replacement, spaces/Unicode, cancellation races, setup failure cleanup, and Windows descendant cleanup;
+- a Phase 4b integration proof that loads an explicit trusted fixture pack through the real loader, resolves the synthetic CLI through backend-only discovery override and version probing, builds a typed plan, executes it, and verifies exact argv/output/exit/cancellation behavior against direct fixture execution.
 
 The planner/executor is currently an internal backend boundary. There is still **no browser run API or task execution UI**, no auth-required or secret-bearing execution, and no real Idira/CyberArk command pack. Phase 0 vendor inventory remains required before any real vendor command definitions are added.
 
@@ -198,4 +199,4 @@ Those properties reinforce CLIHarbor's core boundary: **invoke the official CLI 
 
 ## Status
 
-Phases 1-4 now include the secure local browser runtime, trusted versioned pack model/loader, fail-closed tool discovery/version probing with `doctor`, and an internal deterministic read-only planner/executor with Windows descendant-process ownership. The next bounded milestone is fixture-backed end-to-end execution integration before exposing browser run APIs. Real vendor command definitions remain blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.
+Phases 1-4 now include the secure local browser runtime, trusted versioned pack model/loader, fail-closed tool discovery/version probing with `doctor`, an internal deterministic read-only planner/executor with Windows descendant-process ownership, and a fixture-backed end-to-end proof of the loader → discovery → planner → executor chain. The next bounded milestone is the authenticated local browser execution/streaming API for read-only fixture tasks, without widening executable or argv authority. Real vendor command definitions remain blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.
