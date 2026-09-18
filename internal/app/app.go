@@ -19,6 +19,8 @@ import (
 type Options struct {
 	Out           io.Writer
 	Version       string
+	Commit        string
+	BuildMode     string
 	Browser       browser.Launcher
 	WebDevURL     string
 	PackFiles     []string
