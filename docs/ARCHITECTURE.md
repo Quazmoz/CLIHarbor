@@ -331,11 +331,11 @@ operator flags
   -> bounded direct probe process
   -> sanitizer
   -> typed cliharbor.phase0/v1 evidence
-  -> atomic non-overwriting JSON export
+  -> atomic no-clobber JSON export
 ```
 
-The browser has no inventory/probe endpoint and cannot choose executable path, probe ID, or argv. Probe selectors contain only stable pack/tool/probe IDs. Version probes reuse the existing pack declaration; help evidence uses the optional `helpProbes` declarations.
+The browser has no inventory/probe endpoint and cannot choose executable path, probe ID, or argv. Probe selectors contain only stable pack/tool/probe IDs. Version probes reuse the existing pack declaration; help evidence uses the optional `helpProbes` declarations. Exported probe records include only the sanitized fixed argument vector from that trusted declaration, never the resolved executable path.
 
-The probe process uses the same platform lifecycle ownership abstraction as normal execution. On Windows that means suspended start, Job Object assignment before resume, and descendant termination on cancellation. Evidence probes use no shell, no interactive stdin, a neutral temporary cwd, a minimal environment, and strict timeout/output limits.
+Both discovery-time version probes and operator-selected evidence probes use the same platform lifecycle ownership abstraction as normal execution. On Windows that means suspended start, Job Object assignment before resume, descendant termination on timeout/cancellation, and kill-on-close protection after root completion. Probes use no shell, no interactive stdin, a neutral temporary cwd, a minimal environment, and strict timeout/output limits. Version discovery also fails closed on truncated or invalid-UTF-8 probe output.
 
 The Windows evaluation build cross-compiles to `windows/amd64` with the production frontend already embedded. Build metadata is linker-injected and visible through `cliharbor version`. CI does not upload the evaluation artifact until Windows/Linux quality, dependency-vulnerability, and race-detector jobs pass.
