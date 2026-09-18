@@ -206,3 +206,36 @@ Those properties reinforce CLIHarbor's core boundary: **invoke the official CLI 
 ## Status
 
 Phases 1-4 now include the secure local browser runtime, trusted versioned pack model/loader, fail-closed tool discovery/version probing with `doctor`, deterministic read-only planning/execution with Windows descendant ownership, a fixture-backed execution proof, Phase 4c-A authenticated create/status/cancel APIs, and Phase 4c-B bounded SSE replay plus a minimal safe task/run UI. The next product milestone is the first verified read-only Idira workflow after Phase 0 vendor inventory; auth orchestration and structured rendering remain later work. Real vendor command definitions remain blocked on verified inventory of the exact deployed CLI versions and command trees.
+
+## Windows work-laptop evaluation
+
+CLIHarbor now has a dedicated unsigned Windows x64 evaluation build for the Phase 0 company-laptop test.
+
+Build locally from a checkout:
+
+```text
+go run ./tools/task windows-eval
+```
+
+Output:
+
+```text
+bin/cliharbor-windows-x64-evaluation.exe
+bin/SHA256SUMS
+```
+
+CI uploads `cliharbor-windows-x64-evaluation-<commit-sha>` only after Windows/Linux quality, dependency-vulnerability, and race-detector jobs pass. The artifact also includes the discovery-only `packs/phase0/idira-cyberark-inventory.yaml` pack.
+
+Useful evaluation commands:
+
+```text
+cliharbor-windows-x64-evaluation.exe version
+cliharbor-windows-x64-evaluation.exe self-test
+cliharbor-windows-x64-evaluation.exe inventory --pack-file ..\packs\phase0\idira-cyberark-inventory.yaml
+```
+
+`inventory` is CLI/operator-only. It exposes no browser command/path authority, does not enumerate credentials or the full environment, and only runs evidence probes that are fixed in an explicitly trusted pack and explicitly selected with `--probe`. Evidence export uses the typed bounded `cliharbor.phase0/v1` schema and atomic non-overwriting files.
+
+No Idira/CyberArk help/version argv is guessed in the repository. The supplied Phase 0 pack declares only the `idsec` and `conjur` executable basenames already recorded in project documentation and contains no commands or probes.
+
+See [docs/WORK_LAPTOP_EVALUATION.md](docs/WORK_LAPTOP_EVALUATION.md) for the exact company-managed-laptop procedure, security caveats, hash verification, browser fallback, troubleshooting, and cleanup.
