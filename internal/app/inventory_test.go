@@ -9,6 +9,7 @@ import (
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/evidence"
+	"github.com/Quazmoz/CLIHarbor/internal/packs"
 )
 
 func TestInventoryWithoutPacksIsSafeAndInformational(t *testing.T) {
@@ -122,5 +123,32 @@ func TestInventoryRejectsUnknownProbeWithoutExecutingAnything(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "unknown configured tool") {
 		t.Fatalf("Inventory() error = %v", err)
+	}
+}
+
+func TestRunInventoryProbeIncludesSanitizedDeclaredArgumentsWhenUnavailable(t *testing.T) {
+	selector := probeSelector{
+		raw: "demo/vendor/root", packID: "demo", toolID: "vendor", probeID: "root",
+	}
+	tool := packs.Tool{
+		ExecutableNames: []string{"vendor"},
+		HelpProbes: map[string]packs.HelpProbe{
+			"root": {Args: []string{"--help", "token=supersecret"}},
+		},
+	}
+	record, err := runInventoryProbe(context.Background(), discovery.ToolState{
+		PackID: "demo", ToolID: "vendor", Status: discovery.StatusMissing,
+	}, tool, selector)
+	if err != nil {
+		t.Fatalf("runInventoryProbe() error = %v", err)
+	}
+	if record.Status != "unavailable" {
+		t.Fatalf("status = %q, want unavailable", record.Status)
+	}
+	if len(record.Arguments) != 2 || record.Arguments[0] != "--help" {
+		t.Fatalf("arguments = %#v", record.Arguments)
+	}
+	if strings.Contains(record.Arguments[1], "supersecret") || !strings.Contains(record.Arguments[1], "[REDACTED]") {
+		t.Fatalf("secret-like argument not sanitized: %#v", record.Arguments)
 	}
 }
