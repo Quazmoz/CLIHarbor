@@ -134,6 +134,11 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request, runID s
 		writeAPIError(w, http.StatusBadRequest, "invalid_cursor")
 		return
 	}
+	if !s.acquireRunStream() {
+		writeAPIError(w, http.StatusTooManyRequests, "stream_capacity")
+		return
+	}
+	defer s.releaseRunStream()
 
 	controller := http.NewResponseController(w)
 	if err := controller.SetWriteDeadline(time.Time{}); err != nil {
@@ -172,6 +177,19 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request, runID s
 			return
 		}
 	}
+}
+
+func (s *Server) acquireRunStream() bool {
+	select {
+	case s.runStreamSlots <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Server) releaseRunStream() {
+	<-s.runStreamSlots
 }
 
 func parseLastEventID(value string) (uint64, error) {
