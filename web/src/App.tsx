@@ -23,6 +23,7 @@ interface RunView {
   stdout: string;
   stderr: string;
   streamMessage: string;
+  lastSequence: number;
 }
 
 function errorMessage(error: unknown): { message: string; sessionUnavailable: boolean } {
@@ -90,6 +91,9 @@ function requestValues(task: Task, formValues: Record<string, FormValue>): Recor
 }
 
 function appendRunEvent(current: RunView, event: RunEvent): RunView {
+  if (event.sequence <= current.lastSequence) {
+    return current;
+  }
   let stdout = current.stdout;
   let stderr = current.stderr;
   if (event.dataBase64 !== undefined) {
@@ -105,6 +109,7 @@ function appendRunEvent(current: RunView, event: RunEvent): RunView {
     stdout,
     stderr,
     streamMessage: '',
+    lastSequence: event.sequence,
   };
 }
 
@@ -117,6 +122,7 @@ function completeRun(current: RunView, complete: RunComplete): RunView {
       exitCode: complete.exitCode,
     },
     streamMessage: '',
+    lastSequence: Math.max(current.lastSequence, complete.sequence),
   };
 }
 
@@ -213,10 +219,22 @@ export function App() {
     return state.tasks.find((task) => `${task.packId}/${task.commandId}` === selectedTaskKey) ?? state.tasks[0];
   }, [selectedTaskKey, state]);
 
+  const acceptRuntime = (status: RuntimeStatus, tasks: Task[]) => {
+    setState({ kind: 'ready', status, tasks });
+    const firstTask = tasks[0];
+    if (firstTask === undefined) {
+      setSelectedTaskKey('');
+      setFormValues({});
+      return;
+    }
+    setSelectedTaskKey(`${firstTask.packId}/${firstTask.commandId}`);
+    setFormValues(initialValues(firstTask));
+  };
+
   const retryStatus = () => {
     setState({ kind: 'loading' });
     void loadRuntime().then(
-      ({ status, tasks }) => setState({ kind: 'ready', status, tasks }),
+      ({ status, tasks }) => acceptRuntime(status, tasks),
       (error: unknown) => setState({ kind: 'error', ...errorMessage(error) }),
     );
   };
@@ -224,7 +242,7 @@ export function App() {
   useEffect(() => {
     const controller = new AbortController();
     void loadRuntime(controller.signal).then(
-      ({ status, tasks }) => setState({ kind: 'ready', status, tasks }),
+      ({ status, tasks }) => acceptRuntime(status, tasks),
       (error: unknown) => {
         if (!isAbort(error)) {
           setState({ kind: 'error', ...errorMessage(error) });
@@ -234,21 +252,14 @@ export function App() {
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    if (selectedTask === undefined) {
-      setFormValues({});
-      return;
-    }
-    setSelectedTaskKey(`${selectedTask.packId}/${selectedTask.commandId}`);
-    setFormValues(initialValues(selectedTask));
-  }, [selectedTask?.packId, selectedTask?.commandId]);
+  const activeRunID = run?.snapshot.status === 'running' ? run.snapshot.runId : null;
 
   useEffect(() => {
-    if (run === null || run.snapshot.status !== 'running') {
+    if (activeRunID === null) {
       return;
     }
     const close = subscribeRunEvents(
-      run.snapshot.runId,
+      activeRunID,
       (event) => setRun((current) => (current === null ? current : appendRunEvent(current, event))),
       (complete) => setRun((current) => (current === null ? current : completeRun(current, complete))),
       (error) =>
@@ -262,7 +273,7 @@ export function App() {
         ),
     );
     return close;
-  }, [run?.snapshot.runId, run?.snapshot.status]);
+  }, [activeRunID]);
 
   const startRun = async (event: FormEvent) => {
     event.preventDefault();
@@ -277,7 +288,7 @@ export function App() {
         commandId: selectedTask.commandId,
         values: requestValues(selectedTask, formValues),
       });
-      setRun({ snapshot, stdout: '', stderr: '', streamMessage: '' });
+      setRun({ snapshot, stdout: '', stderr: '', streamMessage: '', lastSequence: 0 });
     } catch (error) {
       setRunError(error instanceof Error ? error.message : 'CLIHarbor could not start the run.');
     } finally {
@@ -377,7 +388,12 @@ export function App() {
                       <span>Available task</span>
                       <select
                         value={selectedTaskKey}
-                        onChange={(event) => setSelectedTaskKey(event.target.value)}
+                        onChange={(event) => {
+                          const key = event.target.value;
+                          setSelectedTaskKey(key);
+                          const task = state.tasks.find((candidate) => `${candidate.packId}/${candidate.commandId}` === key);
+                          setFormValues(initialValues(task));
+                        }}
                         disabled={run?.snapshot.status === 'running'}
                       >
                         {state.tasks.map((task) => {
