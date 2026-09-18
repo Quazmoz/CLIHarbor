@@ -196,8 +196,10 @@ func runInventoryProbe(ctx context.Context, state discovery.ToolState, tool pack
 		return record, nil
 	}
 
-	record.StartedAt = result.StartedAt
-	record.EndedAt = result.EndedAt
+	startedAt := result.StartedAt
+	endedAt := result.EndedAt
+	record.StartedAt = &startedAt
+	record.EndedAt = &endedAt
 	record.TimedOut = result.TimedOut
 	record.Cancelled = result.Cancelled
 	record.Truncated = result.Truncated
