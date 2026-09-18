@@ -169,6 +169,78 @@ describe('App', () => {
     ).toBe(false);
   });
 
+  test('bounds repeated stream failures and reconciles terminal run state', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const runID = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+        );
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                inputs: [],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        return Promise.resolve(
+          response(202, {
+            runId: runID,
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            status: 'running',
+          }),
+        );
+      }
+      if (path === `/api/v1/runs/${runID}` && (init?.method === undefined || init.method === 'GET')) {
+        return Promise.resolve(
+          response(200, {
+            runId: runID,
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            status: 'exited',
+            exitCode: 0,
+          }),
+        );
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Run task' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
+
+    const source = FakeEventSource.latest;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      source?.onerror?.(new Event('error'));
+    }
+
+    await waitFor(() => expect(source?.closed).toBe(true));
+    expect(await screen.findByRole('heading', { name: 'exited' })).toBeInTheDocument();
+    expect(screen.getByText(/stopped after repeated disconnects/i)).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input]) => requestPath(input as RequestInfo | URL) === `/api/v1/runs/${runID}`),
+    ).toBe(true);
+  });
+
   test('submits only typed task values and renders streamed output as inert text', async () => {
     vi.stubGlobal('EventSource', FakeEventSource);
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
