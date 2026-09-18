@@ -304,7 +304,7 @@ The qualified Windows evaluation path must:
 - retain explicit `GOOS=windows` and `GOARCH=amd64`;
 - replace inherited environment entries rather than appending duplicate effective keys.
 
-CI resolves Go from `.go-version`. Before producing the upload candidate it runs `verify-windows-eval-repro`, which stages the trusted Phase 0 pack into two distinct temporary roots, builds the evaluation executable twice, verifies each bundle with the normal authoritative verifier, and requires the two `EVALUATION_SHA256SUMS` files to be byte-identical.
+CI resolves Go from `.go-version`. After producing the upload candidate it runs `verify-windows-eval-repro`, which first verifies that candidate, stages the trusted Phase 0 pack into two distinct temporary roots, builds the evaluation executable twice, verifies each staged bundle with the normal authoritative verifier, and requires the candidate plus both rebuilds to have byte-identical `EVALUATION_SHA256SUMS` files.
 
 ### Rationale
 
