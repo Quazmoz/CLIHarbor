@@ -116,5 +116,6 @@ jobs:
           path: |
             bin/cliharbor-windows-x64-evaluation.exe
             bin/SHA256SUMS
+            packs/phase0/idira-cyberark-inventory.yaml
           if-no-files-found: error
           retention-days: 14
