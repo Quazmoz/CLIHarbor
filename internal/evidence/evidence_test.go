@@ -1,6 +1,7 @@
 package evidence
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -74,6 +75,12 @@ func TestWriteBundleCreatesProtectedAtomicJSONAndRefusesOverwrite(t *testing.T) 
 	}
 	if decoded.SchemaVersion != SchemaVersion || len(decoded.Tools) != 1 {
 		t.Fatalf("decoded export = %#v", decoded)
+	}
+	if bytes.Contains(data, []byte("0001-01-01")) {
+		t.Fatalf("export serialized zero-value probe timestamp: %s", data)
+	}
+	if !bytes.Contains(data, []byte(`"arguments": [`)) {
+		t.Fatalf("export omitted probe argument identity: %s", data)
 	}
 	if runtime.GOOS != "windows" {
 		info, err := os.Stat(destination)
