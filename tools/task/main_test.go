@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestHasExpectedModuleLineAcceptsCommonLineEndings(t *testing.T) {
 	t.Parallel()
@@ -21,5 +25,43 @@ func TestHasExpectedModuleLineRejectsDifferentModule(t *testing.T) {
 
 	if hasExpectedModuleLine([]byte("module example.invalid/other\n")) {
 		t.Fatal("unexpected module line accepted")
+	}
+}
+
+
+func TestWriteSHA256SumsWritesDeterministicArtifactEntry(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	artifact := filepath.Join(dir, "cliharbor-test")
+	if err := os.WriteFile(artifact, []byte("hello"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(dir, "SHA256SUMS")
+	if err := writeSHA256Sums(artifact, destination); err != nil {
+		t.Fatalf("writeSHA256Sums() error = %v", err)
+	}
+
+	got, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824  cliharbor-test\n"
+	if string(got) != want {
+		t.Fatalf("checksum file = %q, want %q", got, want)
+	}
+
+	if err := os.WriteFile(artifact, []byte("hello again"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSHA256Sums(artifact, destination); err != nil {
+		t.Fatalf("second writeSHA256Sums() error = %v", err)
+	}
+	second, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(second) == want {
+		t.Fatal("checksum file was not replaced after artifact changed")
 	}
 }
