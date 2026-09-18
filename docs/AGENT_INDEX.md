@@ -8,7 +8,7 @@ CLIHarbor has completed the **Phase 1 local-runtime foundation**, **Phase 2 pack
 
 The pack foundation supports schema version `cliharbor.dev/v1`, built-in pack bytes, and explicitly requested local YAML files/directories. Tool discovery considers only absolute PATH entries or explicit backend-only overrides tied to declared pack/tool IDs; it rejects ambiguity rather than taking the first match. Version probes are fixed pack-authored argv with bounded time/output and no shell. Repository/cwd packs still receive no implicit trust.
 
-The internal planner/executor now exists for the constrained read-only safety envelope, and Phase 4b proves the explicit-local pack → discovery/version probe → planner → executor path with a synthetic fixture CLI. Browser run/task APIs and UI, auth execution, secret-bearing output handling, mutating/destructive execution, persisted run state, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
+The internal planner/executor exists for the constrained read-only safety envelope, and Phase 4b proves the explicit-local pack → discovery/version probe → planner → executor path with a synthetic fixture CLI. Phase 4c-A adds authenticated create/get/cancel run APIs backed by a bounded in-memory run manager. Browser requests still cannot choose executable/path/argv authority. Live event streaming/task UI, auth execution, secret-bearing output handling, mutating/destructive execution, persisted run state, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
 
 ## Read order
 
@@ -75,6 +75,12 @@ Canonical implementation: `../internal/executor/`.
 
 Use for direct `os/exec` invocation, run events, output bounds, timeout/cancellation, neutral working directories, executable revalidation, and platform process-lifecycle ownership. Windows uses a per-run Job Object with suspended start/assignment-before-resume.
 
+### Run orchestration
+
+Canonical implementation: `../internal/runs/` and `../internal/server/run_api.go`.
+
+Use for bounded in-memory run ownership, create/get/cancel semantics, browser-safe snapshots, concurrency/retention limits, and the authenticated loopback run API.
+
 ### User experience
 
 Canonical: `UX.md`
@@ -134,6 +140,8 @@ The planner accepts only validated pack commands plus current ready discovery st
 
 Phase 4b integration coverage uses an explicitly trusted local fixture pack, backend-only executable override, fixed version probe/constraint, typed planner request, and real executor; it compares stdout/stderr/exit behavior to direct invocation and exercises cancellation after observable output. This is still not exposed through browser run APIs.
 
-The next bounded milestone is the authenticated browser execution/streaming boundary for read-only fixture tasks. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk command definitions.
+Phase 4c-A now exposes authenticated create/get/cancel run APIs with strict JSON/UTF-8/duplicate-key/body-size validation, existing Host/Origin/CSRF/session protections, Base64 output events in bounded snapshots, bounded concurrency/retention, and application-owned shutdown cancellation. The current React shell only retains the CSRF token; it does not yet expose task/run controls.
+
+The next bounded milestone is Phase 4c-B: live bounded event streaming and the minimal fixture task/run UI. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk command definitions.
 
 Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, or guessed Idira/CyberArk commands.
