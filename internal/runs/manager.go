@@ -14,6 +14,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/executor"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
 	"github.com/Quazmoz/CLIHarbor/internal/planner"
+	"github.com/Quazmoz/CLIHarbor/internal/structured"
 )
 
 const (
@@ -79,8 +80,9 @@ type Snapshot struct {
 	Status      Status     `json:"status"`
 	StartedAt   *time.Time `json:"startedAt,omitempty"`
 	EndedAt     *time.Time `json:"endedAt,omitempty"`
-	ExitCode    *int       `json:"exitCode,omitempty"`
-	Events      []Event    `json:"events,omitempty"`
+	ExitCode    *int               `json:"exitCode,omitempty"`
+	Structured  *structured.Result `json:"structured,omitempty"`
+	Events      []Event            `json:"events,omitempty"`
 }
 
 type EventBatch struct {
@@ -130,11 +132,16 @@ type record struct {
 	endedAt     *time.Time
 	exitCode    *int
 	events      []Event
-	eventBytes  int64
-	nextSeq     uint64
-	cancel      context.CancelFunc
-	done        chan struct{}
-	changed     chan struct{}
+	eventBytes         int64
+	nextSeq            uint64
+	cancel             context.CancelFunc
+	done               chan struct{}
+	changed            chan struct{}
+	structuredSpec     *packs.StructuredOutput
+	structuredRenderer string
+	structuredStdout   []byte
+	structuredTooLarge bool
+	structuredResult   *structured.Result
 }
 
 func NewManager(parent context.Context, registry *packs.Registry, snapshot discovery.Snapshot, config Config) (*Manager, error) {
@@ -244,10 +251,12 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 		commandID:   plan.CommandID,
 		toolID:      plan.ToolID,
 		toolVersion: plan.ToolVersion,
-		status:      StatusRunning,
-		cancel:      cancel,
-		done:        make(chan struct{}),
-		changed:     make(chan struct{}),
+		status:             StatusRunning,
+		cancel:             cancel,
+		done:               make(chan struct{}),
+		changed:            make(chan struct{}),
+		structuredSpec:     cloneStructuredSpec(plan.Output.Structured),
+		structuredRenderer: plan.Output.Renderer,
 	}
 	m.runs[runID] = rec
 	m.order = append(m.order, runID)
@@ -400,6 +409,35 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 		return m.recordEvent(rec, event)
 	}))
 
+	var parsed *structured.Result
+	if rec.structuredSpec != nil {
+		m.mu.Lock()
+		spec := cloneStructuredSpec(rec.structuredSpec)
+		renderer := rec.structuredRenderer
+		stdout := append([]byte(nil), rec.structuredStdout...)
+		tooLarge := rec.structuredTooLarge
+		m.mu.Unlock()
+
+		var value structured.Result
+		switch {
+		case runErr != nil:
+			value = structured.Unavailable(renderer, structured.ErrExecutionFailed)
+		case result.Status == executor.StatusCancelled:
+			value = structured.Unavailable(renderer, structured.ErrRunCancelled)
+		case result.Status == executor.StatusTimedOut:
+			value = structured.Unavailable(renderer, structured.ErrRunTimedOut)
+		case result.Status != executor.StatusExited:
+			value = structured.Unavailable(renderer, structured.ErrExecutionFailed)
+		case result.ExitCode != 0:
+			value = structured.Unavailable(renderer, structured.ErrNonzeroExit)
+		case tooLarge:
+			value = structured.Invalid(renderer, structured.ErrOutputTooLarge)
+		default:
+			value = structured.Parse(ctx, stdout, *spec, renderer)
+		}
+		parsed = &value
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if rec.status != StatusRunning {
@@ -429,6 +467,7 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 			rec.exitCode = &code
 		}
 	}
+	rec.structuredResult = parsed
 	rec.signalChangedLocked()
 	close(rec.done)
 }
@@ -442,6 +481,14 @@ func (m *Manager) recordEvent(rec *record, event executor.Event) error {
 	dataBytes := int64(len(event.Data))
 	if rec.eventBytes+dataBytes > m.config.MaxEventBytesPerRun || len(rec.events) >= m.config.MaxEventsPerRun {
 		return errors.New("run event buffer exhausted")
+	}
+	if rec.structuredSpec != nil && event.Type == executor.EventStdout && len(event.Data) != 0 && !rec.structuredTooLarge {
+		if len(event.Data) > structured.MaxInputBytes-len(rec.structuredStdout) {
+			rec.structuredTooLarge = true
+			rec.structuredStdout = nil
+		} else {
+			rec.structuredStdout = append(rec.structuredStdout, event.Data...)
+		}
 	}
 	rec.nextSeq++
 	stored := Event{
@@ -503,6 +550,7 @@ func (r *record) snapshot() Snapshot {
 		StartedAt:   cloneTime(r.startedAt),
 		EndedAt:     cloneTime(r.endedAt),
 		ExitCode:    cloneInt(r.exitCode),
+		Structured:  cloneStructuredResult(r.structuredResult),
 		Events:      events,
 	}
 }
@@ -555,6 +603,24 @@ func cloneValues(values map[string]json.RawMessage) map[string]json.RawMessage {
 		out[key] = append(json.RawMessage(nil), value...)
 	}
 	return out
+}
+
+func cloneStructuredSpec(value *packs.StructuredOutput) *packs.StructuredOutput {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	cloned.Fields = append([]packs.StructuredField(nil), value.Fields...)
+	return &cloned
+}
+
+func cloneStructuredResult(value *structured.Result) *structured.Result {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	cloned.Fields = append([]structured.Field(nil), value.Fields...)
+	return &cloned
 }
 
 func cloneInt(value *int) *int {
