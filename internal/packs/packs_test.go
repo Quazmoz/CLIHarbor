@@ -225,6 +225,74 @@ func TestParseRejectsInvalidPacks(t *testing.T) {
 	}
 }
 
+
+func TestParseStructuredOutputContract(t *testing.T) {
+	good := strings.Replace(minimalPack, "      mode: raw", `      mode: json
+      renderer: cards
+      structured:
+        fields:
+          - key: name
+            label: Name
+            type: string
+            required: true
+          - key: count
+            label: Count
+            type: integer
+`, 1)
+	pack, err := Parse([]byte(good))
+	if err != nil {
+		t.Fatalf("Parse() structured error = %v", err)
+	}
+	structured := pack.Commands["status"].Output.Structured
+	if structured == nil || len(structured.Fields) != 2 || structured.Fields[0].Key != "name" {
+		t.Fatalf("structured output = %#v", structured)
+	}
+
+	tests := []struct {
+		name string
+		data string
+		code ErrorCode
+	}{
+		{name: "requires json mode", data: strings.Replace(good, "mode: json", "mode: raw", 1), code: ErrSemantic},
+		{name: "cards only", data: strings.Replace(good, "renderer: cards", "renderer: table", 1), code: ErrSemantic},
+		{name: "duplicate field key", data: strings.Replace(good, "          - key: count", "          - key: name", 1), code: ErrSemantic},
+		{name: "sensitive field refused", data: strings.Replace(good, "            required: true", "            required: true\n            sensitive: true", 1), code: ErrSemantic},
+		{name: "secret-bearing structured refused", data: strings.Replace(good, "      structured:", "      sensitivity:\n        containsSecrets: true\n      structured:", 1), code: ErrSemantic},
+		{name: "unknown structured property", data: strings.Replace(good, "            type: string", "            type: string\n            transform: template", 1), code: ErrSchema},
+		{name: "nested type unsupported", data: strings.Replace(good, "type: string", "type: object", 1), code: ErrSchema},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := Parse([]byte(test.data))
+			assertCode(t, err, test.code)
+		})
+	}
+}
+
+func TestRegistryDeepCopiesStructuredOutput(t *testing.T) {
+	data := strings.Replace(minimalPack, "      mode: raw", `      mode: json
+      renderer: cards
+      structured:
+        fields:
+          - key: name
+            label: Name
+            type: string
+`, 1)
+	registry, err := NewLoader().LoadBuiltins(map[string][]byte{"demo.yaml": []byte(data)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, ok := registry.FindCommand("demo", "status")
+	if !ok || first.Output.Structured == nil {
+		t.Fatal("structured command missing")
+	}
+	first.Output.Structured.Fields[0].Key = "tampered"
+	second, _ := registry.FindCommand("demo", "status")
+	if second.Output.Structured.Fields[0].Key != "name" {
+		t.Fatal("registry structured output mutated through returned command")
+	}
+}
+
 func TestParseRejectsInvalidUTF8AndOversize(t *testing.T) {
 	_, err := Parse([]byte{0xff, 0xfe})
 	assertCode(t, err, ErrInvalidEncoding)
