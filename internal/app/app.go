@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
+	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 	"github.com/Quazmoz/CLIHarbor/internal/webui"
 )
@@ -41,12 +43,24 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
+	runManager, err := runs.NewManager(ctx, runtimeState.Registry, runtimeState.Discovery, runs.Config{})
+	if err != nil {
+		return fmt.Errorf("configure run manager: %w", err)
+	}
+	shutdownRuns := func() error {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return runManager.Shutdown(shutdownCtx)
+	}
+
 	frontend, err := frontendHandler(options.WebDevURL)
 	if err != nil {
+		_ = shutdownRuns()
 		return err
 	}
-	s, err := server.New(server.Config{Version: options.Version, Frontend: frontend})
+	s, err := server.New(server.Config{Version: options.Version, Frontend: frontend, Runs: runManager})
 	if err != nil {
+		_ = shutdownRuns()
 		return err
 	}
 
@@ -54,13 +68,31 @@ func Run(ctx context.Context, options Options) error {
 	launchErr := options.Browser.OpenBootstrap(bootstrapURL)
 	if err := writeStartupStatus(options.Out, options.Version, s.BaseURL(), bootstrapURL, launchErr, runtimeState); err != nil {
 		closeErr := s.Close()
-		if closeErr != nil {
+		runShutdownErr := shutdownRuns()
+		switch {
+		case closeErr != nil && runShutdownErr != nil:
+			return fmt.Errorf("write startup status: %w (close listener: %v; shutdown runs: %v)", err, closeErr, runShutdownErr)
+		case closeErr != nil:
 			return fmt.Errorf("write startup status: %w (close listener: %v)", err, closeErr)
+		case runShutdownErr != nil:
+			return fmt.Errorf("write startup status: %w (shutdown runs: %v)", err, runShutdownErr)
+		default:
+			return fmt.Errorf("write startup status: %w", err)
 		}
-		return fmt.Errorf("write startup status: %w", err)
 	}
 
-	return s.Run(ctx)
+	serverErr := s.Run(ctx)
+	runShutdownErr := shutdownRuns()
+	if serverErr != nil && runShutdownErr != nil {
+		return fmt.Errorf("%v (shutdown runs: %w)", serverErr, runShutdownErr)
+	}
+	if serverErr != nil {
+		return serverErr
+	}
+	if runShutdownErr != nil {
+		return fmt.Errorf("shutdown runs: %w", runShutdownErr)
+	}
+	return nil
 }
 
 func frontendHandler(webDevURL string) (http.Handler, error) {
