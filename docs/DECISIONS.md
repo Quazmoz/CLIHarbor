@@ -280,3 +280,63 @@ Negative:
 ### Supersedes / superseded by
 
 - Refines ADR-019 by superseding only its ambiguous dual-manifest evaluation-packaging interpretation. ADR-019's requirement that both the executable and trusted Phase 0 pack be integrity-covered remains in force.
+
+
+## ADR-022 — Pin and qualify Windows evaluation build inputs
+
+**Date:** 2026-09-18  
+**Status:** Accepted.
+
+### Context
+
+The evaluation artifact previously used `-trimpath` and disabled cgo, but the repository task still inherited the caller's Go configuration. Per-user `go env -w` values, `GOFLAGS`, workspace selection, toolchain auto-switching, architecture level, FIPS module selection, or an inherited `GOROOT` could therefore become undeclared build inputs. A checksum can faithfully identify such a build without proving that it was built under the intended configuration.
+
+### Decision
+
+The qualified Windows evaluation path must:
+
+- require the exact Go patch release in `.go-version`;
+- force `GOTOOLCHAIN=local`;
+- disable `GOENV` and `GOWORK`;
+- clear inherited `GOFLAGS`, `GOEXPERIMENT`, `GODEBUG`, and `GOROOT`;
+- pin `GOAMD64=v1`, `GOFIPS140=off`, and `CGO_ENABLED=0`;
+- retain explicit `GOOS=windows` and `GOARCH=amd64`;
+- replace inherited environment entries rather than appending duplicate effective keys.
+
+CI resolves Go from `.go-version`. Before producing the upload candidate it runs `verify-windows-eval-repro`, which stages the trusted Phase 0 pack into two distinct temporary roots, builds the evaluation executable twice, verifies each bundle with the normal authoritative verifier, and requires the two `EVALUATION_SHA256SUMS` files to be byte-identical.
+
+### Rationale
+
+The Go toolchain documents `GOENV` as a persistent user configuration source, `GOTOOLCHAIN` as capable of selecting or downloading another toolchain, and `GOFIPS140`/`GOAMD64` as build-affecting inputs. Go's reproducible-build guidance recommends cgo-disabled `-trimpath` builds and explicitly notes that unintended environment inputs can leak into outputs. Pinning these inputs makes the evaluation artifact contract reviewable and reduces local/CI drift.
+
+### Consequences
+
+Positive:
+
+- evaluation builds fail closed on the wrong Go patch release;
+- per-user Go configuration/workspaces/default flags cannot silently change the qualified build;
+- CI workflow YAML no longer duplicates the Go patch version;
+- two isolated same-checkout rebuilds must agree before packaging continues;
+- the reproduction task does not publish or replace the real evaluation artifact.
+
+Negative:
+
+- developers need the exact `.go-version` toolchain to create evaluation builds;
+- organization-specific FIPS builds are intentionally not represented by the generic evaluation artifact and would require a separate reviewed build profile;
+- two-build equality on one runner is weaker than independent cross-machine reproducibility.
+
+### Security / reliability implications
+
+The deterministic-rebuild gate reduces undeclared build inputs but does not authenticate the builder, source checkout, runner, signer, or target host. It is not SLSA provenance, artifact attestation, or code signing. A future signed/FIPS-specific/enterprise release profile must define its own exact toolchain and build-input contract rather than weakening this evaluation profile.
+
+### Verification
+
+- unit tests cover case-insensitive environment replacement, exact `.go-version` parsing, pinned evaluation settings, and stable trusted-pack copying;
+- every normal quality job compiles/tests the repository task package on Windows and Linux;
+- the Windows evaluation job executes `verify-windows-eval-repro` before the normal build, self-test, evidence smoke flow, final bundle verification, and artifact upload.
+
+### Revisit when
+
+- the qualified target architecture or FIPS policy changes;
+- the project adopts independent rebuilders, signed provenance/attestations, or code signing;
+- another release profile needs intentionally different controlled Go build inputs.
