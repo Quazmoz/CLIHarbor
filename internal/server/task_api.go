@@ -30,7 +30,7 @@ type Task struct {
 	Description string      `json:"description,omitempty"`
 	ToolID      string      `json:"toolId"`
 	ToolVersion string      `json:"toolVersion,omitempty"`
-	Inputs      []TaskInput `json:"inputs,omitempty"`
+	Inputs      []TaskInput `json:"inputs"`
 }
 
 type TaskService interface {
