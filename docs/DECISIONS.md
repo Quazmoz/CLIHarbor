@@ -114,6 +114,18 @@ This file records decisions already made during product discovery so future agen
 
 **Why:** Packs control what executables/arguments CLIHarbor may run.
 
+## ADR-014 — Structured output is bounded declarative post-processing
+
+**Status:** Accepted.
+
+**Decision:** A trusted pack may declare only a bounded top-level JSON object composed of named scalar fields for structured browser rendering. Parsing runs after the single authoritative executor invocation, produces a normalized DTO, never feeds execution, and always leaves raw stdout/stderr and run/exit state available. Secret-bearing output and sensitive structured fields are refused in this phase.
+
+**Why:** This improves operator readability without introducing a scripting/template/plugin surface, without allowing CLI output to become command authority, and without creating a second source of truth for process success.
+
+**Security/reliability implications:** Parser bytes, fields, strings, nesting shape, UTF-8, duplicate keys, unknown fields, integer range, and control characters are fail-closed. A non-zero exit cannot be promoted into structured success. Browser rendering uses inert text only.
+
+**Revisit when:** A verified vendor workflow requires nested collections, tables, or secret-aware structured handling that cannot be represented safely by the scalar-card contract.
+
 ## How to supersede a decision
 
 Do not silently change an accepted ADR. Add a new ADR section with:
