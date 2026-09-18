@@ -45,7 +45,7 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 - unknown/missing/null/wrongly typed/trailing JSON values fail closed;
 - zero integers, empty optional strings, Unicode, spaces, quotes, shell metacharacters, and leading-dash constraints preserve deterministic argv semantics;
 - change/destructive/interactive/credential-sensitive, auth-required, and secret-bearing commands remain blocked;
-- same-path executable replacement and symlink identity substitution are rejected;
+- same-path executable replacement, same-size content mutation with restored metadata, and symlink identity substitution are rejected;
 - normal/non-zero exits, cancellation before start, cancellation after observable output, timeout, output limits, sink failure, setup failure, and double cancellation have explicit coverage;
 - neutral temporary working directories are removed after runs;
 - Windows-only tests cover normal descendant completion, case-insensitive executable paths, explicit cancellation, timeout, output-limit and sink-failure descendant cleanup, plus inherited stdout/stderr handles using a per-run Job Object.
@@ -218,7 +218,7 @@ Verify:
 - timeout/cancellation are deterministic, including cancellation before start and after output begins;
 - output-limit and sink failures cancel execution;
 - partial lifecycle setup failure cleans up the started process and lifecycle boundary;
-- same-path executable replacement is rejected before spawn;
+- same-path executable replacement and metadata-collision content mutation are rejected before spawn;
 - Windows descendants are owned by a per-run Job Object before execution resumes and are cleaned up for cancellation, timeout, output-limit, sink-failure, normal teardown, and inherited-output-handle cases;
 - output is bounded per stream and `WaitDelay` bounds inherited stdout/stderr handle waits;
 - Unicode and spaces in executable paths/args/output work;
