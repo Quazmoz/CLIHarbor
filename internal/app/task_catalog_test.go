@@ -59,7 +59,7 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	if len(tools) != 2 {
 		t.Fatalf("tool diagnostic count = %d, want 2: %#v", len(tools), tools)
 	}
-	if tools[0].PackID != "fixture" || tools[0].PackName != "Fixture Pack" || tools[0].PackVersion != "1.0.0" || tools[0].ToolID != "missing" || tools[0].Status != string(discovery.StatusMissing) || tools[0].Message != "tool is unavailable" {
+	if tools[0].PackID != "fixture" || tools[0].PackName != "Fixture Pack" || tools[0].PackVersion != "1.0.0" || tools[0].ToolID != "missing" || tools[0].Status != string(discovery.StatusMissing) || tools[0].Message != "Tool was not found. Install it or configure an explicit backend tool path." {
 		t.Fatalf("missing tool diagnostic = %#v", tools[0])
 	}
 	if tools[1].ToolID != "ready" || tools[1].Status != string(discovery.StatusReady) || tools[1].Version != "1.2.3" || tools[1].VersionConstraint != ">=1.0.0" {
