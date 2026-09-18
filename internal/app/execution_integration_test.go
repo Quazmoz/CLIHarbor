@@ -64,7 +64,7 @@ func TestExecutionIntegrationExactArgvAndStreams(t *testing.T) {
 	}
 
 	collector := &integrationEventCollector{}
-	result, err := integrationExecutor(10 * time.Second).Run(t.Context(), plan, collector)
+	result, err := integrationExecutor(10*time.Second).Run(t.Context(), plan, collector)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
