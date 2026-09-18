@@ -316,3 +316,26 @@ Before MVP architecture is complete:
 - output is bounded and browser-rendered as inert text; future structured parsers/redaction must preserve raw non-secret evidence on parser failure;
 - a second fixture pack/tool proves discovery/planner/executor are not Idira-specific;
 - real Idira/CyberArk definitions come only from verified Phase 0 inventory.
+
+## Phase 0 work-laptop evaluation boundary
+
+The work-laptop evaluation path is a CLI-only control plane layered on the existing trusted-pack and discovery boundaries.
+
+```text
+operator flags
+  -> explicit trusted pack loader
+  -> deterministic executable discovery
+  -> sanitized inventory DTO
+  -> optional fixed named probe selection
+  -> executable fingerprint revalidation
+  -> bounded direct probe process
+  -> sanitizer
+  -> typed cliharbor.phase0/v1 evidence
+  -> atomic non-overwriting JSON export
+```
+
+The browser has no inventory/probe endpoint and cannot choose executable path, probe ID, or argv. Probe selectors contain only stable pack/tool/probe IDs. Version probes reuse the existing pack declaration; help evidence uses the optional `helpProbes` declarations.
+
+The probe process uses the same platform lifecycle ownership abstraction as normal execution. On Windows that means suspended start, Job Object assignment before resume, and descendant termination on cancellation. Evidence probes use no shell, no interactive stdin, a neutral temporary cwd, a minimal environment, and strict timeout/output limits.
+
+The Windows evaluation build cross-compiles to `windows/amd64` with the production frontend already embedded. Build metadata is linker-injected and visible through `cliharbor version`. CI does not upload the evaluation artifact until Windows/Linux quality, dependency-vulnerability, and race-detector jobs pass.
