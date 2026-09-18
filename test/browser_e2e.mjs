@@ -266,7 +266,13 @@ class ChromeHarness {
       this.process.kill('SIGKILL');
       await Promise.race([once(this.process, 'exit'), delay(1500)]);
     }
-    await rm(this.userDataDir, { recursive: true, force: true });
+    await delay(250);
+    await rm(this.userDataDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 20,
+      retryDelay: 100,
+    });
   }
 }
 
