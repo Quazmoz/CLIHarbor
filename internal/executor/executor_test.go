@@ -190,7 +190,7 @@ func TestRunRejectsExecutableReplacementAfterDiscovery(t *testing.T) {
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("second"), 0o755); err != nil {
+	if err := os.WriteFile(path, []byte("other"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -475,7 +475,7 @@ func (c *failingAfterStartController) close() error {
 }
 
 type eventCollector struct {
-	mu sync.Mutex
+	mu     sync.Mutex
 	events []Event
 }
 
