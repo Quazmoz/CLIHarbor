@@ -27,6 +27,17 @@ func (f *fakeProbeRunner) Run(_ context.Context, path string, probe packs.Versio
 	return f.output, f.err
 }
 
+type mutatingProbeRunner struct {
+	output string
+}
+
+func (m mutatingProbeRunner) Run(_ context.Context, path string, _ packs.VersionProbe) (string, error) {
+	if err := os.WriteFile(path, []byte("replacement executable bytes"), 0o755); err != nil {
+		return "", err
+	}
+	return m.output, nil
+}
+
 func TestDiscoverSingleCandidateAndCompatibleVersion(t *testing.T) {
 	dir := t.TempDir()
 	candidate := createExecutable(t, dir, platformExecutableName("fixture"))
@@ -168,6 +179,30 @@ func TestDiscoverFailsClosedOnAmbiguousVersionOutput(t *testing.T) {
 	state, _ := snapshot.Find(ToolRef{PackID: "demo", ToolID: "fixture"})
 	if state.Status != StatusProbeFailed || !strings.Contains(state.Message, "ambiguous") {
 		t.Fatalf("state = %#v, want ambiguous probe failure", state)
+	}
+}
+
+func TestDiscoverFailsClosedWhenExecutableChangesDuringVersionProbe(t *testing.T) {
+	dir := t.TempDir()
+	createExecutable(t, dir, platformExecutableName("fixture"))
+	resolver := NewResolver(Config{
+		GOOS:        runtime.GOOS,
+		PathValue:   dir,
+		ProbeRunner: mutatingProbeRunner{output: "fixture 1.2.3"},
+	})
+	snapshot, err := resolver.Discover(context.Background(), testRegistry(t, packs.Tool{
+		ExecutableNames: []string{"fixture"},
+		VersionProbe:    &packs.VersionProbe{Parser: packs.VersionParserSemverText},
+	}), nil)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+	state, _ := snapshot.Find(ToolRef{PackID: "demo", ToolID: "fixture"})
+	if state.Status != StatusIdentityFailed || !strings.Contains(state.Message, "changed during version probe") {
+		t.Fatalf("state = %#v, want identity failure after probe mutation", state)
+	}
+	if state.Version != "" {
+		t.Fatalf("version = %q, want no accepted version after executable mutation", state.Version)
 	}
 }
 
