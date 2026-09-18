@@ -189,7 +189,7 @@ Current CLI configuration is process-local via explicit `--pack-file`, `--pack-d
 
 ## 10. Dependency/supply chain
 
-Keep dependencies narrow and pinned/checksummed. Current pack/discovery dependencies include YAML v3, jsonschema v6, and Masterminds semver v3.5.0. Dependency scanning, reproducible release artifacts, checksums/SBOM, and eventual Windows signing remain release hardening work.
+Keep dependencies narrow and pinned/checksummed. Current pack/discovery dependencies include YAML v3, jsonschema v6, and Masterminds semver v3.5.0. CI verifies `go.sum` module integrity, audits the locked frontend dependency tree, and runs pinned `govulncheck@v1.8.0` against reachable Go code. Local builds emit SHA-256 executable checksums. Reproducible release artifacts, SBOM generation, and eventual Windows signing remain release-hardening work.
 
 ## 11. Security verification
 
