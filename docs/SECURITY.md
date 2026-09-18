@@ -130,7 +130,7 @@ Pack v1 intentionally has no `secret` input. Future support requires explicit se
 - selected basename must match the pack allowlist;
 - version probes/constraints can block incompatible binaries.
 
-**Phase 4 identity control:** discovery captures an opaque in-memory identity for the selected regular file; planning requires that identity; execution rechecks filesystem identity, size/modification metadata, and a SHA-256 content fingerprint immediately before process creation. Same-path replacement and same-size content mutation between discovery and execution are rejected, including metadata-collision cases observed on Windows.
+**Executable identity control:** discovery captures an opaque in-memory identity for the selected regular file. When a version probe runs, discovery rechecks that identity after the probe before accepting version evidence, so replacement during probing fails closed. Planning requires the same identity; execution rechecks filesystem identity, size/modification metadata, and a SHA-256 content fingerprint immediately before process creation. Same-path replacement and same-size content mutation between discovery and execution are rejected, including metadata-collision cases observed on Windows.
 
 **Residual risk:** name/path/version/file identity does not prove vendor publisher identity. Enterprise publisher/signature/hash validation may be added where required.
 
