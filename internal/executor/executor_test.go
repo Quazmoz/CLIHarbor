@@ -88,9 +88,9 @@ func TestRunCancellationAfterObservableOutput(t *testing.T) {
 func TestRunTimeoutIsBounded(t *testing.T) {
 	t.Setenv(helperEnv, "1")
 	executor := New(Config{
-		Timeout: 75 * time.Millisecond,
+		Timeout:   75 * time.Millisecond,
 		WaitDelay: 100 * time.Millisecond,
-		NewRunID: func() (string, error) { return "test-run", nil },
+		NewRunID:  func() (string, error) { return "test-run", nil },
 	})
 	result, err := executor.Run(context.Background(), helperPlan(t, "wait"), &eventCollector{})
 	if err != nil {
@@ -436,11 +436,11 @@ func currentExecutable(t *testing.T) (string, string, discovery.ExecutableIdenti
 
 func testExecutor(timeout time.Duration, maxOutput int64) *Executor {
 	return New(Config{
-		Timeout: timeout,
-		WaitDelay: 100 * time.Millisecond,
-		ChunkBytes: 32,
+		Timeout:                 timeout,
+		WaitDelay:               100 * time.Millisecond,
+		ChunkBytes:              32,
 		MaxOutputBytesPerStream: maxOutput,
-		NewRunID: func() (string, error) { return "test-run", nil },
+		NewRunID:                func() (string, error) { return "test-run", nil },
 	})
 }
 
