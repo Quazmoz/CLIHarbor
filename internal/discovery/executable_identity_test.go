@@ -22,11 +22,39 @@ func TestExecutableIdentityMatchesUnchangedFileAndRejectsReplacement(t *testing.
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("second"), 0o755); err != nil {
+	if err := os.WriteFile(path, []byte("other"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if identity.Matches(path) {
 		t.Fatal("identity matched a replacement at the same path")
+	}
+}
+
+func TestExecutableIdentityRejectsSameFileContentMutationWithRestoredMetadata(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fixture")
+	if err := os.WriteFile(path, []byte("first"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := CaptureExecutableIdentity(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(path, []byte("other"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(path, identity.modTime, identity.modTime); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Size() != identity.size || !info.ModTime().Equal(identity.modTime) {
+		t.Fatalf("test fixture metadata was not restored: size=%d modTime=%v", info.Size(), info.ModTime())
+	}
+	if identity.Matches(path) {
+		t.Fatal("identity matched mutated content with restored size and modification time")
 	}
 }
 
