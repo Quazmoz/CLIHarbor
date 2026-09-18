@@ -4,11 +4,11 @@ Use this document as the canonical read order for development agents.
 
 ## Current repository state
 
-CLIHarbor has completed the **Phase 1 local-runtime foundation**, **Phase 2 pack-schema/loader foundation**, and **Phase 3 tool-discovery/version-probing foundation**. The repository now contains a Go command/runtime, IPv4 loopback listener, one-time browser bootstrap/session boundary, Host/Origin/CSRF protections, hardened browser headers, an authenticated status API, graceful shutdown, a React/TypeScript/Vite UI, locally embedded production frontend assets, automatic default-browser launch, a loopback-only frontend development proxy, cross-platform task tooling, Windows/Linux CI, a versioned trusted-pack model with strict validation/loading, and fail-closed local executable discovery with bounded version probes and `cliharbor doctor`.
+CLIHarbor has completed the **Phase 1 local-runtime foundation**, **Phase 2 pack-schema/loader foundation**, **Phase 3 tool-discovery/version-probing foundation**, and the **Phase 4 low-level planner/executor foundation**. The repository now contains a Go command/runtime, IPv4 loopback listener, one-time browser bootstrap/session boundary, Host/Origin/CSRF protections, hardened browser headers, an authenticated status API, graceful shutdown, a React/TypeScript/Vite UI, locally embedded production frontend assets, automatic default-browser launch, a loopback-only frontend development proxy, cross-platform task tooling, Windows/Linux CI, a versioned trusted-pack model with strict validation/loading, and fail-closed local executable discovery with bounded version probes and `cliharbor doctor`.
 
 The pack foundation supports schema version `cliharbor.dev/v1`, built-in pack bytes, and explicitly requested local YAML files/directories. Tool discovery considers only absolute PATH entries or explicit backend-only overrides tied to declared pack/tool IDs; it rejects ambiguity rather than taking the first match. Version probes are fixed pack-authored argv with bounded time/output and no shell. Repository/cwd packs still receive no implicit trust.
 
-The execution planner/executor, command streaming, browser task/tool UI, auth adapter, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
+The internal planner/executor now exists for the constrained read-only safety envelope. Browser run/task APIs and UI, auth execution, secret-bearing output handling, mutating/destructive execution, persisted run state, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
 
 ## Read order
 
@@ -63,6 +63,18 @@ Canonical implementation: `../internal/discovery/`.
 
 Use for exact executable resolution, explicit path overrides, ambiguity handling, semantic-version parsing/constraints, bounded direct version probes, and discovery state consumed by startup/doctor. Discovery state is not authorization to add undeclared commands.
 
+### Execution planning
+
+Canonical implementation: `../internal/planner/`.
+
+Use for typed runtime values, exact argv construction, discovery-state/identity gating, and the current read-only/auth/output policy envelope.
+
+### Process execution
+
+Canonical implementation: `../internal/executor/`.
+
+Use for direct `os/exec` invocation, run events, output bounds, timeout/cancellation, neutral working directories, executable revalidation, and platform process-lifecycle ownership. Windows uses a per-run Job Object with suspended start/assignment-before-resume.
+
 ### User experience
 
 Canonical: `UX.md`
@@ -103,7 +115,8 @@ Use to understand existing tools, upstream Idira/CyberArk status, and demand evi
 
 - Repository code is source of truth for implemented behavior.
 - `schemas/pack.v1.schema.json` plus `internal/packs` are source of truth for the currently supported pack format and pack validation.
-- `internal/discovery` is source of truth for current local tool discovery/version semantics.
+- `internal/discovery` is source of truth for current local tool discovery/version semantics and discovery-time executable identity.
+- `internal/planner` and `internal/executor` are source of truth for the implemented low-level read-only execution boundary.
 - PRD/spec docs are source of truth for intended behavior not yet implemented.
 - `DECISIONS.md` is source of truth for accepted architectural decisions.
 - Upstream vendor documentation wins over old assumptions about CLI flags/commands.
@@ -111,12 +124,14 @@ Use to understand existing tools, upstream Idira/CyberArk status, and demand evi
 
 ## Current implementation checkpoint
 
-Phases 1-3 are implemented. The runtime keeps `/bootstrap` and `/api/*` server-owned; frontend production assets are embedded in the executable; development frontend traffic is proxied only from an explicitly configured `http://127.0.0.1:<port>` Vite origin; browser launch failure degrades to the explicit short-lived local bootstrap URL.
+Phases 1-4 low-level foundations are implemented. The runtime keeps `/bootstrap` and `/api/*` server-owned; frontend production assets are embedded in the executable; development frontend traffic is proxied only from an explicitly configured `http://127.0.0.1:<port>` Vite origin; browser launch failure degrades to the explicit short-lived local bootstrap URL.
 
 The pack layer parses bounded UTF-8 YAML, rejects aliases/anchors/merge keys/multiple documents and duplicate mapping keys, validates against the embedded strict v1 JSON Schema, applies cross-reference and execution-shape checks, and produces an effectively immutable deterministic registry. Local loading is explicit, non-recursive, symlink-rejecting, and fail-closed.
 
-The discovery layer resolves declared executable basenames across absolute PATH entries or explicit `pack/tool=/absolute/path` overrides, reports missing/ambiguous/incompatible/probe-failed states, uses direct bounded version probes, fails closed on ambiguous semantic-version output, and exposes exact diagnostic evidence through `cliharbor doctor`. The synthetic example pack now demonstrates the version-probe schema but still ships no fixture executable and is not vendor evidence.
+The discovery layer resolves declared executable basenames across absolute PATH entries or explicit `pack/tool=/absolute/path` overrides, reports fail-closed discovery states, captures an in-memory executable file identity for ready tools, uses direct bounded version probes, fails closed on ambiguous semantic-version output, and exposes exact diagnostic evidence through `cliharbor doctor`. The synthetic example pack still ships no fixture executable and is not vendor evidence.
 
-The next bounded implementation milestone is Phase 4: deterministic typed execution planning plus a fixture-backed executor/streaming vertical slice. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk command definitions.
+The planner accepts only validated pack commands plus current ready discovery state, validates typed runtime values, constructs exact argv, and currently permits read-only/non-auth/non-secret commands only. The executor revalidates executable identity, invokes the executable directly without a shell, bounds output/time, preserves exit semantics, and owns Windows descendants through a per-run Job Object established before the process resumes. This is not exposed through browser run APIs yet.
+
+The next bounded milestone is fixture-backed end-to-end execution integration/diagnostics before adding browser run endpoints. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk command definitions.
 
 Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, or guessed Idira/CyberArk commands.
