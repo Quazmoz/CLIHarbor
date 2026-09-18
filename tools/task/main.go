@@ -136,11 +136,31 @@ func goBuild(root string) error {
 	if version == "" {
 		version = "dev"
 	}
+	if err := validateBuildVersion(version); err != nil {
+		return err
+	}
 	artifact := filepath.Join(binDir, name)
 	if err := run(root, "go", "build", "-trimpath", "-ldflags", "-X main.version="+version, "-o", artifact, "./cmd/cliharbor"); err != nil {
 		return err
 	}
 	return writeSHA256Sums(artifact, filepath.Join(binDir, "SHA256SUMS"))
+}
+
+func validateBuildVersion(version string) error {
+	if len(version) == 0 || len(version) > 128 {
+		return fmt.Errorf("CLIHARBOR_VERSION must be 1-128 ASCII version-token characters")
+	}
+	for _, char := range version {
+		switch {
+		case char >= 'a' && char <= 'z':
+		case char >= 'A' && char <= 'Z':
+		case char >= '0' && char <= '9':
+		case char == '.', char == '-', char == '_', char == '+':
+		default:
+			return fmt.Errorf("CLIHARBOR_VERSION contains unsupported character %q", char)
+		}
+	}
+	return nil
 }
 
 func writeSHA256Sums(artifact, destination string) error {
