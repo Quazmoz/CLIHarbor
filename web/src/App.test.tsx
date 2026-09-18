@@ -218,6 +218,20 @@ describe('App', () => {
             toolId: 'fixture',
             status: 'exited',
             exitCode: 0,
+            events: [
+              {
+                sequence: 1,
+                type: 'stdout.chunk',
+                timestamp: '2026-09-18T10:00:00Z',
+                dataBase64: btoa('recovered output'),
+              },
+              {
+                sequence: 2,
+                type: 'run.exited',
+                timestamp: '2026-09-18T10:00:01Z',
+                exitCode: 0,
+              },
+            ],
           }),
         );
       }
@@ -238,7 +252,8 @@ describe('App', () => {
 
     await waitFor(() => expect(source?.closed).toBe(true));
     expect(await screen.findByRole('heading', { name: 'exited' })).toBeInTheDocument();
-    expect(screen.getByText(/stopped after repeated disconnects/i)).toBeInTheDocument();
+    expect(screen.getByText('recovered output')).toBeInTheDocument();
+    expect(screen.queryByText(/stopped after repeated disconnects/i)).not.toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(([input]) => requestPath(input as RequestInfo | URL) === `/api/v1/runs/${runID}`),
     ).toBe(true);
