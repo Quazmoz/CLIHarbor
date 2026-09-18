@@ -65,8 +65,8 @@ type ProbeRecord struct {
 	Identity   string    `json:"identity"`
 	Arguments  []string  `json:"arguments,omitempty"`
 	Status     string    `json:"status"`
-	StartedAt  time.Time `json:"startedAt,omitempty"`
-	EndedAt    time.Time `json:"endedAt,omitempty"`
+	StartedAt  *time.Time `json:"startedAt,omitempty"`
+	EndedAt    *time.Time `json:"endedAt,omitempty"`
 	ExitCode   *int      `json:"exitCode,omitempty"`
 	TimedOut   bool      `json:"timedOut,omitempty"`
 	Cancelled  bool      `json:"cancelled,omitempty"`
