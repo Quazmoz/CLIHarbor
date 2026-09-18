@@ -314,6 +314,7 @@ Produce Windows release artifacts:
 - clear release version;
 - SHA-256 checksum beside ordinary local build artifacts via `bin/SHA256SUMS`; **implemented**
 - one authoritative Windows evaluation manifest, `EVALUATION_SHA256SUMS`, covering the evaluation executable plus trusted Phase 0 pack; the local compatibility manifest is excluded from evaluation packaging; **implemented**
+- exact `.go-version` toolchain enforcement, controlled evaluation build inputs, and isolated double-build authoritative-manifest equality qualification; **implemented**
 - optional code signing when available;
 - `cliharbor doctor` included;
 - upgrade story documented.
@@ -341,6 +342,7 @@ go run ./tools/task check
 go run ./tools/task go-build
 go run ./tools/task windows-eval
 go run ./tools/task verify-windows-eval
+go run ./tools/task verify-windows-eval-repro
 go run ./tools/task build
 ```
 
@@ -356,7 +358,7 @@ Do not require GNU-specific tooling for Windows contributors.
 
 ## 15. CI target/current state
 
-Current CI covers frontend install/typecheck/lint/tests/build, generated frontend asset drift, Go module verification, formatting/vet/tests, Windows/Linux executable builds, Linux race testing, dependency vulnerability scanning, the production embedded-server Chrome/Chromium E2E gate on Linux, and Windows evaluation-artifact qualification.
+Current CI covers frontend install/typecheck/lint/tests/build, generated frontend asset drift, Go module verification, formatting/vet/tests, Windows/Linux executable builds, Linux race testing, dependency vulnerability scanning, the production embedded-server Chrome/Chromium E2E gate on Linux, and Windows evaluation-artifact qualification. All jobs resolve the exact Go patch release from `.go-version`; the Windows evaluation job additionally proves two isolated same-checkout rebuilds produce the same authoritative manifest before it creates the upload candidate.
 
 Discovery and fixture integration tests remain ordinary Go tests in the Windows/Linux quality gates. The browser E2E is an explicit Linux CI step because it requires a real installed browser; managed-Windows browser/PATH/antivirus behavior remains a separate manual acceptance boundary.
 
