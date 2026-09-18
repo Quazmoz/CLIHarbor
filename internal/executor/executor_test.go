@@ -147,6 +147,9 @@ func TestRunUsesNeutralWorkingDirectory(t *testing.T) {
 	if !strings.Contains(filepath.Base(got), "cliharbor-run-") {
 		t.Fatalf("working directory = %q, want neutral temporary directory", got)
 	}
+	if _, err := os.Stat(got); !os.IsNotExist(err) {
+		t.Fatalf("neutral working directory still exists after run: %q (err=%v)", got, err)
+	}
 }
 
 func TestRunRejectsPlansOutsideCurrentSafetyEnvelope(t *testing.T) {
@@ -166,6 +169,89 @@ func TestRunRejectsPlansOutsideCurrentSafetyEnvelope(t *testing.T) {
 		mutate(&plan)
 		_, err := testExecutor(time.Second, 1<<20).Run(context.Background(), plan, nil)
 		assertExecutorCode(t, err, ErrInvalidPlan)
+	}
+}
+
+func TestRunRejectsExecutableReplacementAfterDiscovery(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fixture")
+	if err := os.WriteFile(path, []byte("first"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := discovery.CaptureExecutableIdentity(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := planner.Plan{
+		PackID: "demo", PackVersion: "1.0.0", CommandID: "inspect", ToolID: "fixture",
+		ExecutablePath: path, ExecutableName: "fixture", ExecutableIdentity: identity,
+		Risk: packs.RiskRead, Output: packs.Output{Mode: packs.OutputRaw},
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("second"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = testExecutor(time.Second, 1<<20).Run(context.Background(), plan, nil)
+	assertExecutorCode(t, err, ErrInvalidPlan)
+}
+
+func TestRunHonorsCancellationBeforeProcessStart(t *testing.T) {
+	t.Setenv(helperEnv, "1")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	collector := &eventCollector{}
+
+	result, err := testExecutor(time.Second, 1<<20).Run(ctx, helperPlan(t, "wait"), collector)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Status != StatusCancelled {
+		t.Fatalf("status = %s, want cancelled", result.Status)
+	}
+	if len(collector.Events()) != 0 {
+		t.Fatalf("events = %#v, want none before process start", eventTypes(collector.Events()))
+	}
+}
+
+func TestRunCleansUpAfterLifecycleSetupFailure(t *testing.T) {
+	t.Setenv(helperEnv, "1")
+	controller := &failingAfterStartController{}
+	executor := testExecutor(2*time.Second, 1<<20)
+	executor.newProcessController = func() (processController, error) {
+		return controller, nil
+	}
+
+	result, err := executor.Run(context.Background(), helperPlan(t, "wait"), &eventCollector{})
+	if result.Status != StatusFailed {
+		t.Fatalf("status = %s, want failed", result.Status)
+	}
+	assertExecutorCode(t, err, ErrStart)
+	if !controller.cancelled || !controller.closed {
+		t.Fatalf("controller cleanup = cancelled:%t closed:%t", controller.cancelled, controller.closed)
+	}
+}
+
+func TestRunDoubleCancellationIsSafe(t *testing.T) {
+	t.Setenv(helperEnv, "1")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sink := SinkFunc(func(event Event) error {
+		if event.Type == EventStdout && bytes.Contains(event.Data, []byte("ready")) {
+			cancel()
+			cancel()
+		}
+		return nil
+	})
+
+	result, err := testExecutor(5*time.Second, 1<<20).Run(ctx, helperPlan(t, "wait"), sink)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Status != StatusCancelled {
+		t.Fatalf("status = %s, want cancelled", result.Status)
 	}
 }
 
@@ -283,7 +369,7 @@ func helperChildCommand(mode string) *exec.Cmd {
 
 func helperPlan(t *testing.T, helperArgs ...string) planner.Plan {
 	t.Helper()
-	executable, name := currentExecutable(t)
+	executable, name, identity := currentExecutable(t)
 	args := []string{"-test.run=^TestExecutorHelperProcess$", "--"}
 	args = append(args, helperArgs...)
 	return planner.Plan{
@@ -319,6 +405,36 @@ func testExecutor(timeout time.Duration, maxOutput int64) *Executor {
 		MaxOutputBytesPerStream: maxOutput,
 		NewRunID: func() (string, error) { return "test-run", nil },
 	})
+}
+
+type failingAfterStartController struct {
+	cancelled bool
+	closed    bool
+}
+
+func (c *failingAfterStartController) configure(*exec.Cmd) error {
+	return nil
+}
+
+func (c *failingAfterStartController) afterStart(*exec.Cmd) error {
+	return errors.New("simulated lifecycle setup failure")
+}
+
+func (c *failingAfterStartController) cancel(cmd *exec.Cmd) error {
+	c.cancelled = true
+	if cmd == nil || cmd.Process == nil {
+		return os.ErrProcessDone
+	}
+	err := cmd.Process.Kill()
+	if errors.Is(err, os.ErrProcessDone) {
+		return nil
+	}
+	return err
+}
+
+func (c *failingAfterStartController) close() error {
+	c.closed = true
+	return nil
 }
 
 type eventCollector struct {
