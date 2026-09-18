@@ -86,11 +86,12 @@ type Snapshot struct {
 }
 
 type EventBatch struct {
-	RunID    string
-	Events   []Event
-	Status   Status
-	ExitCode *int
-	Complete bool
+	RunID      string
+	Events     []Event
+	Status     Status
+	ExitCode   *int
+	Structured *structured.Result
+	Complete   bool
 }
 
 type Config struct {
@@ -301,11 +302,12 @@ func (m *Manager) WaitEvents(ctx context.Context, runID string, after uint64) (E
 		complete := rec.status != StatusRunning
 		if len(events) != 0 || complete {
 			batch := EventBatch{
-				RunID:    rec.runID,
-				Events:   events,
-				Status:   rec.status,
-				ExitCode: cloneInt(rec.exitCode),
-				Complete: complete,
+				RunID:      rec.runID,
+				Events:     events,
+				Status:     rec.status,
+				ExitCode:   cloneInt(rec.exitCode),
+				Structured: cloneStructuredResult(rec.structuredResult),
+				Complete:   complete,
 			}
 			m.mu.Unlock()
 			return batch, nil
@@ -468,6 +470,10 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 		}
 	}
 	rec.structuredResult = parsed
+	rec.structuredSpec = nil
+	rec.structuredRenderer = ""
+	rec.structuredStdout = nil
+	rec.structuredTooLarge = false
 	rec.signalChangedLocked()
 	close(rec.done)
 }
