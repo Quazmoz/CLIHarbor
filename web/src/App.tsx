@@ -85,7 +85,15 @@ function requestValues(task: Task, formValues: Record<string, FormValue>): Recor
     if (!input.required && text.length === 0) {
       continue;
     }
-    values[input.id] = input.type === 'integer' ? Number(text) : text;
+    if (input.type === 'integer') {
+      const integer = Number(text);
+      if (!Number.isSafeInteger(integer)) {
+        throw new Error(`${input.label} must be an integer within the browser's exact numeric range.`);
+      }
+      values[input.id] = integer;
+    } else {
+      values[input.id] = text;
+    }
   }
   return values;
 }
@@ -196,11 +204,7 @@ function InputControl({
         type={input.type === 'integer' ? 'number' : 'text'}
         required={input.required}
         value={typeof value === 'string' ? value : ''}
-        min={input.type === 'integer' ? validation.min : undefined}
-        max={input.type === 'integer' ? validation.max : undefined}
-        minLength={input.type === 'string' ? validation.minLength : undefined}
-        maxLength={input.type === 'string' ? validation.maxLength : undefined}
-        pattern={input.type === 'string' && validation.pattern ? validation.pattern : undefined}
+        step={input.type === 'integer' ? 1 : undefined}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
