@@ -57,6 +57,7 @@ type Plan struct {
 	ToolID         string
 	ExecutablePath string
 	ExecutableName string
+	ExecutableIdentity discovery.ExecutableIdentity
 	ToolVersion    string
 	Args           []string
 	Risk           packs.Risk
@@ -109,6 +110,9 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 	}
 	if toolState.Status != discovery.StatusReady || toolState.Path == "" {
 		return zero, &Error{Code: ErrToolUnavailable, Path: "tool", Message: "tool is not ready for execution"}
+	}
+	if !toolState.ExecutableIdentity.Valid() {
+		return zero, &Error{Code: ErrStaleDiscovery, Path: "tool", Message: "tool discovery identity is unavailable"}
 	}
 
 	declared := make(map[string]packs.Input, len(command.Inputs))
@@ -188,6 +192,7 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 		ToolID:         command.Tool,
 		ExecutablePath: toolState.Path,
 		ExecutableName: toolState.ExecutableName,
+		ExecutableIdentity: toolState.ExecutableIdentity,
 		ToolVersion:    toolState.Version,
 		Args:           args,
 		Risk:           command.Risk,
