@@ -293,10 +293,12 @@ Required cases include:
 - bounded probe stdout/stderr and non-zero exit preservation;
 - timeout/cancellation process-tree behavior;
 - invalid UTF-8 preservation at the runner boundary and sanitization before evidence;
-- minimal child environment so arbitrary parent secrets are not inherited;
+- minimal child environment and neutral working directories so arbitrary parent secrets/caller cwd are not inherited by version/help probes;
+- fail-closed version discovery for oversized/truncated or invalid-UTF-8 output;
+- Windows version-probe timeout descendant cleanup through the shared Job Object lifecycle boundary;
 - executable-path/common-secret/control-character redaction;
-- Phase 0 export schema bounds;
-- existing-file refusal, relative traversal rejection, cancellation cleanup, restricted staging permissions where supported, and atomic rename;
+- Phase 0 export schema bounds, sanitized fixed-argv provenance, and omission of zero-value timestamps for probes that did not execute;
+- existing-file refusal, relative traversal rejection, cancellation cleanup, restricted staging permissions where supported, and concurrent atomic no-clobber activation;
 - CLI flag scoping so inventory selectors cannot become executable/argv input;
 - Windows/Linux formatting, vet, unit/integration tests, embedded frontend synchronization, and build;
 - Linux `go test -race`;
