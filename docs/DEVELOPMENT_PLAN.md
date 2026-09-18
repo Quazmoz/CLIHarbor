@@ -287,19 +287,17 @@ Add/complete:
 
 Schema/parser resource bounds, adversarial pack tests, discovery ambiguity handling, and bounded version probes already exist; continue extending them rather than duplicating validation logic.
 
-## 11. Phase 9 — Prove generic architecture
+## 11. Phase 9 — Prove generic architecture — IMPLEMENTED
 
-Create a second small fixture pack/tool scenario with materially different safe input/output shapes.
+A second explicit-local synthetic fixture pack/tool now traverses the unchanged registry/discovery/planner/executor path with a distinct tool ID, semantic version probe, command name, string+enum inputs, and argv mapping.
 
-Goal: prove core discovery/planner/executor code is not Idira-specific.
+Acceptance achieved:
 
-Acceptance:
-
-- second pack loads/discovers with no modifications to core;
-- different command/input/output shapes render successfully;
-- any required extension point is documented before adding it.
-
-The Phase 2/3 synthetic example pack proves generic pack parsing/discovery only; it does not yet prove generic task execution.
+- the second pack loads/discovers with no core modification;
+- exact alternate argv/stdout/stderr/exit behavior is compared with direct fixture invocation;
+- the primary pack cannot resolve the alternate pack's command;
+- authenticated task metadata reports both pack/tool/version scopes correctly;
+- no vendor syntax, credential, shell wrapper, or browser-selected execution authority is introduced.
 
 ## 12. Phase 10 — Packaging
 
