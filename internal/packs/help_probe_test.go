@@ -92,7 +92,7 @@ func TestRegistryHelpProbesAreDefensiveCopies(t *testing.T) {
 			Platforms: []string{runtime.GOOS},
 			Tools: map[string]Tool{"vendor": {
 				ExecutableNames: []string{"vendor"},
-				HelpProbes: map[string]HelpProbe{"root": {Args: []string{"--help"}}},
+				HelpProbes:      map[string]HelpProbe{"root": {Args: []string{"--help"}}},
 			}},
 		},
 	}}})
