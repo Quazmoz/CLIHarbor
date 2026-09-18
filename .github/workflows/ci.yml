@@ -107,6 +107,36 @@ jobs:
         run: go run ./tools/task windows-eval
       - name: Verify evaluation build metadata
         run: .\bin\cliharbor-windows-x64-evaluation.exe version
+      - name: Verify packaged evaluation bundle checksums
+        shell: pwsh
+        run: |
+          $required = @(
+            "bin/cliharbor-windows-x64-evaluation.exe",
+            "packs/phase0/idira-cyberark-inventory.yaml"
+          )
+          $entries = @{}
+          foreach ($line in Get-Content .\EVALUATION_SHA256SUMS) {
+            if ($line -notmatch '^([0-9a-f]{64})  (.+)$') {
+              throw "invalid evaluation checksum manifest line: $line"
+            }
+            $path = $Matches[2]
+            if ($entries.ContainsKey($path)) {
+              throw "duplicate evaluation checksum manifest entry: $path"
+            }
+            $entries[$path] = $Matches[1]
+          }
+          if ($entries.Count -ne $required.Count) {
+            throw "evaluation checksum manifest contains unexpected entry count"
+          }
+          foreach ($path in $required) {
+            if (-not $entries.ContainsKey($path)) {
+              throw "evaluation checksum manifest missing required path: $path"
+            }
+            $actual = (Get-FileHash -LiteralPath ".\$path" -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $entries[$path]) {
+              throw "evaluation bundle checksum mismatch for $path"
+            }
+          }
       - name: Run vendor-free evaluation self-test
         run: .\bin\cliharbor-windows-x64-evaluation.exe self-test
       - name: Verify packaged Phase 0 evidence integrity flow
@@ -144,6 +174,7 @@ jobs:
         with:
           name: cliharbor-windows-x64-evaluation-${{ github.sha }}
           path: |
+            EVALUATION_SHA256SUMS
             bin/cliharbor-windows-x64-evaluation.exe
             bin/SHA256SUMS
             packs/phase0/idira-cyberark-inventory.yaml
