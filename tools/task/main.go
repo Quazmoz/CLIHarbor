@@ -37,6 +37,8 @@ func main() {
 		err = check(root)
 	case "go-build":
 		err = goBuild(root)
+	case "windows-eval":
+		err = windowsEvalBuild(root)
 	case "build":
 		if err = webBuild(root); err == nil {
 			err = goBuild(root)
@@ -51,7 +53,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|check|go-build|build>")
+	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|check|go-build|windows-eval|build>")
 }
 
 func fatal(err error) {
@@ -124,26 +126,103 @@ func check(root string) error {
 }
 
 func goBuild(root string) error {
-	binDir := filepath.Join(root, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		return fmt.Errorf("create bin directory: %w", err)
-	}
 	name := "cliharbor"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
+	return buildExecutable(root, filepath.Join(root, "bin", name), "", "", "local-unsigned", "dev")
+}
+
+func windowsEvalBuild(root string) error {
+	return buildExecutable(
+		root,
+		filepath.Join(root, "bin", "cliharbor-windows-x64-evaluation.exe"),
+		"windows",
+		"amd64",
+		"evaluation-unsigned",
+		"0.0.0-eval",
+	)
+}
+
+func buildExecutable(root, artifact, goos, goarch, mode, defaultVersion string) error {
+	binDir := filepath.Dir(artifact)
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		return fmt.Errorf("create bin directory: %w", err)
+	}
 	version := os.Getenv("CLIHARBOR_VERSION")
 	if version == "" {
-		version = "dev"
+		version = defaultVersion
 	}
 	if err := validateBuildVersion(version); err != nil {
 		return err
 	}
-	artifact := filepath.Join(binDir, name)
-	if err := run(root, "go", "build", "-trimpath", "-ldflags", "-X main.version="+version, "-o", artifact, "./cmd/cliharbor"); err != nil {
+	commit := os.Getenv("CLIHARBOR_COMMIT")
+	if commit == "" {
+		commit = repositoryCommit(root)
+	}
+	if err := validateBuildMetadataToken("CLIHARBOR_COMMIT", commit); err != nil {
+		return err
+	}
+	if err := validateBuildMetadataToken("build mode", mode); err != nil {
+		return err
+	}
+
+	ldflags := strings.Join([]string{
+		"-X", "main.version=" + version,
+		"-X", "main.commit=" + commit,
+		"-X", "main.buildMode=" + mode,
+	}, " ")
+	args := []string{"build", "-trimpath", "-buildvcs=false", "-ldflags", ldflags, "-o", artifact, "./cmd/cliharbor"}
+	env := map[string]string{}
+	if goos != "" {
+		env["GOOS"] = goos
+	}
+	if goarch != "" {
+		env["GOARCH"] = goarch
+	}
+	if goos != "" || goarch != "" {
+		env["CGO_ENABLED"] = "0"
+	}
+	if err := runWithEnv(root, env, "go", args...); err != nil {
 		return err
 	}
 	return writeSHA256Sums(artifact, filepath.Join(binDir, "SHA256SUMS"))
+}
+
+func repositoryCommit(root string) string {
+	cmd := exec.Command("git", "rev-parse", "--verify", "HEAD")
+	cmd.Dir = root
+	output, err := cmd.Output()
+	if err != nil {
+		return "unknown"
+	}
+	value := strings.TrimSpace(string(output))
+	if len(value) != 40 {
+		return "unknown"
+	}
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') && (char < 'A' || char > 'F') {
+			return "unknown"
+		}
+	}
+	return strings.ToLower(value)
+}
+
+func validateBuildMetadataToken(name, value string) error {
+	if len(value) == 0 || len(value) > 128 {
+		return fmt.Errorf("%s must be 1-128 ASCII token characters", name)
+	}
+	for _, char := range value {
+		switch {
+		case char >= 'a' && char <= 'z':
+		case char >= 'A' && char <= 'Z':
+		case char >= '0' && char <= '9':
+		case char == '.', char == '-', char == '_', char == '+':
+		default:
+			return fmt.Errorf("%s contains unsupported character %q", name, char)
+		}
+	}
+	return nil
 }
 
 func validateBuildVersion(version string) error {
@@ -307,11 +386,19 @@ func copyFile(source, destination string) error {
 }
 
 func run(root, name string, args ...string) error {
+	return runWithEnv(root, nil, name, args...)
+}
+
+func runWithEnv(root string, extraEnv map[string]string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = root
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = append([]string(nil), os.Environ()...)
+	for key, value := range extraEnv {
+		cmd.Env = append(cmd.Env, key+"="+value)
+	}
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s failed: %w", name, err)
 	}
