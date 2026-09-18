@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
@@ -18,11 +19,205 @@ const (
 	evaluationExecutablePath = "bin/cliharbor-windows-x64-evaluation.exe"
 	evaluationPackPath       = "packs/phase0/idira-cyberark-inventory.yaml"
 	maxEvaluationManifest    = 16 << 10
+	maxEvaluationPack        = 256 << 10
 )
 
 var evaluationRequiredPaths = []string{
 	evaluationExecutablePath,
 	evaluationPackPath,
+}
+
+
+func evaluationGoEnvironment() map[string]string {
+	return map[string]string{
+		"CGO_ENABLED": "0",
+		"GODEBUG":     "",
+		"GOENV":       "off",
+		"GOEXPERIMENT": "",
+		"GOFLAGS":     "",
+		"GOFIPS140":   "off",
+		"GOAMD64":     "v1",
+		"GOROOT":      "",
+		"GOTOOLCHAIN": "local",
+		"GOWORK":      "off",
+	}
+}
+
+func mergeEnvironment(base []string, overrides map[string]string) []string {
+	if len(overrides) == 0 {
+		return append([]string(nil), base...)
+	}
+
+	overridden := make(map[string]struct{}, len(overrides))
+	keys := make([]string, 0, len(overrides))
+	for key := range overrides {
+		overridden[strings.ToUpper(key)] = struct{}{}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	merged := make([]string, 0, len(base)+len(overrides))
+	for _, entry := range base {
+		key, _, ok := strings.Cut(entry, "=")
+		if ok {
+			if _, replace := overridden[strings.ToUpper(key)]; replace {
+				continue
+			}
+		}
+		merged = append(merged, entry)
+	}
+	for _, key := range keys {
+		merged = append(merged, key+"="+overrides[key])
+	}
+	return merged
+}
+
+func requiredEvaluationGoVersion(root string) (string, error) {
+	content, err := readStableRegularFile(filepath.Join(root, ".go-version"), 64)
+	if err != nil {
+		return "", fmt.Errorf("read pinned Go version: %w", err)
+	}
+	text := string(content)
+	if strings.ContainsRune(text, '\r') {
+		return "", fmt.Errorf(".go-version must use LF line endings")
+	}
+	text = strings.TrimSuffix(text, "\n")
+	if text == "" || strings.ContainsRune(text, '\n') || strings.TrimSpace(text) != text {
+		return "", fmt.Errorf(".go-version must contain exactly one version token")
+	}
+	parts := strings.Split(text, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf(".go-version must pin an exact major.minor.patch Go version")
+	}
+	for _, part := range parts {
+		if part == "" {
+			return "", fmt.Errorf(".go-version must pin an exact major.minor.patch Go version")
+		}
+		for _, char := range part {
+			if char < '0' || char > '9' {
+				return "", fmt.Errorf(".go-version must pin an exact major.minor.patch Go version")
+			}
+		}
+	}
+	return text, nil
+}
+
+func validateEvaluationToolchain(root string) error {
+	required, err := requiredEvaluationGoVersion(root)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("go", "env", "GOVERSION")
+	cmd.Dir = root
+	cmd.Env = mergeEnvironment(os.Environ(), evaluationGoEnvironment())
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("query evaluation Go toolchain: %w", err)
+	}
+	actual := strings.TrimSpace(string(output))
+	expected := "go" + required
+	if actual != expected {
+		return fmt.Errorf("evaluation build requires Go %s, found %s", required, actual)
+	}
+	return nil
+}
+
+func copyEvaluationPack(root, bundleRoot string) error {
+	source := filepath.Join(root, filepath.FromSlash(evaluationPackPath))
+	content, err := readStableRegularFile(source, maxEvaluationPack)
+	if err != nil {
+		return fmt.Errorf("read trusted evaluation pack: %w", err)
+	}
+	destination := filepath.Join(bundleRoot, filepath.FromSlash(evaluationPackPath))
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return fmt.Errorf("create evaluation pack directory: %w", err)
+	}
+	file, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return fmt.Errorf("create evaluation pack copy: %w", err)
+	}
+	if _, err := file.Write(content); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("write evaluation pack copy: %w", err)
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("sync evaluation pack copy: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close evaluation pack copy: %w", err)
+	}
+	copied, err := readStableRegularFile(destination, maxEvaluationPack)
+	if err != nil {
+		return fmt.Errorf("verify evaluation pack copy: %w", err)
+	}
+	if !bytes.Equal(content, copied) {
+		return fmt.Errorf("evaluation pack copy changed during staging")
+	}
+	return nil
+}
+
+func buildEvaluationBundleAt(root, bundleRoot string) error {
+	if err := copyEvaluationPack(root, bundleRoot); err != nil {
+		return err
+	}
+	artifact := filepath.Join(bundleRoot, filepath.FromSlash(evaluationExecutablePath))
+	if err := buildExecutableWithEnv(
+		root,
+		artifact,
+		"windows",
+		"amd64",
+		"evaluation-unsigned",
+		"0.0.0-eval",
+		evaluationGoEnvironment(),
+	); err != nil {
+		return err
+	}
+	manifest := filepath.Join(bundleRoot, evaluationManifestName)
+	if err := writeSHA256Manifest(bundleRoot, manifest, []string{
+		artifact,
+		filepath.Join(bundleRoot, filepath.FromSlash(evaluationPackPath)),
+	}); err != nil {
+		return err
+	}
+	return verifyWindowsEvaluation(bundleRoot)
+}
+
+func verifyWindowsEvaluationReproducible(root string) error {
+	if err := validateEvaluationToolchain(root); err != nil {
+		return err
+	}
+
+	first, err := os.MkdirTemp("", "cliharbor-eval-repro-a-")
+	if err != nil {
+		return fmt.Errorf("create first evaluation rebuild directory: %w", err)
+	}
+	defer os.RemoveAll(first)
+	second, err := os.MkdirTemp("", "cliharbor-eval-repro-b-")
+	if err != nil {
+		return fmt.Errorf("create second evaluation rebuild directory: %w", err)
+	}
+	defer os.RemoveAll(second)
+
+	if err := buildEvaluationBundleAt(root, first); err != nil {
+		return fmt.Errorf("build first evaluation reproduction: %w", err)
+	}
+	if err := buildEvaluationBundleAt(root, second); err != nil {
+		return fmt.Errorf("build second evaluation reproduction: %w", err)
+	}
+
+	firstManifest, err := readStableRegularFile(filepath.Join(first, evaluationManifestName), maxEvaluationManifest)
+	if err != nil {
+		return fmt.Errorf("read first evaluation reproduction manifest: %w", err)
+	}
+	secondManifest, err := readStableRegularFile(filepath.Join(second, evaluationManifestName), maxEvaluationManifest)
+	if err != nil {
+		return fmt.Errorf("read second evaluation reproduction manifest: %w", err)
+	}
+	if !bytes.Equal(firstManifest, secondManifest) {
+		return fmt.Errorf("Windows evaluation rebuilds are not byte-deterministic")
+	}
+	return nil
 }
 
 func removeGeneratedChecksum(filename string) error {
