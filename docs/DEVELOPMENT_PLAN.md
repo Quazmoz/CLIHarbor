@@ -16,7 +16,8 @@ Current implementation status:
 - Phase 4c-A — authenticated create/get/cancel run API with bounded in-memory polling: **implemented**.
 - Phase 4c-B — bounded live SSE replay plus minimal safe task/run UI: **implemented**.
 - Phase 0 — vendor environment inventory: **still required before real Idira/CyberArk command definitions**.
-- Phase 5+ — vendor workflow inventory, auth orchestration, structured-output, and release milestones remain incomplete unless explicitly noted below.
+- Phase 5 — generic bounded structured-output vertical slice: **implemented with fixture schemas/results; real vendor schemas remain blocked on Phase 0**.
+- Phase 6+ — vendor auth orchestration and later release milestones remain incomplete unless explicitly noted below.
 
 ## 2. Phase 0 — Environment inventory
 
@@ -226,20 +227,22 @@ Do not expose auth-required, secret-bearing, mutating, destructive, interactive,
 
 Real Idira/CyberArk workflows remain blocked on Phase 0 inventory.
 
-## 7. Phase 5 — Structured output
+## 7. Phase 5 — Structured output — IMPLEMENTED GENERIC FOUNDATION
 
-For a command with reliable machine-readable output:
+Implemented with synthetic fixture commands only:
 
-- request documented JSON/structured output;
-- parse into a typed normalized result;
-- render table/card;
-- retain raw output fallback;
-- test malformed/unexpected output.
+- pack-declared strict scalar JSON schemas with a cards renderer;
+- bounded post-execution parsing into a normalized backend DTO;
+- 64 KiB structured-input, 8 KiB string, and 32-field limits;
+- strict duplicate/unknown-field, type, UTF-8, integer-range, nesting, trailing-data, and control-character rejection;
+- raw stdout/stderr retained independently of parser outcome;
+- parser status kept separate from authoritative run status/exit code;
+- no second execution and no parsed-data feedback into planner/executor authority;
+- structured rendering refused for secret-bearing output or sensitive fields;
+- browser-side DTO validation plus inert React text rendering;
+- fixture coverage for success, malformed/wrong/unknown/large/markup/non-zero/stderr/Unicode/secret-like/duplicate/invalid-UTF8/overflow/nested/control cases.
 
-Acceptance:
-
-- parser failure does not hide vendor output or report false success;
-- secret-bearing fields are not persisted.
+Acceptance achieved for the generic engine. Real Idira/CyberArk structured flags and schemas are still prohibited until Phase 0 inventory verifies them.
 
 ## 8. Phase 6 — Authentication integration
 
