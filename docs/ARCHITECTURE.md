@@ -2,7 +2,7 @@
 
 ## 1. Architecture objective
 
-CLIHarbor is a thin local application. The browser is presentation only; the local Go runtime owns trusted pack loading, executable discovery, version compatibility, future execution planning/process lifecycle, redaction, and browser-session security. The wrapped CLI remains the operational authority.
+CLIHarbor is a thin local application. The browser is presentation only; the local Go runtime owns trusted pack loading, executable discovery, version compatibility, execution planning/process lifecycle, future redaction, and browser-session security. The wrapped CLI remains the operational authority.
 
 ```text
 Browser UI
@@ -12,8 +12,8 @@ Browser UI
 CLIHarbor local runtime
    |- pack loader / schema validator       [implemented]
    |- tool discovery / version probe       [implemented]
-   |- command planner / validation          [next]
-   |- process executor                      [planned]
+   |- command planner / validation          [implemented: internal read-only boundary]
+   |- process executor                      [implemented: internal read-only boundary]
    |- auth state adapter                    [planned]
    |- output parsers / redaction            [planned]
    |- run metadata                          [planned]
@@ -28,7 +28,7 @@ Vendor service / existing auth/session model
 
 ### MVP
 
-One local executable starts a loopback server, serves embedded frontend assets, opens the default browser, and will execute approved local CLI processes as the current user once the planner/executor milestone is complete.
+One local executable starts a loopback server, serves embedded frontend assets, and opens the default browser. The runtime now has an internal planner/executor for approved read-only local processes, but that executor is not yet exposed through the browser/API.
 
 No daemon, Windows service, cloud server, external database, or privileged helper is required.
 
@@ -70,8 +70,8 @@ internal/webui/            # embedded frontend + constrained dev reverse proxy
 internal/platform/browser/ # platform default-browser launch boundary
 internal/packs/            # pack model/validation/loading/registry
 internal/discovery/        # executable resolution/version probes/discovery snapshot
-internal/planner/          # NEXT: typed input -> immutable execution plan
-internal/executor/         # planned process start/stream/cancel/timeout
+internal/planner/          # typed input -> immutable read-only execution plan
+internal/executor/         # direct process start/stream/cancel/timeout/lifecycle
 internal/auth/             # planned auth adapters/login orchestration
 internal/output/           # planned parsers/structured rendering models
 internal/redact/           # planned secret-safe diagnostics/invocation views
@@ -92,7 +92,7 @@ Current serve lifecycle:
 2. Load only explicitly configured pack files/directories; no cwd/repository scan.
 3. Validate pack syntax/schema/semantics and create the registry.
 4. Resolve each declared tool and, when configured, run its fixed bounded version probe.
-5. Build an in-memory discovery snapshot with exact resolved path/version/status.
+5. Build an in-memory discovery snapshot with exact resolved path/version/status and an opaque discovery-time executable file identity for each ready tool.
 6. Bind an ephemeral IPv4 loopback port.
 7. Generate per-launch bootstrap, session, and CSRF secrets.
 8. Start HTTP server and open the one-time browser bootstrap URL.
@@ -194,74 +194,60 @@ ambiguous
 incompatible
 probe-failed
 invalid-override
+identity-failed
 unsupported-platform
 ```
 
-Only `ready` may become executable authority in Phase 4.
+Only `ready` may become executable authority. A ready state also carries the in-memory executable identity required by the planner.
 
-### Identity limitation
+### Executable identity boundary
 
-Phase 3 proves path/name/version compatibility, not cryptographic publisher identity. Enterprise publisher/signature/hash verification is a future hardening option. Phase 4 must also address discovery-to-execution drift by revalidating executable identity at the execution boundary where practical.
+Discovery records an in-memory identity for the selected regular file. The planner requires that identity, and the executor revalidates it immediately before process creation using filesystem identity plus size/modification metadata. A same-path replacement after discovery therefore fails closed.
 
-## 9. Execution planning — next
+This is not cryptographic publisher identity. Enterprise publisher/signature/hash verification remains a future hardening option where policy requires it.
 
-The planner will accept a validated registry, a discovery snapshot, a task ID, and typed browser values. It must:
+## 9. Execution planning — implemented low-level boundary
 
-- require the referenced tool discovery state to be `ready`;
-- validate all runtime values server-side against pack constraints;
-- reject unknown fields/inputs;
-- produce only the pack-declared argv structure;
-- source executable path solely from discovery, never browser input;
-- enforce risk/confirmation policy;
-- emit an immutable `ExecutionPlan`.
+The planner accepts the validated registry, authoritative discovery snapshot, pack/command IDs, and typed runtime values. It:
 
-Conceptually:
+- requires a current `ready` tool state whose pack version matches the configured pack;
+- requires the discovery-time executable identity;
+- validates exact runtime JSON types and pack constraints server-side;
+- rejects unknown/missing/null/malformed values and unsafe NUL/leading-dash strings;
+- produces only the pack-declared literal/flag/switch/map argv structure;
+- sources executable path/name/version/identity solely from discovery;
+- currently permits only `risk: read` commands;
+- rejects auth-required and secret-bearing commands until those policy boundaries exist.
 
-```text
-runID
-packID/version
-commandID
-toolID
-resolvedExecutablePath
-args[]
-riskClass
-redaction metadata
-timeout policy
-output mode
-```
+The resulting `planner.Plan` is consumed internally; browser input cannot provide executable paths, executable names, flag names, or arbitrary argv structure.
 
-The executor will accept only a validated plan and must not reinterpret browser input.
+## 10. Process invocation and lifecycle — implemented low-level boundary
 
-## 10. Process invocation
+The executor invokes the planned executable directly with `os/exec` and an argument slice. It does not invoke CMD, PowerShell, or a POSIX shell for ordinary task execution.
 
-Version probes already use direct process creation with an executable path plus argv.
+Before process creation it revalidates the plan's executable identity. Each run receives a generated run ID and a neutral temporary working directory. Stdout and stderr remain separate, are emitted in bounded chunks, and each stream has a total byte limit. `exec.Cmd.WaitDelay` prevents inherited stdout/stderr handles from keeping a completed root process wait open indefinitely.
 
-Future task execution must likewise use the equivalent of:
+Cancellation sources—caller cancellation, timeout, output exhaustion, and event-sink failure—share one lifecycle cancellation path. Non-zero process exits remain normal exited results with the vendor exit code rather than being collapsed into executor failures.
 
-```go
-exec.CommandContext(ctx, executablePath, args...)
-```
+On Windows, each run creates a native Job Object with kill-on-close semantics. CLIHarbor starts the target with `CREATE_SUSPENDED`, assigns the process to the run's Job Object before allowing user code to execute, then resumes the initial thread. Descendants therefore inherit the run boundary by default. Cancellation/timeout terminates the Job Object, and closing the Job Object after normal root completion also prevents leftover descendants from outliving the run. A synchronization handle to the root process avoids reclassifying a natural exit as a timeout when those events race.
 
-Never translate a normal task into a shell command string. On Windows, task cancellation must handle descendant processes; a Job Object or equivalent should be evaluated.
+Non-Windows platforms use the same executor contract behind a platform file boundary and currently cancel the direct process. This Phase 4 slice does not claim non-Windows descendant-tree ownership.
 
-## 11. Streaming and output
+## 11. Internal execution events
 
-Future executor events should normalize at least:
+The executor currently emits:
 
 ```text
 run.started
 stdout.chunk
 stderr.chunk
-structured.result
-warning
 run.exited
 run.cancelled
+run.timed-out
 run.failed
 ```
 
-SSE is preferred while communication is primarily server -> browser. Output buffering/backpressure must be bounded.
-
-Prefer documented structured output, but preserve faithful raw output and surface parser failure rather than fabricating empty structured data.
+These are internal sink events, not yet a browser streaming protocol. No run HTTP endpoint or persisted run store exists yet. A fixture-backed integration/diagnostic layer should prove registry -> discovery -> planner -> executor end to end before the browser execution API is added.
 
 ## 12. Authentication
 
@@ -289,7 +275,8 @@ No database is required for MVP.
 Current authoritative runtime state is in memory:
 
 - validated pack registry;
-- discovery snapshot;
+- discovery snapshot, including opaque executable identities for ready tools;
+- transient planner plans/executor run state when internal execution is invoked;
 - browser bootstrap/session state.
 
 Future non-secret local config may hold explicitly approved pack/binary paths and UI preferences. Future run history must be redacted and bounded. Never persist credential material.
@@ -312,8 +299,8 @@ Before MVP architecture is complete:
 - loopback/session/origin/CSRF controls remain tested;
 - packs must be explicitly trusted and validated;
 - ambiguous/missing/incompatible/probe-failed tools cannot execute;
-- planner must prove exact argv construction and risk enforcement;
-- task execution/cancellation must work reliably on Windows;
+- planner exact argv construction and the current read-only/auth/output policy envelope remain regression-tested;
+- Windows task execution owns descendants with a per-run Job Object and must remain regression-tested;
 - output is bounded/redacted/escaped and parser failures preserve raw evidence;
 - a second fixture pack/tool proves discovery/planner/executor are not Idira-specific;
 - real Idira/CyberArk definitions come only from verified Phase 0 inventory.
