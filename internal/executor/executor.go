@@ -393,16 +393,8 @@ func revalidateExecutable(plan planner.Plan) error {
 	if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
 		return &Error{Code: ErrInvalidPlan, Message: "planned executable is no longer executable"}
 	}
-	resolved, err := filepath.EvalSymlinks(clean)
-	if err != nil {
+	if _, err := filepath.EvalSymlinks(clean); err != nil {
 		return &Error{Code: ErrInvalidPlan, Message: "revalidate planned executable"}
-	}
-	resolved, err = filepath.Abs(resolved)
-	if err != nil {
-		return &Error{Code: ErrInvalidPlan, Message: "revalidate planned executable"}
-	}
-	if !samePath(filepath.Clean(resolved), clean) {
-		return &Error{Code: ErrInvalidPlan, Message: "planned executable path changed since discovery"}
 	}
 	actualName := filepath.Base(clean)
 	if runtime.GOOS == "windows" {
