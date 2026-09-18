@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
@@ -28,6 +29,38 @@ func TestParseToolOverridesRejectsMalformedAndDuplicates(t *testing.T) {
 	} {
 		if _, err := parseToolOverrides(values); err == nil {
 			t.Fatalf("parseToolOverrides(%v) unexpectedly succeeded", values)
+		}
+	}
+}
+
+func TestCommandSpecificFlagsFailClosed(t *testing.T) {
+	cases := [][]string{
+		{"version", "--pack-file", "pack.yaml"},
+		{"self-test", "--tool-path", "demo/tool=/tmp/tool"},
+		{"doctor", "--probe", "demo/tool/help"},
+		{"serve", "--export", "phase0.json"},
+		{"inventory", "--web-dev-url", "http://127.0.0.1:5173"},
+	}
+	for _, args := range cases {
+		if err := run(args); err == nil {
+			t.Fatalf("run(%v) unexpectedly succeeded", args)
+		}
+	}
+}
+
+func TestInventoryProbeFlagCannotSupplyExecutableOrArgv(t *testing.T) {
+	for _, selector := range []string{
+		"demo/tool/help/extra",
+		"demo/tool",
+		"demo/tool/",
+		"demo/tool/--help",
+	} {
+		err := run([]string{"inventory", "--probe", selector})
+		if err == nil {
+			t.Fatalf("run(inventory --probe %q) unexpectedly succeeded", selector)
+		}
+		if strings.Contains(err.Error(), "exec") {
+			t.Fatalf("invalid probe reached execution path: %v", err)
 		}
 	}
 }
