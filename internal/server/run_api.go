@@ -121,24 +121,24 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request, runID s
 		writeAPIError(w, http.StatusBadRequest, "invalid_cursor")
 		return
 	}
-	snapshot, ok := s.runs.Get(runID)
-	if !ok {
-		writeAPIError(w, http.StatusNotFound, "not_found")
-		return
-	}
-	var latest uint64
-	if len(snapshot.Events) != 0 {
-		latest = snapshot.Events[len(snapshot.Events)-1].Sequence
-	}
-	if cursor > latest {
-		writeAPIError(w, http.StatusBadRequest, "invalid_cursor")
-		return
-	}
 	if !s.acquireRunStream() {
 		writeAPIError(w, http.StatusTooManyRequests, "stream_capacity")
 		return
 	}
 	defer s.releaseRunStream()
+
+	waitCtx, cancel := context.WithTimeout(r.Context(), sseHeartbeatInterval)
+	batch, waitErr := stream.WaitEvents(waitCtx, runID, cursor)
+	cancel()
+	initialHeartbeat := false
+	if waitErr != nil {
+		if errors.Is(waitErr, context.DeadlineExceeded) && r.Context().Err() == nil {
+			initialHeartbeat = true
+		} else {
+			writeRunStreamError(w, waitErr)
+			return
+		}
+	}
 
 	controller := http.NewResponseController(w)
 	if err := controller.SetWriteDeadline(time.Time{}); err != nil {
@@ -150,6 +150,18 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request, runID s
 	w.WriteHeader(http.StatusOK)
 	if err := controller.Flush(); err != nil {
 		return
+	}
+
+	if initialHeartbeat {
+		if err := writeSSEHeartbeat(w, controller); err != nil {
+			return
+		}
+	} else {
+		var complete bool
+		cursor, complete, err = writeSSEBatch(w, controller, batch, cursor)
+		if err != nil || complete {
+			return
+		}
 	}
 
 	for {
@@ -165,18 +177,44 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request, runID s
 			}
 			return
 		}
-
-		for _, event := range batch.Events {
-			if err := writeSSEEvent(w, controller, batch.RunID, event); err != nil {
-				return
-			}
-			cursor = event.Sequence
-		}
-		if batch.Complete {
-			_ = writeSSEComplete(w, controller, batch, cursor)
+		var complete bool
+		cursor, complete, err = writeSSEBatch(w, controller, batch, cursor)
+		if err != nil || complete {
 			return
 		}
 	}
+}
+
+func writeRunStreamError(w http.ResponseWriter, err error) {
+	var runErr *runs.Error
+	if errors.As(err, &runErr) {
+		switch runErr.Code {
+		case runs.ErrNotFound:
+			writeAPIError(w, http.StatusNotFound, string(runErr.Code))
+		case runs.ErrInvalidCursor:
+			writeAPIError(w, http.StatusBadRequest, string(runErr.Code))
+		default:
+			writeAPIError(w, http.StatusServiceUnavailable, "stream_unavailable")
+		}
+		return
+	}
+	writeAPIError(w, http.StatusServiceUnavailable, "stream_unavailable")
+}
+
+func writeSSEBatch(w http.ResponseWriter, controller *http.ResponseController, batch runs.EventBatch, cursor uint64) (uint64, bool, error) {
+	for _, event := range batch.Events {
+		if err := writeSSEEvent(w, controller, batch.RunID, event); err != nil {
+			return cursor, false, err
+		}
+		cursor = event.Sequence
+	}
+	if batch.Complete {
+		if err := writeSSEComplete(w, controller, batch, cursor); err != nil {
+			return cursor, true, err
+		}
+		return cursor, true, nil
+	}
+	return cursor, false, nil
 }
 
 func (s *Server) acquireRunStream() bool {
