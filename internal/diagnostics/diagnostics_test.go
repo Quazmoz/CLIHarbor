@@ -183,11 +183,11 @@ func TestWriteBundleConcurrentExportPublishesExactlyOneCompleteFile(t *testing.T
 func testBundle() Bundle {
 	return Bundle{
 		SchemaVersion: SchemaVersion,
-		CLIHarbor: BuildInfo{Version: "0.0.0-test", Commit: "abc123", BuildMode: "test"},
-		Runtime: RuntimeInfo{GoVersion: "go1.27.1", OS: "windows", OSVersion: "10.0.26100", Architecture: "amd64"},
+		CLIHarbor:     BuildInfo{Version: "0.0.0-test", Commit: "abc123", BuildMode: "test"},
+		Runtime:       RuntimeInfo{GoVersion: "go1.27.1", OS: "windows", OSVersion: "10.0.26100", Architecture: "amd64"},
 		Configuration: Configuration{PackSourceMode: "files", PackCount: 1, ToolOverrideCount: 0},
-		Health: Health{ToolsReady: 1, ToolsUnavailable: 0},
-		Packs: []PackRecord{{ID: "demo", Version: "1.0.0"}},
-		Tools: []ToolRecord{{PackID: "demo", PackVersion: "1.0.0", ToolID: "tool", Status: "ready", Version: "2.0.0", CandidateCount: 1}},
+		Health:        Health{ToolsReady: 1, ToolsUnavailable: 0},
+		Packs:         []PackRecord{{ID: "demo", Version: "1.0.0"}},
+		Tools:         []ToolRecord{{PackID: "demo", PackVersion: "1.0.0", ToolID: "tool", Status: "ready", Version: "2.0.0", CandidateCount: 1}},
 	}
 }

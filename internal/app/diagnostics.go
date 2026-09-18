@@ -47,8 +47,8 @@ func buildDiagnosticBundle(options Options, state RuntimeState, host hostinfo.In
 			GoVersion: runtime.Version(), OS: host.OS, OSVersion: host.Version, Architecture: host.Architecture,
 		},
 		Configuration: diagnostics.Configuration{
-			PackSourceMode: packSourceMode(options),
-			PackCount: packsCount,
+			PackSourceMode:    packSourceMode(options),
+			PackCount:         packsCount,
 			ToolOverrideCount: len(options.ToolOverrides),
 		},
 		Health: diagnostics.Health{ToolsReady: ready, ToolsUnavailable: unavailable},
@@ -61,11 +61,11 @@ func buildDiagnosticBundle(options Options, state RuntimeState, host hostinfo.In
 	}
 	for _, tool := range state.Discovery.Tools() {
 		bundle.Tools = append(bundle.Tools, diagnostics.ToolRecord{
-			PackID: tool.PackID,
-			PackVersion: tool.PackVersion,
-			ToolID: tool.ToolID,
-			Status: string(tool.Status),
-			Version: tool.Version,
+			PackID:         tool.PackID,
+			PackVersion:    tool.PackVersion,
+			ToolID:         tool.ToolID,
+			Status:         string(tool.Status),
+			Version:        tool.Version,
 			CandidateCount: len(tool.Candidates),
 		})
 	}

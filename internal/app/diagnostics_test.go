@@ -20,7 +20,7 @@ func TestDiagnosticBundleAllowlistExcludesSensitiveRuntimeFields(t *testing.T) {
 		Source: packs.Source{Kind: packs.SourceExplicitLocal, Name: filepath.Join(string(filepath.Separator), "Users", "operator", secret, "pack.yaml")},
 		Pack: packs.Pack{
 			Metadata: packs.Metadata{ID: "demo", Version: "1.2.3", Name: secret},
-			Runtime: packs.Runtime{Tools: map[string]packs.Tool{"fixture": {}}},
+			Runtime:  packs.Runtime{Tools: map[string]packs.Tool{"fixture": {}}},
 		},
 	}})
 	if err != nil {
@@ -31,10 +31,10 @@ func TestDiagnosticBundleAllowlistExcludesSensitiveRuntimeFields(t *testing.T) {
 		Discovery: discovery.NewSnapshot([]discovery.ToolState{{
 			PackID: "demo", PackVersion: "1.2.3", ToolID: "fixture",
 			Status: discovery.StatusReady, Version: "2.3.4",
-			Path: filepath.Join(string(filepath.Separator), "Users", "operator", secret, "tool.exe"),
+			Path:           filepath.Join(string(filepath.Separator), "Users", "operator", secret, "tool.exe"),
 			ExecutableName: secret + ".exe",
-			Candidates: []discovery.Candidate{{Path: secret, ExecutableName: secret}},
-			Message: "stdout token=" + secret,
+			Candidates:     []discovery.Candidate{{Path: secret, ExecutableName: secret}},
+			Message:        "stdout token=" + secret,
 		}}),
 	}
 	bundle := buildDiagnosticBundle(

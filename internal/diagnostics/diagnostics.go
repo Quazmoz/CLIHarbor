@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	SchemaVersion       = "cliharbor.diagnostics/v1"
-	MaxSerializedBytes  = 64 << 10
-	maxPacks            = 64
-	maxTools            = 256
-	maxCandidateCount   = 64
-	privateFileMode     = 0o600
+	SchemaVersion      = "cliharbor.diagnostics/v1"
+	MaxSerializedBytes = 64 << 10
+	maxPacks           = 64
+	maxTools           = 256
+	maxCandidateCount  = 64
+	privateFileMode    = 0o600
 )
 
 type Bundle struct {
@@ -45,9 +45,9 @@ type RuntimeInfo struct {
 }
 
 type Configuration struct {
-	PackSourceMode       string `json:"packSourceMode"`
-	PackCount            int    `json:"packCount"`
-	ToolOverrideCount    int    `json:"toolOverrideCount"`
+	PackSourceMode    string `json:"packSourceMode"`
+	PackCount         int    `json:"packCount"`
+	ToolOverrideCount int    `json:"toolOverrideCount"`
 }
 
 type Health struct {
@@ -80,11 +80,11 @@ func Validate(bundle Bundle) error {
 		return fmt.Errorf("unsupported diagnostics schema version %q", bundle.SchemaVersion)
 	}
 	for name, value := range map[string]string{
-		"version": bundle.CLIHarbor.Version,
-		"commit": bundle.CLIHarbor.Commit,
-		"buildMode": bundle.CLIHarbor.BuildMode,
-		"goVersion": bundle.Runtime.GoVersion,
-		"os": bundle.Runtime.OS,
+		"version":      bundle.CLIHarbor.Version,
+		"commit":       bundle.CLIHarbor.Commit,
+		"buildMode":    bundle.CLIHarbor.BuildMode,
+		"goVersion":    bundle.Runtime.GoVersion,
+		"os":           bundle.Runtime.OS,
 		"architecture": bundle.Runtime.Architecture,
 	} {
 		if err := validateToken(name, value, false); err != nil {

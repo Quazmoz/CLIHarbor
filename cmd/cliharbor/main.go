@@ -144,11 +144,11 @@ func runDiagnosticsCommand(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return app.ExportDiagnostics(ctx, app.Options{
-		Out: os.Stdout,
-		Version: version,
-		Commit: commit,
-		BuildMode: buildMode,
-		PackFiles: append([]string(nil), packFiles...),
+		Out:           os.Stdout,
+		Version:       version,
+		Commit:        commit,
+		BuildMode:     buildMode,
+		PackFiles:     append([]string(nil), packFiles...),
 		PackDirectory: *packDirectory,
 		ToolOverrides: overrides,
 	}, flags.Arg(0))

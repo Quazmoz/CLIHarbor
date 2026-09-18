@@ -75,7 +75,7 @@ See [Security](docs/SECURITY.md), [Architecture](docs/ARCHITECTURE.md), and [Aut
 The repository pins:
 
 - Go **1.27.1** in [`.go-version`](.go-version)
-- Node **24.21.0** in [`.node-version】
+- Node **24.21.0** in [`.node-version`](.node-version)
 - npm **>=11.6.0 <12** in `web/package.json`
 
 Install frontend dependencies:
