@@ -42,6 +42,12 @@ func evaluationGoEnvironment() map[string]string {
 	}
 }
 
+func evaluationBuildEnvironment(cacheDir string) map[string]string {
+	env := evaluationGoEnvironment()
+	env["GOCACHE"] = cacheDir
+	return env
+}
+
 func mergeEnvironment(base []string, overrides map[string]string) []string {
 	if len(overrides) == 0 {
 		return append([]string(nil), base...)
@@ -160,6 +166,10 @@ func buildEvaluationBundleAt(root, bundleRoot string) error {
 	if err := copyEvaluationPack(root, bundleRoot); err != nil {
 		return err
 	}
+	buildCache := filepath.Join(bundleRoot, ".gocache")
+	if err := os.MkdirAll(buildCache, 0o700); err != nil {
+		return fmt.Errorf("create isolated reproduction build cache: %w", err)
+	}
 	artifact := filepath.Join(bundleRoot, filepath.FromSlash(evaluationExecutablePath))
 	if err := buildExecutableWithEnv(
 		root,
@@ -168,9 +178,12 @@ func buildEvaluationBundleAt(root, bundleRoot string) error {
 		"amd64",
 		"evaluation-unsigned",
 		"0.0.0-eval",
-		evaluationGoEnvironment(),
+		evaluationBuildEnvironment(buildCache),
 	); err != nil {
 		return err
+	}
+	if err := os.RemoveAll(buildCache); err != nil {
+		return fmt.Errorf("remove isolated reproduction build cache: %w", err)
 	}
 	manifest := filepath.Join(bundleRoot, evaluationManifestName)
 	if err := writeSHA256Manifest(bundleRoot, manifest, []string{
