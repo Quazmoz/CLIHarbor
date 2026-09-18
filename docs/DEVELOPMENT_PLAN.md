@@ -306,7 +306,7 @@ Produce Windows release artifacts:
 - frontend embedded into executable;
 - no Node runtime required at runtime;
 - clear release version;
-- checksums;
+- SHA-256 checksums beside local build artifacts via `bin/SHA256SUMS`; **implemented**
 - optional code signing when available;
 - `cliharbor doctor` included;
 - upgrade story documented.
