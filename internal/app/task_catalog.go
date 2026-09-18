@@ -69,8 +69,28 @@ func (c *taskCatalog) ListTasks() []server.Task {
 		out[i].Inputs = make([]server.TaskInput, len(task.Inputs))
 		for j, input := range task.Inputs {
 			out[i].Inputs[j] = input
+			out[i].Inputs[j].Validation.Min = cloneInt64Pointer(input.Validation.Min)
+			out[i].Inputs[j].Validation.Max = cloneInt64Pointer(input.Validation.Max)
+			out[i].Inputs[j].Validation.MinLength = cloneIntPointer(input.Validation.MinLength)
+			out[i].Inputs[j].Validation.MaxLength = cloneIntPointer(input.Validation.MaxLength)
 			out[i].Inputs[j].Validation.Enum = append([]string(nil), input.Validation.Enum...)
 		}
 	}
 	return out
+}
+
+func cloneInt64Pointer(value *int64) *int64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func cloneIntPointer(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
