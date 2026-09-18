@@ -15,7 +15,8 @@ CLIHarbor local runtime
    |- command planner / validation          [implemented: read-only browser boundary]
    |- process executor                      [implemented: bounded read-only runs]
    |- auth state adapter                    [planned]
-   |- output parsers / redaction            [planned]
+   |- structured output parser              [implemented: bounded scalar JSON]
+   |- redaction                              [planned]
    |- run manager / event replay              [implemented: bounded in-memory]
    v
 Approved local CLI binary (idsec.exe, conjur.exe, ...)
@@ -72,9 +73,9 @@ internal/packs/            # pack model/validation/loading/registry
 internal/discovery/        # executable resolution/version probes/discovery snapshot
 internal/planner/          # typed input -> immutable read-only execution plan
 internal/executor/         # direct process start/stream/cancel/timeout/lifecycle
-internal/runs/             # bounded in-memory run ownership/state/events
+internal/runs/             # bounded in-memory run ownership/state/events + final structured DTO
+internal/structured/       # bounded declarative JSON parsing into normalized scalar fields
 internal/auth/             # planned auth adapters/login orchestration
-internal/output/           # planned parsers/structured rendering models
 internal/redact/           # planned secret-safe diagnostics/invocation views
 tools/task/                # cross-platform repository validation/build entry point
 web/                       # React source
@@ -254,6 +255,8 @@ Phase 4b now proves the production authority chain end to end with purpose-built
 Phase 4c-A exposes only this proven read-only path through authenticated loopback create/get/cancel APIs. The run manager defaults to bounded active and retained run counts, bounded output/event memory, finite execution timeout, server-generated run IDs, and root-context cancellation. Request disconnect after a successful create does not implicitly kill the run; explicit cancellation or application shutdown owns termination.
 
 Phase 4c-B observes that same bounded manager state through SSE rather than connecting executor sinks to HTTP writers. Streams share a per-run change signal, do not allocate per-client output queues, never hold the manager lock during network writes, and do not cancel or recreate execution on disconnect/reconnect. Long-lived stream handlers are themselves bounded (default 16); excess streams fail fast with `429 stream_capacity` without affecting run execution. The ordinary server write timeout is disabled only for the long-lived stream, while each write/flush receives its own finite deadline and periodic heartbeat. The React task/run UI consumes only safe server metadata and renders process output as untrusted text.
+
+Phase 5 adds a downstream structured-output boundary. A validated pack may declare a strict top-level JSON object with at most 32 named scalar fields (`string`, `integer`, or `boolean`). The run manager captures at most 64 KiB of stdout for parsing while continuing to retain the ordinary raw event evidence. Parsing happens only after the one authoritative executor invocation finishes and only for a zero exit status; parser state cannot alter executable selection, argv, process lifecycle, run status, or exit code. The parser rejects malformed/duplicate/unknown fields, invalid UTF-8, nested values, overlarge strings, integer overflow, control characters, and oversized input. It produces only a normalized DTO of pack-authored labels/types plus normalized scalar text. Secret-bearing commands and fields are refused for structured rendering in this phase. The browser revalidates that DTO and renders it with ordinary React text nodes; raw stdout/stderr remain available on parser failure.
 
 The next architecture boundary is the first verified read-only Idira workflow after Phase 0 vendor inventory, followed by vendor-owned authentication orchestration and structured result parsing.
 
