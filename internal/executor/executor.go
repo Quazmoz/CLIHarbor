@@ -214,6 +214,9 @@ func (e *Executor) Run(ctx context.Context, plan planner.Plan, sink Sink) (Resul
 	}
 	if err := cmd.Start(); err != nil {
 		now := e.now().UTC()
+		if ctxErr := runCtx.Err(); ctxErr != nil {
+			return Result{RunID: runID, Status: statusForContextError(ctxErr), StartedAt: now, EndedAt: now, ExitCode: -1}, nil
+		}
 		return Result{RunID: runID, Status: StatusFailed, StartedAt: now, EndedAt: now, ExitCode: -1}, &Error{Code: ErrStart, Message: "start planned executable"}
 	}
 	if err := controller.afterStart(cmd); err != nil {
