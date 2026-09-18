@@ -135,3 +135,27 @@ Do not silently change an accepted ADR. Add a new ADR section with:
 - security impact;
 - migration impact;
 - updated docs/tests required.
+
+## ADR-015 — Phase 0 evidence is CLI-only, fixed, bounded, and exportable
+
+**Status:** Accepted.
+
+**Decision:** Work-laptop inventory and Phase 0 help/version evidence collection live on the operator CLI surface, not the browser API. A probe is selectable only by `pack/tool/probe`; executable path and argv come exclusively from validated trusted pack/discovery state. Evidence exports use a strongly typed, bounded, sanitized schema and atomic non-overwriting creation.
+
+**Why:** The first real integration needs factual data from the company-installed CLI versions without turning CLIHarbor into a diagnostic shell or exposing executable authority to browser input.
+
+**Security/reliability implications:** No arbitrary executable/argv input, no shell, no interactive stdin, minimal child environment, executable identity revalidation, bounded timeout/output, conservative redaction, no credential-store/environment enumeration, and no browser/session secrets in evidence. Raw vendor prose still requires operator review before external sharing because generic redaction cannot prove organization-specific text is non-sensitive.
+
+**Revisit when:** A verified workflow requires a probe that cannot be represented as fixed read-only argv, or evidence requirements exceed the bounded Phase 0 schema.
+
+## ADR-016 — Unsigned CI artifact for controlled work-laptop evaluation
+
+**Status:** Accepted for the evaluation milestone.
+
+**Decision:** CI may produce an unsigned Windows x64 evaluation executable after the normal quality/security gates, without publishing a GitHub Release or claiming code signing.
+
+**Why:** The immediate need is controlled first-environment validation, not public distribution or installer deployment.
+
+**Security/reliability implications:** Application-control policy is an environmental prerequisite. CLIHarbor must not bypass WDAC/AppLocker/SmartScreen/EDR. A blocked unsigned executable requires the organization's approved signing/allowlisting process.
+
+**Revisit when:** Wider enterprise distribution, persistent installation, or production release requires signing/provenance policy.
