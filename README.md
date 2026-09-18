@@ -166,8 +166,11 @@ go run ./tools/task check
 # build the embedded Go executable into ./bin and emit ./bin/SHA256SUMS
 go run ./tools/task go-build
 
-# build the Windows x64 evaluation bundle; emits bin/SHA256SUMS plus root EVALUATION_SHA256SUMS
+# build the Windows x64 evaluation bundle; emits only authoritative root EVALUATION_SHA256SUMS
 go run ./tools/task windows-eval
+
+# independently re-verify the evaluation manifest against the files on disk
+go run ./tools/task verify-windows-eval
 
 # rebuild frontend, sync assets, build the executable, and emit ./bin/SHA256SUMS
 go run ./tools/task build
@@ -223,11 +226,14 @@ go run ./tools/task windows-eval
 Output:
 
 ```text
+EVALUATION_SHA256SUMS
 bin/cliharbor-windows-x64-evaluation.exe
-bin/SHA256SUMS
+packs/phase0/idira-cyberark-inventory.yaml
 ```
 
-CI uploads `cliharbor-windows-x64-evaluation-<commit-sha>` only after Windows/Linux quality, dependency-vulnerability, and race-detector jobs pass. The artifact also includes the discovery-only `packs/phase0/idira-cyberark-inventory.yaml` pack.
+For evaluation builds, `EVALUATION_SHA256SUMS` is the only packaged checksum authority and covers both privileged files. The ordinary local `go-build`/`build` path still emits `bin/SHA256SUMS` for local compatibility, but `windows-eval` invalidates that generated compatibility manifest so it cannot be mistaken for part of the qualified evaluation bundle.
+
+CI uploads `cliharbor-windows-x64-evaluation-<commit-sha>` only after Windows/Linux quality, dependency-vulnerability, and race-detector jobs pass. The artifact contains exactly the root `EVALUATION_SHA256SUMS`, the evaluation executable, and the discovery-only `packs/phase0/idira-cyberark-inventory.yaml` pack. CI recomputes the manifest from those files again immediately before upload.
 
 Useful evaluation commands:
 
