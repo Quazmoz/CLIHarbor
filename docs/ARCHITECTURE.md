@@ -7,16 +7,16 @@ CLIHarbor is a thin local application. The browser is presentation only; the loc
 ```text
 Browser UI
    |
-   | loopback HTTP + future streaming events
+   | authenticated loopback HTTP + bounded SSE events
    v
 CLIHarbor local runtime
    |- pack loader / schema validator       [implemented]
    |- tool discovery / version probe       [implemented]
-   |- command planner / validation          [implemented: internal read-only boundary]
-   |- process executor                      [implemented: internal read-only boundary]
+   |- command planner / validation          [implemented: read-only browser boundary]
+   |- process executor                      [implemented: bounded read-only runs]
    |- auth state adapter                    [planned]
    |- output parsers / redaction            [planned]
-   |- run metadata                          [planned]
+   |- run manager / event replay              [implemented: bounded in-memory]
    v
 Approved local CLI binary (idsec.exe, conjur.exe, ...)
    |
@@ -28,7 +28,7 @@ Vendor service / existing auth/session model
 
 ### MVP
 
-One local executable starts a loopback server, serves embedded frontend assets, and opens the default browser. The runtime now has an internal planner/executor for approved read-only local processes, but that executor is not yet exposed through the browser/API.
+One local executable starts a loopback server, serves embedded frontend assets, and opens the default browser. Approved read-only tasks are exposed only through authenticated server-owned task/run APIs; the browser supplies typed values while executable, argv, lifecycle, and replay authority remain in the Go runtime.
 
 No daemon, Windows service, cloud server, external database, or privileged helper is required.
 
@@ -76,7 +76,6 @@ internal/runs/             # bounded in-memory run ownership/state/events
 internal/auth/             # planned auth adapters/login orchestration
 internal/output/           # planned parsers/structured rendering models
 internal/redact/           # planned secret-safe diagnostics/invocation views
-internal/runs/             # planned run state/metadata
 tools/task/                # cross-platform repository validation/build entry point
 web/                       # React source
 packs/                     # fixtures/built-in pack sources; never cwd auto-trusted
