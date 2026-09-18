@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { fetchRuntimeStatus, SessionUnavailableError, type RuntimeStatus } from './api/status';
 import { fetchTasks, type Task, type TaskInput } from './api/tasks';
 import { fetchTools, type ToolDiagnostic } from './api/tools';
@@ -238,6 +238,11 @@ function InputControl({
         required={input.required}
         value={typeof value === 'string' ? value : ''}
         step={input.type === 'integer' ? 1 : undefined}
+        min={input.type === 'integer' ? validation.min : undefined}
+        max={input.type === 'integer' ? validation.max : undefined}
+        minLength={input.type === 'string' ? validation.minLength : undefined}
+        maxLength={input.type === 'string' ? validation.maxLength : undefined}
+        pattern={input.type === 'string' ? validation.pattern : undefined}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
@@ -252,6 +257,7 @@ export function App() {
   const [runError, setRunError] = useState('');
   const [starting, setStarting] = useState(false);
   const [streamAttempt, setStreamAttempt] = useState(0);
+  const runHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const readyToolCount = state.kind === 'ready' ? state.tools.filter((tool) => tool.status === 'ready').length : 0;
 
@@ -296,6 +302,12 @@ export function App() {
   }, [acceptRuntime]);
 
   const activeRunID = run?.snapshot.status === 'running' ? run.snapshot.runId : null;
+
+  useEffect(() => {
+    if (run?.snapshot.runId !== undefined) {
+      runHeadingRef.current?.focus();
+    }
+  }, [run?.snapshot.runId]);
 
   useEffect(() => {
     if (activeRunID === null) {
@@ -377,6 +389,9 @@ export function App() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <header className="topbar">
         <div>
           <span className="eyebrow">LOCAL OPERATOR CONSOLE</span>
@@ -385,7 +400,7 @@ export function App() {
         <span className="local-badge">Local only</span>
       </header>
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <section className="hero" aria-labelledby="runtime-heading">
           <div>
             <p className="hero-kicker">Secure local runtime</p>
@@ -398,7 +413,7 @@ export function App() {
         </section>
 
         {state.kind === 'loading' && (
-          <section className="panel" role="status" aria-live="polite">
+          <section className="panel" role="status" aria-live="polite" aria-busy="true">
             <h2>Checking runtime</h2>
             <p>Verifying the authenticated local browser session and available safe tasks…</p>
           </section>
@@ -534,9 +549,24 @@ export function App() {
                 )}
               </article>
 
-              <article className="panel run-panel" aria-live="polite">
+              <article
+                className="panel run-panel"
+                aria-labelledby="run-heading"
+                aria-busy={run?.snapshot.status === 'running'}
+              >
                 <p className="status-label">Run</p>
-                <h2>{run === null ? 'No active run' : run.snapshot.status}</h2>
+                <h2 id="run-heading" ref={runHeadingRef} tabIndex={-1}>
+                  {run === null ? 'No active run' : run.snapshot.status}
+                </h2>
+                <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                  {run === null
+                    ? 'No active run.'
+                    : run.snapshot.status === 'running'
+                      ? run.streamStopped
+                        ? 'Run is still active, but live output streaming is paused.'
+                        : 'Run is active.'
+                      : `Run ${run.snapshot.status}${run.snapshot.exitCode === undefined ? '' : ` with exit code ${run.snapshot.exitCode}`}.`}
+                </p>
                 {run === null ? (
                   <p>Start a safe task to stream its output here.</p>
                 ) : (
@@ -552,7 +582,7 @@ export function App() {
                       </div>
                     </dl>
                     {run.snapshot.status === 'running' && (
-                      <div className="run-actions">
+                      <div className="run-actions" aria-label="Run controls">
                         <button type="button" className="secondary-button" onClick={() => void cancelActiveRun()}>
                           Cancel run
                         </button>
@@ -586,17 +616,25 @@ export function App() {
                     )}
                     <div className="output-grid">
                       <section>
-                        <h3>stdout</h3>
-                        <pre>{run.stdout || 'No stdout yet.'}</pre>
+                        <h3 id="stdout-heading">stdout</h3>
+                        <pre tabIndex={0} aria-labelledby="stdout-heading">
+                          {run.stdout || 'No stdout yet.'}
+                        </pre>
                       </section>
                       <section>
-                        <h3>stderr</h3>
-                        <pre>{run.stderr || 'No stderr yet.'}</pre>
+                        <h3 id="stderr-heading">stderr</h3>
+                        <pre tabIndex={0} aria-labelledby="stderr-heading">
+                          {run.stderr || 'No stderr yet.'}
+                        </pre>
                       </section>
                     </div>
                   </>
                 )}
-                {runError && <p className="run-error">{runError}</p>}
+                {runError && (
+                  <p className="run-error" role="alert">
+                    {runError}
+                  </p>
+                )}
               </article>
             </section>
           </>
