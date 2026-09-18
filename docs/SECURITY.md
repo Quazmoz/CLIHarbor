@@ -6,7 +6,7 @@ CLIHarbor is deliberately local and thin, but it is security-sensitive because i
 
 “Localhost” is not a security boundary by itself. Browser requests, pack files, PATH, local executables, process output, filesystem state, and user input all cross trust boundaries.
 
-Phases 1-4 implement the browser/session boundary, trusted pack boundary, fail-closed tool-discovery/version-probe boundary, and an internal read-only planner/executor boundary. Browser-triggered task execution does not exist yet.
+Phases 1-4 implement the browser/session boundary, trusted pack boundary, fail-closed tool-discovery/version-probe boundary, and the read-only planner/executor boundary. Phase 4c-A now permits browser-triggered execution only through authenticated loopback create/get/cancel APIs that accept pack/command IDs plus typed values; executable/path/argv authority remains server-owned.
 
 ## 2. Assets to protect
 
@@ -144,7 +144,7 @@ Pack v1 requires a risk class. The current planner and executor reject every ris
 
 ### T11 — Long-running/noisy task process DoS
 
-Version probes have timeout/buffer bounds. Task execution now has a total deadline, explicit cancellation, per-stream output limits, `WaitDelay` protection for inherited handles, and on Windows a per-run Job Object established before the process resumes so descendants cannot outlive the run. Persisted/bounded run history and browser-stream backpressure remain future work.
+Version probes have timeout/buffer bounds. Task execution has a total deadline, explicit cancellation, per-stream output limits, `WaitDelay` protection for inherited handles, and on Windows a per-run Job Object established before the process resumes so descendants cannot outlive the run. Phase 4c-A adds bounded active-run count, bounded retained-run count, bounded in-memory event bytes, bounded request bodies, and root-context shutdown cancellation. Live-stream backpressure remains Phase 4c-B work.
 
 ### T12 — Browser bootstrap exposure
 
@@ -210,7 +210,9 @@ Implemented regression coverage includes pack structural/semantic/trust/resource
 
 Phase 4 regression coverage now includes typed/malformed runtime values, exact argv/metacharacter handling, zero values, policy gating, executable identity/replacement detection, cancellation before/after output, timeout, non-zero exit preservation, output exhaustion, sink failure, setup-failure cleanup, neutral temporary-directory cleanup, Unicode/spaces, double cancellation, and Windows Job Object descendant cleanup including inherited stdout/stderr handles.
 
-Phase 4b adds integration proof across the real trust chain: an explicitly named local pack is parsed/validated into the registry, a backend-only absolute executable override is resolved and version-probed, the planner derives executable/argv authority exclusively from that state, and the executor output/exit behavior is compared to direct fixture invocation. No browser execution authority is introduced by the test.
+Phase 4b adds integration proof across the real trust chain: an explicitly named local pack is parsed/validated into the registry, a backend-only absolute executable override is resolved and version-probed, the planner derives executable/argv authority exclusively from that state, and the executor output/exit behavior is compared to direct fixture invocation.
+
+Phase 4c-A regression coverage adds authenticated browser execution without widening authority: exact Host/session/Origin/CSRF controls, strict UTF-8 JSON, duplicate-key/unknown-field rejection, request-size limits, stable sanitized error codes, server-generated run IDs, bounded concurrency/retention/events, explicit cancellation, shutdown cancellation, and application-level bootstrap → CSRF → run execution coverage. Browser-visible snapshots omit executable path and argv; output bytes are Base64-encoded as untrusted data.
 
 Still required before MVP release:
 
