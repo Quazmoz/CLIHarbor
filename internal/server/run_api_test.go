@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
+	"github.com/Quazmoz/CLIHarbor/internal/structured"
 )
 
 func TestRunAPICreateGetCancelUsesExistingSecurityBoundary(t *testing.T) {
@@ -18,7 +19,10 @@ func TestRunAPICreateGetCancelUsesExistingSecurityBoundary(t *testing.T) {
 			PackID:    "fixture",
 			CommandID: "inspect",
 			ToolID:    "fixture",
-			Status:    runs.StatusRunning,
+			Status: runs.StatusRunning,
+			Structured: &structured.Result{
+				Status: structured.StatusInvalid, Renderer: "cards", Error: structured.ErrWrongType,
+			},
 		},
 	}
 	s := newTestServer(t, Config{Runs: service})
@@ -96,6 +100,13 @@ func TestRunAPICreateGetCancelUsesExistingSecurityBoundary(t *testing.T) {
 		defer response.Body.Close()
 		if response.StatusCode != http.StatusOK {
 			t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusOK)
+		}
+		var snapshot runs.Snapshot
+		if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
+			t.Fatal(err)
+		}
+		if snapshot.Structured == nil || snapshot.Structured.Status != structured.StatusInvalid || snapshot.Structured.Error != structured.ErrWrongType {
+			t.Fatalf("structured snapshot = %#v", snapshot.Structured)
 		}
 	})
 
