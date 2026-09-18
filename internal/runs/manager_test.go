@@ -272,7 +272,6 @@ func TestManagerFailsClosedOnPlannerPolicyAndOutputLimit(t *testing.T) {
 	}
 }
 
-
 func TestManagerStructuredOutputFixtureMatrixPreservesRawEvidence(t *testing.T) {
 	t.Setenv(managerHelperEnv, "1")
 	tests := []struct {
