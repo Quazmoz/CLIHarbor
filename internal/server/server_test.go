@@ -15,9 +15,10 @@ import (
 )
 
 type statusResponse struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Session string `json:"session"`
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	Session   string `json:"session"`
+	CSRFToken string `json:"csrfToken"`
 }
 
 func TestServerRequiresFrontendHandler(t *testing.T) {
@@ -52,7 +53,7 @@ func TestBootstrapIsSingleUseAndEstablishesSession(t *testing.T) {
 		t.Fatalf("bootstrap final request = %s status=%d, want clean / with 200", response.Request.URL.String(), response.StatusCode)
 	}
 	status := fetchStatus(t, client, s)
-	if status.Name != "CLIHarbor" || status.Version != "test-version" || status.Session != "active" {
+	if status.Name != "CLIHarbor" || status.Version != "test-version" || status.Session != "active" || status.CSRFToken == "" {
 		t.Fatalf("unexpected status payload: %+v", status)
 	}
 

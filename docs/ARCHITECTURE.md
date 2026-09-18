@@ -72,6 +72,7 @@ internal/packs/            # pack model/validation/loading/registry
 internal/discovery/        # executable resolution/version probes/discovery snapshot
 internal/planner/          # typed input -> immutable read-only execution plan
 internal/executor/         # direct process start/stream/cancel/timeout/lifecycle
+internal/runs/             # bounded in-memory run ownership/state/events
 internal/auth/             # planned auth adapters/login orchestration
 internal/output/           # planned parsers/structured rendering models
 internal/redact/           # planned secret-safe diagnostics/invocation views
@@ -105,27 +106,27 @@ Unavailable tools do not make the browser shell itself unsafe to start; they rem
 
 ## 6. Browser/API contract
 
-Implemented HTTP surface remains:
+Implemented HTTP surface now includes:
 
 ```text
 GET  /bootstrap?token=<one-time-secret>
 GET  /api/v1/status
+POST /api/v1/runs
+GET  /api/v1/runs/{runId}
+POST /api/v1/runs/{runId}/cancel
 GET  /
 GET  /assets/*
 ```
 
-`/bootstrap` and `/api/*` are server-owned and never fall through to frontend routing.
+`/bootstrap` and `/api/*` are server-owned and never fall through to frontend routing. Authenticated status returns the per-session CSRF token used by same-origin browser mutations. Run creation accepts only `packId`, `commandId`, and typed `values`; unknown/duplicate authority fields fail closed.
 
-Planned surface includes:
+Planned surface still includes:
 
 ```text
 GET  /api/v1/packs
 GET  /api/v1/tools
 GET  /api/v1/tasks
 GET  /api/v1/tasks/{taskId}
-POST /api/v1/runs
-GET  /api/v1/runs/{runId}
-POST /api/v1/runs/{runId}/cancel
 GET  /api/v1/runs/{runId}/events
 POST /api/v1/auth/{tool}/login
 POST /api/v1/auth/{tool}/logout
@@ -247,11 +248,13 @@ run.timed-out
 run.failed
 ```
 
-These are internal sink events, not yet a browser streaming protocol. No run HTTP endpoint or persisted run store exists yet.
+These events are retained only in the bounded in-memory run manager. Phase 4c-A exposes them through authenticated run snapshots for polling; there is no persisted run store. Live SSE/event streaming remains Phase 4c-B.
 
 Phase 4b now proves the production authority chain end to end with a purpose-built fixture: explicit-local trusted pack loading → schema/semantic validation → registry → discovery with backend-only override → fixed version probe/constraint → typed planner → executor → bounded events/result. The fixture execution is compared with direct invocation for argv/output/exit fidelity and includes cancellation after observable output.
 
-The next architecture boundary is exposing only this already-proven read-only path through authenticated loopback APIs and bounded streaming without allowing the browser to choose executable paths, executable names, flags, or arbitrary argv.
+Phase 4c-A now exposes only this proven read-only path through authenticated loopback create/get/cancel APIs. The run manager defaults to bounded active and retained run counts, bounded output/event memory, finite execution timeout, server-generated run IDs, and root-context cancellation. Request disconnect after a successful create does not implicitly kill the run; explicit cancellation or application shutdown owns termination.
+
+The next architecture boundary is Phase 4c-B live bounded streaming and minimal task/run UI without allowing the browser to choose executable paths, executable names, flags, or arbitrary argv.
 
 ## 12. Authentication
 

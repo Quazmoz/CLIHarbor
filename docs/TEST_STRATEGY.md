@@ -63,6 +63,24 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 - cancellation after observable output produces the expected cancelled run state;
 - the test binary acts only as the synthetic CLI; no external tool, credential, vendor syntax, or browser-selected execution shape is introduced.
 
+### Phase 4c-A authenticated run API checkpoint
+
+Coverage now proves:
+
+- run creation requires the established browser session plus exact Host/Origin/CSRF mutation boundary;
+- authenticated status supplies the per-session CSRF token without rendering/logging it;
+- request bodies are bounded, valid UTF-8 JSON with duplicate keys and unknown execution-authority fields rejected;
+- browser payloads contain only pack/command IDs plus typed values;
+- run IDs are generated server-side and duplicate read-only requests create distinct bounded runs;
+- active-run and retained-run limits are deterministic;
+- snapshots never expose executable path or argv and encode output bytes as Base64 data;
+- output exhaustion fails the run rather than growing memory without bound;
+- explicit cancellation releases capacity;
+- manager/application shutdown cancels active runs;
+- a full application test performs bootstrap → status/CSRF → POST run → GET run → fixture output verification → shutdown.
+
+Live SSE/backpressure/disconnect coverage remains Phase 4c-B.
+
 A green CI build proves the code compiles/tests on its CI platforms. It does not replace manual Windows acceptance of real default-browser, PATH, filesystem, vendor CLI, authentication, or antivirus/SmartScreen behavior.
 
 ## 2. Test layers
