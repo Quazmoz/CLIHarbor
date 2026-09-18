@@ -53,15 +53,21 @@ func TestWriteSHA256SumsWritesDeterministicArtifactEntry(t *testing.T) {
 	if err := os.WriteFile(artifact, []byte("hello again"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := writeSHA256Sums(artifact, destination); err == nil {
+		t.Fatal("second writeSHA256Sums() unexpectedly replaced an existing manifest")
+	}
+	if err := removeGeneratedChecksum(destination); err != nil {
+		t.Fatalf("invalidate checksum before regeneration: %v", err)
+	}
 	if err := writeSHA256Sums(artifact, destination); err != nil {
-		t.Fatalf("second writeSHA256Sums() error = %v", err)
+		t.Fatalf("writeSHA256Sums() after invalidation error = %v", err)
 	}
 	second, err := os.ReadFile(destination)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(second) == want {
-		t.Fatal("checksum file was not replaced after artifact changed")
+		t.Fatal("checksum file was not regenerated after artifact changed")
 	}
 }
 
