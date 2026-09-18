@@ -158,3 +158,13 @@ Do not flatten all failures into “login failed.” Preserve sanitized vendor e
 - expired sessions are detected or represented as unknown with a safe re-login path;
 - logout uses the vendor command and updates the UI;
 - wrong-profile/context risk is visible before change/destructive workflows.
+
+## Phase 0 evaluation authentication behavior
+
+The Phase 0 work-laptop workflow does not add an authentication adapter and does not call vendor login/logout.
+
+`version`, `self-test`, and discovery-only `inventory` require no vendor credential input. Operator-selected evidence probes are allowed only when their fixed read-only argv is explicitly declared in a trusted pack; they receive no interactive stdin and CLIHarbor never supplies username/password/token/MFA values.
+
+The supplied Idira/CyberArk Phase 0 inventory pack contains no evidence probes and therefore cannot invoke vendor authentication accidentally. Existing vendor-owned authentication/profile/keystore semantics remain out of scope until exact deployed-command evidence is collected.
+
+Browser bootstrap/session/CSRF tokens are CLIHarbor-local credentials and are explicitly excluded from Phase 0 evidence exports.
