@@ -22,7 +22,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/planner"
 )
 
-const executionFixtureEnv = "CLIHARBOR_PHASE4B_FIXTURE"
+const executionFixtureMarker = "--cliharbor-phase4b-fixture"
 
 func TestExecutionIntegrationExactArgvAndStreams(t *testing.T) {
 	state := prepareExecutionFixtureRuntime(t)
@@ -45,6 +45,7 @@ func TestExecutionIntegrationExactArgvAndStreams(t *testing.T) {
 	wantArgs := []string{
 		"-test.run=^TestExecutionFixtureProcess$",
 		"--",
+		executionFixtureMarker,
 		"inspect",
 		"--query", query,
 		"--limit", "0",
@@ -116,6 +117,7 @@ func TestExecutionIntegrationSecondPackToolIsIsolated(t *testing.T) {
 	wantArgs := []string{
 		"-test.run=^TestExecutionFixtureProcess$",
 		"--",
+		executionFixtureMarker,
 		"summarize",
 		"--topic", "delta café 雪",
 		"--brief",
@@ -212,23 +214,22 @@ func TestExecutionIntegrationCancellationAfterOutput(t *testing.T) {
 }
 
 func TestExecutionFixtureProcess(t *testing.T) {
-	if os.Getenv(executionFixtureEnv) != "1" {
-		return
-	}
-
-	separator := -1
+	marker := -1
 	for i, arg := range os.Args {
-		if arg == "--" {
-			separator = i
+		if arg == executionFixtureMarker {
+			marker = i
 			break
 		}
 	}
-	if separator < 0 || separator+1 >= len(os.Args) {
+	if marker < 0 {
+		return
+	}
+	if marker+1 >= len(os.Args) {
 		fmt.Fprint(os.Stderr, "fixture command missing")
 		os.Exit(90)
 	}
 
-	args := os.Args[separator+1:]
+	args := os.Args[marker+1:]
 	switch args[0] {
 	case "version":
 		fmt.Fprintln(os.Stdout, "fixture 1.2.3")
@@ -300,7 +301,6 @@ func prepareExecutionFixtureRuntime(t *testing.T) RuntimeState {
 
 func executionFixtureConfigForTest(t *testing.T) executionFixtureConfig {
 	t.Helper()
-	t.Setenv(executionFixtureEnv, "1")
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -332,6 +332,7 @@ runtime:
         args:
           - "-test.run=^TestExecutionFixtureProcess$"
           - "--"
+          - "--cliharbor-phase4b-fixture"
           - "version"
         parser: semver-text
         timeoutMillis: 5000
@@ -368,6 +369,7 @@ commands:
     argv:
       - literal: "-test.run=^TestExecutionFixtureProcess$"
       - literal: "--"
+      - literal: "--cliharbor-phase4b-fixture"
       - literal: "inspect"
       - flag:
           name: --query
@@ -401,6 +403,7 @@ commands:
     argv:
       - literal: "-test.run=^TestExecutionFixtureProcess$"
       - literal: "--"
+      - literal: "--cliharbor-phase4b-fixture"
       - literal: "exit"
       - flag:
           name: --code
@@ -414,6 +417,7 @@ commands:
     argv:
       - literal: "-test.run=^TestExecutionFixtureProcess$"
       - literal: "--"
+      - literal: "--cliharbor-phase4b-fixture"
       - literal: "wait"
     output:
       mode: raw
@@ -453,6 +457,7 @@ runtime:
         args:
           - "-test.run=^TestExecutionFixtureProcess$"
           - "--"
+          - "--cliharbor-phase4b-fixture"
           - "version-alt"
         parser: semver-text
         timeoutMillis: 5000
@@ -480,6 +485,7 @@ commands:
     argv:
       - literal: "-test.run=^TestExecutionFixtureProcess$"
       - literal: "--"
+      - literal: "--cliharbor-phase4b-fixture"
       - literal: "summarize"
       - flag:
           name: --topic
