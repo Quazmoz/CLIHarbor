@@ -362,6 +362,28 @@ func validateSemantics(pack Pack) error {
 			if command.Output.Sensitivity.RevealByDefault {
 				return validationError(ErrSemantic, path+".output.sensitivity.revealByDefault", "secret-bearing output cannot be revealed by default")
 			}
+			if command.Output.Structured != nil {
+				return validationError(ErrSemantic, path+".output.structured", "secret-bearing output cannot enable structured rendering")
+			}
+		}
+		if command.Output.Structured != nil {
+			if command.Output.Mode != OutputJSON {
+				return validationError(ErrSemantic, path+".output.structured", "structured rendering currently requires JSON output mode")
+			}
+			if command.Output.Renderer != "" && command.Output.Renderer != "cards" {
+				return validationError(ErrSemantic, path+".output.renderer", "structured scalar output currently supports only the cards renderer")
+			}
+			seenFields := make(map[string]struct{}, len(command.Output.Structured.Fields))
+			for index, field := range command.Output.Structured.Fields {
+				fieldPath := fmt.Sprintf("%s.output.structured.fields[%d]", path, index)
+				if _, exists := seenFields[field.Key]; exists {
+					return validationError(ErrSemantic, fieldPath+".key", "duplicate structured field key")
+				}
+				seenFields[field.Key] = struct{}{}
+				if field.Sensitive {
+					return validationError(ErrSemantic, fieldPath+".sensitive", "sensitive structured fields are not supported in this phase")
+				}
+			}
 		}
 	}
 	return nil
