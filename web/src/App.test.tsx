@@ -22,7 +22,7 @@ describe('App', () => {
           name: 'CLIHarbor',
           version: '1.2.3-test',
           session: 'active',
-          csrfToken: 'intentionally-ignored-by-ui',
+          csrfToken: 'session-csrf-token',
         }),
       ),
     );
@@ -34,7 +34,7 @@ describe('App', () => {
     expect(screen.getByText('Running')).toBeInTheDocument();
     expect(screen.getByText('Active')).toBeInTheDocument();
     expect(screen.getByText('Local only')).toBeInTheDocument();
-    expect(screen.queryByText('intentionally-ignored-by-ui')).not.toBeInTheDocument();
+    expect(screen.queryByText('session-csrf-token')).not.toBeInTheDocument();
   });
 
   test('shows a recoverable session-expired state for unauthenticated requests', async () => {
@@ -51,7 +51,9 @@ describe('App', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(response(503, { error: 'unavailable' }))
-      .mockResolvedValueOnce(response(200, { name: 'CLIHarbor', version: 'dev', session: 'active' }));
+      .mockResolvedValueOnce(
+        response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'retry-csrf-token' }),
+      );
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
