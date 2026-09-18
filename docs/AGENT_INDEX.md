@@ -161,7 +161,7 @@ The repository now implements the pre-vendor-integration work-laptop evaluation 
 - `cliharbor.phase0/v1` evidence export is typed, bounded, sanitized, self-describing with sanitized fixed argv, omits timestamps for probes that did not execute, and uses atomic no-clobber activation;
 - `packs/phase0/idira-cyberark-inventory.yaml` is discovery-only and asserts no vendor command/probe argv;
 - `go run ./tools/task windows-eval` produces `bin/cliharbor-windows-x64-evaluation.exe` and `SHA256SUMS`;
-- CI verifies the Windows evaluation executable's `version` and `self-test` commands and uploads the unsigned artifact only after existing quality/security/race gates;
+- CI verifies the Windows evaluation executable's `version` and `self-test` commands, recomputes `EVALUATION_SHA256SUMS` for both the executable and shipped trusted Phase 0 pack, and uploads the unsigned artifact only after existing quality/security/race gates;
 - the exact laptop procedure is `WORK_LAPTOP_EVALUATION.md`.
 
 The next product step is to run this artifact on the actual company-managed Windows laptop and return the reviewed Phase 0 evidence. Real Idira/CyberArk command definitions remain blocked on that evidence; do not guess them.
