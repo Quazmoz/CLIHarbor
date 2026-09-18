@@ -316,7 +316,11 @@ func writeSHA256Manifest(root, destination string, artifacts []string) error {
 		return fmt.Errorf("resolve checksum manifest root: %w", err)
 	}
 
-	entries := make([]string, 0, len(artifacts))
+	type manifestEntry struct {
+		name   string
+		digest string
+	}
+	entries := make([]manifestEntry, 0, len(artifacts))
 	seen := make(map[string]struct{}, len(artifacts))
 	for _, artifact := range artifacts {
 		artifactPath, err := filepath.Abs(artifact)
@@ -351,10 +355,19 @@ func writeSHA256Manifest(root, destination string, artifacts []string) error {
 		if err != nil {
 			return err
 		}
-		entries = append(entries, hex.EncodeToString(digest)+"  "+name)
+		entries = append(entries, manifestEntry{
+			name:   name,
+			digest: hex.EncodeToString(digest),
+		})
 	}
-	sort.Strings(entries)
-	return writeChecksumFile(destination, strings.Join(entries, "\n")+"\n")
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].name < entries[j].name
+	})
+	lines := make([]string, len(entries))
+	for i, entry := range entries {
+		lines[i] = entry.digest + "  " + entry.name
+	}
+	return writeChecksumFile(destination, strings.Join(lines, "\n")+"\n")
 }
 
 func sha256File(path string, expected os.FileInfo) ([]byte, error) {

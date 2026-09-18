@@ -105,6 +105,36 @@ func TestParseEvaluationManifestRejectsAliasesDuplicatesAndNondeterminism(t *tes
 	}
 }
 
+func TestWriteSHA256ManifestSortsByCanonicalPathNotDigest(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	first := filepath.Join(root, "a.txt")
+	second := filepath.Join(root, "b.txt")
+	if err := os.WriteFile(first, []byte("z"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(second, []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	destination := filepath.Join(root, "SUMS")
+	if err := writeSHA256Manifest(root, destination, []string{second, first}); err != nil {
+		t.Fatalf("writeSHA256Manifest() error = %v", err)
+	}
+	content, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSuffix(string(content), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("manifest lines = %d, want 2", len(lines))
+	}
+	if !strings.HasSuffix(lines[0], "  a.txt") || !strings.HasSuffix(lines[1], "  b.txt") {
+		t.Fatalf("manifest order = %q, want canonical path order", content)
+	}
+}
+
 func TestWriteSHA256ManifestRejectsDuplicatePathAliases(t *testing.T) {
 	t.Parallel()
 
