@@ -96,7 +96,9 @@ Phase 4 adds the low-level secure execution boundary:
 - regression coverage for argv boundaries, malformed values, executable replacement, spaces/Unicode, cancellation races, setup failure cleanup, and Windows descendant cleanup;
 - a Phase 4b integration proof that loads an explicit trusted fixture pack through the real loader, resolves the synthetic CLI through backend-only discovery override and version probing, builds a typed plan, executes it, and verifies exact argv/output/exit/cancellation behavior against direct fixture execution.
 
-The planner/executor is currently an internal backend boundary. There is still **no browser run API or task execution UI**, no auth-required or secret-bearing execution, and no real Idira/CyberArk command pack. Phase 0 vendor inventory remains required before any real vendor command definitions are added.
+Phase 4c-A exposes that boundary through authenticated loopback JSON APIs for creating, reading, and cancelling runs. The browser can submit only `packId`, `commandId`, and typed `values`; executable paths, executable names, flag names, and argv remain server-owned. Run state is bounded and in-memory, output chunks are returned as Base64 data inside bounded snapshots, duplicate read-only requests create independent server-generated run IDs, and application shutdown cancels active runs. The existing exact Host, session, Origin, and CSRF boundary applies to run mutations.
+
+There is still **no task execution UI or live SSE stream**, no auth-required or secret-bearing execution, and no real Idira/CyberArk command pack. Phase 0 vendor inventory remains required before any real vendor command definitions are added.
 
 Development targets Go 1.27.1 and Node 24.21.0.
 
@@ -199,4 +201,4 @@ Those properties reinforce CLIHarbor's core boundary: **invoke the official CLI 
 
 ## Status
 
-Phases 1-4 now include the secure local browser runtime, trusted versioned pack model/loader, fail-closed tool discovery/version probing with `doctor`, an internal deterministic read-only planner/executor with Windows descendant-process ownership, and a fixture-backed end-to-end proof of the loader → discovery → planner → executor chain. The next bounded milestone is the authenticated local browser execution/streaming API for read-only fixture tasks, without widening executable or argv authority. Real vendor command definitions remain blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.
+Phases 1-4 now include the secure local browser runtime, trusted versioned pack model/loader, fail-closed tool discovery/version probing with `doctor`, deterministic read-only planning/execution with Windows descendant ownership, a fixture-backed execution proof, and Phase 4c-A authenticated create/status/cancel run APIs with bounded in-memory polling. The next bounded milestone is Phase 4c-B live event streaming plus the minimal task/run UI, without widening executable or argv authority. Real vendor command definitions remain blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.
