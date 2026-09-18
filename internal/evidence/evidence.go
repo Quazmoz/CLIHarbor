@@ -240,7 +240,7 @@ func RedactPath(value, path, replacement string) string {
 			continue
 		}
 		if runtime.GOOS == "windows" {
-			value = regexp.MustCompile("(?i)" + regexp.QuoteMeta(variant)).ReplaceAllString(value, replacement)
+			value = regexp.MustCompile("(?i)"+regexp.QuoteMeta(variant)).ReplaceAllString(value, replacement)
 			continue
 		}
 		value = strings.ReplaceAll(value, variant, replacement)
