@@ -112,7 +112,10 @@ func check(root string) error {
 	if err := webBuild(root); err != nil {
 		return err
 	}
-	for _, args := range [][]string{{"vet", "./..."}, {"test", "./..."}} {
+	if err := run(root, "go", "mod", "verify"); err != nil {
+		return err
+	}
+	for _, args := range [][]string{{"vet", "./..."}, {"test", "-timeout", "2m", "./..."}} {
 		if err := run(root, "go", args...); err != nil {
 			return err
 		}
