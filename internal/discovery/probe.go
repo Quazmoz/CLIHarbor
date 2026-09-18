@@ -16,6 +16,7 @@ import (
 	semver "github.com/Masterminds/semver/v3"
 
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	"github.com/Quazmoz/CLIHarbor/internal/processcontrol"
 	"github.com/Quazmoz/CLIHarbor/internal/processenv"
 )
 
@@ -44,17 +45,44 @@ func (ExecProbeRunner) Run(ctx context.Context, executablePath string, probe pac
 	}
 	defer os.RemoveAll(workdir)
 
+	controller, err := processcontrol.New()
+	if err != nil {
+		return "", fmt.Errorf("create version probe lifecycle boundary")
+	}
+	defer controller.Close()
+
 	cmd := exec.CommandContext(probeCtx, executablePath, probe.Args...)
 	cmd.Dir = workdir
 	cmd.Stdin = nil
 	cmd.Env = processenv.Minimal()
+	cmd.WaitDelay = 2 * time.Second
+	cmd.Cancel = func() error { return controller.Cancel(cmd) }
 	var stdout, stderr boundedBuffer
 	stdout.max = maxProbeStreamBytes
 	stderr.max = maxProbeStreamBytes
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	if err := controller.Configure(cmd); err != nil {
+		return "", fmt.Errorf("configure version probe lifecycle boundary")
+	}
+	if err := cmd.Start(); err != nil {
+		if errors.Is(probeCtx.Err(), context.DeadlineExceeded) {
+			return "", fmt.Errorf("version probe timed out")
+		}
+		if errors.Is(probeCtx.Err(), context.Canceled) {
+			return "", context.Canceled
+		}
+		return "", fmt.Errorf("version probe could not start")
+	}
+	if err := controller.AfterStart(cmd); err != nil {
+		_ = controller.Cancel(cmd)
+		_ = cmd.Wait()
+		return "", fmt.Errorf("establish version probe lifecycle boundary")
+	}
+	waitErr := cmd.Wait()
+	closeErr := controller.Close()
+	if waitErr != nil {
 		if errors.Is(probeCtx.Err(), context.DeadlineExceeded) {
 			return "", fmt.Errorf("version probe timed out")
 		}
@@ -62,6 +90,9 @@ func (ExecProbeRunner) Run(ctx context.Context, executablePath string, probe pac
 			return "", context.Canceled
 		}
 		return "", fmt.Errorf("version probe exited unsuccessfully")
+	}
+	if closeErr != nil {
+		return "", fmt.Errorf("close version probe lifecycle boundary")
 	}
 	if stdout.truncated || stderr.truncated {
 		return "", fmt.Errorf("version probe output exceeded limit")
