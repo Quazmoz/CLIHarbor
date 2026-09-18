@@ -60,7 +60,7 @@ Version: x.y.z
 [Open tasks]
 ```
 
-If a tool is missing, show remediation rather than an empty state.
+If a tool is missing, incompatible, ambiguous, or otherwise unavailable, show sanitized remediation rather than an empty state. The browser diagnostics view must not expose resolved executable paths or ambiguous candidate paths; exact filesystem evidence remains in the local `cliharbor doctor` output.
 
 ## 5. Task browser
 
