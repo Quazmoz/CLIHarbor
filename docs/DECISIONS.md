@@ -300,6 +300,7 @@ The qualified Windows evaluation path must:
 - disable `GOENV` and `GOWORK`;
 - clear inherited `GOFLAGS`, `GOEXPERIMENT`, `GODEBUG`, and `GOROOT`;
 - pin `GOAMD64=v1`, `GOFIPS140=off`, and `CGO_ENABLED=0`;
+- use private `GOCACHE` and `GOTMPDIR` directories for every qualified build so the double-build gate does not share compiled-object cache or caller-selected temporary work;
 - retain explicit `GOOS=windows` and `GOARCH=amd64`;
 - replace inherited environment entries rather than appending duplicate effective keys.
 
