@@ -210,6 +210,7 @@ Implemented:
 - authenticated `GET /api/v1/runs/{runId}/events` using Server-Sent Events;
 - monotonic manager-owned event sequence plus strict `Last-Event-ID` replay and deterministic impossible-cursor rejection;
 - SSE observes only bounded in-memory manager state; executor sinks never write to HTTP and no per-client output queue is introduced;
+- long-lived SSE handlers are bounded (default 16), with excess observers rejected without touching process execution;
 - ordinary server write deadlines are disabled for the long-lived stream while each write/flush retains a finite bound and heartbeat;
 - stream disconnect/reconnect neither cancels nor recreates execution; explicit cancel remains authoritative;
 - authenticated read-only task metadata exposes only ready, read-only, non-auth, non-secret commands and typed input constraints;
