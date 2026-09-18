@@ -6,7 +6,7 @@ The evaluation executable is **unsigned**. Do not disable or bypass Windows Defe
 
 ## 1. Obtain the qualified artifact
 
-The CI workflow produces an artifact only after the repository's Windows/Linux quality jobs, dependency vulnerability scan, and Go race detector succeed.
+The CI workflow produces an artifact only after the repository's Windows/Linux quality jobs, dependency vulnerability scan, Go race detector, exact `.go-version` toolchain check, and deterministic two-build Windows evaluation qualification succeed.
 
 Artifact name:
 
@@ -26,11 +26,19 @@ packs/phase0/idira-cyberark-inventory.yaml
 
 The executable embeds the production React frontend. The work laptop does not need the source tree or frontend tooling.
 
-To build the same Windows x64 evaluation executable from a repository checkout on a development machine:
+To build the same Windows x64 evaluation executable from a repository checkout on a development machine, install the exact Go patch release in `.go-version` and run:
 
 ```text
 go run ./tools/task windows-eval
 ```
+
+To exercise the deterministic same-checkout rebuild gate locally before using that output:
+
+```text
+go run ./tools/task verify-windows-eval-repro
+```
+
+The reproduction task stages two private temporary bundles and does not publish or replace the real evaluation artifact.
 
 Expected executable location:
 
