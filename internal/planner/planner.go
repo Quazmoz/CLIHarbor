@@ -67,6 +67,11 @@ type Plan struct {
 
 func (p Plan) Clone() Plan {
 	p.Args = append([]string(nil), p.Args...)
+	if p.Output.Structured != nil {
+		structured := *p.Output.Structured
+		structured.Fields = append([]packs.StructuredField(nil), p.Output.Structured.Fields...)
+		p.Output.Structured = &structured
+	}
 	return p
 }
 
