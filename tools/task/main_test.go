@@ -28,7 +28,6 @@ func TestHasExpectedModuleLineRejectsDifferentModule(t *testing.T) {
 	}
 }
 
-
 func TestWriteSHA256SumsWritesDeterministicArtifactEntry(t *testing.T) {
 	t.Parallel()
 
