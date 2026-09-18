@@ -81,14 +81,14 @@ func TestProductionEmbeddedBrowserE2E(t *testing.T) {
 	cmd := exec.CommandContext(ctx, node, script)
 	cmd.Env = append(os.Environ(), "CLIHARBOR_E2E_BOOTSTRAP_URL="+bootstrapURL)
 	output, err := cmd.CombinedOutput()
+	text := strings.TrimSpace(string(output))
+	if len(text) > 8000 {
+		text = text[len(text)-8000:]
+	}
 	if ctx.Err() != nil {
-		t.Fatalf("browser E2E exceeded its deadline: %v", ctx.Err())
+		t.Fatalf("browser E2E exceeded its deadline: %v\n%s", ctx.Err(), text)
 	}
 	if err != nil {
-		text := strings.TrimSpace(string(output))
-		if len(text) > 8000 {
-			text = text[len(text)-8000:]
-		}
 		t.Fatalf("browser E2E failed: %v\n%s", err, text)
 	}
 	if !strings.Contains(string(output), "CLIHarbor production browser E2E passed") {

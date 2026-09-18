@@ -17,6 +17,29 @@ if (typeof WebSocket !== 'function') {
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const stage = (name) => console.log('E2E stage: ' + name);
 
+async function closeHTTPServer(server, timeoutMs = 2000) {
+  if (!server.listening) {
+    return;
+  }
+  const closed = new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+  server.closeIdleConnections?.();
+  server.closeAllConnections?.();
+  await Promise.race([
+    closed,
+    delay(timeoutMs).then(() => {
+      throw new Error('attacker HTTP server did not close within test bound');
+    }),
+  ]);
+}
+
 async function poll(label, fn, timeoutMs = 10000, intervalMs = 75) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
@@ -632,11 +655,13 @@ async function main() {
     for (const page of pages) {
       page.close();
     }
-    if (attackerServer) {
-      attackerServer.close();
-      await once(attackerServer, 'close').catch(() => undefined);
-    }
+    // The attacker page may keep an HTTP connection open after its CDP socket is closed.
+    // Terminate Chrome before awaiting the local attacker server so cleanup cannot deadlock
+    // and hide the assertion that actually failed.
     await chrome.close();
+    if (attackerServer) {
+      await closeHTTPServer(attackerServer);
+    }
   }
 }
 
