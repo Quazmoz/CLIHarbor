@@ -55,10 +55,10 @@ type Plan struct {
 	PackVersion    string
 	CommandID      string
 	ToolID         string
-	ExecutablePath string
-	ExecutableName string
+	ExecutablePath     string
+	ExecutableName     string
 	ExecutableIdentity discovery.ExecutableIdentity
-	ToolVersion    string
+	ToolVersion        string
 	Args           []string
 	Risk           packs.Risk
 	Output         packs.Output
@@ -190,10 +190,10 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 		PackVersion:    loaded.Pack.Metadata.Version,
 		CommandID:      request.CommandID,
 		ToolID:         command.Tool,
-		ExecutablePath: toolState.Path,
-		ExecutableName: toolState.ExecutableName,
+		ExecutablePath:     toolState.Path,
+		ExecutableName:     toolState.ExecutableName,
 		ExecutableIdentity: toolState.ExecutableIdentity,
-		ToolVersion:    toolState.Version,
+		ToolVersion:        toolState.Version,
 		Args:           args,
 		Risk:           command.Risk,
 		Output:         command.Output,
