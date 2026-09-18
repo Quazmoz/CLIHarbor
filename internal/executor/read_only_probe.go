@@ -8,9 +8,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
+
+	"github.com/Quazmoz/CLIHarbor/internal/processenv"
 )
 
 const (
@@ -94,7 +95,7 @@ func RunReadOnlyProbe(ctx context.Context, executablePath string, args []string,
 	cmd := exec.CommandContext(probeCtx, executablePath, args...)
 	cmd.Dir = workdir
 	cmd.Stdin = nil
-	cmd.Env = readOnlyProbeEnvironment()
+	cmd.Env = processenv.Minimal()
 	cmd.WaitDelay = readOnlyProbeWaitDelay
 	cmd.Cancel = func() error { return controller.cancel(cmd) }
 	if err := controller.configure(cmd); err != nil {
@@ -166,17 +167,3 @@ func (b *probeBuffer) Write(p []byte) (int, error) {
 }
 
 func (b *probeBuffer) Bytes() []byte { return b.buf.Bytes() }
-
-func readOnlyProbeEnvironment() []string {
-	names := []string{"LANG", "LC_ALL", "LC_CTYPE", "TMPDIR"}
-	if runtime.GOOS == "windows" {
-		names = []string{"SystemRoot", "WINDIR", "TEMP", "TMP"}
-	}
-	env := make([]string, 0, len(names))
-	for _, name := range names {
-		if value, ok := os.LookupEnv(name); ok && value != "" {
-			env = append(env, name+"="+value)
-		}
-	}
-	return env
-}
