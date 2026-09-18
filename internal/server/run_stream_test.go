@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
+	"github.com/Quazmoz/CLIHarbor/internal/structured"
 )
 
 type streamRunService struct {
@@ -68,11 +69,12 @@ func (s *streamRunService) WaitEvents(ctx context.Context, runID string, after u
 	}
 	if len(events) != 0 || snapshot.Status != runs.StatusRunning {
 		return runs.EventBatch{
-			RunID:    snapshot.RunID,
-			Events:   events,
-			Status:   snapshot.Status,
-			ExitCode: snapshot.ExitCode,
-			Complete: snapshot.Status != runs.StatusRunning,
+			RunID:      snapshot.RunID,
+			Events:     events,
+			Status:     snapshot.Status,
+			ExitCode:   snapshot.ExitCode,
+			Structured: snapshot.Structured,
+			Complete:   snapshot.Status != runs.StatusRunning,
 		}, nil
 	}
 	if started != nil {
@@ -96,8 +98,13 @@ func TestRunEventStreamReplaysAfterLastEventIDAndCompletes(t *testing.T) {
 		PackID:    "fixture",
 		CommandID: "inspect",
 		ToolID:    "fixture",
-		Status:    runs.StatusExited,
-		ExitCode:  &exitCode,
+		Status:   runs.StatusExited,
+		ExitCode: &exitCode,
+		Structured: &structured.Result{
+			Status: structured.StatusAvailable,
+			Renderer: "cards",
+			Fields: []structured.Field{{Key: "name", Label: "Name", Type: "string", Present: true, Value: "<script>alert(1)</script>"}},
+		},
 		Events: []runs.Event{
 			{Sequence: 1, Type: "run.started", Timestamp: time.Date(2026, 9, 18, 10, 0, 0, 0, time.UTC)},
 			{Sequence: 2, Type: "stdout.chunk", Timestamp: time.Date(2026, 9, 18, 10, 0, 1, 0, time.UTC), DataBase64: "aGVsbG8="},
@@ -137,6 +144,9 @@ func TestRunEventStreamReplaysAfterLastEventIDAndCompletes(t *testing.T) {
 	}
 	if !strings.Contains(text, "\"dataBase64\":\"aGVsbG8=\"") || !strings.Contains(text, "\"status\":\"exited\"") {
 		t.Fatalf("missing safe stream payload: %q", text)
+	}
+	if !strings.Contains(text, ""structured":") || !strings.Contains(text, "\u003cscript\u003ealert(1)\u003c/script\u003e") {
+		t.Fatalf("missing safely encoded structured completion: %q", text)
 	}
 }
 
