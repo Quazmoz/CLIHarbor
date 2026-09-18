@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -162,6 +163,24 @@ func readStableRegularFile(filename string, maxBytes int64) ([]byte, error) {
 		_ = file.Close()
 		return nil, err
 	}
+	middle, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	if int64(len(data)) > maxBytes {
+		_ = file.Close()
+		return nil, fmt.Errorf("file exceeds %d byte limit", maxBytes)
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	second, err := io.ReadAll(io.LimitReader(file, maxBytes+1))
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
 	finished, statErr := file.Stat()
 	closeErr := file.Close()
 	if statErr != nil {
@@ -170,7 +189,7 @@ func readStableRegularFile(filename string, maxBytes int64) ([]byte, error) {
 	if closeErr != nil {
 		return nil, closeErr
 	}
-	if int64(len(data)) > maxBytes {
+	if int64(len(second)) > maxBytes {
 		return nil, fmt.Errorf("file exceeds %d byte limit", maxBytes)
 	}
 
@@ -178,9 +197,12 @@ func readStableRegularFile(filename string, maxBytes int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if current.Mode()&os.ModeSymlink != 0 || !current.Mode().IsRegular() ||
-		!os.SameFile(opened, current) || opened.Size() != finished.Size() ||
-		!opened.ModTime().Equal(finished.ModTime()) {
+	if !bytes.Equal(data, second) ||
+		current.Mode()&os.ModeSymlink != 0 || !current.Mode().IsRegular() ||
+		!os.SameFile(opened, current) ||
+		opened.Size() != middle.Size() || !opened.ModTime().Equal(middle.ModTime()) ||
+		middle.Size() != finished.Size() || !middle.ModTime().Equal(finished.ModTime()) ||
+		finished.Size() != current.Size() || !finished.ModTime().Equal(current.ModTime()) {
 		return nil, fmt.Errorf("file changed while read")
 	}
 	return data, nil
