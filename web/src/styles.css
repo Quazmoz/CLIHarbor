@@ -162,6 +162,142 @@ main {
   margin-top: 0.5rem;
 }
 
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 1rem;
+  padding-bottom: 3rem;
+}
+
+.form-stack {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem 0;
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+  color: #c8d5d9;
+}
+
+.field > span,
+.checkbox-row > span {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  border: 1px solid #38505a;
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  color: #edf5f7;
+  background: #0f1b20;
+}
+
+.field select[multiple] {
+  min-height: 7rem;
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.checkbox-row input:focus-visible {
+  outline: 3px solid #9ad5e1;
+  outline-offset: 2px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #c8d5d9;
+}
+
+.checkbox-row input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.task-context {
+  margin: 1rem 0 0;
+  padding: 0.9rem;
+  border: 1px solid #26383f;
+  border-radius: 0.65rem;
+  background: #101c21;
+}
+
+.task-context p {
+  margin: 0.35rem 0 0;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.secondary-button {
+  margin: 0.75rem 0 1rem;
+  border-color: #586c73;
+  background: #15252b;
+}
+
+.run-panel {
+  min-width: 0;
+}
+
+.run-meta {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.9rem !important;
+}
+
+.run-meta > div {
+  padding-top: 0.6rem !important;
+}
+
+.output-grid {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.output-grid h3 {
+  margin: 0 0 0.4rem;
+  color: #b7c9ce;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.output-grid pre {
+  margin: 0;
+  min-height: 7rem;
+  max-height: 22rem;
+  overflow: auto;
+  border: 1px solid #26383f;
+  border-radius: 0.55rem;
+  padding: 0.8rem;
+  color: #dfe7ec;
+  background: #081014;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.stream-message {
+  margin: 0.5rem 0;
+  color: #d9bd7f !important;
+}
+
+.run-error {
+  color: #e2a3a3 !important;
+}
+
 footer {
   padding: 1.5rem 0 2rem;
   border-top: 1px solid #26353b;
@@ -170,7 +306,8 @@ footer {
 }
 
 @media (max-width: 760px) {
-  .status-grid {
+  .status-grid,
+  .workspace-grid {
     grid-template-columns: 1fr;
   }
 
