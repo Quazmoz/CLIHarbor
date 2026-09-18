@@ -150,7 +150,7 @@ func TestRunEventStreamRejectsMalformedAndImpossibleCursorsBeforeStreaming(t *te
 	client := sessionClient(t)
 	bootstrap(t, client, s)
 
-	for _, cursor := range []string{"-1", " 1", "2", "18446744073709551616"} {
+	for _, cursor := range []string{"-1", "+1", "1.0", "2", "18446744073709551616"} {
 		t.Run(cursor, func(t *testing.T) {
 			request, err := http.NewRequest(http.MethodGet, s.BaseURL()+"/api/v1/runs/"+service.snapshot.RunID+"/events", nil)
 			if err != nil {
@@ -170,6 +170,14 @@ func TestRunEventStreamRejectsMalformedAndImpossibleCursorsBeforeStreaming(t *te
 				t.Fatalf("cursor %q response = HTTP %d %q", cursor, response.StatusCode, body)
 			}
 		})
+	}
+}
+
+func TestParseLastEventIDRejectsWhitespace(t *testing.T) {
+	for _, cursor := range []string{" 1", "1 ", "\t1"} {
+		if _, err := parseLastEventID(cursor); err == nil {
+			t.Fatalf("parseLastEventID(%q) succeeded, want error", cursor)
+		}
 	}
 }
 
