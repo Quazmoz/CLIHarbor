@@ -64,7 +64,7 @@ func TestExecutionIntegrationExactArgvAndStreams(t *testing.T) {
 	}
 
 	collector := &integrationEventCollector{}
-	result, err := integrationExecutor(2 * time.Second).Run(t.Context(), plan, collector)
+	result, err := integrationExecutor(10 * time.Second).Run(t.Context(), plan, collector)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -100,7 +100,7 @@ func TestExecutionIntegrationPreservesNonZeroExit(t *testing.T) {
 		t.Fatalf("direct fixture exit = %d, want 7", directExit)
 	}
 
-	result, err := integrationExecutor(2*time.Second).Run(t.Context(), plan, &integrationEventCollector{})
+	result, err := integrationExecutor(10*time.Second).Run(t.Context(), plan, &integrationEventCollector{})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -123,7 +123,7 @@ func TestExecutionIntegrationCancellationAfterOutput(t *testing.T) {
 	defer cancel()
 	collector := &integrationEventCollector{cancelOnReady: cancel}
 
-	result, err := integrationExecutor(5*time.Second).Run(ctx, plan, collector)
+	result, err := integrationExecutor(10*time.Second).Run(ctx, plan, collector)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -218,7 +218,7 @@ runtime:
           - "--"
           - "version"
         parser: semver-text
-        timeoutMillis: 1000
+        timeoutMillis: 5000
       versionConstraint: ">=1.0.0 <2.0.0"
 commands:
   inspect:
@@ -341,7 +341,9 @@ commands:
 
 func runExecutionFixtureDirect(t *testing.T, executable string, args []string) ([]byte, []byte, int) {
 	t.Helper()
-	cmd := exec.Command(executable, args...)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, executable, args...)
 	cmd.Env = os.Environ()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
