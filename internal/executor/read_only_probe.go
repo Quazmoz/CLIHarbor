@@ -167,7 +167,6 @@ func (b *probeBuffer) Write(p []byte) (int, error) {
 
 func (b *probeBuffer) Bytes() []byte { return b.buf.Bytes() }
 
-
 func readOnlyProbeEnvironment() []string {
 	names := []string{"LANG", "LC_ALL", "LC_CTYPE", "TMPDIR"}
 	if runtime.GOOS == "windows" {
