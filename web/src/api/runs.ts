@@ -16,6 +16,24 @@ export interface RunComplete {
   exitCode?: number;
 }
 
+export type StructuredStatus = 'available' | 'invalid' | 'unavailable';
+export type StructuredFieldType = 'string' | 'integer' | 'boolean';
+
+export interface StructuredField {
+  key: string;
+  label: string;
+  type: StructuredFieldType;
+  present: boolean;
+  value: string;
+}
+
+export interface StructuredResult {
+  status: StructuredStatus;
+  renderer: 'cards';
+  error?: string;
+  fields?: StructuredField[];
+}
+
 export interface RunSnapshot {
   runId: string;
   packId: string;
@@ -26,6 +44,7 @@ export interface RunSnapshot {
   startedAt?: string;
   endedAt?: string;
   exitCode?: number;
+  structured?: StructuredResult;
   events?: Array<Omit<RunEvent, 'runId'>>;
 }
 
@@ -43,11 +62,56 @@ function isRunStatus(value: unknown): value is RunStatus {
   return value === 'running' || value === 'exited' || value === 'cancelled' || value === 'timed-out' || value === 'failed';
 }
 
+function parseStructured(value: unknown): StructuredResult {
+  if (!isRecord(value)) {
+    throw new Error('CLIHarbor returned an invalid structured result.');
+  }
+  const allowed = new Set(['status', 'renderer', 'error', 'fields']);
+  if (Object.keys(value).some((key) => !allowed.has(key))) {
+    throw new Error('CLIHarbor returned an invalid structured result.');
+  }
+  const { status, renderer, error, fields } = value;
+  if (
+    !['available', 'invalid', 'unavailable'].includes(String(status)) ||
+    renderer !== 'cards' ||
+    (error !== undefined && typeof error !== 'string') ||
+    (fields !== undefined && !Array.isArray(fields))
+  ) {
+    throw new Error('CLIHarbor returned an invalid structured result.');
+  }
+  const parsedFields = Array.isArray(fields)
+    ? fields.map((field): StructuredField => {
+        if (!isRecord(field)) {
+          throw new Error('CLIHarbor returned an invalid structured field.');
+        }
+        const fieldAllowed = new Set(['key', 'label', 'type', 'present', 'value']);
+        if (Object.keys(field).some((key) => !fieldAllowed.has(key))) {
+          throw new Error('CLIHarbor returned an invalid structured field.');
+        }
+        const { key, label, type, present, value: fieldValue } = field;
+        if (
+          typeof key !== 'string' ||
+          typeof label !== 'string' ||
+          !['string', 'integer', 'boolean'].includes(String(type)) ||
+          typeof present !== 'boolean' ||
+          typeof fieldValue !== 'string'
+        ) {
+          throw new Error('CLIHarbor returned an invalid structured field.');
+        }
+        return { key, label, type: type as StructuredFieldType, present, value: fieldValue };
+      })
+    : undefined;
+  if (status === 'available' && parsedFields === undefined) {
+    throw new Error('CLIHarbor returned an invalid structured result.');
+  }
+  return { status: status as StructuredStatus, renderer: 'cards', error, fields: parsedFields };
+}
+
 function parseSnapshot(value: unknown): RunSnapshot {
   if (!isRecord(value)) {
     throw new Error('CLIHarbor returned an invalid run response.');
   }
-  const { runId, packId, commandId, toolId, toolVersion, status, startedAt, endedAt, exitCode, events } = value;
+  const { runId, packId, commandId, toolId, toolVersion, status, startedAt, endedAt, exitCode, structured, events } = value;
   if (
     typeof runId !== 'string' ||
     typeof packId !== 'string' ||
@@ -58,6 +122,7 @@ function parseSnapshot(value: unknown): RunSnapshot {
     (startedAt !== undefined && typeof startedAt !== 'string') ||
     (endedAt !== undefined && typeof endedAt !== 'string') ||
     (exitCode !== undefined && typeof exitCode !== 'number') ||
+    (structured !== undefined && !isRecord(structured)) ||
     (events !== undefined && !Array.isArray(events))
   ) {
     throw new Error('CLIHarbor returned an invalid run response.');
@@ -72,6 +137,7 @@ function parseSnapshot(value: unknown): RunSnapshot {
     startedAt,
     endedAt,
     exitCode,
+    structured: structured === undefined ? undefined : parseStructured(structured),
     events: Array.isArray(events)
       ? events.map((event) => {
           const parsed = parseEvent({ ...event, runId });
