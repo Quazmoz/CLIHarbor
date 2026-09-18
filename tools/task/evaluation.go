@@ -241,10 +241,14 @@ func verifyWindowsEvaluationReproducible(root string) error {
 	if err != nil {
 		return fmt.Errorf("read second evaluation reproduction manifest: %w", err)
 	}
-	if !bytes.Equal(firstManifest, secondManifest) {
+	return verifyEvaluationReproductionManifests(candidateManifest, firstManifest, secondManifest)
+}
+
+func verifyEvaluationReproductionManifests(candidate, first, second []byte) error {
+	if !bytes.Equal(first, second) {
 		return fmt.Errorf("Windows evaluation rebuilds are not byte-deterministic")
 	}
-	if !bytes.Equal(candidateManifest, firstManifest) {
+	if !bytes.Equal(candidate, first) {
 		return fmt.Errorf("Windows evaluation candidate does not match deterministic rebuilds")
 	}
 	return nil
