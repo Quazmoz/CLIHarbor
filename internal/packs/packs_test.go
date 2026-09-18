@@ -225,7 +225,6 @@ func TestParseRejectsInvalidPacks(t *testing.T) {
 	}
 }
 
-
 func TestParseStructuredOutputContract(t *testing.T) {
 	good := strings.Replace(minimalPack, "      mode: raw", `      mode: json
       renderer: cards
