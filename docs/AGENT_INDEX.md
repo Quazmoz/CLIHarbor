@@ -85,7 +85,7 @@ Use for bounded in-memory run ownership, create/get/cancel semantics, browser-sa
 
 Canonical: `UX.md`
 
-Use for navigation, task forms, run views, auth UX, destructive-action UX, accessibility, and diagnostics. The current Phase 3 diagnostic surface is CLI `doctor`; a browser tool-status view remains future work.
+Use for navigation, task forms, run views, auth UX, destructive-action UX, accessibility, and diagnostics. Exact filesystem discovery evidence remains in CLI `doctor`; the browser now has a sanitized read-only tool-status/remediation view that deliberately omits executable and candidate paths.
 
 ### Historical decisions
 
