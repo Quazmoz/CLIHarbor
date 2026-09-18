@@ -38,7 +38,7 @@ To exercise the deterministic same-checkout rebuild gate locally before using th
 go run ./tools/task verify-windows-eval-repro
 ```
 
-The reproduction task stages two private temporary bundles and does not publish or replace the real evaluation artifact.
+The reproduction task verifies the real evaluation candidate, stages two private temporary rebuild bundles, and requires all three authoritative manifests to match; it does not publish or replace the real evaluation artifact.
 
 Expected executable location:
 
