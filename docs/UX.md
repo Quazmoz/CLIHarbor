@@ -257,3 +257,19 @@ A first-time user can, without reading documentation:
 8. execute it;
 9. understand success/failure and exit state;
 10. access raw output when structured rendering is insufficient.
+
+## Phase 0 operator evaluation UX
+
+The first work-laptop evaluation is intentionally terminal-led:
+
+1. verify the executable checksum;
+2. run `version`;
+3. run `self-test`;
+4. run sanitized `inventory` against an explicitly trusted Phase 0 pack;
+5. optionally select only approved named help/version probes;
+6. export a reviewed `cliharbor.phase0/v1` bundle;
+7. optionally start `serve` to validate the normal browser handoff.
+
+Inventory output shows stable pack/tool IDs, readiness state, parsed version when available, candidate count, and sanitized remediation. Exact candidate/executable paths remain in operator-only `doctor` output. The browser continues to expose only the safe task/tool DTOs established by earlier phases.
+
+If default-browser launch fails, the terminal prints the one-time local bootstrap URL. The URL is a short-lived credential and must not be included in evidence or support transcripts.
