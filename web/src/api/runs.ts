@@ -162,6 +162,8 @@ export async function fetchRun(runId: string): Promise<RunSnapshot> {
   return parseSnapshot(await response.json());
 }
 
+const maxStreamFailures = 5;
+
 export function subscribeRunEvents(
   runId: string,
   onEvent: (event: RunEvent) => void,
@@ -169,6 +171,8 @@ export function subscribeRunEvents(
   onError: (error: Error) => void,
 ): () => void {
   const source = new EventSource(`/api/v1/runs/${encodeURIComponent(runId)}/events`);
+  let failures = 0;
+  let closed = false;
 
   const handleEvent = (raw: Event) => {
     try {
@@ -191,10 +195,22 @@ export function subscribeRunEvents(
   source.addEventListener('run-event', handleEvent);
   source.addEventListener('run-complete', handleComplete);
   source.onerror = () => {
-    onError(new Error('Live run stream disconnected; CLIHarbor will retry while the run remains retained.'));
+    if (closed) {
+      return;
+    }
+    failures += 1;
+    if (failures < maxStreamFailures) {
+      return;
+    }
+    closed = true;
+    source.close();
+    onError(new Error('Live run stream stopped after repeated disconnects; run status was refreshed.'));
   };
 
-  return () => source.close();
+  return () => {
+    closed = true;
+    source.close();
+  };
 }
 
 export function decodeBase64Text(value: string): string {
