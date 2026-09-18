@@ -281,13 +281,13 @@ func statusForContextError(err error) Status {
 }
 
 type eventWriter struct {
-	mu        sync.Mutex
-	state     *streamState
-	eventType EventType
-	started   <-chan struct{}
+	mu         sync.Mutex
+	state      *streamState
+	eventType  EventType
+	started    <-chan struct{}
 	chunkBytes int
-	maxBytes  int64
-	total     int64
+	maxBytes   int64
+	total      int64
 }
 
 func (w *eventWriter) Write(p []byte) (int, error) {
