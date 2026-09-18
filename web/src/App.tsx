@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { fetchRuntimeStatus, SessionUnavailableError, type RuntimeStatus } from './api/status';
 import { fetchTasks, type Task, type TaskInput } from './api/tasks';
 import {
@@ -91,7 +91,7 @@ function requestValues(task: Task, formValues: Record<string, FormValue>): Recor
 }
 
 function appendRunEvent(current: RunView, event: RunEvent): RunView {
-  if (event.sequence <= current.lastSequence) {
+  if (event.runId !== current.snapshot.runId || event.sequence <= current.lastSequence) {
     return current;
   }
   let stdout = current.stdout;
@@ -114,6 +114,9 @@ function appendRunEvent(current: RunView, event: RunEvent): RunView {
 }
 
 function completeRun(current: RunView, complete: RunComplete): RunView {
+  if (complete.runId !== current.snapshot.runId) {
+    return current;
+  }
   return {
     ...current,
     snapshot: {
@@ -219,7 +222,7 @@ export function App() {
     return state.tasks.find((task) => `${task.packId}/${task.commandId}` === selectedTaskKey) ?? state.tasks[0];
   }, [selectedTaskKey, state]);
 
-  const acceptRuntime = (status: RuntimeStatus, tasks: Task[]) => {
+  const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[]) => {
     setState({ kind: 'ready', status, tasks });
     const firstTask = tasks[0];
     if (firstTask === undefined) {
@@ -229,7 +232,7 @@ export function App() {
     }
     setSelectedTaskKey(`${firstTask.packId}/${firstTask.commandId}`);
     setFormValues(initialValues(firstTask));
-  };
+  }, []);
 
   const retryStatus = () => {
     setState({ kind: 'loading' });
@@ -250,7 +253,7 @@ export function App() {
       },
     );
     return () => controller.abort();
-  }, []);
+  }, [acceptRuntime]);
 
   const activeRunID = run?.snapshot.status === 'running' ? run.snapshot.runId : null;
 
