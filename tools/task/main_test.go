@@ -65,6 +65,65 @@ func TestWriteSHA256SumsWritesDeterministicArtifactEntry(t *testing.T) {
 	}
 }
 
+func TestWriteSHA256ManifestCoversBundleDeterministically(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	binary := filepath.Join(root, "bin", "cliharbor.exe")
+	pack := filepath.Join(root, "packs", "phase0", "pack.yaml")
+	if err := os.MkdirAll(filepath.Dir(binary), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(pack), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(binary, []byte("hello"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pack, []byte("pack"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	destination := filepath.Join(root, "EVALUATION_SHA256SUMS")
+	if err := writeSHA256Manifest(root, destination, []string{pack, binary}); err != nil {
+		t.Fatalf("writeSHA256Manifest() error = %v", err)
+	}
+	got, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824  bin/cliharbor.exe\n486b63f8105129d99c243c1ea8f5f49e5f44c3be151759d3346cc32c1a3d7f4c  packs/phase0/pack.yaml\n"
+	if string(got) != want {
+		t.Fatalf("bundle checksum manifest = %q, want %q", got, want)
+	}
+}
+
+func TestWriteSHA256ManifestRejectsArtifactsOutsideRootAndSymlinks(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	outsideDir := t.TempDir()
+	outside := filepath.Join(outsideDir, "outside.bin")
+	if err := os.WriteFile(outside, []byte("outside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSHA256Manifest(root, filepath.Join(root, "SUMS"), []string{outside}); err == nil {
+		t.Fatal("artifact outside manifest root unexpectedly accepted")
+	}
+
+	target := filepath.Join(root, "target.bin")
+	if err := os.WriteFile(target, []byte("target"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "link.bin")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	if err := writeSHA256Manifest(root, filepath.Join(root, "SUMS"), []string{link}); err == nil {
+		t.Fatal("symlink artifact unexpectedly accepted")
+	}
+}
+
 func TestValidateBuildVersion(t *testing.T) {
 	t.Parallel()
 
