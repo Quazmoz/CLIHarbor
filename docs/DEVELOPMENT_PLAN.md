@@ -159,7 +159,7 @@ Implemented against fixture-oriented tests:
 - cancellation/timeout/output-limit/sink-failure and normal teardown clean up Windows descendants;
 - regression coverage for malformed values, exact argv, Unicode/spaces, cancellation races, setup failures, temp-directory cleanup, and descendant/inherited-handle behavior.
 
-This is an internal backend boundary. It is not yet exposed as a browser run API.
+Phase 4a established the internal backend boundary. Phase 4c-A now exposes only its constrained read-only create/get/cancel surface through the authenticated loopback API.
 
 ### Phase 4b — fixture-backed integration — IMPLEMENTED
 
@@ -268,7 +268,8 @@ Do not aim for complete CLI parity.
 
 Add/complete:
 
-- persisted/browser-stream backpressure and bounded run-history policy when run APIs arrive;
+- live-stream backpressure/replay bounds when Phase 4c-B event streaming arrives;
+- any future persisted run-history policy; current run history is bounded and in-memory only;
 - redaction tests;
 - fuzz/property tests for planner/schema boundaries where useful;
 - dependency scanning;
@@ -364,11 +365,11 @@ Next:
 8. Authenticated create/get/cancel polling API for read-only fixture tasks. **Implemented.**
 9. Bounded live event streaming plus minimal fixture task/run UI. **Next.**
 10. First verified read-only Idira workflow after Phase 0 inventory.
-10. Auth adapter + external login orchestration.
-11. Structured result renderer.
-12. Additional security hardening/evals.
-13. Second executable fixture pack scenario.
-14. Windows release qualification.
+11. Auth adapter + external login orchestration.
+12. Structured result renderer.
+13. Additional security hardening/evals.
+14. Second executable fixture pack scenario.
+15. Windows release qualification.
 
 ## 17. Implementation guardrail
 
