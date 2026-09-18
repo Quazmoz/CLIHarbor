@@ -43,7 +43,11 @@ func TestVerifyWindowsEvaluationDetectsChangedArtifactAndAcceptsRegeneration(t *
 		t.Fatalf("verifyWindowsEvaluation() error = %v, want checksum mismatch", err)
 	}
 
-	if err := writeSHA256Manifest(root, filepath.Join(root, evaluationManifestName), []string{
+	manifest := filepath.Join(root, evaluationManifestName)
+	if err := removeGeneratedChecksum(manifest); err != nil {
+		t.Fatalf("invalidate manifest before regeneration: %v", err)
+	}
+	if err := writeSHA256Manifest(root, manifest, []string{
 		executable,
 		filepath.Join(root, filepath.FromSlash(evaluationPackPath)),
 	}); err != nil {
