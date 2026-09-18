@@ -32,7 +32,7 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 				"auth": {
 					Name: "Auth", Tool: "ready", Risk: packs.RiskRead,
 					Requirements: packs.Requirements{RequiresAuth: true},
-					Output: packs.Output{Mode: packs.OutputRaw},
+					Output:       packs.Output{Mode: packs.OutputRaw},
 				},
 				"secret": {
 					Name: "Secret", Tool: "ready", Risk: packs.RiskRead,
