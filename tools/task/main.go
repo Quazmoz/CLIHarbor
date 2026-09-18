@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -131,7 +133,58 @@ func goBuild(root string) error {
 	if version == "" {
 		version = "dev"
 	}
-	return run(root, "go", "build", "-trimpath", "-ldflags", "-X main.version="+version, "-o", filepath.Join(binDir, name), "./cmd/cliharbor")
+	artifact := filepath.Join(binDir, name)
+	if err := run(root, "go", "build", "-trimpath", "-ldflags", "-X main.version="+version, "-o", artifact, "./cmd/cliharbor"); err != nil {
+		return err
+	}
+	return writeSHA256Sums(artifact, filepath.Join(binDir, "SHA256SUMS"))
+}
+
+func writeSHA256Sums(artifact, destination string) error {
+	file, err := os.Open(artifact)
+	if err != nil {
+		return fmt.Errorf("open build artifact for checksum: %w", err)
+	}
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		file.Close()
+		return fmt.Errorf("hash build artifact: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close build artifact after checksum: %w", err)
+	}
+
+	line := hex.EncodeToString(hasher.Sum(nil)) + "  " + filepath.Base(artifact) + "\n"
+	dir := filepath.Dir(destination)
+	temp, err := os.CreateTemp(dir, ".SHA256SUMS-")
+	if err != nil {
+		return fmt.Errorf("create checksum staging file: %w", err)
+	}
+	tempName := temp.Name()
+	cleanup := func() { _ = os.Remove(tempName) }
+	if _, err := io.WriteString(temp, line); err != nil {
+		temp.Close()
+		cleanup()
+		return fmt.Errorf("write checksum staging file: %w", err)
+	}
+	if err := temp.Chmod(0o644); err != nil {
+		temp.Close()
+		cleanup()
+		return fmt.Errorf("set checksum file permissions: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		cleanup()
+		return fmt.Errorf("close checksum staging file: %w", err)
+	}
+	if err := os.Remove(destination); err != nil && !errors.Is(err, os.ErrNotExist) {
+		cleanup()
+		return fmt.Errorf("replace checksum file: %w", err)
+	}
+	if err := os.Rename(tempName, destination); err != nil {
+		cleanup()
+		return fmt.Errorf("activate checksum file: %w", err)
+	}
+	return nil
 }
 
 func syncWeb(root string) error {
