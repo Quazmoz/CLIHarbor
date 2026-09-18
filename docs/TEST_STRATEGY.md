@@ -86,6 +86,7 @@ Coverage now targets:
 - manager-backed event replay strictly after a monotonic cursor and rejection of impossible cursors;
 - authenticated SSE framing with `Last-Event-ID` replay, stable completion state, and no executable/argv/environment fields;
 - stream disconnect without implicit run cancellation;
+- bounded concurrent SSE handlers with excess streams rejected before they can consume unbounded server resources;
 - slow clients observing bounded manager state rather than sitting on executor output sinks;
 - task metadata filtering to ready, read-only, non-auth, non-secret commands;
 - frontend CSRF retention in runtime memory only;
