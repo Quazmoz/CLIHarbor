@@ -196,6 +196,9 @@ export function subscribeRunEvents(
 
   source.addEventListener('run-event', handleEvent);
   source.addEventListener('run-complete', handleComplete);
+  source.onopen = () => {
+    failures = 0;
+  };
   source.onerror = () => {
     if (closed) {
       return;
