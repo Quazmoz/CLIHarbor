@@ -45,8 +45,8 @@ func TestDiscoverSingleCandidateAndCompatibleVersion(t *testing.T) {
 	if !ok {
 		t.Fatal("tool state missing")
 	}
-	if state.Status != StatusReady || state.Version != "1.2.3" {
-		t.Fatalf("state = %#v, want ready 1.2.3", state)
+	if state.Status != StatusReady || state.Version != "1.2.3" || !state.ExecutableIdentity.Valid() {
+		t.Fatalf("state = %#v, want ready 1.2.3 with executable identity", state)
 	}
 	resolved, err := filepath.EvalSymlinks(candidate)
 	if err != nil {
