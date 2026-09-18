@@ -312,7 +312,8 @@ Produce Windows release artifacts:
 - frontend embedded into executable;
 - no Node runtime required at runtime;
 - clear release version;
-- SHA-256 checksums beside local build artifacts via `bin/SHA256SUMS`; **implemented**
+- SHA-256 checksum beside ordinary local build artifacts via `bin/SHA256SUMS`; **implemented**
+- one authoritative Windows evaluation manifest, `EVALUATION_SHA256SUMS`, covering the evaluation executable plus trusted Phase 0 pack; the local compatibility manifest is excluded from evaluation packaging; **implemented**
 - optional code signing when available;
 - `cliharbor doctor` included;
 - upgrade story documented.
@@ -338,6 +339,8 @@ go run ./tools/task web-dev
 go run ./tools/task web-build
 go run ./tools/task check
 go run ./tools/task go-build
+go run ./tools/task windows-eval
+go run ./tools/task verify-windows-eval
 go run ./tools/task build
 ```
 
@@ -421,4 +424,4 @@ This does not advance the vendor-command authority boundary. The next external m
 This is intentionally detached from `cliharbor.phase0/v1` and does not alter vendor-command authority. The external gate remains collection of genuine company-laptop evidence and human factual review before the first real read-only Idira/CyberArk workflow.
 
 
-Evaluation packaging hardening: `windows-eval` now emits root `EVALUATION_SHA256SUMS` covering the Windows evaluation executable and shipped trusted Phase 0 pack; CI recomputes both before artifact upload. This is integrity-only and does not replace signing/attestation.
+Evaluation packaging hardening: `windows-eval` now invalidates stale generated checksum authority, emits root `EVALUATION_SHA256SUMS` as the sole evaluation checksum manifest covering the Windows evaluation executable and shipped trusted Phase 0 pack, and leaves `bin/SHA256SUMS` to ordinary local-build compatibility only. `verify-windows-eval` enforces the exact manifest/path/digest contract, and CI reruns it immediately before uploading exactly the covered files plus the manifest. This is integrity-only and does not replace signing/attestation.
