@@ -235,3 +235,21 @@ Still required before MVP release:
 ## 12. Security review triggers
 
 Require a new review before remote access, community/remote pack installation, embedded PTY, direct browser credential entry, secret/path input types, arbitrary plugin/adapter execution, privilege elevation, cloud telemetry, auto-update, or any feature that broadens who may choose pack sources/executables/argv/side effects.
+
+## Phase 0 inventory and evidence security
+
+Phase 0 inventory/evidence preserves the existing authority model:
+
+- only explicitly trusted packs may declare tools or evidence probes;
+- the browser has no inventory/evidence API and therefore no executable/path/argv authority;
+- `--probe` selects only a declared `pack/tool/probe` identity;
+- resolved executable and ambiguous candidate paths stay operator/backend-side and are not serialized in Phase 0 evidence;
+- executable identity is revalidated immediately before an evidence probe;
+- probes use direct process launch, no shell, no interactive stdin, a neutral temporary working directory, the existing process-tree lifecycle controller, a minimal child environment, and strict timeout/output bounds;
+- output is normalized to valid UTF-8, unsafe controls are replaced, obvious Authorization credentials/common secret assignments/JWT-shaped material are redacted, and user-home/temp/resolved-executable paths are replaced before display/export;
+- evidence files are strongly typed, size bounded, staged in the target directory, permission-restricted where supported, synced, atomically renamed, and never overwrite an existing destination;
+- raw environment dumps, PATH dumps, browser bootstrap/session/CSRF material, vendor credential stores, passwords, tokens, MFA values, cookies, and unrelated file enumeration are outside the evidence schema.
+
+Redaction is defense in depth rather than proof that arbitrary vendor prose is safe. Operators must review the exported JSON before sharing it.
+
+The Windows evaluation executable is intentionally unsigned. CLIHarbor does not attempt to evade application control, SmartScreen, EDR, antivirus, proxy policy, or browser policy. An environment that blocks the binary requires the organization's approved allowlisting/signing process.
