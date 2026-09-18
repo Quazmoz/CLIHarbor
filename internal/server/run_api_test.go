@@ -337,4 +337,3 @@ func (f *fakeRunService) startCalls() int {
 	defer f.mu.Unlock()
 	return len(f.requests)
 }
-
