@@ -202,9 +202,9 @@ Only `ready` may become executable authority. A ready state also carries the in-
 
 ### Executable identity boundary
 
-Discovery records an in-memory identity for the selected regular file. The planner requires that identity, and the executor revalidates it immediately before process creation using filesystem identity plus size/modification metadata. A same-path replacement after discovery therefore fails closed.
+Discovery records an in-memory identity for the selected regular file. The planner requires that identity, and the executor revalidates it immediately before process creation using filesystem identity, size/modification metadata, and a SHA-256 content fingerprint. Same-path replacement or same-size content mutation after discovery therefore fails closed.
 
-This is not cryptographic publisher identity. Enterprise publisher/signature/hash verification remains a future hardening option where policy requires it.
+The content fingerprint detects replacement; it is not a trusted publisher allowlist or code-signing assertion. Enterprise publisher/signature or policy-managed expected-hash verification remains a future hardening option where policy requires it.
 
 ## 9. Execution planning — implemented low-level boundary
 
