@@ -306,3 +306,15 @@ A vendor CLI may have its own startup/network behavior. CLIHarbor does not log i
 4. Delete the extracted evaluation artifact directory if the evaluation is complete.
 
 CLIHarbor installs no Windows service, driver, scheduled task, startup item, certificate, browser extension, registry persistence, or machine-wide configuration during this workflow.
+
+## 13. Inspect returned evidence before promotion
+
+After creating an evidence JSON file, validate and review it locally before using it as engineering input:
+
+```powershell
+.\bin\cliharbor-windows-x64-evaluation.exe evidence inspect .\phase0-evidence.json
+```
+
+Inspection is read-only and does not load a pack, discover or launch a vendor executable, open a browser, or convert evidence text into command definitions. It prints the artifact/host identity, tool and probe states, bounded quoted output previews, actionable evidence gaps, and explicit PROVES / UNKNOWN / BLOCKED sections.
+
+Treat the generated timestamp as a point-in-time observation. If the installed CLI or managed laptop changed after capture, collect new evidence rather than treating an older artifact as current. Promotion of a real vendor workflow remains a human-reviewed repository change.

@@ -239,3 +239,13 @@ cliharbor-windows-x64-evaluation.exe inventory --pack-file ..\packs\phase0\idira
 No Idira/CyberArk help/version argv is guessed in the repository. The supplied Phase 0 pack declares only the `idsec` and `conjur` executable basenames already recorded in project documentation and contains no commands or probes.
 
 See [docs/WORK_LAPTOP_EVALUATION.md](docs/WORK_LAPTOP_EVALUATION.md) for the exact company-managed-laptop procedure, security caveats, hash verification, browser fallback, troubleshooting, and cleanup.
+
+## Phase 0 evidence review
+
+Returned `cliharbor.phase0/v1` files can be validated and summarized without granting them execution authority:
+
+```text
+cliharbor evidence inspect phase0-evidence.json
+```
+
+The command is operator-side only. It strictly validates the bounded evidence contract, reports tool/probe observations and gaps, quotes captured output as inert text, and separates what the artifact proves from what remains unknown or blocked. It never turns evidence text into a pack or command definition; the first real Idira/CyberArk workflow still requires factual human review of evidence from the deployed environment or approved documentation.

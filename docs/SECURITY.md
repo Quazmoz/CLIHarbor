@@ -253,3 +253,11 @@ Phase 0 inventory/evidence preserves the existing authority model:
 Redaction is defense in depth rather than proof that arbitrary vendor prose is safe. Operators must review the exported JSON before sharing it.
 
 The Windows evaluation executable is intentionally unsigned. CLIHarbor does not attempt to evade application control, SmartScreen, EDR, antivirus, proxy policy, or browser policy. An environment that blocks the binary requires the organization's approved allowlisting/signing process.
+
+## Imported Phase 0 evidence
+
+Imported evidence is untrusted data even when it was originally emitted by CLIHarbor. `cliharbor evidence inspect <file>` is CLI/operator-only and grants no browser, executable, argv, pack, or workflow authority.
+
+The importer fails closed on oversized/non-regular/symlink inputs, observed file replacement or mutation while reading, invalid JSON/UTF-8, duplicate JSON keys, unknown fields, malformed identifiers/versions, duplicate identities, inconsistent discovery/probe states, invalid provenance/timestamps, unsupported control characters, common unsanitized credential patterns, and identity-bearing path/environment material excluded by the evidence contract. Captured stdout/stderr is shown only as a bounded quoted preview after validation.
+
+A successful inspection proves only the internal evidence contract and the bounded point-in-time observations recorded in the artifact. It does not prove current machine state, authentication semantics, command safety, or permission to promote arbitrary captured text into a pack. Human factual review remains mandatory before any vendor command gains execution authority.

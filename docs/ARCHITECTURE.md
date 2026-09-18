@@ -339,3 +339,21 @@ The browser has no inventory/probe endpoint and cannot choose executable path, p
 Both discovery-time version probes and operator-selected evidence probes use the same platform lifecycle ownership abstraction as normal execution. On Windows that means suspended start, Job Object assignment before resume, descendant termination on timeout/cancellation, and kill-on-close protection after root completion. Probes use no shell, no interactive stdin, a neutral temporary cwd, a minimal environment, and strict timeout/output limits. Version discovery also fails closed on truncated or invalid-UTF-8 probe output.
 
 The Windows evaluation build cross-compiles to `windows/amd64` with the production frontend already embedded. Build metadata is linker-injected and visible through `cliharbor version`. CI does not upload the evaluation artifact until Windows/Linux quality, dependency-vulnerability, and race-detector jobs pass.
+
+## Phase 0 evidence consumption and review boundary
+
+Phase 0 exports are consumable through the operator-only `cliharbor evidence inspect <file>` path. The ingestion boundary accepts only a bounded regular non-symlink file, checks for observed replacement or mutation during the read, requires valid UTF-8 JSON, rejects duplicate JSON keys and unknown fields, and then applies the same typed evidence validator used before export.
+
+Semantic validation rejects malformed IDs and semantic versions, duplicate or non-canonical tool/probe identities, impossible discovery/probe state combinations, misleading probe timestamps, undeclared probe provenance, unsafe control characters, unsanitized secret-like material, and path/environment material that the evidence contract excludes.
+
+The review path is intentionally disconnected from pack loading, discovery, planning, execution, run management, and browser APIs:
+
+```text
+bounded local evidence file
+  -> strict JSON decoder
+  -> typed + semantic/provenance validation
+  -> deterministic operator review
+  -> human factual promotion decision (outside the importer)
+```
+
+Evidence text never becomes executable authority. A reviewed artifact can justify later human-authored trusted-pack changes only to the extent that the evidence actually proves vendor behavior.

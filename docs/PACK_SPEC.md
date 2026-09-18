@@ -447,3 +447,9 @@ Probe execution is direct, shell-free, non-interactive, temporary-working-direct
 The typed export schema is `cliharbor.phase0/v1`. It contains build/host identity, sanitized tool discovery state, declared probe identity, the sanitized fixed argument vector from the trusted declaration, and bounded sanitized captures. Probe timestamps are present only when execution actually occurred. It intentionally contains no resolved executable/candidate path, raw environment, browser/session tokens, credential-store contents, or arbitrary user files.
 
 `packs/phase0/idira-cyberark-inventory.yaml` is intentionally discovery-only. It contains the already-documented executable basenames `idsec` and `conjur`, but no vendor command or probe argv. Exact help/version probes must be added only after factual evidence from the deployed company versions or approved vendor/company documentation.
+
+## 22. Evidence is not a pack
+
+A `cliharbor.phase0/v1` evidence document is inert review data, not a pack source. `cliharbor evidence inspect <file>` never converts captured text, probe output, argument strings, or discovered metadata into `cliharbor.dev/v1` commands.
+
+Promotion into a real pack is a separate human-reviewed source change. Only facts actually established by reviewed evidence and/or approved vendor/company documentation may be encoded. The existing pack invariant remains unchanged: a `versionConstraint` is valid only when the same tool declares a `versionProbe`.

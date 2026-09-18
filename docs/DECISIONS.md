@@ -159,3 +159,15 @@ Do not silently change an accepted ADR. Add a new ADR section with:
 **Security/reliability implications:** Application-control policy is an environmental prerequisite. CLIHarbor must not bypass WDAC/AppLocker/SmartScreen/EDR. A blocked unsigned executable requires the organization's approved signing/allowlisting process.
 
 **Revisit when:** Wider enterprise distribution, persistent installation, or production release requires signing/provenance policy.
+
+## ADR-017 — Phase 0 evidence import is inert review, never command authority
+
+**Status:** Accepted.
+
+**Decision:** CLIHarbor may strictly ingest `cliharbor.phase0/v1` files through an operator-only `evidence inspect` command, but imported evidence is permanently inert. The importer validates bounded structure, identity, provenance, state/timestamp consistency, and sanitization before rendering a deterministic review. It has no path into pack loading, command planning, browser APIs, or process execution.
+
+**Why:** Work-laptop evidence needs a safe engineering review gate before it can inform a real vendor pack. Treating arbitrary captured text as an executable definition would collapse the trust boundary created by the Phase 0 collector.
+
+**Security/reliability implications:** Evidence files are untrusted, symlinks/non-regular files and observed read races fail closed, malformed/duplicate/unknown data is rejected, and sensitive/path-like material excluded by the schema cannot silently re-enter through import. Successful validation does not establish freshness or vendor semantics beyond the captured observations.
+
+**Revisit when:** A signed/attested evidence format or organization-approved promotion workflow exists and has an explicit authority model. Even then, model-generated or arbitrary captured text must not gain command authority implicitly.

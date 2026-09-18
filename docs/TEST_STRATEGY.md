@@ -307,3 +307,20 @@ Required cases include:
 - Windows evaluation binary `version` and vendor-free `self-test` execution before artifact upload.
 
 A real company-laptop run remains environment evidence, not a CI assertion. Application-control/EDR/browser-policy behavior must be reported from the actual managed machine.
+
+## Phase 0 evidence import/review verification
+
+The evidence-consumption boundary adds deterministic regression coverage for:
+
+- valid exporter-to-importer round trips;
+- oversized, malformed, unknown-field, duplicate-key, and invalid-UTF-8 JSON;
+- malformed semantic versions and version constraints;
+- duplicate/cross-tool probe identity and undeclared-provenance attempts;
+- impossible discovery candidate counts and probe state/flag combinations;
+- missing, reversed, or out-of-capture-window timestamps;
+- control-character, common secret/token, path, and environment leakage;
+- regular-file enforcement and symlink rejection;
+- invalid evidence producing no partial review output;
+- bounded quoted output previews and explicit PROVES / UNKNOWN / BLOCKED classifications.
+
+The final exact `main` SHA must continue to pass both Windows and Ubuntu quality jobs, the race detector, dependency scans, and Windows evaluation artifact smoke tests.

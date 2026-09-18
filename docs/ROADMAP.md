@@ -199,3 +199,9 @@ Still deferred until evidence exists:
 - secret-bearing structured output;
 - installer/code-signing/public release;
 - automatic command-tree extraction or AI-authored live execution.
+
+## Evidence-review checkpoint
+
+The repository now includes the operator-side gate between Phase 0 collection and trusted-pack authoring: `cliharbor evidence inspect <file>`. It validates the evidence contract, summarizes what was actually observed, identifies gaps, and explicitly keeps captured prose/argv inert.
+
+The next milestone is unchanged in substance: collect evidence on the actual company-managed Windows laptop, inspect it, and perform human factual review. Only then should the first verified read-only Idira/CyberArk workflow be encoded and qualified end to end.

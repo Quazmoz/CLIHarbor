@@ -407,3 +407,9 @@ Acceptance implemented:
 - exact company-managed Windows procedure in `WORK_LAPTOP_EVALUATION.md`.
 
 The next milestone is **real Phase 0 evidence collection on the target company laptop**. Use that evidence to author the first real read-only Idira/CyberArk pack. Do not add vendor command trees, auth flows, version constraints, or structured schemas until supported by the returned evidence.
+
+## Phase 0 evidence-review foundation
+
+**Implemented in `main`.** CLIHarbor can strictly ingest and review its own `cliharbor.phase0/v1` files with `cliharbor evidence inspect <file>`. The importer is bounded, rejects symlinks and observed file races, disallows unknown/duplicate JSON fields, enforces evidence ID/version/provenance/state/timestamp/sanitization invariants, and renders a deterministic operator report with explicit evidence gaps plus PROVES / UNKNOWN / BLOCKED classifications.
+
+This does not advance the vendor-command authority boundary. The next external milestone remains collection and human review of evidence from the company-managed laptop. The first real read-only Idira/CyberArk workflow may be authored only after that evidence (or approved documentation) proves exact command behavior.
