@@ -167,6 +167,10 @@ func runInventoryProbe(ctx context.Context, state discovery.ToolState, tool pack
 		args = append([]string(nil), probe.Args...)
 		timeoutMillis = probe.TimeoutMillis
 	}
+	record.Arguments = make([]string, len(args))
+	for i, argument := range args {
+		record.Arguments[i] = evidence.SanitizeArgument(argument)
+	}
 
 	if state.Path == "" || !state.ExecutableIdentity.Valid() {
 		record.Status = "unavailable"
@@ -217,12 +221,7 @@ func runInventoryProbe(ctx context.Context, state discovery.ToolState, tool pack
 func sanitizeProbeOutput(raw []byte, executablePath string) string {
 	text := string(raw)
 	if executablePath != "" {
-		clean := filepath.Clean(executablePath)
-		for _, variant := range []string{clean, filepath.ToSlash(clean), strings.ReplaceAll(clean, "/", "\\")} {
-			if variant != "" {
-				text = strings.ReplaceAll(text, variant, "[EXECUTABLE]")
-			}
-		}
+		text = evidence.RedactPath(text, filepath.Clean(executablePath), "[EXECUTABLE]")
 	}
 	return evidence.SanitizeText([]byte(text))
 }
