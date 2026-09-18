@@ -334,7 +334,7 @@ The deterministic-rebuild gate reduces undeclared build inputs but does not auth
 
 - unit tests cover case-insensitive environment replacement, exact `.go-version` parsing, pinned evaluation settings, and stable trusted-pack copying;
 - every normal quality job compiles/tests the repository task package on Windows and Linux;
-- the Windows evaluation job executes `verify-windows-eval-repro` before the normal build, self-test, evidence smoke flow, final bundle verification, and artifact upload.
+- the Windows evaluation job builds and verifies the candidate, executes `verify-windows-eval-repro` to compare it with two isolated rebuilds, then continues through self-test, evidence smoke flow, final bundle verification, and artifact upload.
 
 ### Revisit when
 
