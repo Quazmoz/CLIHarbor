@@ -33,6 +33,7 @@ type Config struct {
 	Random          io.Reader
 	Now             func() time.Time
 	Frontend        http.Handler
+	Runs            RunService
 }
 
 // Server owns one loopback listener and one in-memory browser session.
@@ -51,6 +52,7 @@ type Server struct {
 	bootstrapConsumed bool
 	sessionToken      string
 	csrfToken         string
+	runs              RunService
 }
 
 // New creates a server bound to an ephemeral IPv4 loopback port. It does not
@@ -103,12 +105,17 @@ func New(config Config) (*Server, error) {
 		bootstrapExpires: config.Now().Add(config.BootstrapTTL),
 		sessionToken:     sessionToken,
 		csrfToken:        csrfToken,
+		runs:             config.Runs,
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/bootstrap", s.handleBootstrap)
 	mux.HandleFunc("/bootstrap/", http.NotFound)
 	mux.Handle("/api/v1/status", s.requireSession(http.HandlerFunc(s.handleStatus)))
+	if s.runs != nil {
+		mux.Handle("/api/v1/runs", s.requireSession(http.HandlerFunc(s.handleRuns)))
+		mux.Handle("/api/v1/runs/", s.requireSession(http.HandlerFunc(s.handleRunByID)))
+	}
 	mux.Handle("/api/", s.requireSession(http.HandlerFunc(http.NotFound)))
 	mux.Handle("/", s.requireSession(config.Frontend))
 
@@ -291,13 +298,15 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(struct {
-		Name    string `json:"name"`
-		Version string `json:"version"`
-		Session string `json:"session"`
+		Name      string `json:"name"`
+		Version   string `json:"version"`
+		Session   string `json:"session"`
+		CSRFToken string `json:"csrfToken"`
 	}{
-		Name:    "CLIHarbor",
-		Version: s.version,
-		Session: "active",
+		Name:      "CLIHarbor",
+		Version:   s.version,
+		Session:   "active",
+		CSRFToken: s.csrfToken,
 	})
 }
 
