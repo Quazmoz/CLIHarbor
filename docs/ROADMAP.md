@@ -212,6 +212,12 @@ The Phase 0 handoff now has detached SHA-256 verification in addition to strict 
 
 This closes accidental/unauthorized byte-change detection for a correctly retained digest. It does not close evidence authenticity/attestation; that remains explicitly outside the current milestone. The next product gate is still genuine managed-laptop evidence followed by the first factually verified read-only vendor workflow.
 
+## Evaluation deterministic-rebuild checkpoint
+
+The Windows evaluation pipeline now fixes the Go build toolchain from `.go-version`, disables user workspace/environment/default-flag influence on the qualified build, pins target-affecting Go settings, and builds two isolated evaluation bundles before producing the upload candidate. Both staged bundles must independently pass the normal bundle verifier and produce byte-identical authoritative `EVALUATION_SHA256SUMS` bytes.
+
+This reduces accidental build-environment drift and proves deterministic rebuilding for the same checkout, metadata, exact toolchain, and controlled environment. It is deliberately not described as cross-machine reproducibility, software-supply-chain provenance, signer identity, or host attestation. Those remain future release-governance capabilities.
+
 
 ## Production-browser hardening checkpoint
 
