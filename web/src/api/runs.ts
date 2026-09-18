@@ -75,8 +75,13 @@ function parseSnapshot(value: unknown): RunSnapshot {
     events: Array.isArray(events)
       ? events.map((event) => {
           const parsed = parseEvent({ ...event, runId });
-          const { runId: _runId, ...rest } = parsed;
-          return rest;
+          return {
+            sequence: parsed.sequence,
+            type: parsed.type,
+            timestamp: parsed.timestamp,
+            dataBase64: parsed.dataBase64,
+            exitCode: parsed.exitCode,
+          };
         })
       : undefined,
   };
