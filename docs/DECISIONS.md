@@ -211,3 +211,71 @@ Do not silently change an accepted ADR. Add a new ADR section with:
 **Verification:** Unit tests cover hostile and `null` origins on authenticated status/SSE plus valid same-origin and origin-less reads. The production embedded-server headless-browser gate covers hostile-origin EventSource and form mutation attempts, Host rejection, one-time bootstrap, and same-origin CSRF behavior.
 
 **Revisit when:** Remote access, a non-browser client requiring an `Origin` header, multiple legitimate UI origins, or a different browser-session transport is introduced.
+
+
+## ADR-021 — One packaged checksum authority for Windows evaluation artifacts
+
+**Date:** 2026-09-18  
+**Status:** Accepted.
+
+### Context
+
+ADR-019 established that the Windows evaluation boundary includes both the executable and the trusted Phase 0 pack, but the implementation still packaged the ordinary executable-only `bin/SHA256SUMS` beside the broader root `EVALUATION_SHA256SUMS`. Requiring operators to compare both surfaces created avoidable authority ambiguity even though the root manifest covered the stronger boundary.
+
+### Decision
+
+`EVALUATION_SHA256SUMS` is the sole checksum manifest packaged with a Windows evaluation artifact. It must contain exactly one canonical entry for the evaluation executable and exactly one canonical entry for the trusted Phase 0 pack.
+
+`bin/SHA256SUMS` remains supported only for ordinary local `go-build`/`build` compatibility. `windows-eval` invalidates that generated compatibility manifest before producing the evaluation bundle, and the evaluation verifier fails if it is present.
+
+The repository-owned `verify-windows-eval` task is the common local/CI verification contract. CI runs it after build and again immediately before uploading exactly the authoritative manifest and its two covered privileged files.
+
+### Alternatives considered
+
+1. Keep both checksum manifests in the evaluation artifact and require CI to prove their executable digests agree.
+2. Remove `bin/SHA256SUMS` from all build modes.
+3. Introduce signing/attestation as part of this milestone.
+
+### Rationale
+
+One manifest removes an avoidable duplicate source of integrity authority while preserving existing local-build compatibility. Reusing one deterministic verifier also reduces shell-specific validation drift. Signing and attestation solve a different identity/provenance problem and are not required to make the current checksum boundary unambiguous.
+
+### Consequences
+
+Positive:
+
+- operators have one packaged privileged-file checksum authority;
+- both privileged evaluation files remain covered;
+- stale cross-build checksum manifests are invalidated;
+- CI and local verification use the same path/entry/digest rules;
+- upload configuration contains only the manifest and the files it covers.
+
+Negative:
+
+- a user switching build modes may observe generated checksum files being removed because they no longer describe the active build mode;
+- checksum verification still cannot establish publisher, signer, host, or build-system identity.
+
+### Security / reliability implications
+
+- manifest parsing rejects malformed digests, non-canonical paths, traversal, backslashes, drive-like paths, unsorted entries, and case-insensitive aliases appropriate to the Windows target;
+- privileged files and the manifest must be regular non-symlink files;
+- file hashing/read helpers re-read the same open file and compare identity/size/modification metadata to detect observed concurrent mutation;
+- verification recomputes the required hashes from the on-disk files and rejects unexpected entry counts or a present compatibility manifest;
+- GitHub's artifact archive digest remains separate archive-level integrity evidence;
+- checksum/manifests remain inert data and never become executable, pack, browser, or workflow authority.
+
+### Verification
+
+- deterministic unit/regression coverage for exact entries, ordering, duplicate/alias rejection, traversal/non-canonical path rejection, symlink rejection, stale compatibility-manifest rejection, content-change mismatch, and successful regeneration;
+- Windows/Linux quality jobs exercise the shared Go task package;
+- the Windows evaluation CI job runs `verify-windows-eval` on the packaged files immediately before upload.
+
+### Revisit when
+
+- additional privileged files become part of the Windows evaluation boundary;
+- an organization-approved signing or attestation mechanism supersedes checksum-only integrity;
+- ordinary local-build compatibility no longer requires `bin/SHA256SUMS`.
+
+### Supersedes / superseded by
+
+- Refines ADR-019 by superseding only its ambiguous dual-manifest evaluation-packaging interpretation. ADR-019's requirement that both the executable and trusted Phase 0 pack be integrity-covered remains in force.
