@@ -124,6 +124,51 @@ describe('App', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  test('rejects browser integers outside the exact JavaScript range before mutation', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+        );
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                inputs: [{ id: 'count', type: 'integer', label: 'Count', required: true }],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        return Promise.resolve(response(500, { error: 'should_not_run' }));
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    const count = await screen.findByRole('spinbutton', { name: 'Count' });
+    fireEvent.change(count, { target: { value: '9007199254740992' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+
+    expect(
+      await screen.findByText(/must be an integer within the browser's exact numeric range/i),
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs' && init?.method === 'POST'),
+    ).toBe(false);
+  });
+
   test('submits only typed task values and renders streamed output as inert text', async () => {
     vi.stubGlobal('EventSource', FakeEventSource);
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
