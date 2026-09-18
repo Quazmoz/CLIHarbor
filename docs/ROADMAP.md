@@ -184,3 +184,18 @@ After each pack/workflow ships:
 3. identify new high-value workflow requests;
 4. decide whether the solution belongs in the generic pack model or a narrow adapter;
 5. avoid adding abstraction until at least two real use cases need it.
+
+## Work-laptop readiness checkpoint
+
+The pre-vendor-integration Windows work-laptop evaluation checkpoint is implemented. The repository can now produce and CI-qualify an unsigned embedded-frontend Windows x64 executable, self-test CLIHarbor without a vendor dependency, inventory explicitly declared vendor executable basenames, and export bounded sanitized Phase 0 evidence.
+
+The immediate roadmap gate is no longer implementation of generic discovery/execution infrastructure; it is **collection of reviewed evidence from the actual installed Idira/CyberArk CLI versions**. That evidence determines the first real read-only pack commands and any necessary version/help probe declarations.
+
+Still deferred until evidence exists:
+
+- real Idira/CyberArk task argv and output schemas;
+- vendor authentication orchestration;
+- mutating/destructive tasks;
+- secret-bearing structured output;
+- installer/code-signing/public release;
+- automatic command-tree extraction or AI-authored live execution.
