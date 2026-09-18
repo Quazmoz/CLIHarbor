@@ -5,6 +5,7 @@ import {
   cancelRun,
   createRun,
   decodeBase64Text,
+  fetchRun,
   subscribeRunEvents,
   type RunComplete,
   type RunEvent,
@@ -41,8 +42,7 @@ function isAbort(error: unknown): boolean {
 }
 
 async function loadRuntime(signal?: AbortSignal): Promise<{ status: RuntimeStatus; tasks: Task[] }> {
-  const status = await fetchRuntimeStatus(signal);
-  const tasks = await fetchTasks(signal);
+  const [status, tasks] = await Promise.all([fetchRuntimeStatus(signal), fetchTasks(signal)]);
   return { status, tasks };
 }
 
@@ -269,7 +269,7 @@ export function App() {
       activeRunID,
       (event) => setRun((current) => (current === null ? current : appendRunEvent(current, event))),
       (complete) => setRun((current) => (current === null ? current : completeRun(current, complete))),
-      (error) =>
+      (error) => {
         setRun((current) =>
           current === null
             ? current
@@ -277,7 +277,20 @@ export function App() {
                 ...current,
                 streamMessage: error.message,
               },
-        ),
+        );
+        void fetchRun(activeRunID).then(
+          (snapshot) =>
+            setRun((current) =>
+              current === null || current.snapshot.runId !== snapshot.runId
+                ? current
+                : {
+                    ...current,
+                    snapshot,
+                  },
+            ),
+          () => undefined,
+        );
+      },
     );
     return close;
   }, [activeRunID]);
