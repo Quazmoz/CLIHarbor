@@ -411,17 +411,18 @@ func writeChecksumFile(destination, content string) error {
 		cleanup()
 		return fmt.Errorf("set checksum file permissions: %w", err)
 	}
+	if err := temp.Sync(); err != nil {
+		_ = temp.Close()
+		cleanup()
+		return fmt.Errorf("sync checksum staging file: %w", err)
+	}
 	if err := temp.Close(); err != nil {
 		cleanup()
 		return fmt.Errorf("close checksum staging file: %w", err)
 	}
-	if err := os.Remove(destination); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := activateChecksumFile(tempName, destination); err != nil {
 		cleanup()
-		return fmt.Errorf("replace checksum file: %w", err)
-	}
-	if err := os.Rename(tempName, destination); err != nil {
-		cleanup()
-		return fmt.Errorf("activate checksum file: %w", err)
+		return fmt.Errorf("activate checksum file without replacement: %w", err)
 	}
 	return nil
 }
