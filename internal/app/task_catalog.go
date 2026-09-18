@@ -1,0 +1,76 @@
+package app
+
+import (
+	"github.com/Quazmoz/CLIHarbor/internal/discovery"
+	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	"github.com/Quazmoz/CLIHarbor/internal/server"
+)
+
+type taskCatalog struct {
+	tasks []server.Task
+}
+
+func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *taskCatalog {
+	catalog := &taskCatalog{}
+	if registry == nil {
+		return catalog
+	}
+	for _, loaded := range registry.Packs() {
+		packID := loaded.Pack.Metadata.ID
+		for _, named := range registry.Commands(packID) {
+			command := named.Command
+			if command.Risk != packs.RiskRead || command.Requirements.RequiresAuth || command.Output.Sensitivity.ContainsSecrets {
+				continue
+			}
+			tool, ok := snapshot.Find(discovery.ToolRef{PackID: packID, ToolID: command.Tool})
+			if !ok || !tool.Healthy() {
+				continue
+			}
+			task := server.Task{
+				PackID:      packID,
+				PackName:    loaded.Pack.Metadata.Name,
+				CommandID:   named.ID,
+				Name:        command.Name,
+				Description: command.Description,
+				ToolID:      command.Tool,
+				ToolVersion: tool.Version,
+				Inputs:      make([]server.TaskInput, len(command.Inputs)),
+			}
+			for i, input := range command.Inputs {
+				task.Inputs[i] = server.TaskInput{
+					ID:       input.ID,
+					Type:     string(input.Type),
+					Label:    input.Label,
+					Required: input.Required,
+					Validation: server.TaskInputValidation{
+						Min:                 input.Validation.Min,
+						Max:                 input.Validation.Max,
+						MinLength:           input.Validation.MinLength,
+						MaxLength:           input.Validation.MaxLength,
+						Pattern:             input.Validation.Pattern,
+						Enum:                append([]string(nil), input.Validation.Enum...),
+						DisallowLeadingDash: input.Validation.DisallowLeadingDash,
+					},
+				}
+			}
+			catalog.tasks = append(catalog.tasks, task)
+		}
+	}
+	return catalog
+}
+
+func (c *taskCatalog) ListTasks() []server.Task {
+	if c == nil {
+		return nil
+	}
+	out := make([]server.Task, len(c.tasks))
+	for i, task := range c.tasks {
+		out[i] = task
+		out[i].Inputs = make([]server.TaskInput, len(task.Inputs))
+		for j, input := range task.Inputs {
+			out[i].Inputs[j] = input
+			out[i].Inputs[j].Validation.Enum = append([]string(nil), input.Validation.Enum...)
+		}
+	}
+	return out
+}
