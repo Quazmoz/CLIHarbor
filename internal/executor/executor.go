@@ -367,7 +367,7 @@ func validatePlan(plan planner.Plan) error {
 	if plan.Output.Sensitivity.ContainsSecrets {
 		return &Error{Code: ErrInvalidPlan, Message: "executor does not yet accept secret-bearing plans"}
 	}
-	if plan.ExecutablePath == "" || !filepath.IsAbs(plan.ExecutablePath) || plan.ExecutableName == "" {
+	if plan.ExecutablePath == "" || !filepath.IsAbs(plan.ExecutablePath) || plan.ExecutableName == "" || !plan.ExecutableIdentity.Valid() {
 		return &Error{Code: ErrInvalidPlan, Message: "plan executable identity is incomplete"}
 	}
 	for _, arg := range plan.Args {
@@ -380,6 +380,9 @@ func validatePlan(plan planner.Plan) error {
 
 func revalidateExecutable(plan planner.Plan) error {
 	clean := filepath.Clean(plan.ExecutablePath)
+	if !plan.ExecutableIdentity.Matches(clean) {
+		return &Error{Code: ErrInvalidPlan, Message: "planned executable changed since discovery"}
+	}
 	info, err := os.Lstat(clean)
 	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 		return &Error{Code: ErrInvalidPlan, Message: "planned executable is no longer a regular file"}
