@@ -121,7 +121,7 @@ Use to understand existing tools, upstream Idira/CyberArk status, and demand evi
 
 - Repository code is source of truth for implemented behavior.
 - `schemas/pack.v1.schema.json` plus `internal/packs` are source of truth for the currently supported pack format and pack validation.
-- `internal/discovery` is source of truth for current local tool discovery/version semantics and discovery-time executable identity.
+- `internal/discovery` is source of truth for current local tool discovery/version semantics and discovery-time executable identity, including the SHA-256 replacement-detection fingerprint.
 - `internal/planner` and `internal/executor` are source of truth for the implemented low-level read-only execution boundary.
 - PRD/spec docs are source of truth for intended behavior not yet implemented.
 - `DECISIONS.md` is source of truth for accepted architectural decisions.
@@ -136,7 +136,7 @@ The pack layer parses bounded UTF-8 YAML, rejects aliases/anchors/merge keys/mul
 
 The discovery layer resolves declared executable basenames across absolute PATH entries or explicit `pack/tool=/absolute/path` overrides, reports fail-closed discovery states, captures an in-memory executable file identity for ready tools, uses direct bounded version probes, fails closed on ambiguous semantic-version output, and exposes exact diagnostic evidence through `cliharbor doctor`. The synthetic example pack still ships no fixture executable and is not vendor evidence.
 
-The planner accepts only validated pack commands plus current ready discovery state, validates typed runtime values, constructs exact argv, and currently permits read-only/non-auth/non-secret commands only. The executor revalidates executable identity, invokes the executable directly without a shell, bounds output/time, preserves exit semantics, and owns Windows descendants through a per-run Job Object established before the process resumes.
+The planner accepts only validated pack commands plus current ready discovery state, validates typed runtime values, constructs exact argv, and currently permits read-only/non-auth/non-secret commands only. The executor revalidates executable filesystem identity plus SHA-256 content fingerprint, invokes the executable directly without a shell, bounds output/time, preserves exit semantics, and owns Windows descendants through a per-run Job Object established before the process resumes.
 
 Phase 4b integration coverage uses an explicitly trusted local fixture pack, backend-only executable override, fixed version probe/constraint, typed planner request, and real executor; it compares stdout/stderr/exit behavior to direct invocation and exercises cancellation after observable output.
 
