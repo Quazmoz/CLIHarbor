@@ -119,7 +119,8 @@ func TestRunWindowsInheritedOutputHandlesCannotHangRun(t *testing.T) {
 }
 
 type windowsDescendantObserver struct {
-	pending        string
+	stdoutPending  string
+	stderrPending  string
 	handle         syscall.Handle
 	observeErr     error
 	cancel         func()
@@ -130,14 +131,18 @@ func (o *windowsDescendantObserver) Emit(event Event) error {
 	if event.Type != EventStdout && event.Type != EventStderr {
 		return nil
 	}
-	o.pending += string(event.Data)
+	pending := &o.stdoutPending
+	if event.Type == EventStderr {
+		pending = &o.stderrPending
+	}
+	*pending += string(event.Data)
 	for {
-		newline := strings.IndexByte(o.pending, '\n')
+		newline := strings.IndexByte(*pending, '\n')
 		if newline < 0 {
 			return nil
 		}
-		line := o.pending[:newline]
-		o.pending = o.pending[newline+1:]
+		line := (*pending)[:newline]
+		*pending = (*pending)[newline+1:]
 		if !strings.HasPrefix(line, "child-pid:") || o.handle != 0 || o.observeErr != nil {
 			continue
 		}
