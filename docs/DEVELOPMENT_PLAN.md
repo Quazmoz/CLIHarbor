@@ -12,8 +12,9 @@ Current implementation status:
 - Phase 2 — versioned pack schema/validation/trusted loader foundation: **implemented**.
 - Phase 3 — tool discovery/version probing/doctor foundation: **implemented**.
 - Phase 4a — deterministic planner/executor and Windows process lifecycle: **implemented**.
+- Phase 4b — fixture-backed loader/discovery/planner/executor integration: **implemented**.
 - Phase 0 — vendor environment inventory: **still required before real Idira/CyberArk command definitions**.
-- Phase 4b+ — browser/integration/auth/structured-output milestones remain incomplete unless explicitly noted below.
+- Phase 4c+ — browser execution/auth/structured-output milestones remain incomplete unless explicitly noted below.
 
 ## 2. Phase 0 — Environment inventory
 
@@ -159,29 +160,45 @@ Implemented against fixture-oriented tests:
 
 This is an internal backend boundary. It is not yet exposed as a browser run API.
 
-### Phase 4b — fixture-backed integration — NEXT
+### Phase 4b — fixture-backed integration — IMPLEMENTED
 
-Before adding browser execution endpoints, prove the complete internal chain with a purpose-built fixture:
+The automated integration test now proves:
 
 ```text
-trusted fixture pack
+explicit trusted fixture pack
+  -> parser/schema/semantic validation
   -> registry
-  -> discovery
-  -> planner
+  -> discovery + backend-only absolute override
+  -> fixed version probe/constraint
+  -> typed planner
   -> executor
   -> bounded events/result
 ```
 
-Prefer an automated integration test and, only if it adds diagnostic value without widening authority, a narrowly scoped internal/CLI fixture diagnostic. Do not add arbitrary executable/path/argv inputs.
+Implemented acceptance:
 
-Acceptance for Phase 4b:
-
-- one fixture workflow traverses the real registry/discovery/planner/executor path;
-- exact argv/output/exit/cancellation evidence matches direct fixture behavior;
+- fixture workflows traverse the real registry/discovery/planner/executor path;
+- exact argv including zero-valued integer/Unicode/metacharacters is asserted;
+- stdout/stderr and exit code are compared with direct invocation;
+- non-zero exit semantics remain intact;
+- cancellation after observable output is exercised;
 - no shell/browser-selected execution authority is introduced;
-- no vendor command syntax is invented.
+- no vendor syntax is invented.
 
-After Phase 4b, a browser execution API can be designed against the already-proven backend boundary with Host/Origin/CSRF/session controls and bounded streaming.
+### Phase 4c — authenticated browser execution boundary — NEXT
+
+Expose only the already-proven read-only fixture path through the existing authenticated loopback server.
+
+Required before any browser-triggered execution:
+
+- server-side pack/command IDs plus typed values only; never executable/path/argv input;
+- existing session, exact Host, Origin, and CSRF controls applied to run creation/cancellation;
+- bounded streaming protocol and explicit disconnect/cancellation semantics;
+- in-memory bounded run state with no secret persistence;
+- browser output treated as untrusted text/data;
+- tests for hostile origin, missing/invalid CSRF/session, task substitution, duplicate run requests, cancellation, disconnect, output exhaustion, and server shutdown with active runs.
+
+Do not expose auth-required, secret-bearing, mutating, destructive, interactive, or credential-sensitive commands in Phase 4c.
 
 Real Idira/CyberArk workflows remain blocked on Phase 0 inventory.
 
@@ -327,8 +344,8 @@ Completed foundations:
 
 Next:
 
-7. Fixture-backed registry -> discovery -> planner -> executor integration proof.
-8. Browser execution API/streaming boundary for read-only fixture tasks.
+7. Fixture-backed registry -> discovery -> planner -> executor integration proof. **Implemented.**
+8. Browser execution API/streaming boundary for read-only fixture tasks. **Next.**
 9. First verified read-only Idira workflow after Phase 0 inventory.
 10. Auth adapter + external login orchestration.
 11. Structured result renderer.

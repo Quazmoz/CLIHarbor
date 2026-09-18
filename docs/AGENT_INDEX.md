@@ -8,7 +8,7 @@ CLIHarbor has completed the **Phase 1 local-runtime foundation**, **Phase 2 pack
 
 The pack foundation supports schema version `cliharbor.dev/v1`, built-in pack bytes, and explicitly requested local YAML files/directories. Tool discovery considers only absolute PATH entries or explicit backend-only overrides tied to declared pack/tool IDs; it rejects ambiguity rather than taking the first match. Version probes are fixed pack-authored argv with bounded time/output and no shell. Repository/cwd packs still receive no implicit trust.
 
-The internal planner/executor now exists for the constrained read-only safety envelope. Browser run/task APIs and UI, auth execution, secret-bearing output handling, mutating/destructive execution, persisted run state, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
+The internal planner/executor now exists for the constrained read-only safety envelope, and Phase 4b proves the explicit-local pack → discovery/version probe → planner → executor path with a synthetic fixture CLI. Browser run/task APIs and UI, auth execution, secret-bearing output handling, mutating/destructive execution, persisted run state, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
 
 ## Read order
 
@@ -130,8 +130,10 @@ The pack layer parses bounded UTF-8 YAML, rejects aliases/anchors/merge keys/mul
 
 The discovery layer resolves declared executable basenames across absolute PATH entries or explicit `pack/tool=/absolute/path` overrides, reports fail-closed discovery states, captures an in-memory executable file identity for ready tools, uses direct bounded version probes, fails closed on ambiguous semantic-version output, and exposes exact diagnostic evidence through `cliharbor doctor`. The synthetic example pack still ships no fixture executable and is not vendor evidence.
 
-The planner accepts only validated pack commands plus current ready discovery state, validates typed runtime values, constructs exact argv, and currently permits read-only/non-auth/non-secret commands only. The executor revalidates executable identity, invokes the executable directly without a shell, bounds output/time, preserves exit semantics, and owns Windows descendants through a per-run Job Object established before the process resumes. This is not exposed through browser run APIs yet.
+The planner accepts only validated pack commands plus current ready discovery state, validates typed runtime values, constructs exact argv, and currently permits read-only/non-auth/non-secret commands only. The executor revalidates executable identity, invokes the executable directly without a shell, bounds output/time, preserves exit semantics, and owns Windows descendants through a per-run Job Object established before the process resumes.
 
-The next bounded milestone is fixture-backed end-to-end execution integration/diagnostics before adding browser run endpoints. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk command definitions.
+Phase 4b integration coverage uses an explicitly trusted local fixture pack, backend-only executable override, fixed version probe/constraint, typed planner request, and real executor; it compares stdout/stderr/exit behavior to direct invocation and exercises cancellation after observable output. This is still not exposed through browser run APIs.
+
+The next bounded milestone is the authenticated browser execution/streaming boundary for read-only fixture tasks. Phase 0 vendor inventory still blocks hard-coded Idira/CyberArk command definitions.
 
 Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, or guessed Idira/CyberArk commands.

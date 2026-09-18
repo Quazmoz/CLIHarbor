@@ -33,15 +33,15 @@ type Candidate struct {
 }
 
 type ToolState struct {
-	PackID            string      `json:"packId"`
-	PackVersion       string      `json:"packVersion"`
-	ToolID            string      `json:"toolId"`
-	Status            Status      `json:"status"`
-	Path              string      `json:"path,omitempty"`
-	ExecutableName    string      `json:"executableName,omitempty"`
-	Version           string      `json:"version,omitempty"`
-	VersionConstraint string      `json:"versionConstraint,omitempty"`
-	Candidates        []Candidate `json:"candidates,omitempty"`
+	PackID             string             `json:"packId"`
+	PackVersion        string             `json:"packVersion"`
+	ToolID             string             `json:"toolId"`
+	Status             Status             `json:"status"`
+	Path               string             `json:"path,omitempty"`
+	ExecutableName     string             `json:"executableName,omitempty"`
+	Version            string             `json:"version,omitempty"`
+	VersionConstraint  string             `json:"versionConstraint,omitempty"`
+	Candidates         []Candidate        `json:"candidates,omitempty"`
 	Message            string             `json:"message,omitempty"`
 	ExecutableIdentity ExecutableIdentity `json:"-"`
 }

@@ -184,14 +184,14 @@ func validateYAMLTree(root *yaml.Node) error {
 		if node.Anchor != "" {
 			return validationError(ErrYAMLFeature, path, "YAML anchors are not allowed")
 		}
-		if !allowedYAMLTag(node.Tag) {
+		if !allowedYAMLTag(node.ShortTag()) {
 			return validationError(ErrYAMLFeature, path, "custom or unsupported YAML tags are not allowed")
 		}
 		if node.Kind == yaml.MappingNode {
 			seen := make(map[string]struct{}, len(node.Content)/2)
 			for i := 0; i < len(node.Content); i += 2 {
 				key := node.Content[i]
-				if key.Kind != yaml.ScalarNode || key.Tag != "tag:yaml.org,2002:str" {
+				if key.Kind != yaml.ScalarNode || key.ShortTag() != "!!str" {
 					return validationError(ErrYAMLFeature, path, "mapping keys must be strings")
 				}
 				if key.Value == "<<" {
@@ -223,8 +223,7 @@ func validateYAMLTree(root *yaml.Node) error {
 
 func allowedYAMLTag(tag string) bool {
 	switch tag {
-	case "", "tag:yaml.org,2002:map", "tag:yaml.org,2002:seq", "tag:yaml.org,2002:str",
-		"tag:yaml.org,2002:int", "tag:yaml.org,2002:float", "tag:yaml.org,2002:bool", "tag:yaml.org,2002:null":
+	case "", "!!map", "!!seq", "!!str", "!!int", "!!float", "!!bool", "!!null":
 		return true
 	default:
 		return false

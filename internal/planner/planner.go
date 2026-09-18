@@ -51,18 +51,18 @@ type Request struct {
 }
 
 type Plan struct {
-	PackID         string
-	PackVersion    string
-	CommandID      string
-	ToolID         string
+	PackID             string
+	PackVersion        string
+	CommandID          string
+	ToolID             string
 	ExecutablePath     string
 	ExecutableName     string
 	ExecutableIdentity discovery.ExecutableIdentity
 	ToolVersion        string
-	Args           []string
-	Risk           packs.Risk
-	Output         packs.Output
-	Requirements   packs.Requirements
+	Args               []string
+	Risk               packs.Risk
+	Output             packs.Output
+	Requirements       packs.Requirements
 }
 
 func (p Plan) Clone() Plan {
@@ -186,18 +186,18 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 	}
 
 	return Plan{
-		PackID:         request.PackID,
-		PackVersion:    loaded.Pack.Metadata.Version,
-		CommandID:      request.CommandID,
-		ToolID:         command.Tool,
+		PackID:             request.PackID,
+		PackVersion:        loaded.Pack.Metadata.Version,
+		CommandID:          request.CommandID,
+		ToolID:             command.Tool,
 		ExecutablePath:     toolState.Path,
 		ExecutableName:     toolState.ExecutableName,
 		ExecutableIdentity: toolState.ExecutableIdentity,
 		ToolVersion:        toolState.Version,
-		Args:           args,
-		Risk:           command.Risk,
-		Output:         command.Output,
-		Requirements:   command.Requirements,
+		Args:               args,
+		Risk:               command.Risk,
+		Output:             command.Output,
+		Requirements:       command.Requirements,
 	}, nil
 }
 

@@ -23,15 +23,15 @@ const (
 )
 
 var (
-	kernel32DLL                    = syscall.NewLazyDLL("kernel32.dll")
-	procCreateJobObjectW           = kernel32DLL.NewProc("CreateJobObjectW")
-	procSetInformationJobObject    = kernel32DLL.NewProc("SetInformationJobObject")
-	procAssignProcessToJobObject   = kernel32DLL.NewProc("AssignProcessToJobObject")
-	procTerminateJobObject         = kernel32DLL.NewProc("TerminateJobObject")
-	procThread32First              = kernel32DLL.NewProc("Thread32First")
-	procThread32Next               = kernel32DLL.NewProc("Thread32Next")
-	procOpenThread                 = kernel32DLL.NewProc("OpenThread")
-	procResumeThread               = kernel32DLL.NewProc("ResumeThread")
+	kernel32DLL                  = syscall.NewLazyDLL("kernel32.dll")
+	procCreateJobObjectW         = kernel32DLL.NewProc("CreateJobObjectW")
+	procSetInformationJobObject  = kernel32DLL.NewProc("SetInformationJobObject")
+	procAssignProcessToJobObject = kernel32DLL.NewProc("AssignProcessToJobObject")
+	procTerminateJobObject       = kernel32DLL.NewProc("TerminateJobObject")
+	procThread32First            = kernel32DLL.NewProc("Thread32First")
+	procThread32Next             = kernel32DLL.NewProc("Thread32Next")
+	procOpenThread               = kernel32DLL.NewProc("OpenThread")
+	procResumeThread             = kernel32DLL.NewProc("ResumeThread")
 )
 
 type ioCounters struct {

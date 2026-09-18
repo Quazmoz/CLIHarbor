@@ -210,6 +210,8 @@ Implemented regression coverage includes pack structural/semantic/trust/resource
 
 Phase 4 regression coverage now includes typed/malformed runtime values, exact argv/metacharacter handling, zero values, policy gating, executable identity/replacement detection, cancellation before/after output, timeout, non-zero exit preservation, output exhaustion, sink failure, setup-failure cleanup, neutral temporary-directory cleanup, Unicode/spaces, double cancellation, and Windows Job Object descendant cleanup including inherited stdout/stderr handles.
 
+Phase 4b adds integration proof across the real trust chain: an explicitly named local pack is parsed/validated into the registry, a backend-only absolute executable override is resolved and version-probed, the planner derives executable/argv authority exclusively from that state, and the executor output/exit behavior is compared to direct fixture invocation. No browser execution authority is introduced by the test.
+
 Still required before MVP release:
 
 - browser arbitrary task/tool substitution tests once run APIs exist;
