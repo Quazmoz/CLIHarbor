@@ -19,7 +19,7 @@ func TestRunAPICreateGetCancelUsesExistingSecurityBoundary(t *testing.T) {
 			PackID:    "fixture",
 			CommandID: "inspect",
 			ToolID:    "fixture",
-			Status: runs.StatusRunning,
+			Status:    runs.StatusRunning,
 			Structured: &structured.Result{
 				Status: structured.StatusInvalid, Renderer: "cards", Error: structured.ErrWrongType,
 			},
