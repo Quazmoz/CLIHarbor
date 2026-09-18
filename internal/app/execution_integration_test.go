@@ -182,7 +182,43 @@ func TestExecutionFixtureProcess(t *testing.T) {
 	}
 }
 
+type executionFixtureConfig struct {
+	options    Options
+	executable string
+	ref        discovery.ToolRef
+}
+
 func prepareExecutionFixtureRuntime(t *testing.T) RuntimeState {
+	t.Helper()
+	fixture := executionFixtureConfigForTest(t)
+	state, err := prepareRuntime(t.Context(), fixture.options)
+	if err != nil {
+		t.Fatalf("prepareRuntime() error = %v", err)
+	}
+
+	loaded, ok := state.Registry.FindPack("integration")
+	if !ok || loaded.Source.Kind != packs.SourceExplicitLocal {
+		t.Fatalf("fixture pack source = %#v, want explicit-local", loaded.Source)
+	}
+
+	tool, ok := state.Discovery.Find(fixture.ref)
+	if !ok {
+		t.Fatal("fixture discovery state missing")
+	}
+	if tool.Status != discovery.StatusReady || tool.Path == "" || tool.Version != "1.2.3" || !tool.ExecutableIdentity.Valid() {
+		t.Fatalf("fixture discovery state = %#v", tool)
+	}
+	if runtime.GOOS == "windows" {
+		if !strings.EqualFold(tool.Path, fixture.executable) {
+			t.Fatalf("fixture path = %q, override = %q", tool.Path, fixture.executable)
+		}
+	} else if tool.Path != fixture.executable {
+		t.Fatalf("fixture path = %q, override = %q", tool.Path, fixture.executable)
+	}
+	return state
+}
+
+func executionFixtureConfigForTest(t *testing.T) executionFixtureConfig {
 	t.Helper()
 	t.Setenv(executionFixtureEnv, "1")
 
@@ -309,34 +345,14 @@ commands:
 	}
 
 	ref := discovery.ToolRef{PackID: "integration", ToolID: "fixture"}
-	state, err := prepareRuntime(t.Context(), Options{
-		PackFiles:     []string{packPath},
-		ToolOverrides: map[discovery.ToolRef]string{ref: executable},
-	})
-	if err != nil {
-		t.Fatalf("prepareRuntime() error = %v", err)
+	return executionFixtureConfig{
+		options: Options{
+			PackFiles:     []string{packPath},
+			ToolOverrides: map[discovery.ToolRef]string{ref: executable},
+		},
+		executable: executable,
+		ref:        ref,
 	}
-
-	loaded, ok := state.Registry.FindPack("integration")
-	if !ok || loaded.Source.Kind != packs.SourceExplicitLocal {
-		t.Fatalf("fixture pack source = %#v, want explicit-local", loaded.Source)
-	}
-
-	tool, ok := state.Discovery.Find(ref)
-	if !ok {
-		t.Fatal("fixture discovery state missing")
-	}
-	if tool.Status != discovery.StatusReady || tool.Path == "" || tool.Version != "1.2.3" || !tool.ExecutableIdentity.Valid() {
-		t.Fatalf("fixture discovery state = %#v", tool)
-	}
-	if runtime.GOOS == "windows" {
-		if !strings.EqualFold(tool.Path, executable) {
-			t.Fatalf("fixture path = %q, override = %q", tool.Path, executable)
-		}
-	} else if tool.Path != executable {
-		t.Fatalf("fixture path = %q, override = %q", tool.Path, executable)
-	}
-	return state
 }
 
 func runExecutionFixtureDirect(t *testing.T, executable string, args []string) ([]byte, []byte, int) {
