@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"sort"
@@ -14,6 +15,7 @@ import (
 	semver "github.com/Masterminds/semver/v3"
 
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	"github.com/Quazmoz/CLIHarbor/internal/processenv"
 )
 
 const (
@@ -35,7 +37,16 @@ func (ExecProbeRunner) Run(ctx context.Context, executablePath string, probe pac
 	probeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	workdir, err := os.MkdirTemp("", "cliharbor-version-probe-")
+	if err != nil {
+		return "", fmt.Errorf("create version probe working directory")
+	}
+	defer os.RemoveAll(workdir)
+
 	cmd := exec.CommandContext(probeCtx, executablePath, probe.Args...)
+	cmd.Dir = workdir
+	cmd.Stdin = nil
+	cmd.Env = processenv.Minimal()
 	var stdout, stderr boundedBuffer
 	stdout.max = maxProbeStreamBytes
 	stderr.max = maxProbeStreamBytes
