@@ -275,7 +275,7 @@ Do not aim for complete CLI parity.
 
 Add/complete:
 
-- live-stream backpressure/replay bounds when Phase 4c-B event streaming arrives;
+- continue real-browser stream hardening beyond the implemented bounded replay, server observer cap, five-consecutive-failure client retry budget, snapshot reconciliation, and explicit manual retry;
 - any future persisted run-history policy; current run history is bounded and in-memory only;
 - redaction tests;
 - fuzz/property tests for planner/schema boundaries where useful;
