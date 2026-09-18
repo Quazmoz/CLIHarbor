@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 )
@@ -110,6 +111,9 @@ func decodeCreateRunRequest(w http.ResponseWriter, r *http.Request) (createRunRe
 	}
 	if len(bytes.TrimSpace(data)) == 0 {
 		return zero, fmt.Errorf("request body is empty")
+	}
+	if !utf8.Valid(data) {
+		return zero, fmt.Errorf("request body must be valid UTF-8")
 	}
 	if err := rejectDuplicateJSONKeys(data); err != nil {
 		return zero, err
