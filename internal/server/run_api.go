@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
+	"github.com/Quazmoz/CLIHarbor/internal/structured"
 )
 
 const (
@@ -280,15 +281,17 @@ func writeSSEEvent(w http.ResponseWriter, controller *http.ResponseController, r
 
 func writeSSEComplete(w http.ResponseWriter, controller *http.ResponseController, batch runs.EventBatch, sequence uint64) error {
 	payload, err := json.Marshal(struct {
-		RunID    string      `json:"runId"`
-		Sequence uint64      `json:"sequence"`
-		Status   runs.Status `json:"status"`
-		ExitCode *int        `json:"exitCode,omitempty"`
+		RunID      string             `json:"runId"`
+		Sequence   uint64             `json:"sequence"`
+		Status     runs.Status        `json:"status"`
+		ExitCode   *int               `json:"exitCode,omitempty"`
+		Structured *structured.Result `json:"structured,omitempty"`
 	}{
-		RunID:    batch.RunID,
-		Sequence: sequence,
-		Status:   batch.Status,
-		ExitCode: batch.ExitCode,
+		RunID:      batch.RunID,
+		Sequence:   sequence,
+		Status:     batch.Status,
+		ExitCode:   batch.ExitCode,
+		Structured: batch.Structured,
 	})
 	if err != nil {
 		return err
