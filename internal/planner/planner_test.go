@@ -14,7 +14,7 @@ import (
 
 func TestBuildProducesExactArgvWithoutReparsingUserText(t *testing.T) {
 	registry, snapshot := plannerFixture(t, packs.RiskRead, false, false)
-	query := `space & pipe | semicolon ; redirect > < dollar $ parens ( ) percent % bang ! caret ^ "quotes"`
+	query := `space 雪 café & pipe | semicolon ; redirect > < dollar $ parens ( ) percent % bang ! caret ^ "quotes"`
 
 	plan, err := Build(registry, snapshot, Request{
 		PackID:    "demo",
@@ -104,6 +104,13 @@ func TestBuildRejectsUnknownMissingAndWrongTypedInputs(t *testing.T) {
 			name: "null input",
 			values: map[string]json.RawMessage{
 				"mode": json.RawMessage(`null`),
+			},
+			code: ErrInvalidInput,
+		},
+		{
+			name: "trailing json value",
+			values: map[string]json.RawMessage{
+				"mode": json.RawMessage(`"safe" "extra"`),
 			},
 			code: ErrInvalidInput,
 		},
