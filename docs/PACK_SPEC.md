@@ -283,7 +283,39 @@ sensitivity:
 
 If `containsSecrets` is true, semantic validation rejects `persistRawOutput: true` and `revealByDefault: true`.
 
-The future executor/renderer must still treat process output as untrusted data and implement redaction/escaping; pack metadata alone is not a security boundary. `adapter` output mode and executable parser/plugin code are deliberately not implemented in v1.
+For `mode: json`, Phase 5 can optionally declare a bounded structured result contract:
+
+```yaml
+output:
+  mode: json
+  renderer: cards
+  structured:
+    fields:
+      - key: name
+        label: Name
+        type: string
+        required: true
+      - key: count
+        label: Count
+        type: integer
+```
+
+The implemented structured contract is intentionally narrow:
+
+- the JSON root must be one object;
+- at most 32 pack-declared fields are allowed;
+- field types are only `string`, `integer`, or `boolean`;
+- unknown and duplicate JSON keys fail parsing;
+- nested arrays/objects are not accepted as field values;
+- required fields must be present;
+- integer values must fit signed 64-bit range and are normalized to decimal text before reaching the browser;
+- structured input is capped at 64 KiB and each string value at 8 KiB;
+- invalid UTF-8 and unsafe control characters fail parsing;
+- only the `cards` structured renderer is supported in this phase;
+- `sensitive: true` structured fields are rejected;
+- output with `containsSecrets: true` cannot enable structured rendering.
+
+The parser runs after execution and cannot influence executable/argv construction or create another run. Raw stdout/stderr and the original exit state remain available even when structured parsing fails. `adapter` output mode and executable parser/plugin code remain deliberately unimplemented.
 
 ## 13. Authentication requirement metadata
 
@@ -330,7 +362,8 @@ Deterministic checks enforce:
 - known shells/interpreters/script launchers cannot be v1 tool executables;
 - version constraints parse and require a version probe;
 - version probe arguments cannot contain NUL;
-- secret-bearing output cannot request raw persistence/default revelation.
+- secret-bearing output cannot request raw persistence/default revelation or structured rendering;
+- structured field keys are unique and sensitive structured fields are refused.
 
 Validation errors avoid echoing supplied values. Explicit-local load errors display only the pack basename, not its directory path.
 
