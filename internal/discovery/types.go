@@ -11,6 +11,7 @@ const (
 	StatusIncompatible        Status = "incompatible"
 	StatusProbeFailed         Status = "probe-failed"
 	StatusInvalidOverride     Status = "invalid-override"
+	StatusIdentityFailed      Status = "identity-failed"
 	StatusUnsupportedPlatform Status = "unsupported-platform"
 )
 
@@ -41,7 +42,8 @@ type ToolState struct {
 	Version           string      `json:"version,omitempty"`
 	VersionConstraint string      `json:"versionConstraint,omitempty"`
 	Candidates        []Candidate `json:"candidates,omitempty"`
-	Message           string      `json:"message,omitempty"`
+	Message           string             `json:"message,omitempty"`
+	ExecutableIdentity ExecutableIdentity `json:"-"`
 }
 
 func (s ToolState) Healthy() bool {
