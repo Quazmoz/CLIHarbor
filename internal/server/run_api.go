@@ -237,7 +237,7 @@ func writeSSEFrame(w http.ResponseWriter, controller *http.ResponseController, s
 	if err := controller.SetWriteDeadline(time.Now().Add(sseWriteTimeout)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "id: %d\\nevent: %s\\ndata: %s\\n\\n", sequence, eventType, payload); err != nil {
+	if _, err := fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", sequence, eventType, payload); err != nil {
 		return err
 	}
 	if err := controller.Flush(); err != nil {
@@ -250,7 +250,7 @@ func writeSSEData(w http.ResponseWriter, controller *http.ResponseController, ev
 	if err := controller.SetWriteDeadline(time.Now().Add(sseWriteTimeout)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "event: %s\\ndata: %s\\n\\n", eventType, payload); err != nil {
+	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, payload); err != nil {
 		return err
 	}
 	if err := controller.Flush(); err != nil {
@@ -263,7 +263,7 @@ func writeSSEHeartbeat(w http.ResponseWriter, controller *http.ResponseControlle
 	if err := controller.SetWriteDeadline(time.Now().Add(sseWriteTimeout)); err != nil {
 		return err
 	}
-	if _, err := io.WriteString(w, ": keepalive\\n\\n"); err != nil {
+	if _, err := io.WriteString(w, ": keepalive\n\n"); err != nil {
 		return err
 	}
 	if err := controller.Flush(); err != nil {
