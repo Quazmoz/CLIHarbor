@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -112,6 +113,64 @@ func TestWriteBundleRejectsTraversalAndCancellationWithoutPartialFile(t *testing
 	}
 }
 
+func TestWriteBundleConcurrentActivationNeverOverwrites(t *testing.T) {
+	dir := t.TempDir()
+	destination := filepath.Join(dir, "phase0.json")
+	bundles := []Bundle{testBundle(), testBundle()}
+	bundles[0].CLIHarbor.Commit = "first"
+	bundles[1].CLIHarbor.Commit = "second"
+
+	var wg sync.WaitGroup
+	errs := make([]error, len(bundles))
+	for i := range bundles {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			errs[index] = WriteBundle(context.Background(), destination, bundles[index])
+		}(i)
+	}
+	wg.Wait()
+
+	successes := 0
+	for _, err := range errs {
+		if err == nil {
+			successes++
+			continue
+		}
+		if !strings.Contains(err.Error(), "already exists") {
+			t.Fatalf("concurrent WriteBundle() error = %v", err)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("successful concurrent exports = %d, want 1 (errors: %v)", successes, errs)
+	}
+
+	data, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Bundle
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("winning export is partial or invalid JSON: %v", err)
+	}
+	if decoded.CLIHarbor.Commit != "first" && decoded.CLIHarbor.Commit != "second" {
+		t.Fatalf("unexpected winning bundle commit %q", decoded.CLIHarbor.Commit)
+	}
+}
+
+func TestSanitizeArgumentRedactsAndBounds(t *testing.T) {
+	got := SanitizeArgument("token=" + strings.Repeat("s", 512))
+	if strings.Contains(got, strings.Repeat("s", 32)) {
+		t.Fatalf("sanitized argument retained secret material: %q", got)
+	}
+	if len(got) > MaxArgumentBytes {
+		t.Fatalf("sanitized argument length = %d, max %d", len(got), MaxArgumentBytes)
+	}
+	if !strings.Contains(got, "[REDACTED]") {
+		t.Fatalf("sanitized argument lacks redaction marker: %q", got)
+	}
+}
+
 func TestValidateRejectsOversizedCapturedText(t *testing.T) {
 	bundle := testBundle()
 	bundle.Tools[0].Probes = []ProbeRecord{{
@@ -133,7 +192,7 @@ func testBundle() Bundle {
 		Tools: []ToolRecord{{
 			PackID: "demo", PackVersion: "1.0.0", ToolID: "tool", Status: "ready",
 			Probes: []ProbeRecord{{
-				ID: "help", Kind: "help", Identity: "demo/tool/help", Status: "exited", ExitCode: &exit,
+				ID: "help", Kind: "help", Identity: "demo/tool/help", Arguments: []string{"--help"}, Status: "exited", ExitCode: &exit,
 			}},
 		}},
 	}
