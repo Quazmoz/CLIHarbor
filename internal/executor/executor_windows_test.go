@@ -29,6 +29,25 @@ func TestRunWindowsJobAllowsNormalDescendantCompletion(t *testing.T) {
 	}
 }
 
+func TestRunWindowsPathComparisonIsCaseInsensitive(t *testing.T) {
+	t.Setenv(helperEnv, "1")
+	plan := helperPlan(t, "echo", "case")
+	plan.ExecutablePath = strings.ToUpper(plan.ExecutablePath)
+	plan.ExecutableName = strings.ToUpper(plan.ExecutableName)
+	collector := &eventCollector{}
+
+	result, err := testExecutor(2*time.Second, 1<<20).Run(t.Context(), plan, collector)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Status != StatusExited || result.ExitCode != 0 {
+		t.Fatalf("result = %#v", result)
+	}
+	if got := string(joinEventData(collector.Events(), EventStdout)); got != "stdout:case" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
 func TestRunWindowsCancellationTerminatesDescendant(t *testing.T) {
 	t.Setenv(helperEnv, "1")
 	ctx, cancel := contextWithCancel(t)
