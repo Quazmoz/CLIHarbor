@@ -355,6 +355,45 @@ func TestManagerStructuredOutputFixtureMatrixPreservesRawEvidence(t *testing.T) 
 	}
 }
 
+func TestManagerStructuredCompletionReplayIsIsolated(t *testing.T) {
+	t.Setenv(managerHelperEnv, "1")
+	registry, snapshot := managerFixture(t)
+	manager := newTestManager(t, registry, snapshot, Config{
+		MaxActive: 1, MaxRetained: 2,
+		MaxOutputBytesPerStream: 128 << 10, MaxEventBytesPerRun: 256 << 10,
+		NewRunID: fixedRunIDs(strings.Repeat("9", 32)),
+	})
+	run, err := manager.Start(Request{
+		PackID: "fixture", CommandID: "structured",
+		Values: map[string]json.RawMessage{"scenario": rawRunJSON(t, "valid")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	if _, err := manager.Wait(waitCtx, run.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := manager.WaitEvents(t.Context(), run.RunID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.Complete || first.Structured == nil || len(first.Structured.Fields) == 0 {
+		t.Fatalf("first completion batch = %#v", first)
+	}
+	first.Structured.Fields[0].Value = "tampered"
+
+	second, err := manager.WaitEvents(t.Context(), run.RunID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Structured == nil || len(second.Structured.Fields) == 0 || second.Structured.Fields[0].Value != "fixture" {
+		t.Fatalf("structured completion was mutated through another reader: %#v", second.Structured)
+	}
+}
+
 func TestManagerHelperProcess(t *testing.T) {
 	if os.Getenv(managerHelperEnv) != "1" {
 		return
