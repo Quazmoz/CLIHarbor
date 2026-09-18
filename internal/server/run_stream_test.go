@@ -16,6 +16,7 @@ type streamRunService struct {
 	mu          sync.Mutex
 	snapshot    runs.Snapshot
 	waitStarted chan struct{}
+	waitDone    chan struct{}
 	cancelCalls int
 }
 
@@ -74,6 +75,9 @@ func (s *streamRunService) WaitEvents(ctx context.Context, runID string, after u
 		}
 	}
 	<-ctx.Done()
+	if s.waitDone != nil {
+		close(s.waitDone)
+	}
 	return runs.EventBatch{}, ctx.Err()
 }
 
@@ -168,6 +172,7 @@ func TestRunEventStreamDisconnectDoesNotCancelExecution(t *testing.T) {
 			Status: runs.StatusRunning,
 		},
 		waitStarted: make(chan struct{}),
+		waitDone:    make(chan struct{}),
 	}
 	s := newTestServer(t, Config{Runs: service})
 	client := sessionClient(t)
@@ -192,7 +197,11 @@ func TestRunEventStreamDisconnectDoesNotCancelExecution(t *testing.T) {
 
 	cancel()
 	response.Body.Close()
-	time.Sleep(10 * time.Millisecond)
+	select {
+	case <-service.waitDone:
+	case <-time.After(time.Second):
+		t.Fatal("stream handler did not observe client disconnect")
+	}
 
 	service.mu.Lock()
 	cancelCalls := service.cancelCalls
