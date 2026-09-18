@@ -108,12 +108,12 @@ jobs:
         with:
           go-version-file: '.go-version'
           cache: false
-      - name: Verify deterministic Windows evaluation rebuild
-        run: go run ./tools/task verify-windows-eval-repro
       - name: Build unsigned Windows x64 evaluation executable
         run: go run ./tools/task windows-eval
       - name: Verify evaluation build metadata
         run: .\bin\cliharbor-windows-x64-evaluation.exe version
+      - name: Verify deterministic Windows evaluation rebuild
+        run: go run ./tools/task verify-windows-eval-repro
       - name: Verify authoritative evaluation bundle
         run: go run ./tools/task verify-windows-eval
       - name: Run vendor-free evaluation self-test
