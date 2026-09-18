@@ -171,7 +171,7 @@ The evidence schema is:
 cliharbor.phase0/v1
 ```
 
-The bundle is typed and bounded. It intentionally excludes executable paths, candidate paths, raw process environment, PATH dumps, passwords, tokens, MFA values, cookies, browser bootstrap/session/CSRF secrets, vendor credential stores, and unrelated file enumeration.
+The bundle is typed and bounded. When an approved probe runs, its record includes the sanitized fixed argument vector from the trusted pack so the evidence is self-describing; it never includes the resolved executable path. Probes that did not run omit execution timestamps. The bundle intentionally excludes executable paths, candidate paths, raw process environment, PATH dumps, passwords, tokens, MFA values, cookies, browser bootstrap/session/CSRF secrets, vendor credential stores, and unrelated file enumeration.
 
 ## 8. Capture approved version/help evidence
 
@@ -217,13 +217,14 @@ Evidence probes:
 - use only pack-declared fixed argv;
 - have no interactive stdin;
 - run from a temporary neutral working directory;
-- receive a minimal environment rather than the full parent environment;
+- receive a minimal environment rather than the full parent environment and run from a neutral temporary working directory;
+- use the same bounded platform lifecycle controller as normal execution; on Windows the process and descendants are owned by a Job Object;
 - are strictly time/output bounded;
 - preserve exit code and separate stdout/stderr;
 - revalidate the discovery-time executable fingerprint immediately before launch;
 - sanitize invalid UTF-8, unsafe control characters, common secret-bearing assignments, Authorization credentials, JWT-shaped data, the user-home/temp paths, and the resolved executable path before export.
 
-A non-zero exit, timeout, cancellation, or truncation is evidence and is recorded rather than rewritten as success.
+Explicit evidence capture records a non-zero exit, timeout, cancellation, or truncation as evidence rather than rewriting it as success. Discovery-time semantic-version probing is stricter: non-zero exit, timeout, truncation, invalid UTF-8, ambiguous version text, or missing semantic-version text makes the tool fail closed as `probe-failed`.
 
 ## 9. Browser/runtime check
 
