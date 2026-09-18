@@ -303,7 +303,13 @@ export function App() {
     const close = subscribeRunEvents(
       activeRunID,
       (event) => setRun((current) => (current === null ? current : appendRunEvent(current, event))),
-      (complete) => setRun((current) => (current === null ? current : completeRun(current, complete))),
+      (complete) => {
+        setRun((current) => (current === null ? current : completeRun(current, complete)));
+        void fetchRun(activeRunID).then(
+          (snapshot) => setRun((current) => (current === null ? current : reconcileRunSnapshot(current, snapshot))),
+          () => undefined,
+        );
+      },
       (error) => {
         setRun((current) =>
           current === null
@@ -561,6 +567,26 @@ export function App() {
                       </div>
                     )}
                     {run.streamMessage && <p className="stream-message">{run.streamMessage}</p>}
+                    {run.snapshot.structured && (
+                      <section className="structured-result" aria-labelledby="structured-result-heading">
+                        <h3 id="structured-result-heading">Structured result</h3>
+                        {run.snapshot.structured.status === 'available' ? (
+                          <dl className="structured-grid">
+                            {(run.snapshot.structured.fields ?? []).map((field) => (
+                              <div key={field.key} className="structured-card">
+                                <dt>{field.label}</dt>
+                                <dd>{field.present ? field.value : 'Not provided'}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        ) : (
+                          <p className="parser-warning">
+                            Structured rendering {run.snapshot.structured.status}: {run.snapshot.structured.error ?? 'unavailable'}.
+                            Raw stdout and stderr remain available below.
+                          </p>
+                        )}
+                      </section>
+                    )}
                     <div className="output-grid">
                       <section>
                         <h3>stdout</h3>
