@@ -21,6 +21,7 @@ function requestPath(input: RequestInfo | URL): string {
 
 class FakeEventSource {
   static latest: FakeEventSource | undefined;
+  static instances: FakeEventSource[] = [];
 
   readonly url: string;
   onerror: ((event: Event) => void) | null = null;
@@ -30,6 +31,7 @@ class FakeEventSource {
   constructor(url: string | URL) {
     this.url = String(url);
     FakeEventSource.latest = this;
+    FakeEventSource.instances.push(this);
   }
 
   addEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
@@ -52,6 +54,7 @@ class FakeEventSource {
 
 afterEach(() => {
   FakeEventSource.latest = undefined;
+  FakeEventSource.instances = [];
   vi.unstubAllGlobals();
 });
 
@@ -239,6 +242,81 @@ describe('App', () => {
     expect(
       fetchMock.mock.calls.some(([input]) => requestPath(input as RequestInfo | URL) === `/api/v1/runs/${runID}`),
     ).toBe(true);
+  });
+
+  test('offers an explicit fresh stream attempt when reconciled run remains active', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const runID = 'cccccccccccccccccccccccccccccccc';
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+        );
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                inputs: [],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        return Promise.resolve(
+          response(202, {
+            runId: runID,
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            status: 'running',
+          }),
+        );
+      }
+      if (path === `/api/v1/runs/${runID}`) {
+        return Promise.resolve(
+          response(200, {
+            runId: runID,
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            status: 'running',
+          }),
+        );
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Run task' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+
+    const first = FakeEventSource.instances[0];
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      first.onerror?.(new Event('error'));
+    }
+
+    expect(await screen.findByRole('button', { name: 'Retry live stream' })).toBeInTheDocument();
+    expect(first.closed).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry live stream' }));
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+
+    const second = FakeEventSource.instances[1];
+    expect(second.closed).toBe(false);
+    expect(second.url).toContain(`/api/v1/runs/${runID}/events`);
+    expect(screen.queryByRole('button', { name: 'Retry live stream' })).not.toBeInTheDocument();
   });
 
   test('submits only typed task values and renders streamed output as inert text', async () => {
