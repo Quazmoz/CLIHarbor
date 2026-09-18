@@ -22,6 +22,7 @@ const (
 	versionProbeWindowsParentMarker = "--cliharbor-version-probe-windows-parent"
 	versionProbeWindowsChildMarker  = "--cliharbor-version-probe-windows-child"
 	versionProbeSynchronizeAccess   = 0x00100000
+	windowsErrorInvalidParameter    = syscall.Errno(87)
 )
 
 func TestExecProbeRunnerWindowsTimeoutTerminatesDescendant(t *testing.T) {
@@ -108,7 +109,7 @@ func assertWindowsProbeProcessExited(t *testing.T, pid uint32) {
 	t.Helper()
 	handle, err := syscall.OpenProcess(versionProbeSynchronizeAccess, false, pid)
 	if err != nil {
-		if errno, ok := err.(syscall.Errno); ok && errno == syscall.ERROR_INVALID_PARAMETER {
+		if errno, ok := err.(syscall.Errno); ok && errno == windowsErrorInvalidParameter {
 			return
 		}
 		t.Fatalf("OpenProcess(%d) error = %v", pid, err)
