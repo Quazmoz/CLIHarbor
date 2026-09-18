@@ -124,10 +124,31 @@ type MapArgument struct {
 	Values    map[string]string `json:"values"`
 }
 
+type StructuredFieldType string
+
+const (
+	StructuredString  StructuredFieldType = "string"
+	StructuredInteger StructuredFieldType = "integer"
+	StructuredBoolean StructuredFieldType = "boolean"
+)
+
+type StructuredOutput struct {
+	Fields []StructuredField `json:"fields"`
+}
+
+type StructuredField struct {
+	Key       string              `json:"key"`
+	Label     string              `json:"label"`
+	Type      StructuredFieldType `json:"type"`
+	Required  bool                `json:"required,omitempty"`
+	Sensitive bool                `json:"sensitive,omitempty"`
+}
+
 type Output struct {
-	Mode        OutputMode  `json:"mode"`
-	Renderer    string      `json:"renderer,omitempty"`
-	Sensitivity Sensitivity `json:"sensitivity,omitempty"`
+	Mode        OutputMode        `json:"mode"`
+	Renderer    string            `json:"renderer,omitempty"`
+	Structured  *StructuredOutput `json:"structured,omitempty"`
+	Sensitivity Sensitivity       `json:"sensitivity,omitempty"`
 }
 
 type Sensitivity struct {
