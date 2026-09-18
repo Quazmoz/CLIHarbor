@@ -18,6 +18,7 @@ import (
 const (
 	SchemaVersion          = "cliharbor.phase0/v1"
 	MaxCapturedTextBytes   = 64 << 10
+	MaxArgumentBytes       = 256
 	maxSerializedBundle    = 2 << 20
 	maxTools               = 64
 	maxProbesPerTool       = 32
@@ -105,6 +106,10 @@ func SanitizeText(raw []byte) string {
 	return trimUTF8Bytes(text, MaxCapturedTextBytes)
 }
 
+func SanitizeArgument(argument string) string {
+	return trimUTF8Bytes(SanitizeText([]byte(argument)), MaxArgumentBytes)
+}
+
 func Validate(bundle Bundle) error {
 	if bundle.SchemaVersion != SchemaVersion {
 		return fmt.Errorf("unsupported evidence schema version %q", bundle.SchemaVersion)
@@ -133,7 +138,7 @@ func Validate(bundle Bundle) error {
 				return fmt.Errorf("tool %s/%s probe %s contains too many arguments", tool.PackID, tool.ToolID, probe.ID)
 			}
 			for _, argument := range probe.Arguments {
-				if len(argument) > 256 || strings.ContainsRune(argument, '\x00') {
+				if len(argument) > MaxArgumentBytes || strings.ContainsRune(argument, '\x00') {
 					return fmt.Errorf("tool %s/%s probe %s contains an invalid argument", tool.PackID, tool.ToolID, probe.ID)
 				}
 			}
