@@ -6,7 +6,7 @@ CLIHarbor is deliberately local and thin, but it is security-sensitive because i
 
 “Localhost” is not a security boundary by itself. Browser requests, pack files, PATH, local executables, process output, filesystem state, and user input all cross trust boundaries.
 
-Phases 1-3 implement the browser/session boundary, trusted pack boundary, and fail-closed tool-discovery/version-probe boundary. General task execution does not exist yet.
+Phases 1-4 implement the browser/session boundary, trusted pack boundary, fail-closed tool-discovery/version-probe boundary, and an internal read-only planner/executor boundary. Browser-triggered task execution does not exist yet.
 
 ## 2. Assets to protect
 
@@ -53,7 +53,7 @@ trusted pack task + validated typed values + ready discovery state
 
 CMD/PowerShell/POSIX shell command-string execution is forbidden for normal tasks. Pack v1 also rejects common shells, general interpreters, Windows script extensions, and several launcher binaries as tool declarations.
 
-Phase 3 version probes use direct `exec.CommandContext` with fixed pack-authored argv and no shell.
+Phase 3 version probes use direct `exec.CommandContext` with fixed pack-authored argv and no shell. Phase 4 task planning validates typed values against trusted command definitions and the executor invokes only the resulting executable path plus exact argv; it does not reinterpret values through a shell.
 
 ### SI-2 No browser-selected executable
 
@@ -85,9 +85,7 @@ Schema/semantic validation does not make a pack trusted. CLIHarbor does not scan
 
 **Threat:** user-controlled values alter argv structure or escape into a shell.
 
-**Current controls:** v1 task arguments are only trusted literals, fixed flags fed by typed scalar inputs, boolean switches, and enum-to-pack-literal maps. Executables/flag names/subcommands cannot be supplied by browser input. String/enum values used as flag values must reject leading `-`. Optional flag/value pairs omit together. No task executor exists yet.
-
-**Phase 4 requirement:** server-side runtime value validation and exact argv construction into an immutable plan; no shell concatenation.
+**Current controls:** v1 task arguments are only trusted literals, fixed flags fed by typed scalar inputs, boolean switches, and enum-to-pack-literal maps. The Phase 4 planner validates exact runtime types/constraints and constructs argv server-side. Executables/flag names/subcommands cannot be supplied by browser input. String/enum values used as flag values reject NUL and, where declared, leading `-`. Optional flag/value pairs omit together. The executor directly starts the planned executable with its argv and never concatenates a shell command.
 
 ### T2 — Malicious web page attacks localhost
 
@@ -124,7 +122,9 @@ Pack v1 intentionally has no `secret` input. Future support requires explicit se
 - selected basename must match the pack allowlist;
 - version probes/constraints can block incompatible binaries.
 
-**Residual risk:** name/path/version does not prove vendor publisher identity. Enterprise publisher/signature/hash validation may be added where required. Phase 4 should reduce discovery-to-execution TOCTOU by revalidating the selected executable at the execution boundary where practical.
+**Phase 4 identity control:** discovery captures an opaque in-memory identity for the selected regular file; planning requires that identity; execution rechecks filesystem identity plus size/modification metadata immediately before process creation. Same-path replacement between discovery and execution is rejected.
+
+**Residual risk:** name/path/version/file identity does not prove vendor publisher identity. Enterprise publisher/signature/hash validation may be added where required.
 
 ### T8 — Malicious pack / parser abuse
 
@@ -140,11 +140,11 @@ Version probing remains privileged execution of the selected binary and therefor
 
 ### T10 — Destructive command confusion
 
-Pack v1 requires a risk class. Phase 4+ must enforce backend confirmation bound to target/context; frontend confirmation alone is insufficient.
+Pack v1 requires a risk class. The current planner and executor reject every risk class except `read`; there is therefore no mutating/destructive execution path to confirm yet. Before those classes are enabled, backend confirmation must be bound to exact target/context; frontend confirmation alone is insufficient.
 
 ### T11 — Long-running/noisy task process DoS
 
-Version probes already have timeout/buffer bounds. Future task execution additionally requires cancellation, total deadlines, backpressure/output limits, bounded run history, and Windows descendant-process cleanup.
+Version probes have timeout/buffer bounds. Task execution now has a total deadline, explicit cancellation, per-stream output limits, `WaitDelay` protection for inherited handles, and on Windows a per-run Job Object established before the process resumes so descendants cannot outlive the run. Persisted/bounded run history and browser-stream backpressure remain future work.
 
 ### T12 — Browser bootstrap exposure
 
@@ -208,13 +208,14 @@ Implemented regression coverage includes pack structural/semantic/trust/resource
 - discovery snapshot defensive-copy behavior;
 - CLI override parsing and mixed pack-source rejection.
 
+Phase 4 regression coverage now includes typed/malformed runtime values, exact argv/metacharacter handling, zero values, policy gating, executable identity/replacement detection, cancellation before/after output, timeout, non-zero exit preservation, output exhaustion, sink failure, setup-failure cleanup, neutral temporary-directory cleanup, Unicode/spaces, double cancellation, and Windows Job Object descendant cleanup including inherited stdout/stderr handles.
+
 Still required before MVP release:
 
-- planner value-level injection/property tests;
-- browser arbitrary task/tool substitution tests;
-- end-to-end hostile-origin mutations;
-- task executor timeout/cancellation/Windows process-tree cleanup;
-- output XSS/redaction/parser-fallback tests;
+- browser arbitrary task/tool substitution tests once run APIs exist;
+- end-to-end hostile-origin mutation tests for run endpoints;
+- output XSS/redaction/parser-fallback tests when process output reaches the UI;
+- stronger publisher/signature/hash verification if enterprise policy requires it;
 - manual real vendor-path/version/auth/workflow verification on supported Windows environments.
 
 ## 12. Security review triggers
