@@ -277,7 +277,7 @@ After Phase 0 inventory, for each supported deployed version verify exact binary
 
 ## 17. Release gates
 
-A Windows MVP release requires all applicable unit/integration/security/E2E gates green, manual real-tool acceptance, review of the CI `npm audit` and pinned `govulncheck` results, no undisposed high-severity vulnerability, redacted diagnostics, SHA-256 verification of every privileged file in the packaged evaluation/release bundle, and packaged-binary testing on a clean Windows profile. The current evaluation gate specifically verifies both the Windows executable and the explicitly trusted Phase 0 pack against `EVALUATION_SHA256SUMS`; `bin/SHA256SUMS` remains an executable-only compatibility checksum.
+A Windows MVP release requires all applicable unit/integration/security/E2E gates green, manual real-tool acceptance, review of the CI `npm audit` and pinned `govulncheck` results, no undisposed high-severity vulnerability, redacted diagnostics, SHA-256 verification of every privileged file in the packaged evaluation/release bundle, and packaged-binary testing on a clean Windows profile. The current evaluation gate specifically treats root `EVALUATION_SHA256SUMS` as the sole packaged evaluation checksum authority and verifies both the Windows executable and the explicitly trusted Phase 0 pack against it. `bin/SHA256SUMS` remains an executable-only compatibility checksum for ordinary local builds and must be absent from the evaluation bundle.
 
 Phases 1-4 low-level foundations are not release qualification. Browser execution integration, auth, output rendering/redaction, real-tool workflows, and release acceptance intentionally remain open.
 
@@ -304,7 +304,9 @@ Required cases include:
 - Windows/Linux formatting, vet, unit/integration tests, embedded frontend synchronization, and build;
 - Linux `go test -race`;
 - dependency vulnerability scan and npm audit;
-- Windows evaluation binary `version` and vendor-free `self-test` execution before artifact upload.
+- Windows evaluation binary `version` and vendor-free `self-test` execution before artifact upload;
+- authoritative evaluation-manifest verification after build and immediately before upload, including exact entry set/order, canonical forward-slash paths, case-insensitive duplicate rejection for the Windows target, regular/non-symlink privileged-file enforcement, digest recomputation, and rejection of a packaged `bin/SHA256SUMS` compatibility manifest;
+- explicit upload of only `EVALUATION_SHA256SUMS`, the evaluation executable, and the trusted Phase 0 pack.
 
 A real company-laptop run remains environment evidence, not a CI assertion. Application-control/EDR/browser-policy behavior must be reported from the actual managed machine.
 
@@ -324,6 +326,21 @@ The evidence-consumption boundary adds deterministic regression coverage for:
 - bounded quoted output previews and explicit PROVES / UNKNOWN / BLOCKED classifications.
 
 The final exact `main` SHA must continue to pass both Windows and Ubuntu quality jobs, the race detector, dependency scans, and Windows evaluation artifact smoke tests.
+
+## Windows evaluation checksum-authority verification
+
+Regression coverage must prove:
+
+- the authoritative evaluation manifest contains exactly the executable and trusted Phase 0 pack, once each, in deterministic order;
+- malformed digests, CRLF/non-terminated lines, traversal, non-canonical paths, backslashes, drive-like paths, and case-insensitive aliases are rejected;
+- duplicate normalized artifact inputs fail manifest generation;
+- symlink/non-regular privileged files fail verification;
+- modifying a covered artifact makes verification fail until the manifest is regenerated from the changed bytes;
+- stale generated checksum manifests are invalidated before a new build mode becomes authoritative;
+- evaluation verification fails if local-build compatibility `bin/SHA256SUMS` is present;
+- CI re-verifies the same on-disk privileged files immediately before uploading exactly those files plus the root manifest;
+- the GitHub artifact archive digest is reported separately and never substituted for privileged-file checksums;
+- no checksum or manifest content becomes executable, pack, browser, or workflow authority.
 
 ## Phase 0 evidence transfer-integrity verification
 
