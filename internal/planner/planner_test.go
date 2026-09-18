@@ -166,11 +166,11 @@ func TestBuildRequiresReadyCurrentDiscoveryState(t *testing.T) {
 
 func TestBuildBlocksPoliciesNotImplementedYet(t *testing.T) {
 	for _, test := range []struct {
-		name        string
-		risk        packs.Risk
+		name         string
+		risk         packs.Risk
 		requiresAuth bool
-		secret      bool
-		code        ErrorCode
+		secret       bool
+		code         ErrorCode
 	}{
 		{name: "change", risk: packs.RiskChange, code: ErrRiskPolicy},
 		{name: "destructive", risk: packs.RiskDestructive, code: ErrRiskPolicy},
@@ -235,7 +235,7 @@ func plannerFixture(t *testing.T, risk packs.Risk, requiresAuth, secret bool) (*
 					{Switch: &packs.SwitchArgument{Name: "--verbose", EnabledFrom: "verbose"}},
 					{Map: &packs.MapArgument{ValueFrom: "mode", Values: map[string]string{"safe": "--safe-mode", "detailed": "--detailed-mode"}}},
 				},
-				Output: packs.Output{Mode: packs.OutputRaw, Sensitivity: packs.Sensitivity{ContainsSecrets: secret}},
+				Output:       packs.Output{Mode: packs.OutputRaw, Sensitivity: packs.Sensitivity{ContainsSecrets: secret}},
 				Requirements: packs.Requirements{RequiresAuth: requiresAuth},
 			},
 		},
