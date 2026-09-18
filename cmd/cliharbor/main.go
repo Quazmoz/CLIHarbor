@@ -43,6 +43,9 @@ func run(args []string) error {
 	if len(args) > 0 && args[0] == "evidence" {
 		return runEvidenceCommand(args[1:])
 	}
+	if len(args) > 0 && args[0] == "diagnostics" {
+		return runDiagnosticsCommand(args[1:])
+	}
 
 	command := "serve"
 	if len(args) > 0 {
@@ -115,6 +118,40 @@ func run(args []string) error {
 	default:
 		return app.Run(ctx, options)
 	}
+}
+
+func runDiagnosticsCommand(args []string) error {
+	if len(args) == 0 || args[0] != "export" {
+		return fmt.Errorf("usage: cliharbor diagnostics export [--pack-file <file>] [--pack-dir <dir>] [--tool-path <pack/tool=/absolute/path>] <output>")
+	}
+	flags := flag.NewFlagSet("cliharbor diagnostics export", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	packDirectory := flags.String("pack-dir", "", "explicit trusted directory containing pack YAML files")
+	var packFiles stringList
+	var toolPaths stringList
+	flags.Var(&packFiles, "pack-file", "explicit trusted pack YAML file (repeatable)")
+	flags.Var(&toolPaths, "tool-path", "tool override as pack/tool=/absolute/path (repeatable)")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 1 || flags.Arg(0) == "" {
+		return fmt.Errorf("usage: cliharbor diagnostics export [--pack-file <file>] [--pack-dir <dir>] [--tool-path <pack/tool=/absolute/path>] <output>")
+	}
+	overrides, err := parseToolOverrides(toolPaths)
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return app.ExportDiagnostics(ctx, app.Options{
+		Out: os.Stdout,
+		Version: version,
+		Commit: commit,
+		BuildMode: buildMode,
+		PackFiles: append([]string(nil), packFiles...),
+		PackDirectory: *packDirectory,
+		ToolOverrides: overrides,
+	}, flags.Arg(0))
 }
 
 func runEvidenceCommand(args []string) error {

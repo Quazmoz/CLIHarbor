@@ -80,3 +80,17 @@ func TestEvidenceCommandShapeFailsClosed(t *testing.T) {
 		}
 	}
 }
+
+func TestDiagnosticsCommandShapeFailsClosed(t *testing.T) {
+	for _, args := range [][]string{
+		{"diagnostics"},
+		{"diagnostics", "inspect"},
+		{"diagnostics", "export"},
+		{"diagnostics", "export", "one.json", "two.json"},
+		{"diagnostics", "export", "--probe", "demo/tool/help", "bundle.json"},
+	} {
+		if err := run(args); err == nil {
+			t.Fatalf("run(%v) unexpectedly succeeded", args)
+		}
+	}
+}
