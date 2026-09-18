@@ -58,7 +58,7 @@ func Run(ctx context.Context, options Options) error {
 		_ = shutdownRuns()
 		return err
 	}
-	s, err := server.New(server.Config{Version: options.Version, Frontend: frontend, Runs: runManager})
+	s, err := server.New(server.Config{Version: options.Version, Frontend: frontend, Runs: runManager, Tasks: newTaskCatalog(runtimeState.Registry, runtimeState.Discovery)})
 	if err != nil {
 		_ = shutdownRuns()
 		return err
