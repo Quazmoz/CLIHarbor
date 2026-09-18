@@ -24,6 +24,7 @@ interface RunView {
   stdout: string;
   stderr: string;
   streamMessage: string;
+  streamStopped: boolean;
   lastSequence: number;
 }
 
@@ -118,6 +119,7 @@ function appendRunEvent(current: RunView, event: RunEvent): RunView {
     stdout,
     stderr,
     streamMessage: '',
+    streamStopped: false,
     lastSequence: event.sequence,
   };
 }
@@ -134,6 +136,7 @@ function completeRun(current: RunView, complete: RunComplete): RunView {
       exitCode: complete.exitCode,
     },
     streamMessage: '',
+    streamStopped: false,
     lastSequence: Math.max(current.lastSequence, complete.sequence),
   };
 }
@@ -219,6 +222,7 @@ export function App() {
   const [run, setRun] = useState<RunView | null>(null);
   const [runError, setRunError] = useState('');
   const [starting, setStarting] = useState(false);
+  const [streamAttempt, setStreamAttempt] = useState(0);
 
   const selectedTask = useMemo(() => {
     if (state.kind !== 'ready') {
@@ -277,6 +281,7 @@ export function App() {
             : {
                 ...current,
                 streamMessage: error.message,
+                streamStopped: true,
               },
         );
         void fetchRun(activeRunID).then(
@@ -294,7 +299,7 @@ export function App() {
       },
     );
     return close;
-  }, [activeRunID]);
+  }, [activeRunID, streamAttempt]);
 
   const startRun = async (event: FormEvent) => {
     event.preventDefault();
@@ -309,12 +314,26 @@ export function App() {
         commandId: selectedTask.commandId,
         values: requestValues(selectedTask, formValues),
       });
-      setRun({ snapshot, stdout: '', stderr: '', streamMessage: '', lastSequence: 0 });
+      setRun({ snapshot, stdout: '', stderr: '', streamMessage: '', streamStopped: false, lastSequence: 0 });
+      setStreamAttempt(0);
     } catch (error) {
       setRunError(error instanceof Error ? error.message : 'CLIHarbor could not start the run.');
     } finally {
       setStarting(false);
     }
+  };
+
+  const retryLiveStream = () => {
+    setRun((current) =>
+      current === null
+        ? current
+        : {
+            ...current,
+            streamMessage: '',
+            streamStopped: false,
+          },
+    );
+    setStreamAttempt((current) => current + 1);
   };
 
   const cancelActiveRun = async () => {
@@ -475,9 +494,16 @@ export function App() {
                       </div>
                     </dl>
                     {run.snapshot.status === 'running' && (
-                      <button type="button" className="secondary-button" onClick={() => void cancelActiveRun()}>
-                        Cancel run
-                      </button>
+                      <div className="run-actions">
+                        <button type="button" className="secondary-button" onClick={() => void cancelActiveRun()}>
+                          Cancel run
+                        </button>
+                        {run.streamStopped && (
+                          <button type="button" className="secondary-button" onClick={retryLiveStream}>
+                            Retry live stream
+                          </button>
+                        )}
+                      </div>
                     )}
                     {run.streamMessage && <p className="stream-message">{run.streamMessage}</p>}
                     <div className="output-grid">
