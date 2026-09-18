@@ -136,6 +136,9 @@ func goBuild(root string) error {
 	}
 	artifact := filepath.Join(root, "bin", name)
 	checksum := filepath.Join(root, "bin", "SHA256SUMS")
+	if err := removeGeneratedChecksum(filepath.Join(root, evaluationManifestName)); err != nil {
+		return err
+	}
 	if err := removeGeneratedChecksum(checksum); err != nil {
 		return err
 	}
