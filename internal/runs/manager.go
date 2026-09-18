@@ -179,6 +179,13 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 	if m == nil {
 		return Snapshot{}, &Error{Code: ErrClosed}
 	}
+	m.mu.Lock()
+	closed := m.closed || m.ctx.Err() != nil
+	m.mu.Unlock()
+	if closed {
+		return Snapshot{}, &Error{Code: ErrClosed}
+	}
+
 	plan, err := planner.Build(m.registry, m.discovery, planner.Request{
 		PackID:    request.PackID,
 		CommandID: request.CommandID,
