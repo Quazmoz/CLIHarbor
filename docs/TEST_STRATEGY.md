@@ -277,7 +277,7 @@ After Phase 0 inventory, for each supported deployed version verify exact binary
 
 ## 17. Release gates
 
-A Windows MVP release requires all applicable unit/integration/security/E2E gates green, manual real-tool acceptance, review of the CI `npm audit` and pinned `govulncheck` results, no undisposed high-severity vulnerability, redacted diagnostics, SHA-256 checksum verification for the packaged executable, and packaged-binary testing on a clean Windows profile.
+A Windows MVP release requires all applicable unit/integration/security/E2E gates green, manual real-tool acceptance, review of the CI `npm audit` and pinned `govulncheck` results, no undisposed high-severity vulnerability, redacted diagnostics, SHA-256 verification of every privileged file in the packaged evaluation/release bundle, and packaged-binary testing on a clean Windows profile. The current evaluation gate specifically verifies both the Windows executable and the explicitly trusted Phase 0 pack against `EVALUATION_SHA256SUMS`; `bin/SHA256SUMS` remains an executable-only compatibility checksum.
 
 Phases 1-4 low-level foundations are not release qualification. Browser execution integration, auth, output rendering/redaction, real-tool workflows, and release acceptance intentionally remain open.
 
