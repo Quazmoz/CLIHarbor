@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
 	"github.com/Quazmoz/CLIHarbor/internal/planner"
 )
@@ -149,10 +150,10 @@ func TestRunUsesNeutralWorkingDirectory(t *testing.T) {
 }
 
 func TestRunRejectsPlansOutsideCurrentSafetyEnvelope(t *testing.T) {
-	executable, name := currentExecutable(t)
+	executable, name, identity := currentExecutable(t)
 	base := planner.Plan{
 		PackID: "demo", PackVersion: "1.0.0", CommandID: "inspect", ToolID: "fixture",
-		ExecutablePath: executable, ExecutableName: name, Risk: packs.RiskRead, Output: packs.Output{Mode: packs.OutputRaw},
+		ExecutablePath: executable, ExecutableName: name, ExecutableIdentity: identity, Risk: packs.RiskRead, Output: packs.Output{Mode: packs.OutputRaw},
 	}
 	for _, mutate := range []func(*planner.Plan){
 		func(plan *planner.Plan) { plan.Risk = packs.RiskChange },
@@ -287,12 +288,12 @@ func helperPlan(t *testing.T, helperArgs ...string) planner.Plan {
 	args = append(args, helperArgs...)
 	return planner.Plan{
 		PackID: "demo", PackVersion: "1.0.0", CommandID: "inspect", ToolID: "fixture",
-		ExecutablePath: executable, ExecutableName: name, Args: args, Risk: packs.RiskRead,
+		ExecutablePath: executable, ExecutableName: name, ExecutableIdentity: identity, Args: args, Risk: packs.RiskRead,
 		Output: packs.Output{Mode: packs.OutputRaw},
 	}
 }
 
-func currentExecutable(t *testing.T) (string, string) {
+func currentExecutable(t *testing.T) (string, string, discovery.ExecutableIdentity) {
 	t.Helper()
 	path, err := filepath.Abs(os.Args[0])
 	if err != nil {
@@ -302,7 +303,12 @@ func currentExecutable(t *testing.T) (string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return filepath.Clean(path), filepath.Base(path)
+	path = filepath.Clean(path)
+	identity, err := discovery.CaptureExecutableIdentity(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path, filepath.Base(path), identity
 }
 
 func testExecutor(timeout time.Duration, maxOutput int64) *Executor {
