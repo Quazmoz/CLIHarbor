@@ -144,6 +144,6 @@ Phase 4c-A exposes authenticated create/get/cancel run APIs with strict JSON/UTF
 
 Phase 4c-B adds `GET /api/v1/runs/{runId}/events` with bounded manager-backed SSE replay, strict `Last-Event-ID` parsing, independent slow-client writes, explicit stream-disconnect/server-shutdown semantics, and bounded browser recovery. `GET /api/v1/tasks` exposes only currently runnable read-only/non-auth/non-secret metadata. The React client keeps CSRF only in runtime memory, derives typed controls from server metadata, streams stdout/stderr as inert text, caps automatic EventSource recovery at five consecutive failures, reconciles retained snapshot output/state, and requires an explicit action for another live-stream attempt.
 
-Local `go-build`/`build` now also emit `bin/SHA256SUMS` for the built executable. The next product milestone is the first verified read-only Idira workflow after Phase 0 inventory. Authentication orchestration and structured output remain subsequent milestones.
+Local `go-build`/`build` now also emit `bin/SHA256SUMS` for the built executable. CI additionally verifies Go module checksums, audits the locked npm tree, and runs pinned `govulncheck@v1.8.0` as a separate dependency-vulnerability job. The next product milestone is the first verified read-only Idira workflow after Phase 0 inventory. Authentication orchestration and structured output remain subsequent milestones.
 
 Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, or guessed Idira/CyberArk commands.
