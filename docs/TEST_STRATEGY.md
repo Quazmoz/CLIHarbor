@@ -295,6 +295,7 @@ Required cases include:
 - invalid UTF-8 preservation at the runner boundary and sanitization before evidence;
 - minimal child environment and neutral working directories so arbitrary parent secrets/caller cwd are not inherited by version/help probes;
 - fail-closed version discovery for oversized/truncated or invalid-UTF-8 output;
+- executable replacement during a version probe is detected before version evidence is accepted;
 - Windows version-probe timeout descendant cleanup through the shared Job Object lifecycle boundary;
 - executable-path/common-secret/control-character redaction;
 - Phase 0 export schema bounds, sanitized fixed-argv provenance, and omission of zero-value timestamps for probes that did not execute;
