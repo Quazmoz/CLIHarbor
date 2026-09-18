@@ -344,6 +344,13 @@ func TestManagerStructuredOutputFixtureMatrixPreservesRawEvidence(t *testing.T) 
 			if started != 1 {
 				t.Fatalf("run.started events = %d, want one execution", started)
 			}
+			manager.mu.Lock()
+			retained := manager.runs[run.RunID]
+			if retained == nil || retained.structuredSpec != nil || retained.structuredRenderer != "" || len(retained.structuredStdout) != 0 || retained.structuredTooLarge {
+				manager.mu.Unlock()
+				t.Fatalf("completed run retained temporary structured parse state: %#v", retained)
+			}
+			manager.mu.Unlock()
 		})
 	}
 }
