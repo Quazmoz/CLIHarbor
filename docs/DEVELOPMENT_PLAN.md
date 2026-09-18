@@ -11,8 +11,9 @@ Current implementation status:
 - Phase 1 — local runtime/browser foundation: **implemented**.
 - Phase 2 — versioned pack schema/validation/trusted loader foundation: **implemented**.
 - Phase 3 — tool discovery/version probing/doctor foundation: **implemented**.
+- Phase 4a — deterministic planner/executor and Windows process lifecycle: **implemented**.
 - Phase 0 — vendor environment inventory: **still required before real Idira/CyberArk command definitions**.
-- Phase 4+ — not implemented unless explicitly noted below.
+- Phase 4b+ — browser/integration/auth/structured-output milestones remain incomplete unless explicitly noted below.
 
 ## 2. Phase 0 — Environment inventory
 
@@ -137,35 +138,52 @@ Acceptance at this phase boundary:
 
 Phase 0 inventory should run in parallel for the real company CLI environment so Phase 4 can use evidence rather than invented syntax.
 
-## 6. Phase 4 — Secure execution vertical slice — NEXT
+## 6. Phase 4 — Secure execution vertical slice — IN PROGRESS
 
-Implement the deterministic planner and executor first against a purpose-built fixture command. Move to one real read-only Idira/CyberArk command only after Phase 0 evidence exists.
+### Phase 4a — low-level planner/executor — IMPLEMENTED
 
-Required:
+Implemented against fixture-oriented tests:
 
-- typed runtime inputs validated against the already-validated pack definition;
-- immutable deterministic execution plan;
-- tool state must be `ready` before a plan can be produced;
-- executable path sourced only from the authoritative discovery snapshot, never browser input;
-- revalidation of the selected executable at the execution boundary where practical to reduce discovery-to-execution drift;
-- executable + args execution via `os/exec` without a shell;
-- stdout/stderr separation;
-- exit code/duration;
-- cancellation;
-- bounded streaming;
-- raw output view/model;
-- sanitized invocation preview;
-- run IDs.
+- typed runtime inputs validated against already-validated pack definitions;
+- deterministic execution plans requiring current `ready` discovery state and matching pack version;
+- executable path/name/version plus discovery-time file identity sourced only from authoritative discovery state;
+- exact pack-authored argv construction; browser/user values cannot choose executable path/name, flags, subcommands, or arbitrary argv structure;
+- direct `os/exec` invocation with no shell for ordinary task execution;
+- read-only policy enforced in both planner and executor;
+- auth-required, secret-bearing, change, destructive, interactive, and credential-sensitive commands blocked;
+- same-path executable replacement rejected at the execution boundary;
+- generated run IDs, neutral temporary working directories, separate stdout/stderr events, bounded per-stream output, total deadlines, cancellation, non-zero exit preservation, and `WaitDelay`;
+- platform lifecycle abstraction with Windows Job Object ownership established before the target resumes so descendants cannot escape the run boundary;
+- cancellation/timeout/output-limit/sink-failure and normal teardown clean up Windows descendants;
+- regression coverage for malformed values, exact argv, Unicode/spaces, cancellation races, setup failures, temp-directory cleanup, and descendant/inherited-handle behavior.
 
-Acceptance:
+This is an internal backend boundary. It is not yet exposed as a browser run API.
 
-- no shell is invoked for ordinary command execution;
-- metacharacters in input remain literal argument data;
-- missing/ambiguous/incompatible/probe-failed tools cannot execute;
-- a fixture workflow proves exact argv boundaries;
-- duplicate/cancel/timeout behavior has explicit tests;
-- after Phase 0, one verified real read-only CLI workflow completes from browser to vendor service;
-- raw output matches direct CLI behavior.
+### Phase 4b — fixture-backed integration — NEXT
+
+Before adding browser execution endpoints, prove the complete internal chain with a purpose-built fixture:
+
+```text
+trusted fixture pack
+  -> registry
+  -> discovery
+  -> planner
+  -> executor
+  -> bounded events/result
+```
+
+Prefer an automated integration test and, only if it adds diagnostic value without widening authority, a narrowly scoped internal/CLI fixture diagnostic. Do not add arbitrary executable/path/argv inputs.
+
+Acceptance for Phase 4b:
+
+- one fixture workflow traverses the real registry/discovery/planner/executor path;
+- exact argv/output/exit/cancellation evidence matches direct fixture behavior;
+- no shell/browser-selected execution authority is introduced;
+- no vendor command syntax is invented.
+
+After Phase 4b, a browser execution API can be designed against the already-proven backend boundary with Host/Origin/CSRF/session controls and bounded streaming.
+
+Real Idira/CyberArk workflows remain blocked on Phase 0 inventory.
 
 ## 7. Phase 5 — Structured output
 
@@ -217,9 +235,7 @@ Do not aim for complete CLI parity.
 
 Add/complete:
 
-- Windows child-process-tree cancellation strategy;
-- timeouts and total deadlines for task execution;
-- output backpressure/size limits;
+- persisted/browser-stream backpressure and bounded run-history policy when run APIs arrive;
 - redaction tests;
 - fuzz/property tests for planner/schema boundaries where useful;
 - dependency scanning;
@@ -306,17 +322,19 @@ Completed foundations:
 2. Loopback server + secure browser bootstrap.
 3. Pack v1 schema/semantic validation/trusted loader/registry.
 4. Windows-first binary discovery/version probes/doctor.
+5. Typed read-only execution planner with discovery identity gating.
+6. Bounded direct executor with Windows Job Object descendant ownership.
 
 Next:
 
-5. Execution planner with typed runtime values and discovery-state gating.
-6. Streaming executor + cancellation using fixture executable(s).
-7. First verified read-only Idira workflow after Phase 0 inventory.
-8. Auth adapter + external login orchestration.
-9. Structured result renderer.
-10. Additional security hardening/evals.
-11. Second executable fixture pack scenario.
-12. Windows release qualification.
+7. Fixture-backed registry -> discovery -> planner -> executor integration proof.
+8. Browser execution API/streaming boundary for read-only fixture tasks.
+9. First verified read-only Idira workflow after Phase 0 inventory.
+10. Auth adapter + external login orchestration.
+11. Structured result renderer.
+12. Additional security hardening/evals.
+13. Second executable fixture pack scenario.
+14. Windows release qualification.
 
 ## 17. Implementation guardrail
 

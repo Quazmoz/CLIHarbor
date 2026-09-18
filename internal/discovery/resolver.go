@@ -106,6 +106,13 @@ func (r *Resolver) resolveTool(ctx context.Context, state ToolState, tool packs.
 	case 1:
 		state.Path = candidates[0].Path
 		state.ExecutableName = candidates[0].ExecutableName
+		identity, err := CaptureExecutableIdentity(state.Path)
+		if err != nil {
+			state.Status = StatusIdentityFailed
+			state.Message = "resolved executable identity could not be recorded"
+			return state, nil
+		}
+		state.ExecutableIdentity = identity
 	default:
 		state.Status = StatusAmbiguous
 		state.Message = "multiple matching executables were found; configure an explicit tool path"

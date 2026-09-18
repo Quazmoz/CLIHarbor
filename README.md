@@ -39,7 +39,7 @@ The first product slice will:
 - **Transport:** loopback HTTP; streaming transport will be added when execution arrives
 - **Pack format:** versioned YAML (`cliharbor.dev/v1`) validated against the embedded JSON Schema plus deterministic semantic/security checks
 - **Discovery/version probes:** direct Go process invocation with pack-authored fixed argv, bounded output, bounded timeout, and semantic-version compatibility checks
-- **Task execution:** planned Go `os/exec` using executable + argument arrays; never concatenate untrusted input into a shell command
+- **Task execution:** direct Go `os/exec` using an authoritative executable path plus an exact argument array; ordinary execution never concatenates untrusted input into a shell command
 
 Go is used for the standalone runtime because it produces a small self-contained Windows executable, has strong process/HTTP primitives, is easy to embed into an existing CLI, and keeps the local runtime footprint low. If CLIHarbor is later embedded into an existing internal CLI implemented in another language, the browser and pack contracts should remain portable.
 
@@ -85,7 +85,17 @@ Phase 3 adds tool discovery and version compatibility:
 - fail-closed parsing when version output contains no semantic version or multiple distinct semantic versions;
 - startup wiring for explicitly configured packs plus a `cliharbor doctor` diagnostic surface.
 
-The execution planner/executor, command streaming, pack/tool browser UI, auth orchestration, and real Idira/CyberArk workflows are **not implemented yet**. Phase 0 vendor inventory is still required before any real vendor command definitions are added.
+Phase 4 adds the low-level secure execution boundary:
+
+- a typed server-side planner that accepts only commands from the validated pack registry and a current `ready` discovery snapshot;
+- exact argv construction from typed values, with unknown/missing/wrongly typed inputs, NUL values, and unsafe leading-dash values rejected rather than reinterpreted;
+- server-side enforcement of the current read-only envelope: auth-required, secret-bearing, change, destructive, interactive, and credential-sensitive commands remain blocked;
+- discovery-time executable file identity carried into each plan and revalidated immediately before execution so a same-path replacement is rejected;
+- direct `os/exec` execution with a neutral temporary working directory, generated run IDs, separate stdout/stderr events, bounded output, deadlines, cancellation, non-zero exit preservation, and `exec.Cmd.WaitDelay` protection against inherited output handles;
+- a platform lifecycle boundary: Windows starts the target suspended, assigns it to a per-run Job Object configured with kill-on-close, then resumes it so descendants cannot escape before ownership is established; cancellation, timeout, output exhaustion, sink failure, and normal run teardown all close or terminate that boundary;
+- regression coverage for argv boundaries, malformed values, executable replacement, spaces/Unicode, cancellation races, setup failure cleanup, and Windows descendant cleanup.
+
+The planner/executor is currently an internal backend boundary. There is still **no browser run API or task execution UI**, no auth-required or secret-bearing execution, and no real Idira/CyberArk command pack. Phase 0 vendor inventory remains required before any real vendor command definitions are added.
 
 Development targets Go 1.27.1 and Node 24.21.0.
 
@@ -188,4 +198,4 @@ Those properties reinforce CLIHarbor's core boundary: **invoke the official CLI 
 
 ## Status
 
-Phases 1-3 are implemented: secure local browser runtime, trusted versioned pack model/loader, and fail-closed tool discovery/version probing with `doctor`. The next implementation milestone is Phase 4: a deterministic typed execution planner and fixture-backed executor/streaming vertical slice. Real vendor command definitions remain blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.
+Phases 1-4 now include the secure local browser runtime, trusted versioned pack model/loader, fail-closed tool discovery/version probing with `doctor`, and an internal deterministic read-only planner/executor with Windows descendant-process ownership. The next bounded milestone is fixture-backed end-to-end execution integration before exposing browser run APIs. Real vendor command definitions remain blocked on verified Phase 0 inventory of the exact deployed CLI versions and command trees.

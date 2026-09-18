@@ -36,6 +36,20 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 - mixed `--pack-file` + `--pack-dir` configuration is rejected;
 - doctor with no configured packs is informational and does not imply cwd auto-discovery.
 
+### Phase 4 checkpoint
+
+`internal/planner`, `internal/executor`, and executable-identity coverage now verify the low-level read-only execution boundary:
+
+- only a validated pack command plus current `ready` discovery state can produce a plan;
+- ready discovery state must carry an executable identity;
+- unknown/missing/null/wrongly typed/trailing JSON values fail closed;
+- zero integers, empty optional strings, Unicode, spaces, quotes, shell metacharacters, and leading-dash constraints preserve deterministic argv semantics;
+- change/destructive/interactive/credential-sensitive, auth-required, and secret-bearing commands remain blocked;
+- same-path executable replacement and symlink identity substitution are rejected;
+- normal/non-zero exits, cancellation before start, cancellation after observable output, timeout, output limits, sink failure, setup failure, and double cancellation have explicit coverage;
+- neutral temporary working directories are removed after runs;
+- Windows-only tests cover normal descendant completion, case-insensitive executable paths, explicit cancellation, timeout, output-limit and sink-failure descendant cleanup, plus inherited stdout/stderr handles using a per-run Job Object.
+
 A green CI build proves the code compiles/tests on its CI platforms. It does not replace manual Windows acceptance of real default-browser, PATH, filesystem, vendor CLI, authentication, or antivirus/SmartScreen behavior.
 
 ## 2. Test layers
@@ -48,7 +62,7 @@ Use deterministic tests for:
 - trusted-source loading and registry immutability;
 - path candidate discovery/override policy;
 - version parsing and compatibility constraints;
-- typed runtime field validation and argv construction once planner exists;
+- typed runtime field validation and exact argv construction;
 - risk/confirmation rules;
 - redaction/output parsers/auth mapping/API validation as those components arrive.
 
@@ -58,7 +72,7 @@ Use purpose-built fixture executables rather than real vendor credentials in CI.
 
 ### End-to-end tests
 
-Once general execution exists, exercise browser -> authenticated API -> planner -> fixture executable -> streamed events -> UI. Do not add browser E2E that only rechecks static markup.
+Once browser run APIs exist, exercise browser -> authenticated API -> planner -> fixture executable -> streamed events -> UI. Do not add browser E2E that only rechecks static markup.
 
 ### Real-tool acceptance
 
@@ -117,7 +131,7 @@ For every platform-specific change verify:
 
 Manual Windows acceptance should validate real PATH behavior and exact resolved paths on the corporate baseline before release.
 
-## 6. Execution planner tests — Phase 4
+## 6. Execution planner tests — Phase 4 baseline implemented
 
 For each input type prove:
 
@@ -132,13 +146,14 @@ For each input type prove:
 - boolean switches emit only their pack-authored flag;
 - enum maps emit only pack-authored literals;
 - tool discovery state must be `ready`;
-- executable path is copied only from authoritative discovery state;
+- executable path/name/version/identity are copied only from authoritative discovery state;
+- a nominally ready discovery state without identity is rejected as stale;
 - planner output is immutable/defensively copied;
 - risk policy cannot be downgraded by request input.
 
 Property/fuzz tests are appropriate for runtime value and argv-construction boundaries.
 
-## 7. Executor tests — Phase 4+
+## 7. Executor tests — Phase 4 baseline implemented
 
 Verify:
 
@@ -147,11 +162,14 @@ Verify:
 - selected executable identity is revalidated where required before spawn;
 - stdout/stderr remain separately identifiable;
 - start failure vs non-zero CLI exit are distinct;
-- timeout/cancellation are deterministic;
-- Windows descendant cleanup works;
-- output buffering/backpressure is bounded;
+- timeout/cancellation are deterministic, including cancellation before start and after output begins;
+- output-limit and sink failures cancel execution;
+- partial lifecycle setup failure cleans up the started process and lifecycle boundary;
+- same-path executable replacement is rejected before spawn;
+- Windows descendants are owned by a per-run Job Object before execution resumes and are cleaned up for cancellation, timeout, output-limit, sink-failure, normal teardown, and inherited-output-handle cases;
+- output is bounded per stream and `WaitDelay` bounds inherited stdout/stderr handle waits;
 - Unicode and spaces in executable paths/args/output work;
-- duplicate/retry behavior cannot accidentally create a second consequential side effect without explicit semantics.
+- the current executor remains read-only; duplicate/retry semantics for consequential side effects must be designed before mutating commands are enabled.
 
 ## 8. Local web security tests
 
@@ -193,7 +211,7 @@ Windows CI is first-class for Go/frontend build/test. Manual release acceptance 
 - explicit path override with spaces/Unicode;
 - default-browser handler behavior;
 - no CMD/PowerShell use for normal probes/tasks;
-- future Windows process-tree cancellation;
+- Windows Job Object descendant ownership/cancellation remains covered by Windows runtime tests;
 - locked/readonly config locations;
 - Windows Terminal present/absent when auth arrives;
 - antivirus/SmartScreen on packaged binaries.
@@ -206,4 +224,4 @@ After Phase 0 inventory, for each supported deployed version verify exact binary
 
 A Windows MVP release requires all applicable unit/integration/security/E2E gates green, manual real-tool acceptance, dependency scan review, no undisposed high-severity vulnerability, redacted diagnostics, and packaged-binary testing on a clean Windows profile.
 
-Phases 1-3 are foundations, not release qualification. Planner/executor/auth/real-tool/browser-workflow requirements intentionally remain open.
+Phases 1-4 low-level foundations are not release qualification. Browser execution integration, auth, output rendering/redaction, real-tool workflows, and release acceptance intentionally remain open.
