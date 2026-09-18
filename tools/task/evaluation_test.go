@@ -239,11 +239,20 @@ func TestEvaluationGoEnvironmentPinsBuildAffectingInputs(t *testing.T) {
 		t.Fatal("base evaluation environment unexpectedly pins a shared GOCACHE")
 	}
 
-	buildEnv := evaluationBuildEnvironment(filepath.Join("tmp", "isolated-cache"))
+	buildEnv := evaluationBuildEnvironment(
+		filepath.Join("tmp", "isolated-cache"),
+		filepath.Join("tmp", "isolated-work"),
+	)
 	if got := buildEnv["GOCACHE"]; got != filepath.Join("tmp", "isolated-cache") {
 		t.Fatalf("evaluation GOCACHE = %q, want isolated cache path", got)
 	}
+	if got := buildEnv["GOTMPDIR"]; got != filepath.Join("tmp", "isolated-work") {
+		t.Fatalf("evaluation GOTMPDIR = %q, want isolated temp path", got)
+	}
 	if _, ok := env["GOCACHE"]; ok {
+		t.Fatal("evaluationBuildEnvironment mutated the base environment map")
+	}
+	if _, ok := env["GOTMPDIR"]; ok {
 		t.Fatal("evaluationBuildEnvironment mutated the base environment map")
 	}
 }
