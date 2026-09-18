@@ -50,11 +50,22 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	}
 
 	snapshot := discovery.NewSnapshot([]discovery.ToolState{
-		{PackID: "fixture", ToolID: "ready", Status: discovery.StatusReady, Version: "1.2.3"},
-		{PackID: "fixture", ToolID: "missing", Status: discovery.StatusMissing},
+		{PackID: "fixture", PackVersion: "1.0.0", ToolID: "ready", Status: discovery.StatusReady, Version: "1.2.3", VersionConstraint: ">=1.0.0"},
+		{PackID: "fixture", PackVersion: "1.0.0", ToolID: "missing", Status: discovery.StatusMissing, Message: "tool is unavailable"},
 	})
 
 	catalog := newTaskCatalog(registry, snapshot)
+	tools := catalog.ListTools()
+	if len(tools) != 2 {
+		t.Fatalf("tool diagnostic count = %d, want 2: %#v", len(tools), tools)
+	}
+	if tools[0].PackID != "fixture" || tools[0].PackName != "Fixture Pack" || tools[0].PackVersion != "1.0.0" || tools[0].ToolID != "missing" || tools[0].Status != string(discovery.StatusMissing) || tools[0].Message != "tool is unavailable" {
+		t.Fatalf("missing tool diagnostic = %#v", tools[0])
+	}
+	if tools[1].ToolID != "ready" || tools[1].Status != string(discovery.StatusReady) || tools[1].Version != "1.2.3" || tools[1].VersionConstraint != ">=1.0.0" {
+		t.Fatalf("ready tool diagnostic = %#v", tools[1])
+	}
+
 	tasks := catalog.ListTasks()
 	if len(tasks) != 1 {
 		t.Fatalf("task count = %d, want 1: %#v", len(tasks), tasks)
