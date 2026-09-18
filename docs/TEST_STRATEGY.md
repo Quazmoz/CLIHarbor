@@ -336,7 +336,8 @@ Regression coverage must prove:
 - duplicate normalized artifact inputs fail manifest generation;
 - symlink/non-regular privileged files fail verification;
 - modifying a covered artifact makes verification fail until the manifest is regenerated from the changed bytes;
-- stale generated checksum manifests are invalidated before a new build mode becomes authoritative;
+- stale generated checksum manifests are explicitly invalidated before a new build mode becomes authoritative;
+- checksum publication is staged, synced, atomic/no-replace, and a concurrent same-destination publication allows exactly one writer to succeed;
 - evaluation verification fails if local-build compatibility `bin/SHA256SUMS` is present;
 - CI re-verifies the same on-disk privileged files immediately before uploading exactly those files plus the root manifest;
 - the GitHub artifact archive digest is reported separately and never substituted for privileged-file checksums;
