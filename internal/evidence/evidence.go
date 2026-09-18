@@ -94,6 +94,12 @@ func SanitizeText(raw []byte) string {
 	text = authorizationPattern.ReplaceAllString(text, "$1 [REDACTED]")
 	text = secretAssignmentPattern.ReplaceAllString(text, "$1$2[REDACTED]")
 	text = jwtPattern.ReplaceAllString(text, "[REDACTED_JWT]")
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		text = redactPath(text, home, "[USER_HOME]")
+	}
+	if temp := os.TempDir(); temp != "" {
+		text = redactPath(text, temp, "[TEMP]")
+	}
 	return trimUTF8Bytes(text, MaxCapturedTextBytes)
 }
 
@@ -205,6 +211,16 @@ func WriteBundle(ctx context.Context, destination string, bundle Bundle) error {
 		return fmt.Errorf("activate evidence bundle: %w", err)
 	}
 	return nil
+}
+
+func redactPath(value, path, replacement string) string {
+	clean := filepath.Clean(path)
+	for _, variant := range []string{clean, filepath.ToSlash(clean), strings.ReplaceAll(clean, "/", "\\")} {
+		if variant != "" && variant != "." {
+			value = strings.ReplaceAll(value, variant, replacement)
+		}
+	}
+	return value
 }
 
 func containsParentTraversal(path string) bool {
