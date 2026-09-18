@@ -519,4 +519,81 @@ describe('App', () => {
       ),
     ).toBe(false);
   });
+
+  test('shows parser failure status while preserving raw output evidence', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const runID = 'dddddddddddddddddddddddddddddddd';
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+        );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                inputs: [],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        return Promise.resolve(
+          response(202, {
+            runId: runID,
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            status: 'running',
+          }),
+        );
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Run task' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
+
+    const source = FakeEventSource.latest;
+    source?.emit('run-event', {
+      runId: runID,
+      sequence: 1,
+      type: 'stdout.chunk',
+      timestamp: '2026-09-18T10:00:00Z',
+      dataBase64: btoa('{"name":42}'),
+    });
+    source?.emit('run-complete', {
+      runId: runID,
+      sequence: 1,
+      status: 'exited',
+      exitCode: 0,
+      structured: {
+        status: 'invalid',
+        renderer: 'cards',
+        error: 'wrong_type',
+      },
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
+    expect(screen.getByText(/structured rendering invalid: wrong_type/i)).toBeInTheDocument();
+    expect(screen.getByText('{"name":42}')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'exited' })).toBeInTheDocument();
+  });
+
 });
