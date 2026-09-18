@@ -124,6 +124,29 @@ func TestWriteSHA256ManifestRejectsArtifactsOutsideRootAndSymlinks(t *testing.T)
 	}
 }
 
+func TestSHA256FileRejectsSamePathReplacement(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "artifact.bin")
+	if err := os.WriteFile(path, []byte("original"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	expected, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("replacement"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sha256File(path, expected); err == nil {
+		t.Fatal("same-path replacement unexpectedly accepted for checksum")
+	}
+}
+
 func TestValidateBuildVersion(t *testing.T) {
 	t.Parallel()
 
