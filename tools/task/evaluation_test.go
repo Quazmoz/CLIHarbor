@@ -2,8 +2,8 @@ package main
 
 import (
 	"os"
-	"slices"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -219,16 +219,16 @@ func TestEvaluationGoEnvironmentPinsBuildAffectingInputs(t *testing.T) {
 
 	env := evaluationGoEnvironment()
 	want := map[string]string{
-		"CGO_ENABLED": "0",
-		"GODEBUG":     "",
-		"GOENV":       "off",
+		"CGO_ENABLED":  "0",
+		"GODEBUG":      "",
+		"GOENV":        "off",
 		"GOEXPERIMENT": "",
-		"GOFLAGS":     "",
-		"GOFIPS140":   "off",
-		"GOAMD64":     "v1",
-		"GOROOT":      "",
-		"GOTOOLCHAIN": "local",
-		"GOWORK":      "off",
+		"GOFLAGS":      "",
+		"GOFIPS140":    "off",
+		"GOAMD64":      "v1",
+		"GOROOT":       "",
+		"GOTOOLCHAIN":  "local",
+		"GOWORK":       "off",
 	}
 	for key, value := range want {
 		if got, ok := env[key]; !ok || got != value {
@@ -245,13 +245,13 @@ func TestRequiredEvaluationGoVersionRequiresExactPatchVersion(t *testing.T) {
 		want    string
 		ok      bool
 	}{
-		"valid":          {content: "1.27.1\n", want: "1.27.1", ok: true},
+		"valid":            {content: "1.27.1\n", want: "1.27.1", ok: true},
 		"no final newline": {content: "1.27.1", want: "1.27.1", ok: true},
-		"minor only":     {content: "1.27\n"},
-		"extra line":     {content: "1.27.1\n1.27.2\n"},
-		"leading space":  {content: " 1.27.1\n"},
-		"release suffix": {content: "1.28.0-rc.1\n"},
-		"crlf":           {content: "1.27.1\r\n"},
+		"minor only":       {content: "1.27\n"},
+		"extra line":       {content: "1.27.1\n1.27.2\n"},
+		"leading space":    {content: " 1.27.1\n"},
+		"release suffix":   {content: "1.28.0-rc.1\n"},
+		"crlf":             {content: "1.27.1\r\n"},
 	}
 
 	for name, tc := range tests {
