@@ -52,6 +52,14 @@ func (s *streamRunService) WaitEvents(ctx context.Context, runID string, after u
 		return runs.EventBatch{}, &runs.Error{Code: runs.ErrNotFound}
 	}
 
+	var latest uint64
+	if len(snapshot.Events) != 0 {
+		latest = snapshot.Events[len(snapshot.Events)-1].Sequence
+	}
+	if after > latest {
+		return runs.EventBatch{}, &runs.Error{Code: runs.ErrInvalidCursor}
+	}
+
 	var events []runs.Event
 	for _, event := range snapshot.Events {
 		if event.Sequence > after {
@@ -170,6 +178,7 @@ func TestRunEventStreamDisconnectDoesNotCancelExecution(t *testing.T) {
 		snapshot: runs.Snapshot{
 			RunID:  strings.Repeat("c", 32),
 			Status: runs.StatusRunning,
+			Events: []runs.Event{{Sequence: 1, Type: "run.started", Timestamp: time.Now().UTC()}},
 		},
 		waitStarted: make(chan struct{}),
 		waitDone:    make(chan struct{}),
@@ -217,6 +226,7 @@ func TestRunEventStreamCapacityIsBounded(t *testing.T) {
 		snapshot: runs.Snapshot{
 			RunID:  strings.Repeat("e", 32),
 			Status: runs.StatusRunning,
+			Events: []runs.Event{{Sequence: 1, Type: "run.started", Timestamp: time.Now().UTC()}},
 		},
 		waitStarted: make(chan struct{}),
 		waitDone:    make(chan struct{}),
