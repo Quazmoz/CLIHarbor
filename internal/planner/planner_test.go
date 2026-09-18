@@ -14,7 +14,7 @@ import (
 
 func TestBuildProducesExactArgvWithoutReparsingUserText(t *testing.T) {
 	registry, snapshot := plannerFixture(t, packs.RiskRead, false, false)
-	query := `space 雪 café & pipe | semicolon ; redirect > < dollar $ parens ( ) percent % bang ! caret ^ "quotes"`
+	query := `雪 café & | ; > < $ ( ) % ! ^ "quoted"`
 
 	plan, err := Build(registry, snapshot, Request{
 		PackID:    "demo",
