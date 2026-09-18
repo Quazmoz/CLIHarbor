@@ -214,10 +214,11 @@ Implemented:
 - ordinary server write deadlines are disabled for the long-lived stream while each write/flush retains a finite bound and heartbeat;
 - stream disconnect/reconnect neither cancels nor recreates execution; explicit cancel remains authoritative;
 - authenticated read-only task metadata exposes only ready, read-only, non-auth, non-secret commands and typed input constraints;
+- authenticated read-only tool diagnostics expose sanitized readiness/version/remediation without executable paths, candidate paths, file identity, argv, environment, or pack-source authority;
 - minimal React task/run UI with typed inputs, live stdout/stderr, state/exit display, and cancellation;
 - CSRF token retained only in frontend runtime memory and sent only on same-origin mutations;
 - output rendered as inert React text, never raw HTML;
-- regression coverage for manager replay, cursor rejection, stream authentication/disconnect, safe task filtering, typed browser requests, and markup-like output rendering.
+- regression coverage for manager replay, cursor rejection, stream authentication/disconnect, safe task filtering, sanitized tool diagnostics, typed browser requests, bounded reconnect/reconciliation, and markup-like output rendering.
 
 Still desirable before release: production-server real-browser reconnect/eviction/slow-reader and hostile-origin E2E coverage.
 
