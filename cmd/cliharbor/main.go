@@ -15,7 +15,11 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
 )
 
-var version = "dev"
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildMode = "development"
+)
 
 type stringList []string
 
@@ -37,48 +41,76 @@ func main() {
 
 func run(args []string) error {
 	command := "serve"
-	if len(args) > 0 && args[0] == "doctor" {
-		command = "doctor"
-		args = args[1:]
+	if len(args) > 0 {
+		switch args[0] {
+		case "serve", "doctor", "inventory", "self-test", "version":
+			command = args[0]
+			args = args[1:]
+		}
 	}
 
 	flags := flag.NewFlagSet("cliharbor", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	webDevURL := flags.String("web-dev-url", "", "development-only Vite origin (must be http://127.0.0.1:<port>)")
 	packDirectory := flags.String("pack-dir", "", "explicit trusted directory containing pack YAML files")
+	exportPath := flags.String("export", "", "inventory-only sanitized Phase 0 evidence JSON destination")
 	var packFiles stringList
 	var toolPaths stringList
+	var probes stringList
 	flags.Var(&packFiles, "pack-file", "explicit trusted pack YAML file (repeatable)")
 	flags.Var(&toolPaths, "tool-path", "tool override as pack/tool=/absolute/path (repeatable)")
+	flags.Var(&probes, "probe", "inventory-only fixed evidence probe as pack/tool/probe (repeatable)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments")
 	}
-	if command == "doctor" && *webDevURL != "" {
-		return fmt.Errorf("--web-dev-url is not valid with doctor")
+	if command != "serve" && *webDevURL != "" {
+		return fmt.Errorf("--web-dev-url is valid only with serve")
 	}
+	if command != "inventory" && (*exportPath != "" || len(probes) != 0) {
+		return fmt.Errorf("--export and --probe are valid only with inventory")
+	}
+	if (command == "version" || command == "self-test") &&
+		(*packDirectory != "" || len(packFiles) != 0 || len(toolPaths) != 0) {
+		return fmt.Errorf("pack and tool flags are not valid with %s", command)
+	}
+
 	overrides, err := parseToolOverrides(toolPaths)
 	if err != nil {
 		return err
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	options := app.Options{
 		Out:           os.Stdout,
 		Version:       version,
+		Commit:        commit,
+		BuildMode:     buildMode,
 		Browser:       browser.SystemLauncher(),
 		WebDevURL:     *webDevURL,
 		PackFiles:     append([]string(nil), packFiles...),
 		PackDirectory: *packDirectory,
 		ToolOverrides: overrides,
 	}
-	if command == "doctor" {
-		return app.Doctor(ctx, options)
+	if command == "version" {
+		return app.PrintVersion(options)
 	}
-	return app.Run(ctx, options)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	switch command {
+	case "doctor":
+		return app.Doctor(ctx, options)
+	case "inventory":
+		return app.Inventory(ctx, options, app.InventoryConfig{
+			ProbeSelectors: append([]string(nil), probes...),
+			ExportPath:     *exportPath,
+		})
+	case "self-test":
+		return app.SelfTest(ctx, options)
+	default:
+		return app.Run(ctx, options)
+	}
 }
 
 func parseToolOverrides(values []string) (map[discovery.ToolRef]string, error) {
