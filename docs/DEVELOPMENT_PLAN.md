@@ -13,8 +13,9 @@ Current implementation status:
 - Phase 3 — tool discovery/version probing/doctor foundation: **implemented**.
 - Phase 4a — deterministic planner/executor and Windows process lifecycle: **implemented**.
 - Phase 4b — fixture-backed loader/discovery/planner/executor integration: **implemented**.
+- Phase 4c-A — authenticated create/get/cancel run API with bounded in-memory polling: **implemented**.
 - Phase 0 — vendor environment inventory: **still required before real Idira/CyberArk command definitions**.
-- Phase 4c+ — browser execution/auth/structured-output milestones remain incomplete unless explicitly noted below.
+- Phase 4c-B+ — live streaming/UI/auth/structured-output milestones remain incomplete unless explicitly noted below.
 
 ## 2. Phase 0 — Environment inventory
 
@@ -185,18 +186,33 @@ Implemented acceptance:
 - no shell/browser-selected execution authority is introduced;
 - no vendor syntax is invented.
 
-### Phase 4c — authenticated browser execution boundary — NEXT
+### Phase 4c — authenticated browser execution boundary — IN PROGRESS
 
-Expose only the already-proven read-only fixture path through the existing authenticated loopback server.
+#### Phase 4c-A — create/get/cancel polling API — IMPLEMENTED
 
-Required before any browser-triggered execution:
+Implemented:
 
-- server-side pack/command IDs plus typed values only; never executable/path/argv input;
-- existing session, exact Host, Origin, and CSRF controls applied to run creation/cancellation;
-- bounded streaming protocol and explicit disconnect/cancellation semantics;
-- in-memory bounded run state with no secret persistence;
-- browser output treated as untrusted text/data;
-- tests for hostile origin, missing/invalid CSRF/session, task substitution, duplicate run requests, cancellation, disconnect, output exhaustion, and server shutdown with active runs.
+- server-side `packId`/`commandId` plus typed `values` only; executable/path/argv fields are rejected;
+- existing session, exact Host, Origin, and CSRF controls applied to run mutations;
+- authenticated status exposes the per-session CSRF token to same-origin frontend code;
+- strict bounded UTF-8 JSON parsing with duplicate-key and unknown-field rejection;
+- bounded in-memory run manager with server-generated IDs, active/retained limits, finite timeout, bounded output/event bytes, and no persistence;
+- browser-safe run snapshots with Base64 output data and no executable/argv authority;
+- duplicate read-only POSTs create separate bounded runs; mutating/idempotency semantics remain deferred with mutating execution disabled;
+- request disconnect after accepted creation does not implicitly terminate the run; explicit cancellation or application shutdown owns termination;
+- tests for hostile origin, missing CSRF/session, execution-authority substitution, malformed/duplicate/oversize input, cancellation, output exhaustion, retention/capacity, shutdown, and full bootstrap-to-execution integration.
+
+#### Phase 4c-B — live events and minimal fixture UI — NEXT
+
+Add:
+
+- bounded SSE/event streaming with reconnect/replay cursor semantics;
+- slow-client backpressure/disconnect behavior that cannot block executor output;
+- explicit browser disconnect semantics (stream disconnect does not silently orphan or duplicate process ownership);
+- minimal pack/task/run UI using only server-provided task metadata and typed inputs;
+- output rendered strictly as untrusted text/data;
+- UI cancellation using the existing CSRF-protected cancel endpoint;
+- E2E hostile-origin and streaming reconnection/cancellation coverage.
 
 Do not expose auth-required, secret-bearing, mutating, destructive, interactive, or credential-sensitive commands in Phase 4c.
 
@@ -345,8 +361,9 @@ Completed foundations:
 Next:
 
 7. Fixture-backed registry -> discovery -> planner -> executor integration proof. **Implemented.**
-8. Browser execution API/streaming boundary for read-only fixture tasks. **Next.**
-9. First verified read-only Idira workflow after Phase 0 inventory.
+8. Authenticated create/get/cancel polling API for read-only fixture tasks. **Implemented.**
+9. Bounded live event streaming plus minimal fixture task/run UI. **Next.**
+10. First verified read-only Idira workflow after Phase 0 inventory.
 10. Auth adapter + external login orchestration.
 11. Structured result renderer.
 12. Additional security hardening/evals.
