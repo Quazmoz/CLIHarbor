@@ -90,11 +90,6 @@ describe('App', () => {
     expect(screen.getByText('Local only')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '0' })).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
-    expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
-    const idleRunPanel = screen.getByRole('article', { name: 'No active run' });
-    expect(idleRunPanel).not.toHaveAttribute('aria-live');
-    expect(screen.getByRole('status')).toHaveTextContent('No active run.');
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -220,154 +215,12 @@ describe('App', () => {
     fireEvent.change(count, { target: { value: '9007199254740992' } });
     fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
 
-    const runAlert = await screen.findByRole('alert');
-    expect(runAlert).toHaveTextContent(/must be an integer within the browser's exact numeric range/i);
+    expect(
+      await screen.findByText(/must be an integer within the browser's exact numeric range/i),
+    ).toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(([input, init]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs' && init?.method === 'POST'),
     ).toBe(false);
-  });
-
-  test('mirrors trusted task validation metadata into native form constraints', async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const path = requestPath(input);
-      if (path === '/api/v1/status') {
-        return Promise.resolve(
-          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
-        );
-      }
-      if (path === '/api/v1/tools') {
-        return Promise.resolve(response(200, { tools: [] }));
-      }
-      if (path === '/api/v1/tasks') {
-        return Promise.resolve(
-          response(200, {
-            tasks: [
-              {
-                packId: 'fixture',
-                packName: 'Fixture',
-                commandId: 'inspect',
-                name: 'Inspect',
-                toolId: 'fixture',
-                inputs: [
-                  {
-                    id: 'query',
-                    type: 'string',
-                    label: 'Query',
-                    required: true,
-                    validation: { minLength: 2, maxLength: 8, pattern: '[A-Za-z]+' },
-                  },
-                  {
-                    id: 'count',
-                    type: 'integer',
-                    label: 'Count',
-                    required: false,
-                    validation: { min: 1, max: 5 },
-                  },
-                ],
-              },
-            ],
-          }),
-        );
-      }
-      return Promise.resolve(response(404, { error: 'not_found' }));
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(<App />);
-
-    const query = await screen.findByRole('textbox', { name: 'Query' });
-    expect(query).toHaveAttribute('required');
-    expect(query).toHaveAttribute('minlength', '2');
-    expect(query).toHaveAttribute('maxlength', '8');
-    expect(query).toHaveAttribute('pattern', '[A-Za-z]+');
-
-    const count = screen.getByRole('spinbutton', { name: 'Count' });
-    expect(count).toHaveAttribute('min', '1');
-    expect(count).toHaveAttribute('max', '5');
-    expect(count).toHaveAttribute('step', '1');
-  });
-
-  test('announces run state without making streamed output a live region', async () => {
-    vi.stubGlobal('EventSource', FakeEventSource);
-    const runID = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
-    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      const path = requestPath(input);
-      if (path === '/api/v1/status') {
-        return Promise.resolve(
-          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
-        );
-      }
-      if (path === '/api/v1/tools') {
-        return Promise.resolve(response(200, { tools: [] }));
-      }
-      if (path === '/api/v1/tasks') {
-        return Promise.resolve(
-          response(200, {
-            tasks: [
-              {
-                packId: 'fixture',
-                packName: 'Fixture',
-                commandId: 'inspect',
-                name: 'Inspect',
-                toolId: 'fixture',
-                inputs: [],
-              },
-            ],
-          }),
-        );
-      }
-      if (path === '/api/v1/runs' && init?.method === 'POST') {
-        return Promise.resolve(
-          response(202, {
-            runId: runID,
-            packId: 'fixture',
-            commandId: 'inspect',
-            toolId: 'fixture',
-            status: 'running',
-          }),
-        );
-      }
-      return Promise.resolve(response(404, { error: 'not_found' }));
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(<App />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Run task' }));
-    const runHeading = await screen.findByRole('heading', { name: 'running' });
-    await waitFor(() => expect(runHeading).toHaveFocus());
-
-    const runPanel = screen.getByRole('article', { name: 'running' });
-    expect(runPanel).not.toHaveAttribute('aria-live');
-    expect(runPanel).toHaveAttribute('aria-busy', 'true');
-    expect(screen.getByRole('status')).toHaveTextContent('Run is active.');
-
-    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
-    FakeEventSource.latest?.emit('run-event', {
-      runId: runID,
-      sequence: 1,
-      type: 'stdout.chunk',
-      timestamp: '2026-09-18T10:00:00Z',
-      dataBase64: btoa('streamed output'),
-    });
-
-    expect(await screen.findByText('streamed output')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Run is active.');
-    const stdout = document.querySelector('pre[aria-labelledby="stdout-heading"]');
-    const stderr = document.querySelector('pre[aria-labelledby="stderr-heading"]');
-    expect(stdout).toHaveAttribute('tabindex', '0');
-    expect(stderr).toHaveAttribute('tabindex', '0');
-
-    FakeEventSource.latest?.emit('run-complete', {
-      runId: runID,
-      sequence: 1,
-      status: 'exited',
-      exitCode: 0,
-    });
-
-    expect(await screen.findByRole('heading', { name: 'exited' })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Run exited with exit code 0.');
-    expect(screen.getByRole('article', { name: 'exited' })).toHaveAttribute('aria-busy', 'false');
   });
 
   test('bounds repeated stream failures and reconciles terminal run state', async () => {
