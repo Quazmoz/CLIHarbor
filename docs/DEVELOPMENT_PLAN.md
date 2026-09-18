@@ -14,8 +14,9 @@ Current implementation status:
 - Phase 4a — deterministic planner/executor and Windows process lifecycle: **implemented**.
 - Phase 4b — fixture-backed loader/discovery/planner/executor integration: **implemented**.
 - Phase 4c-A — authenticated create/get/cancel run API with bounded in-memory polling: **implemented**.
+- Phase 4c-B — bounded live SSE replay plus minimal safe task/run UI: **implemented**.
 - Phase 0 — vendor environment inventory: **still required before real Idira/CyberArk command definitions**.
-- Phase 4c-B+ — live streaming/UI/auth/structured-output milestones remain incomplete unless explicitly noted below.
+- Phase 5+ — vendor workflow inventory, auth orchestration, structured-output, and release milestones remain incomplete unless explicitly noted below.
 
 ## 2. Phase 0 — Environment inventory
 
@@ -202,17 +203,22 @@ Implemented:
 - request disconnect after accepted creation does not implicitly terminate the run; explicit cancellation or application shutdown owns termination;
 - tests for hostile origin, missing CSRF/session, execution-authority substitution, malformed/duplicate/oversize input, cancellation, output exhaustion, retention/capacity, shutdown, and full bootstrap-to-execution integration.
 
-#### Phase 4c-B — live events and minimal fixture UI — NEXT
+#### Phase 4c-B — live events and minimal fixture UI — IMPLEMENTED
 
-Add:
+Implemented:
 
-- bounded SSE/event streaming with reconnect/replay cursor semantics;
-- slow-client backpressure/disconnect behavior that cannot block executor output;
-- explicit browser disconnect semantics (stream disconnect does not silently orphan or duplicate process ownership);
-- minimal pack/task/run UI using only server-provided task metadata and typed inputs;
-- output rendered strictly as untrusted text/data;
-- UI cancellation using the existing CSRF-protected cancel endpoint;
-- E2E hostile-origin and streaming reconnection/cancellation coverage.
+- authenticated `GET /api/v1/runs/{runId}/events` using Server-Sent Events;
+- monotonic manager-owned event sequence plus strict `Last-Event-ID` replay and deterministic impossible-cursor rejection;
+- SSE observes only bounded in-memory manager state; executor sinks never write to HTTP and no per-client output queue is introduced;
+- ordinary server write deadlines are disabled for the long-lived stream while each write/flush retains a finite bound and heartbeat;
+- stream disconnect/reconnect neither cancels nor recreates execution; explicit cancel remains authoritative;
+- authenticated read-only task metadata exposes only ready, read-only, non-auth, non-secret commands and typed input constraints;
+- minimal React task/run UI with typed inputs, live stdout/stderr, state/exit display, and cancellation;
+- CSRF token retained only in frontend runtime memory and sent only on same-origin mutations;
+- output rendered as inert React text, never raw HTML;
+- regression coverage for manager replay, cursor rejection, stream authentication/disconnect, safe task filtering, typed browser requests, and markup-like output rendering.
+
+Still desirable before release: production-server real-browser reconnect/eviction/slow-reader and hostile-origin E2E coverage.
 
 Do not expose auth-required, secret-bearing, mutating, destructive, interactive, or credential-sensitive commands in Phase 4c.
 
@@ -363,8 +369,8 @@ Next:
 
 7. Fixture-backed registry -> discovery -> planner -> executor integration proof. **Implemented.**
 8. Authenticated create/get/cancel polling API for read-only fixture tasks. **Implemented.**
-9. Bounded live event streaming plus minimal fixture task/run UI. **Next.**
-10. First verified read-only Idira workflow after Phase 0 inventory.
+9. Bounded live event streaming plus minimal fixture task/run UI. **Implemented.**
+10. First verified read-only Idira workflow after Phase 0 inventory. **Next product milestone.**
 11. Auth adapter + external login orchestration.
 12. Structured result renderer.
 13. Additional security hardening/evals.
