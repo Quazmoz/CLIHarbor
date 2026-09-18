@@ -43,10 +43,10 @@ func TestParseFailsClosedForAdversarialOutput(t *testing.T) {
 		{"float as integer", []byte(`{"name":"ok","count":1.5}`), ErrInvalidInteger},
 		{"nan token", []byte(`{"name":"ok","count":NaN}`), ErrMalformedJSON},
 		{"ansi control", []byte(`{"name":"\u001b[31mred"}`), ErrUnsafeControl},
-		{"string over limit", []byte(`{"name":"`+strings.Repeat("x", MaxStringBytes+1)+`"}`), ErrStringTooLarge},
+		{"string over limit", []byte(`{"name":"` + strings.Repeat("x", MaxStringBytes+1) + `"}`), ErrStringTooLarge},
 		{"trailing value", []byte(`{"name":"ok"} []`), ErrMalformedJSON},
 		{"top-level array", []byte(`[]`), ErrUnexpectedSchema},
-		{"invalid utf8", []byte{'{','"','n','a','m','e','"',':','"',0xff,'"','}'}, ErrInvalidEncoding},
+		{"invalid utf8", []byte{'{', '"', 'n', 'a', 'm', 'e', '"', ':', '"', 0xff, '"', '}'}, ErrInvalidEncoding},
 		{"output too large", []byte(strings.Repeat(" ", MaxInputBytes+1)), ErrOutputTooLarge},
 	}
 	for _, test := range tests {
