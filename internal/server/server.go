@@ -177,6 +177,7 @@ func (s *Server) Close() error {
 // cancellation first attempts graceful shutdown, then force-closes remaining
 // connections if they do not quiesce within the configured deadline.
 func (s *Server) Run(ctx context.Context) error {
+	defer s.streamCancel()
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- s.httpServer.Serve(s.listener)
