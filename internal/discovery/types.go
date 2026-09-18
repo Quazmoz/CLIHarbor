@@ -42,7 +42,7 @@ type ToolState struct {
 	Version           string      `json:"version,omitempty"`
 	VersionConstraint string      `json:"versionConstraint,omitempty"`
 	Candidates        []Candidate `json:"candidates,omitempty"`
-	Message           string             `json:"message,omitempty"`
+	Message            string             `json:"message,omitempty"`
 	ExecutableIdentity ExecutableIdentity `json:"-"`
 }
 
