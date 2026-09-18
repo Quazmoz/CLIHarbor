@@ -387,3 +387,23 @@ Next:
 At every phase ask: “Can this be delegated to the existing CLI instead of being rebuilt in CLIHarbor?” If yes, prefer delegation unless doing so would create a worse security boundary or unusable UX.
 
 Also ask: “Does this new feature widen who can choose the executable, argv structure, filesystem source, credentials, or side effects?” If yes, stop and define the deterministic authorization/validation boundary before implementation.
+
+## Work-laptop test-readiness milestone
+
+**Implemented in `main`.** This milestone converts the completed Phase 1-5 foundations into a controlled first-environment test path without adding real vendor tasks.
+
+Acceptance implemented:
+
+- deterministic Windows x64 unsigned evaluation build and checksum;
+- build/source identity via `cliharbor version`;
+- vendor-free `cliharbor self-test`;
+- sanitized trusted-pack `cliharbor inventory`;
+- inventory-only packs with zero commands;
+- optional fixed named help probes plus the existing fixed version probe;
+- direct bounded evidence execution with Windows process-tree ownership and executable fingerprint revalidation;
+- strongly typed `cliharbor.phase0/v1` evidence export with atomic non-overwriting file creation;
+- discovery-only Idira/CyberArk Phase 0 pack with no guessed command/probe argv;
+- CI qualification and artifact upload;
+- exact company-managed Windows procedure in `WORK_LAPTOP_EVALUATION.md`.
+
+The next milestone is **real Phase 0 evidence collection on the target company laptop**. Use that evidence to author the first real read-only Idira/CyberArk pack. Do not add vendor command trees, auth flows, version constraints, or structured schemas until supported by the returned evidence.
