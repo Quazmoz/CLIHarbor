@@ -277,7 +277,7 @@ After Phase 0 inventory, for each supported deployed version verify exact binary
 
 ## 17. Release gates
 
-A Windows MVP release requires all applicable unit/integration/security/E2E gates green, manual real-tool acceptance, review of the CI `npm audit` and pinned `govulncheck` results, no undisposed high-severity vulnerability, redacted diagnostics, SHA-256 verification of every privileged file in the packaged evaluation/release bundle, and packaged-binary testing on a clean Windows profile. The current evaluation gate specifically treats root `EVALUATION_SHA256SUMS` as the sole packaged evaluation checksum authority and verifies both the Windows executable and the explicitly trusted Phase 0 pack against it. `bin/SHA256SUMS` remains an executable-only compatibility checksum for ordinary local builds and must be absent from the evaluation bundle.
+A Windows MVP release requires all applicable unit/integration/security/E2E gates green, manual real-tool acceptance, review of the CI `npm audit` and pinned `govulncheck` results, no undisposed high-severity vulnerability, redacted diagnostics, SHA-256 verification of every privileged file in the packaged evaluation/release bundle, and packaged-binary testing on a clean Windows profile. The current evaluation gate specifically treats root `EVALUATION_SHA256SUMS` as the sole packaged evaluation checksum authority and verifies both the Windows executable and the explicitly trusted Phase 0 pack against it. `bin/SHA256SUMS` remains an executable-only compatibility checksum for ordinary local builds and must be absent from the evaluation bundle. The Windows evaluation job also requires the exact `.go-version` patch toolchain and a controlled Go build environment, then builds two isolated evaluation bundles and requires byte-identical authoritative manifests before building the upload candidate.
 
 Phases 1-4 low-level foundations are not release qualification. Browser execution integration, auth, output rendering/redaction, real-tool workflows, and release acceptance intentionally remain open.
 
@@ -326,6 +326,20 @@ The evidence-consumption boundary adds deterministic regression coverage for:
 - bounded quoted output previews and explicit PROVES / UNKNOWN / BLOCKED classifications.
 
 The final exact `main` SHA must continue to pass both Windows and Ubuntu quality jobs, the race detector, dependency scans, and Windows evaluation artifact smoke tests.
+
+## Windows evaluation deterministic-rebuild verification
+
+Regression and CI coverage must prove:
+
+- `.go-version` contains one exact `major.minor.patch` toolchain token and evaluation builds fail when the active bundled Go toolchain differs;
+- CI resolves Go from `.go-version` instead of duplicating the patch version in workflow YAML;
+- build-environment overrides replace case-variant inherited values without duplicate effective `GO*` entries;
+- evaluation builds disable the per-user Go environment file and workspace selection, clear inherited `GOFLAGS`, `GOEXPERIMENT`, `GODEBUG`, and `GOROOT`, force `GOTOOLCHAIN=local`, pin `GOAMD64=v1`, `GOFIPS140=off`, and disable cgo;
+- the trusted Phase 0 pack is copied from a stable bounded regular-file snapshot into each reproduction root and exact bytes are preserved;
+- two separately staged evaluation bundles built from the same checkout, metadata, exact Go toolchain, and controlled environment produce byte-identical `EVALUATION_SHA256SUMS` manifests;
+- each staged reproduction independently passes the normal authoritative bundle verifier;
+- the determinism check does not modify or publish the real evaluation artifact paths;
+- failure is described as a deterministic-rebuild failure, not as proof of signer identity, cross-machine provenance, host attestation, or independent reproducibility.
 
 ## Windows evaluation checksum-authority verification
 
