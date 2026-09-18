@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-const moveFileWriteThrough = 0x00000008
+const checksumMoveFileWriteThrough = 0x00000008
 
 var procMoveChecksumFileExW = syscall.NewLazyDLL("kernel32.dll").NewProc("MoveFileExW")
 
@@ -26,7 +26,7 @@ func activateChecksumFile(stagingPath, destinationPath string) error {
 	result, _, callErr := procMoveChecksumFileExW.Call(
 		uintptr(unsafe.Pointer(stagingUTF16)),
 		uintptr(unsafe.Pointer(destinationUTF16)),
-		uintptr(moveFileWriteThrough),
+		uintptr(checksumMoveFileWriteThrough),
 	)
 	if result != 0 {
 		return nil
