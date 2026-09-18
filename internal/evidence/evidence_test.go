@@ -1,0 +1,140 @@
+package evidence
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestSanitizeTextRedactsSecretsPathsAndUnsafeBytes(t *testing.T) {
+	home, _ := os.UserHomeDir()
+	temp := os.TempDir()
+	raw := []byte("Authorization: Bearer abc123\npassword=hunter2\ntoken: topsecret\n")
+	raw = append(raw, []byte("eyJabcdefghijk.abcdefghijk.abcdefghijk\n")...)
+	if home != "" {
+		raw = append(raw, []byte(home+string(filepath.Separator)+"secret.txt\n")...)
+	}
+	if temp != "" {
+		raw = append(raw, []byte(temp+string(filepath.Separator)+"cliharbor\n")...)
+	}
+	raw = append(raw, 0xff, 0x00, 'x')
+
+	got := SanitizeText(raw)
+	for _, secret := range []string{"abc123", "hunter2", "topsecret", "eyJabcdefghijk.abcdefghijk.abcdefghijk"} {
+		if strings.Contains(got, secret) {
+			t.Fatalf("sanitized output still contains %q: %q", secret, got)
+		}
+	}
+	if strings.ContainsRune(got, '\x00') {
+		t.Fatalf("sanitized output contains NUL: %q", got)
+	}
+	if home != "" && strings.Contains(got, home) {
+		t.Fatalf("sanitized output contains home path: %q", got)
+	}
+	if temp != "" && strings.Contains(got, temp) {
+		t.Fatalf("sanitized output contains temp path: %q", got)
+	}
+	if !strings.Contains(got, "[REDACTED]") || !strings.Contains(got, "[REDACTED_JWT]") {
+		t.Fatalf("sanitized output lacks redaction markers: %q", got)
+	}
+}
+
+func TestSanitizeTextBoundsUTF8Output(t *testing.T) {
+	raw := strings.Repeat("é", MaxCapturedTextBytes)
+	got := SanitizeText([]byte(raw))
+	if len(got) > MaxCapturedTextBytes {
+		t.Fatalf("sanitized output length = %d, max %d", len(got), MaxCapturedTextBytes)
+	}
+	if !json.Valid([]byte(`"` + strings.ReplaceAll(got, `"`, `\"`) + `"`)) {
+		t.Fatal("bounded sanitizer split UTF-8")
+	}
+}
+
+func TestWriteBundleCreatesProtectedAtomicJSONAndRefusesOverwrite(t *testing.T) {
+	dir := t.TempDir()
+	destination := filepath.Join(dir, "phase0.json")
+	bundle := testBundle()
+
+	if err := WriteBundle(context.Background(), destination, bundle); err != nil {
+		t.Fatalf("WriteBundle() error = %v", err)
+	}
+	data, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Bundle
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("export is not valid JSON: %v", err)
+	}
+	if decoded.SchemaVersion != SchemaVersion || len(decoded.Tools) != 1 {
+		t.Fatalf("decoded export = %#v", decoded)
+	}
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(destination)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0o600 {
+			t.Fatalf("export mode = %o, want 600", info.Mode().Perm())
+		}
+	}
+	if err := WriteBundle(context.Background(), destination, bundle); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("second WriteBundle() error = %v, want existing-file refusal", err)
+	}
+}
+
+func TestWriteBundleRejectsTraversalAndCancellationWithoutPartialFile(t *testing.T) {
+	if err := WriteBundle(context.Background(), filepath.Join("..", "phase0.json"), testBundle()); err == nil {
+		t.Fatal("relative parent traversal unexpectedly accepted")
+	}
+
+	dir := t.TempDir()
+	destination := filepath.Join(dir, "cancelled.json")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := WriteBundle(ctx, destination, testBundle()); err == nil {
+		t.Fatal("cancelled export unexpectedly succeeded")
+	}
+	if _, err := os.Stat(destination); !os.IsNotExist(err) {
+		t.Fatalf("cancelled export left destination behind: %v", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("cancelled export left staging files: %v", entries)
+	}
+}
+
+func TestValidateRejectsOversizedCapturedText(t *testing.T) {
+	bundle := testBundle()
+	bundle.Tools[0].Probes = []ProbeRecord{{
+		ID: "help", Kind: "help", Identity: "demo/tool/help", Status: "exited",
+		Stdout: strings.Repeat("x", MaxCapturedTextBytes+1),
+	}}
+	if err := Validate(bundle); err == nil {
+		t.Fatal("oversized probe output unexpectedly validated")
+	}
+}
+
+func testBundle() Bundle {
+	exit := 0
+	return Bundle{
+		SchemaVersion: SchemaVersion,
+		GeneratedAt:   time.Unix(1, 0).UTC(),
+		CLIHarbor:     BuildInfo{Version: "test", Commit: "abc", BuildMode: "test"},
+		Host:          HostInfo{OS: "windows", Architecture: "amd64"},
+		Tools: []ToolRecord{{
+			PackID: "demo", PackVersion: "1.0.0", ToolID: "tool", Status: "ready",
+			Probes: []ProbeRecord{{
+				ID: "help", Kind: "help", Identity: "demo/tool/help", Status: "exited", ExitCode: &exit,
+			}},
+		}},
+	}
+}
