@@ -63,6 +63,16 @@ type jobObjectExtendedLimitInformation struct {
 	PeakJobMemoryUsed     uintptr
 }
 
+type threadEntry32 struct {
+	Size           uint32
+	Usage          uint32
+	ThreadID       uint32
+	OwnerProcessID uint32
+	BasePri        int32
+	DeltaPri       int32
+	Flags          uint32
+}
+
 type windowsProcessController struct {
 	mu         sync.Mutex
 	job        syscall.Handle
@@ -188,7 +198,7 @@ func resumeSuspendedProcess(pid uint32) error {
 	}
 	defer syscall.CloseHandle(snapshot)
 
-	entry := syscall.ThreadEntry32{Size: uint32(unsafe.Sizeof(syscall.ThreadEntry32{}))}
+	entry := threadEntry32{Size: uint32(unsafe.Sizeof(threadEntry32{}))}
 	ok, _, callErr := procThread32First.Call(
 		uintptr(snapshot),
 		uintptr(unsafe.Pointer(&entry)),
