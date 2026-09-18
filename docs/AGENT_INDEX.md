@@ -147,3 +147,20 @@ Phase 4c-B adds `GET /api/v1/runs/{runId}/events` with bounded manager-backed SS
 Local `go-build`/`build` now also emit `bin/SHA256SUMS` for the built executable. CI additionally verifies Go module checksums, audits the locked npm tree, and runs pinned `govulncheck@v1.8.0` as a separate dependency-vulnerability job. The next product milestone is the first verified read-only Idira workflow after Phase 0 inventory. Authentication orchestration and real vendor structured schemas remain subsequent milestones.
 
 Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, or guessed Idira/CyberArk commands.
+
+### Phase 0 work-laptop test-readiness checkpoint
+
+The repository now implements the pre-vendor-integration work-laptop evaluation boundary:
+
+- `cliharbor version` reports version, source commit, build mode, Go version, and target platform;
+- `cliharbor self-test` validates temp access, pack/registry loading, structured parsing, embedded frontend/session/bootstrap, IPv4 loopback, and direct self-process execution without a vendor CLI or external network;
+- `cliharbor inventory` reports sanitized host/build/tool discovery state for explicitly trusted packs;
+- optional operator-selected version/help evidence probes can use only fixed trusted pack declarations and backend-owned discovery state;
+- evidence probes run directly with Windows process-tree ownership, a neutral temp cwd, minimal environment, strict timeout/output bounds, and discovery-time executable fingerprint revalidation;
+- `cliharbor.phase0/v1` evidence export is typed, bounded, sanitized, atomic, and non-overwriting;
+- `packs/phase0/idira-cyberark-inventory.yaml` is discovery-only and asserts no vendor command/probe argv;
+- `go run ./tools/task windows-eval` produces `bin/cliharbor-windows-x64-evaluation.exe` and `SHA256SUMS`;
+- CI verifies the Windows evaluation executable's `version` and `self-test` commands and uploads the unsigned artifact only after existing quality/security/race gates;
+- the exact laptop procedure is `WORK_LAPTOP_EVALUATION.md`.
+
+The next product step is to run this artifact on the actual company-managed Windows laptop and return the reviewed Phase 0 evidence. Real Idira/CyberArk command definitions remain blocked on that evidence; do not guess them.
