@@ -162,6 +162,7 @@ function completeRun(current: RunView, complete: RunComplete): RunView {
       ...current.snapshot,
       status: complete.status,
       exitCode: complete.exitCode,
+      structured: complete.structured,
     },
     streamMessage: '',
     streamStopped: false,
@@ -305,10 +306,6 @@ export function App() {
       (event) => setRun((current) => (current === null ? current : appendRunEvent(current, event))),
       (complete) => {
         setRun((current) => (current === null ? current : completeRun(current, complete)));
-        void fetchRun(activeRunID).then(
-          (snapshot) => setRun((current) => (current === null ? current : reconcileRunSnapshot(current, snapshot))),
-          () => undefined,
-        );
       },
       (error) => {
         setRun((current) =>
