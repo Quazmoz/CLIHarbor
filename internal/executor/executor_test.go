@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -227,9 +228,56 @@ func TestExecutorHelperProcess(t *testing.T) {
 		}
 		fmt.Fprint(os.Stdout, cwd)
 		os.Exit(0)
+	case "spawn-child-exit":
+		child := helperChildCommand("child-exit")
+		if err := child.Start(); err != nil {
+			os.Exit(94)
+		}
+		fmt.Fprintf(os.Stdout, "child-pid:%d\n", child.Process.Pid)
+		if err := child.Wait(); err != nil {
+			os.Exit(95)
+		}
+		os.Exit(0)
+	case "spawn-child-wait":
+		child := helperChildCommand("child-wait")
+		if err := child.Start(); err != nil {
+			os.Exit(96)
+		}
+		fmt.Fprintf(os.Stdout, "child-pid:%d\n", child.Process.Pid)
+		time.Sleep(30 * time.Second)
+		os.Exit(0)
+	case "spawn-child-flood":
+		child := helperChildCommand("child-wait")
+		if err := child.Start(); err != nil {
+			os.Exit(97)
+		}
+		fmt.Fprintf(os.Stdout, "child-pid:%d\n", child.Process.Pid)
+		fmt.Fprint(os.Stdout, strings.Repeat("x", 4096))
+		time.Sleep(30 * time.Second)
+		os.Exit(0)
+	case "spawn-orphan":
+		child := helperChildCommand("child-wait")
+		if err := child.Start(); err != nil {
+			os.Exit(98)
+		}
+		fmt.Fprintf(os.Stdout, "child-pid:%d\n", child.Process.Pid)
+		os.Exit(0)
+	case "child-exit":
+		os.Exit(0)
+	case "child-wait":
+		time.Sleep(30 * time.Second)
+		os.Exit(0)
 	default:
 		os.Exit(93)
 	}
+}
+
+func helperChildCommand(mode string) *exec.Cmd {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestExecutorHelperProcess$", "--", mode)
+	cmd.Env = os.Environ()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd
 }
 
 func helperPlan(t *testing.T, helperArgs ...string) planner.Plan {
