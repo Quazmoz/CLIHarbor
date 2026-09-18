@@ -79,3 +79,18 @@ func TestValidateBuildVersion(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateBuildMetadataToken(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"unknown", "abcdef0123456789", "evaluation-unsigned"} {
+		if err := validateBuildMetadataToken("metadata", value); err != nil {
+			t.Fatalf("validateBuildMetadataToken(%q) error = %v", value, err)
+		}
+	}
+	for _, value := range []string{"", "contains space", "value\nnext", "-X main.other=bad"} {
+		if err := validateBuildMetadataToken("metadata", value); err == nil {
+			t.Fatalf("validateBuildMetadataToken(%q) succeeded, want error", value)
+		}
+	}
+}
