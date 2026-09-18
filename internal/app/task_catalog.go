@@ -29,7 +29,7 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 			Status:            string(state.Status),
 			Version:           state.Version,
 			VersionConstraint: state.VersionConstraint,
-			Message:           state.Message,
+			Message:           browserToolMessage(state.Status),
 		})
 	}
 	for _, loaded := range registry.Packs() {
@@ -74,6 +74,29 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 		}
 	}
 	return catalog
+}
+
+func browserToolMessage(status discovery.Status) string {
+	switch status {
+	case discovery.StatusReady:
+		return ""
+	case discovery.StatusMissing:
+		return "Tool was not found. Install it or configure an explicit backend tool path."
+	case discovery.StatusAmbiguous:
+		return "Multiple matching tools were found. Configure an explicit backend tool path."
+	case discovery.StatusIncompatible:
+		return "Detected tool version does not satisfy the trusted pack requirement."
+	case discovery.StatusProbeFailed:
+		return "Tool version detection failed. Run cliharbor doctor for local diagnostic details."
+	case discovery.StatusInvalidOverride:
+		return "Configured backend tool override is invalid. Run cliharbor doctor for local diagnostic details."
+	case discovery.StatusIdentityFailed:
+		return "Resolved tool identity could not be verified. Run cliharbor doctor for local diagnostic details."
+	case discovery.StatusUnsupportedPlatform:
+		return "The trusted pack does not support this operating system."
+	default:
+		return "Tool is unavailable. Run cliharbor doctor for local diagnostic details."
+	}
 }
 
 func (c *taskCatalog) ListTasks() []server.Task {
