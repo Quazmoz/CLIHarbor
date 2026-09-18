@@ -172,6 +172,9 @@ go run ./tools/task windows-eval
 # independently re-verify the evaluation manifest against the files on disk
 go run ./tools/task verify-windows-eval
 
+# build two isolated evaluation bundles and require an identical authoritative manifest
+go run ./tools/task verify-windows-eval-repro
+
 # rebuild frontend, sync assets, build the executable, and emit ./bin/SHA256SUMS
 go run ./tools/task build
 ```
@@ -231,7 +234,7 @@ bin/cliharbor-windows-x64-evaluation.exe
 packs/phase0/idira-cyberark-inventory.yaml
 ```
 
-For evaluation builds, `EVALUATION_SHA256SUMS` is the only packaged checksum authority and covers both privileged files. The ordinary local `go-build`/`build` path still emits `bin/SHA256SUMS` for local compatibility, but `windows-eval` invalidates that generated compatibility manifest so it cannot be mistaken for part of the qualified evaluation bundle.
+For evaluation builds, `EVALUATION_SHA256SUMS` is the only packaged checksum authority and covers both privileged files. The ordinary local `go-build`/`build` path still emits `bin/SHA256SUMS` for local compatibility, but `windows-eval` invalidates that generated compatibility manifest so it cannot be mistaken for part of the qualified evaluation bundle. Evaluation builds also require the exact Go patch version pinned in `.go-version` and run `go build` with workspace/user Go defaults disabled and target-affecting inputs pinned. `verify-windows-eval-repro` builds the bundle twice in distinct temporary roots and requires the two authoritative manifests to be byte-identical. This proves deterministic rebuilding under the same checkout/toolchain/controlled build environment; it is not signer identity, cross-machine provenance, or attestation.
 
 CI uploads `cliharbor-windows-x64-evaluation-<commit-sha>` only after Windows/Linux quality, dependency-vulnerability, and race-detector jobs pass. The artifact contains exactly the root `EVALUATION_SHA256SUMS`, the evaluation executable, and the discovery-only `packs/phase0/idira-cyberark-inventory.yaml` pack. CI recomputes the manifest from those files again immediately before upload.
 
