@@ -127,6 +127,50 @@ func TestManagerEnforcesCapacityAndReleasesSlotAfterCancellation(t *testing.T) {
 	}
 }
 
+func TestManagerDuplicateReadRequestsCreateDistinctRuns(t *testing.T) {
+	t.Setenv(managerHelperEnv, "1")
+	registry, snapshot := managerFixture(t)
+	manager := newTestManager(t, registry, snapshot, Config{
+		MaxActive:               2,
+		MaxRetained:             4,
+		MaxOutputBytesPerStream: 1024,
+		MaxEventBytesPerRun:     4096,
+		NewRunID: fixedRunIDs(
+			strings.Repeat("2", 32),
+			strings.Repeat("3", 32),
+		),
+	})
+
+	request := Request{
+		PackID:    "fixture",
+		CommandID: "inspect",
+		Values:    map[string]json.RawMessage{"query": rawRunJSON(t, "same")},
+	}
+	first, err := manager.Start(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := manager.Start(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.RunID == second.RunID {
+		t.Fatalf("duplicate read requests shared run id %q", first.RunID)
+	}
+
+	waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	for _, runID := range []string{first.RunID, second.RunID} {
+		finished, err := manager.Wait(waitCtx, runID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if finished.Status != StatusExited {
+			t.Fatalf("run %s status = %s, want exited", runID, finished.Status)
+		}
+	}
+}
+
 func TestManagerShutdownCancelsActiveRuns(t *testing.T) {
 	t.Setenv(managerHelperEnv, "1")
 	registry, snapshot := managerFixture(t)
