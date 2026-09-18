@@ -244,6 +244,17 @@ button:disabled {
   background: #15252b;
 }
 
+.run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.run-actions .secondary-button {
+  margin: 0;
+}
+
 .run-panel {
   min-width: 0;
 }
