@@ -280,3 +280,27 @@ After Phase 0 inventory, for each supported deployed version verify exact binary
 A Windows MVP release requires all applicable unit/integration/security/E2E gates green, manual real-tool acceptance, review of the CI `npm audit` and pinned `govulncheck` results, no undisposed high-severity vulnerability, redacted diagnostics, SHA-256 checksum verification for the packaged executable, and packaged-binary testing on a clean Windows profile.
 
 Phases 1-4 low-level foundations are not release qualification. Browser execution integration, auth, output rendering/redaction, real-tool workflows, and release acceptance intentionally remain open.
+
+## Phase 0 work-laptop readiness verification
+
+New regression coverage exercises the evaluation boundary in addition to the pre-existing discovery/planner/executor/server/run/UI suites.
+
+Required cases include:
+
+- inventory-only packs and fixed help-probe schema validation;
+- defensive cloning of help-probe metadata;
+- missing/ambiguous/incompatible/probe-failed discovery through existing discovery tests;
+- bounded probe stdout/stderr and non-zero exit preservation;
+- timeout/cancellation process-tree behavior;
+- invalid UTF-8 preservation at the runner boundary and sanitization before evidence;
+- minimal child environment so arbitrary parent secrets are not inherited;
+- executable-path/common-secret/control-character redaction;
+- Phase 0 export schema bounds;
+- existing-file refusal, relative traversal rejection, cancellation cleanup, restricted staging permissions where supported, and atomic rename;
+- CLI flag scoping so inventory selectors cannot become executable/argv input;
+- Windows/Linux formatting, vet, unit/integration tests, embedded frontend synchronization, and build;
+- Linux `go test -race`;
+- dependency vulnerability scan and npm audit;
+- Windows evaluation binary `version` and vendor-free `self-test` execution before artifact upload.
+
+A real company-laptop run remains environment evidence, not a CI assertion. Application-control/EDR/browser-policy behavior must be reported from the actual managed machine.
