@@ -211,3 +211,10 @@ The next milestone is unchanged in substance: collect evidence on the actual com
 The Phase 0 handoff now has detached SHA-256 verification in addition to strict evidence parsing. The Windows evaluation bundle also carries `EVALUATION_SHA256SUMS`, which covers both the executable and the privileged Phase 0 pack so either file changing after qualification is detectable. Operators can retain the export digest independently and require an exact match during review without changing the v1 evidence schema or adding signing-key infrastructure.
 
 This closes accidental/unauthorized byte-change detection for a correctly retained digest. It does not close evidence authenticity/attestation; that remains explicitly outside the current milestone. The next product gate is still genuine managed-laptop evidence followed by the first factually verified read-only vendor workflow.
+
+
+## Production-browser hardening checkpoint
+
+The production embedded-server browser qualification gate is implemented with a synthetic fixture only. Linux CI drives a real headless Chrome/Chromium instance against the embedded React application and proves one-time bootstrap/session establishment, exact Host/Origin/CSRF behavior, authenticated task discovery, typed read-only execution without browser-selected executable/argv authority, live SSE, replay and forced reconnect using `Last-Event-ID`, bounded reconnect exhaustion with retained-snapshot reconciliation, explicit retry/cancellation, retained-run eviction, single-execution semantics, and inert rendering of hostile markup/control-like output.
+
+This closes the documented browser-runtime hardening gap without changing the vendor-evidence gate. Managed-Windows default-browser/application-control behavior and genuine Idira/CyberArk workflow acceptance remain separate external qualifications.

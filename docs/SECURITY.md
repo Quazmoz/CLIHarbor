@@ -97,7 +97,7 @@ Schema/semantic validation does not make a pack trusted. CLIHarbor does not scan
 
 ### T2 — Malicious web page attacks localhost
 
-Mitigations: unpredictable launch/session material, SameSite+HttpOnly cookie, strict Host/Origin validation, CSRF enforcement for mutations, restrictive CORS, and unpredictable ephemeral loopback port.
+Mitigations: unpredictable launch/session material, SameSite+HttpOnly cookie, exact Host validation, rejection of every request that carries a non-empty foreign `Origin`, mandatory exact same-origin plus CSRF validation for mutations, restrictive CORS, and an unpredictable ephemeral loopback port. Origin-less reads remain valid for non-browser/local clients but still require the authenticated session where applicable.
 
 ### T3 — DNS rebinding / Host abuse
 
@@ -224,11 +224,12 @@ Phase 4c-A regression coverage adds authenticated browser execution without wide
 
 Phase 4c-B adds manager-backed replay cursor tests, authenticated SSE framing, malformed/impossible cursor rejection, disconnect-without-cancellation and server-shutdown ownership coverage, safe task-catalog filtering, sanitized authenticated tool-status diagnostics, bounded browser reconnect/reconciliation tests, and React coverage showing that CSRF stays out of rendered UI while CLI output containing markup is rendered as inert text. Browser tool diagnostics derive fixed remediation from discovery status and omit executable names/paths, candidate paths, executable identity, argv, environment, and pack source paths. Stream reconnect or manual retry observes the same run ID and cannot create another process.
 
+The production embedded-server browser gate adds real Chrome/Chromium proof of one-time bootstrap, clean redirect, Host/Origin/CSRF rejection, authenticated task metadata, fixture execution, SSE replay, forced stream interruption, `Last-Event-ID` reconnect, bounded reconnect exhaustion plus retained-snapshot reconciliation, explicit retry/cancellation, bounded run eviction, single execution, and inert hostile markup/control-like output. Any request carrying a foreign `Origin` is rejected before session/API handling, including read/SSE requests; mutations still require the exact application origin and CSRF token.
+
 Still required before MVP release:
 
-- real-browser hostile-origin mutation/stream tests beyond the HTTP boundary tests;
-- broader XSS corpus coverage for ANSI/malformed/very-long output and future structured parser fallback;
-- reconnect/eviction/slow-reader end-to-end coverage under a real browser and production HTTP server;
+- broader XSS corpus coverage for malformed/very-long output and future structured parser fallback;
+- low-level socket slow-reader/write-deadline regression coverage remains a server boundary concern rather than a JavaScript-consumption claim;
 - stronger policy-managed publisher/signature/expected-hash verification if enterprise policy requires trusted provenance beyond replacement detection;
 - manual real vendor-path/version/auth/workflow verification on supported Windows environments.
 

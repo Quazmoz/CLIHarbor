@@ -196,3 +196,18 @@ Do not silently change an accepted ADR. Add a new ADR section with:
 **Security/reliability implications:** Manifest generation rejects files outside the repository root, duplicate entries, symlinks, and non-regular files; relative paths are normalized and sorted for deterministic output. A matching manifest detects byte changes to the covered files but is not a signature, publisher proof, build attestation, or host attestation. The GitHub artifact ZIP digest is separate archive-level evidence.
 
 **Revisit when:** The evaluation bundle contains additional privileged configuration, or an organization-approved signing/attestation model supersedes checksum-only integrity.
+
+
+## ADR-020 — Reject foreign browser origins on reads and streams
+
+**Status:** Accepted.
+
+**Decision:** The loopback HTTP boundary rejects every request that carries a non-empty `Origin` different from CLIHarbor's exact bound origin. State-changing requests continue to require an explicit exact application `Origin` and the per-session CSRF token. Origin-less GET requests remain valid for local non-browser clients and still require route/session authorization.
+
+**Why:** Read-only endpoints are not side-effect authority, but authenticated SSE observers consume bounded server capacity and expose run output. Relying only on CORS/browser response visibility leaves a hostile-origin request able to reach the local authenticated surface in cases where browser cookie/site rules permit the request. Exact server-side rejection gives reads, streams, and mutations one deterministic foreign-origin boundary while preserving CLI/local-client diagnostics that do not send an Origin header.
+
+**Security/reliability implications:** Foreign-origin GET/SSE traffic fails before session/API handling; mutation protection remains exact Origin plus CSRF rather than Origin alone. Host validation remains independent and exact. This does not claim protection from a malicious local process that can operate outside browser origin semantics, and it does not expand browser execution authority.
+
+**Verification:** Unit tests cover hostile and `null` origins on authenticated status/SSE plus valid same-origin and origin-less reads. The production embedded-server headless-browser gate covers hostile-origin EventSource and form mutation attempts, Host rejection, one-time bootstrap, and same-origin CSRF behavior.
+
+**Revisit when:** Remote access, a non-browser client requiring an `Origin` header, multiple legitimate UI origins, or a different browser-session transport is introduced.

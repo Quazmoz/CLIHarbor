@@ -101,7 +101,7 @@ Coverage now targets:
 - one authoritative run-status reconciliation after the retry budget is exhausted, including replay of retained snapshot output;
 - explicit operator-triggered live-stream retry for a still-running reconciled run.
 
-Real-browser reconnect/eviction/slow-reader coverage remains desirable beyond the current HTTP/component boundaries.
+Production-server real-browser coverage now exercises the embedded application in headless Chrome/Chromium with no vendor dependency. It proves bootstrap/session establishment, clean token removal, Host/Origin/CSRF enforcement, authenticated task loading, typed fixture execution, SSE replay, forced reconnect with `Last-Event-ID`, bounded reconnect exhaustion plus snapshot reconciliation, explicit retry/cancellation, bounded retained-run eviction, single-execution semantics, and inert rendering of hostile markup/control-like output. Socket-level slow-reader write-deadline behavior remains primarily an HTTP/server boundary test because a browser continues draining the network response independently of JavaScript consumption.
 
 A green CI build proves the code compiles/tests on its CI platforms. It does not replace manual Windows acceptance of real default-browser, PATH, filesystem, vendor CLI, authentication, or antivirus/SmartScreen behavior.
 
@@ -125,7 +125,7 @@ Use purpose-built fixture executables rather than real vendor credentials in CI.
 
 ### End-to-end tests
 
-Exercise browser -> authenticated API -> planner -> fixture executable -> streamed events -> UI. Current component and HTTP integration tests cover the individual boundaries; add a production-server real-browser test for reconnect, cancellation, eviction, and hostile-origin behavior before release. Do not add browser E2E that only rechecks static markup.
+Exercise browser -> authenticated API -> planner -> fixture executable -> streamed events -> UI. CI now runs a production embedded-server headless-Chrome test with the synthetic fixture pack. It covers the security/lifecycle behavior that cannot be established by jsdom or handler tests alone; component and HTTP tests remain the faster deterministic coverage for edge matrices and socket-level slow-reader behavior. Do not replace this with browser E2E that only rechecks static markup.
 
 ### Real-tool acceptance
 

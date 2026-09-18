@@ -188,7 +188,7 @@ Implemented acceptance:
 - no shell/browser-selected execution authority is introduced;
 - no vendor syntax is invented.
 
-### Phase 4c — authenticated browser execution boundary — IN PROGRESS
+### Phase 4c — authenticated browser execution boundary — IMPLEMENTED
 
 #### Phase 4c-A — create/get/cancel polling API — IMPLEMENTED
 
@@ -221,7 +221,7 @@ Implemented:
 - output rendered as inert React text, never raw HTML;
 - regression coverage for manager replay, cursor rejection, stream authentication/disconnect, safe task filtering, sanitized tool diagnostics, typed browser requests, bounded reconnect/reconciliation, and markup-like output rendering.
 
-Still desirable before release: production-server real-browser reconnect/eviction/slow-reader and hostile-origin E2E coverage.
+Production embedded-server real-browser E2E is now implemented in CI. It covers bootstrap/session, Host/Origin/CSRF behavior, authenticated task loading, fixture execution, live SSE, forced reconnect/`Last-Event-ID`, bounded retry exhaustion and reconciliation, explicit retry/cancellation, retained-run eviction, single-execution semantics, and inert hostile output. Low-level socket slow-reader/write-deadline behavior remains covered at the server boundary rather than being inferred from JavaScript consumption.
 
 Do not expose auth-required, secret-bearing, mutating, destructive, interactive, or credential-sensitive commands in Phase 4c.
 
@@ -353,9 +353,9 @@ Do not require GNU-specific tooling for Windows contributors.
 
 ## 15. CI target/current state
 
-Current CI covers frontend install/typecheck/lint/tests/build, generated frontend asset drift, Go formatting/vet/tests, Windows/Linux executable builds, and Linux race testing.
+Current CI covers frontend install/typecheck/lint/tests/build, generated frontend asset drift, Go module verification, formatting/vet/tests, Windows/Linux executable builds, Linux race testing, dependency vulnerability scanning, the production embedded-server Chrome/Chromium E2E gate on Linux, and Windows evaluation-artifact qualification.
 
-Discovery tests are ordinary Go tests and therefore belong to the same Windows/Linux gates. Future additions should include execution fixture/E2E gates, dependency scanning, and any pack-specific static/security checks that add value beyond `go test ./...`.
+Discovery and fixture integration tests remain ordinary Go tests in the Windows/Linux quality gates. The browser E2E is an explicit Linux CI step because it requires a real installed browser; managed-Windows browser/PATH/antivirus behavior remains a separate manual acceptance boundary.
 
 Do not claim cross-platform runtime support merely because compilation succeeds.
 

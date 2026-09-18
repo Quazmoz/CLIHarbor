@@ -51,6 +51,11 @@ jobs:
         run: go vet ./...
       - name: Go tests
         run: go test -timeout 2m ./...
+      - name: Production embedded browser E2E
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CLIHARBOR_BROWSER_E2E: '1'
+        run: go test -timeout 90s -count=1 -run '^TestProductionEmbeddedBrowserE2E$' ./internal/app
       - name: Final embedded Go build
         run: go run ./tools/task go-build
 

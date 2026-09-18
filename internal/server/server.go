@@ -231,8 +231,14 @@ func (s *Server) validateRequestBoundary(next http.Handler) http.Handler {
 			return
 		}
 
+		origin := r.Header.Get("Origin")
+		if origin != "" && origin != s.baseURL {
+			http.Error(w, "forbidden origin", http.StatusForbidden)
+			return
+		}
+
 		if isStateChangingMethod(r.Method) {
-			if r.Header.Get("Origin") != s.baseURL {
+			if origin != s.baseURL {
 				http.Error(w, "forbidden origin", http.StatusForbidden)
 				return
 			}
