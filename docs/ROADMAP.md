@@ -208,6 +208,6 @@ The next milestone is unchanged in substance: collect evidence on the actual com
 
 ## Evidence transfer-integrity checkpoint
 
-The Phase 0 handoff now has detached SHA-256 verification in addition to strict evidence parsing. Operators can retain the export digest independently and require an exact match during review without changing the v1 evidence schema or adding signing-key infrastructure.
+The Phase 0 handoff now has detached SHA-256 verification in addition to strict evidence parsing. The Windows evaluation bundle also carries `EVALUATION_SHA256SUMS`, which covers both the executable and the privileged Phase 0 pack so either file changing after qualification is detectable. Operators can retain the export digest independently and require an exact match during review without changing the v1 evidence schema or adding signing-key infrastructure.
 
 This closes accidental/unauthorized byte-change detection for a correctly retained digest. It does not close evidence authenticity/attestation; that remains explicitly outside the current milestone. The next product gate is still genuine managed-laptop evidence followed by the first factually verified read-only vendor workflow.
