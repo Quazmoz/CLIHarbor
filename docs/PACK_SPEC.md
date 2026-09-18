@@ -33,7 +33,7 @@ The v1 pack format is not:
 - a generic free-form positional-command facility;
 - a way to execute arbitrary user-entered commands.
 
-Phase 3 executes only the narrow fixed version probe of an explicitly configured trusted pack tool. Pack task commands are still not executable.
+Phase 3 introduced only the narrow fixed version probe of an explicitly configured trusted pack tool. Phase 4 subsequently enabled validated read-only task execution through the planner/executor; packs still cannot express arbitrary user-entered commands.
 
 ## 4. Implemented top-level structure
 
