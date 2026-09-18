@@ -127,12 +127,19 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request, runID s
 	}
 	defer s.releaseRunStream()
 
-	waitCtx, cancel := context.WithTimeout(r.Context(), sseHeartbeatInterval)
+	streamCtx, streamCancel := context.WithCancel(r.Context())
+	stopServerCancel := context.AfterFunc(s.streamCtx, streamCancel)
+	defer func() {
+		stopServerCancel()
+		streamCancel()
+	}()
+
+	waitCtx, cancel := context.WithTimeout(streamCtx, sseHeartbeatInterval)
 	batch, waitErr := stream.WaitEvents(waitCtx, runID, cursor)
 	cancel()
 	initialHeartbeat := false
 	if waitErr != nil {
-		if errors.Is(waitErr, context.DeadlineExceeded) && r.Context().Err() == nil {
+		if errors.Is(waitErr, context.DeadlineExceeded) && streamCtx.Err() == nil {
 			initialHeartbeat = true
 		} else {
 			writeRunStreamError(w, waitErr)
@@ -165,11 +172,11 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request, runID s
 	}
 
 	for {
-		waitCtx, cancel := context.WithTimeout(r.Context(), sseHeartbeatInterval)
+		waitCtx, cancel := context.WithTimeout(streamCtx, sseHeartbeatInterval)
 		batch, waitErr := stream.WaitEvents(waitCtx, runID, cursor)
 		cancel()
 		if waitErr != nil {
-			if errors.Is(waitErr, context.DeadlineExceeded) && r.Context().Err() == nil {
+			if errors.Is(waitErr, context.DeadlineExceeded) && streamCtx.Err() == nil {
 				if err := writeSSEHeartbeat(w, controller); err != nil {
 					return
 				}
