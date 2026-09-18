@@ -65,7 +65,6 @@ func TestWriteSHA256SumsWritesDeterministicArtifactEntry(t *testing.T) {
 	}
 }
 
-
 func TestValidateBuildVersion(t *testing.T) {
 	t.Parallel()
 
