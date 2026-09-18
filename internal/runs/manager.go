@@ -75,7 +75,7 @@ type Snapshot struct {
 	ToolID      string     `json:"toolId"`
 	ToolVersion string     `json:"toolVersion,omitempty"`
 	Status      Status     `json:"status"`
-	StartedAt   time.Time  `json:"startedAt,omitempty"`
+	StartedAt   *time.Time `json:"startedAt,omitempty"`
 	EndedAt     *time.Time `json:"endedAt,omitempty"`
 	ExitCode    *int       `json:"exitCode,omitempty"`
 	Events      []Event    `json:"events,omitempty"`
@@ -115,7 +115,7 @@ type record struct {
 	toolID      string
 	toolVersion string
 	status      Status
-	startedAt   time.Time
+	startedAt   *time.Time
 	endedAt     *time.Time
 	exitCode    *int
 	events      []Event
@@ -320,7 +320,8 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 	default:
 		rec.status = statusFromExecutor(result.Status)
 		if !result.StartedAt.IsZero() {
-			rec.startedAt = result.StartedAt
+			started := result.StartedAt
+			rec.startedAt = &started
 		}
 		if !result.EndedAt.IsZero() {
 			ended := result.EndedAt
@@ -355,8 +356,9 @@ func (m *Manager) recordEvent(rec *record, event executor.Event) error {
 		rec.eventBytes += dataBytes
 	}
 	rec.events = append(rec.events, stored)
-	if event.Type == executor.EventStarted && rec.startedAt.IsZero() {
-		rec.startedAt = event.Timestamp
+	if event.Type == executor.EventStarted && rec.startedAt == nil {
+		started := event.Timestamp
+		rec.startedAt = &started
 	}
 	return nil
 }
@@ -389,7 +391,7 @@ func (r *record) snapshot() Snapshot {
 		ToolID:      r.toolID,
 		ToolVersion: r.toolVersion,
 		Status:      r.status,
-		StartedAt:   r.startedAt,
+		StartedAt:   cloneTime(r.startedAt),
 		EndedAt:     cloneTime(r.endedAt),
 		ExitCode:    cloneInt(r.exitCode),
 		Events:      events,
