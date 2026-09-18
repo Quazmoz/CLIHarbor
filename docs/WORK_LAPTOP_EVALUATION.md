@@ -19,11 +19,10 @@ The artifact contains:
 ```text
 EVALUATION_SHA256SUMS
 bin/cliharbor-windows-x64-evaluation.exe
-bin/SHA256SUMS
 packs/phase0/idira-cyberark-inventory.yaml
 ```
 
-`EVALUATION_SHA256SUMS` covers both files that define the evaluation execution boundary: the executable and the explicitly trusted Phase 0 pack. `bin/SHA256SUMS` remains the executable-only checksum emitted by the normal build path.
+`EVALUATION_SHA256SUMS` is the **only checksum manifest packaged in the Windows evaluation artifact**. It covers both files that define the evaluation execution boundary: the executable and the explicitly trusted Phase 0 pack. `bin/SHA256SUMS` remains a local-build compatibility checksum for `go-build`/`build`; it is deliberately invalidated by `windows-eval` and is not uploaded in the evaluation artifact.
 
 The executable embeds the production React frontend. The work laptop does not need the source tree or frontend tooling.
 
@@ -39,7 +38,7 @@ Expected executable location:
 bin/cliharbor-windows-x64-evaluation.exe
 ```
 
-The build task emits `bin/SHA256SUMS` plus the root `EVALUATION_SHA256SUMS` bundle manifest. Evaluation builds report `build: evaluation-unsigned`.
+The build task emits only the root `EVALUATION_SHA256SUMS` for evaluation integrity and removes any stale generated `bin/SHA256SUMS` before building. Evaluation builds report `build: evaluation-unsigned`. Ordinary local `go-build`/`build` commands continue to emit `bin/SHA256SUMS` for local compatibility.
 
 ## 2. Copy to a user-writable directory
 
@@ -69,7 +68,6 @@ PowerShell:
 Get-Content .\EVALUATION_SHA256SUMS
 Get-FileHash .\bin\cliharbor-windows-x64-evaluation.exe -Algorithm SHA256
 Get-FileHash .\packs\phase0\idira-cyberark-inventory.yaml -Algorithm SHA256
-Get-Content .\bin\SHA256SUMS
 ```
 
 CMD:
@@ -78,7 +76,6 @@ CMD:
 type .\EVALUATION_SHA256SUMS
 certutil -hashfile .\bin\cliharbor-windows-x64-evaluation.exe SHA256
 certutil -hashfile .\packs\phase0\idira-cyberark-inventory.yaml SHA256
-type .\bin\SHA256SUMS
 ```
 
 The root `EVALUATION_SHA256SUMS` must contain exactly these two relative paths:
@@ -88,7 +85,7 @@ bin/cliharbor-windows-x64-evaluation.exe
 packs/phase0/idira-cyberark-inventory.yaml
 ```
 
-The computed SHA-256 for **both** files must exactly match the corresponding manifest entry. The executable hash must also match the executable-only `bin/SHA256SUMS`. Do not run CLIHarbor or load the pack if any value differs. The GitHub artifact ZIP digest, when retained separately, is a distinct archive-level integrity value and must not be substituted for either file checksum.
+The computed SHA-256 for **both** files must exactly match the corresponding manifest entry. No `bin/SHA256SUMS` should be present in the qualified evaluation artifact; if one is present, treat the bundle as not matching the qualified packaging contract and do not run it. The GitHub artifact ZIP digest, when retained separately, is distinct archive-level integrity evidence and must not be substituted for either privileged-file checksum.
 
 ## 4. Confirm build identity
 
