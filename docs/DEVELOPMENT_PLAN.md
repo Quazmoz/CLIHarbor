@@ -279,7 +279,7 @@ Add/complete:
 - any future persisted run-history policy; current run history is bounded and in-memory only;
 - redaction tests;
 - fuzz/property tests for planner/schema boundaries where useful;
-- dependency scanning;
+- dependency scanning with locked-tree `npm audit` and pinned `govulncheck@v1.8.0` in CI; **implemented**
 - frontend accessibility pass;
 - error taxonomy;
 - diagnostic bundle/redacted doctor output;
