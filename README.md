@@ -90,7 +90,7 @@ Phase 4 adds the low-level secure execution boundary:
 - a typed server-side planner that accepts only commands from the validated pack registry and a current `ready` discovery snapshot;
 - exact argv construction from typed values, with unknown/missing/wrongly typed inputs, NUL values, and unsafe leading-dash values rejected rather than reinterpreted;
 - server-side enforcement of the current read-only envelope: auth-required, secret-bearing, change, destructive, interactive, and credential-sensitive commands remain blocked;
-- discovery-time executable file identity carried into each plan and revalidated immediately before execution so a same-path replacement is rejected;
+- discovery-time executable file identity plus SHA-256 content fingerprint carried into each plan and revalidated immediately before execution so same-path replacement or metadata-collision content mutation is rejected;
 - direct `os/exec` execution with a neutral temporary working directory, generated run IDs, separate stdout/stderr events, bounded output, deadlines, cancellation, non-zero exit preservation, and `exec.Cmd.WaitDelay` protection against inherited output handles;
 - a platform lifecycle boundary: Windows starts the target suspended, assigns it to a per-run Job Object configured with kill-on-close, then resumes it so descendants cannot escape before ownership is established; cancellation, timeout, output exhaustion, sink failure, and normal run teardown all close or terminate that boundary;
 - regression coverage for argv boundaries, malformed values, executable replacement, spaces/Unicode, cancellation races, setup failure cleanup, and Windows descendant cleanup;
