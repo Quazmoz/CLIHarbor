@@ -337,4 +337,5 @@ Regression coverage must prove:
 - a still-valid JSON document modified after digest capture fails verification;
 - symlink/non-regular/raced file protections remain in force before hashing;
 - checksum calculation alone is never described as signer authentication or environment attestation;
-- no checksum input can become executable, argv, pack, browser, or workflow authority.
+- no checksum input can become executable, argv, pack, browser, or workflow authority;
+- the packaged Windows evaluation binary completes a vendor-free `inventory --export` -> `evidence checksum` -> checksum-required `evidence inspect` smoke flow before artifact upload.

@@ -416,6 +416,6 @@ This does not advance the vendor-command authority boundary. The next external m
 
 ## Phase 0 evidence-transfer integrity milestone
 
-**Implemented in `main`.** Phase 0 export now emits a SHA-256 for the exact bytes written, `evidence checksum <file>` validates and hashes a received bundle, and `evidence inspect --sha256 <digest> <file>` fails closed before rendering if an independently retained digest does not match.
+**Implemented in `main`.** Phase 0 export now emits a SHA-256 for the exact bytes written, `evidence checksum <file>` validates and hashes a received bundle, and `evidence inspect --sha256 <digest> <file>` fails closed before rendering if an independently retained digest does not match. The gated Windows evaluation artifact job exercises that complete vendor-free export/checksum/verified-inspect flow with the packaged executable before upload.
 
 This is intentionally detached from `cliharbor.phase0/v1` and does not alter vendor-command authority. The external gate remains collection of genuine company-laptop evidence and human factual review before the first real read-only Idira/CyberArk workflow.

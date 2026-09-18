@@ -109,6 +109,45 @@ jobs:
         run: .\bin\cliharbor-windows-x64-evaluation.exe version
       - name: Run vendor-free evaluation self-test
         run: .\bin\cliharbor-windows-x64-evaluation.exe self-test
+      - name: Verify packaged Phase 0 evidence integrity flow
+        shell: pwsh
+        run: |
+          $evidence = Join-Path $env:RUNNER_TEMP "cliharbor-phase0-smoke.json"
+          $exportOutput = & .\bin\cliharbor-windows-x64-evaluation.exe inventory --export $evidence
+          if ($LASTEXITCODE -ne 0) {
+            throw "inventory export failed with exit code $LASTEXITCODE"
+          }
+          $exportOutput | ForEach-Object { Write-Host $_ }
+          $digestMatch = $exportOutput |
+            Select-String -Pattern '^Evidence SHA-256: ([0-9a-f]{64})        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: cliharbor-windows-x64-evaluation-${{ github.sha }}
+          path: |
+            bin/cliharbor-windows-x64-evaluation.exe
+            bin/SHA256SUMS
+            packs/phase0/idira-cyberark-inventory.yaml
+          if-no-files-found: error
+          retention-days: 14
+ |
+            Select-Object -First 1
+          if (-not $digestMatch) {
+            throw "inventory export did not emit a canonical SHA-256"
+          }
+          $digest = $digestMatch.Matches[0].Groups[1].Value
+
+          $checksumOutput = & .\bin\cliharbor-windows-x64-evaluation.exe evidence checksum $evidence
+          if ($LASTEXITCODE -ne 0) {
+            throw "evidence checksum failed with exit code $LASTEXITCODE"
+          }
+          $checksumOutput | ForEach-Object { Write-Host $_ }
+          if ($checksumOutput -notcontains "Evidence SHA-256: $digest") {
+            throw "evidence checksum did not match export digest"
+          }
+
+          & .\bin\cliharbor-windows-x64-evaluation.exe evidence inspect --sha256 $digest $evidence
+          if ($LASTEXITCODE -ne 0) {
+            throw "verified evidence inspection failed with exit code $LASTEXITCODE"
+          }
       - name: Upload unsigned evaluation artifact
         uses: actions/upload-artifact@v4.6.2
         with:
