@@ -271,6 +271,64 @@ func TestRunEventStreamCapacityIsBounded(t *testing.T) {
 	}
 }
 
+func TestServerShutdownCancelsActiveRunEventStreams(t *testing.T) {
+	service := &streamRunService{
+		snapshot: runs.Snapshot{
+			RunID:  strings.Repeat("f", 32),
+			Status: runs.StatusRunning,
+			Events: []runs.Event{{Sequence: 1, Type: "run.started", Timestamp: time.Now().UTC()}},
+		},
+		waitStarted: make(chan struct{}),
+		waitDone:    make(chan struct{}),
+	}
+	frontend := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	s, err := New(Config{Frontend: frontend, Runs: service, ShutdownTimeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverCtx, stopServer := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- s.Run(serverCtx) }()
+
+	client := sessionClient(t)
+	bootstrap(t, client, s)
+	request, err := http.NewRequest(http.MethodGet, s.BaseURL()+"/api/v1/runs/"+service.snapshot.RunID+"/events", nil)
+	if err != nil {
+		stopServer()
+		t.Fatal(err)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		stopServer()
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+
+	select {
+	case <-service.waitStarted:
+	case <-time.After(time.Second):
+		stopServer()
+		t.Fatal("stream did not begin waiting for run events")
+	}
+
+	stopServer()
+	select {
+	case <-service.waitDone:
+	case <-time.After(time.Second):
+		t.Fatal("stream observer did not stop during server shutdown")
+	}
+	select {
+	case runErr := <-done:
+		if runErr != nil {
+			t.Fatalf("server shutdown: %v", runErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("server shutdown waited on an active SSE observer")
+	}
+}
+
 func TestRunEventStreamRequiresAuthenticatedSession(t *testing.T) {
 	service := &streamRunService{snapshot: runs.Snapshot{
 		RunID:  strings.Repeat("d", 32),
