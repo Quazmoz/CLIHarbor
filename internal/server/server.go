@@ -58,6 +58,8 @@ type Server struct {
 	runs              RunService
 	tasks             TaskService
 	runStreamSlots    chan struct{}
+	streamCtx         context.Context
+	streamCancel      context.CancelFunc
 }
 
 // New creates a server bound to an ephemeral IPv4 loopback port. It does not
@@ -103,6 +105,7 @@ func New(config Config) (*Server, error) {
 	if maxEventStreams <= 0 {
 		maxEventStreams = defaultMaxEventStreams
 	}
+	streamCtx, streamCancel := context.WithCancel(context.Background())
 
 	s := &Server{
 		listener:         listener,
@@ -117,6 +120,8 @@ func New(config Config) (*Server, error) {
 		runs:             config.Runs,
 		tasks:            config.Tasks,
 		runStreamSlots:   make(chan struct{}, maxEventStreams),
+		streamCtx:        streamCtx,
+		streamCancel:     streamCancel,
 	}
 
 	mux := http.NewServeMux()
@@ -164,6 +169,7 @@ func (s *Server) BootstrapURL() string {
 // Close immediately releases the listener and active HTTP connections. It is
 // primarily used when startup fails before Run takes ownership of the lifecycle.
 func (s *Server) Close() error {
+	s.streamCancel()
 	return s.httpServer.Close()
 }
 
@@ -183,6 +189,7 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 		return fmt.Errorf("serve loopback HTTP: %w", err)
 	case <-ctx.Done():
+		s.streamCancel()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
 		defer cancel()
 
