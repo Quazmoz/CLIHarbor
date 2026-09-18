@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 )
 
@@ -134,14 +135,21 @@ func goBuild(root string) error {
 }
 
 func windowsEvalBuild(root string) error {
-	return buildExecutable(
+	artifact := filepath.Join(root, "bin", "cliharbor-windows-x64-evaluation.exe")
+	if err := buildExecutable(
 		root,
-		filepath.Join(root, "bin", "cliharbor-windows-x64-evaluation.exe"),
+		artifact,
 		"windows",
 		"amd64",
 		"evaluation-unsigned",
 		"0.0.0-eval",
-	)
+	); err != nil {
+		return err
+	}
+	return writeSHA256Manifest(root, filepath.Join(root, "EVALUATION_SHA256SUMS"), []string{
+		artifact,
+		filepath.Join(root, "packs", "phase0", "idira-cyberark-inventory.yaml"),
+	})
 }
 
 func buildExecutable(root, artifact, goos, goarch, mode, defaultVersion string) error {
@@ -243,34 +251,93 @@ func validateBuildVersion(version string) error {
 }
 
 func writeSHA256Sums(artifact, destination string) error {
-	file, err := os.Open(artifact)
+	return writeSHA256Manifest(filepath.Dir(artifact), destination, []string{artifact})
+}
+
+func writeSHA256Manifest(root, destination string, artifacts []string) error {
+	if len(artifacts) == 0 {
+		return fmt.Errorf("checksum manifest requires at least one artifact")
+	}
+	rootPath, err := filepath.Abs(root)
 	if err != nil {
-		return fmt.Errorf("open build artifact for checksum: %w", err)
+		return fmt.Errorf("resolve checksum manifest root: %w", err)
+	}
+
+	entries := make([]string, 0, len(artifacts))
+	seen := make(map[string]struct{}, len(artifacts))
+	for _, artifact := range artifacts {
+		artifactPath, err := filepath.Abs(artifact)
+		if err != nil {
+			return fmt.Errorf("resolve checksum artifact: %w", err)
+		}
+		relative, err := filepath.Rel(rootPath, artifactPath)
+		if err != nil {
+			return fmt.Errorf("resolve checksum artifact relative path: %w", err)
+		}
+		if relative == "." || relative == ".." || filepath.IsAbs(relative) ||
+			strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("checksum artifact must remain inside manifest root")
+		}
+		info, err := os.Lstat(artifactPath)
+		if err != nil {
+			return fmt.Errorf("inspect checksum artifact %s: %w", filepath.ToSlash(relative), err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return fmt.Errorf("checksum artifact %s must be a regular non-symlink file", filepath.ToSlash(relative))
+		}
+		name := filepath.ToSlash(relative)
+		if strings.ContainsAny(name, "\r\n") {
+			return fmt.Errorf("checksum artifact path contains unsupported newline")
+		}
+		if _, exists := seen[name]; exists {
+			return fmt.Errorf("duplicate checksum artifact %s", name)
+		}
+		seen[name] = struct{}{}
+
+		digest, err := sha256File(artifactPath)
+		if err != nil {
+			return err
+		}
+		entries = append(entries, hex.EncodeToString(digest)+"  "+name)
+	}
+	sort.Strings(entries)
+	return writeChecksumFile(destination, strings.Join(entries, "\n")+"\n")
+}
+
+func sha256File(path string) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open build artifact for checksum: %w", err)
 	}
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {
-		file.Close()
-		return fmt.Errorf("hash build artifact: %w", err)
+		_ = file.Close()
+		return nil, fmt.Errorf("hash build artifact: %w", err)
 	}
 	if err := file.Close(); err != nil {
-		return fmt.Errorf("close build artifact after checksum: %w", err)
+		return nil, fmt.Errorf("close build artifact after checksum: %w", err)
 	}
+	return hasher.Sum(nil), nil
+}
 
-	line := hex.EncodeToString(hasher.Sum(nil)) + "  " + filepath.Base(artifact) + "\n"
+func writeChecksumFile(destination, content string) error {
 	dir := filepath.Dir(destination)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create checksum directory: %w", err)
+	}
 	temp, err := os.CreateTemp(dir, ".SHA256SUMS-")
 	if err != nil {
 		return fmt.Errorf("create checksum staging file: %w", err)
 	}
 	tempName := temp.Name()
 	cleanup := func() { _ = os.Remove(tempName) }
-	if _, err := io.WriteString(temp, line); err != nil {
-		temp.Close()
+	if _, err := io.WriteString(temp, content); err != nil {
+		_ = temp.Close()
 		cleanup()
 		return fmt.Errorf("write checksum staging file: %w", err)
 	}
 	if err := temp.Chmod(0o644); err != nil {
-		temp.Close()
+		_ = temp.Close()
 		cleanup()
 		return fmt.Errorf("set checksum file permissions: %w", err)
 	}
