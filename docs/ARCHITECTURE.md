@@ -247,7 +247,11 @@ run.timed-out
 run.failed
 ```
 
-These are internal sink events, not yet a browser streaming protocol. No run HTTP endpoint or persisted run store exists yet. A fixture-backed integration/diagnostic layer should prove registry -> discovery -> planner -> executor end to end before the browser execution API is added.
+These are internal sink events, not yet a browser streaming protocol. No run HTTP endpoint or persisted run store exists yet.
+
+Phase 4b now proves the production authority chain end to end with a purpose-built fixture: explicit-local trusted pack loading → schema/semantic validation → registry → discovery with backend-only override → fixed version probe/constraint → typed planner → executor → bounded events/result. The fixture execution is compared with direct invocation for argv/output/exit fidelity and includes cancellation after observable output.
+
+The next architecture boundary is exposing only this already-proven read-only path through authenticated loopback APIs and bounded streaming without allowing the browser to choose executable paths, executable names, flags, or arbitrary argv.
 
 ## 12. Authentication
 
