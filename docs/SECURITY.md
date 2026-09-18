@@ -144,7 +144,7 @@ Pack v1 requires a risk class. The current planner and executor reject every ris
 
 ### T11 — Long-running/noisy task process DoS
 
-Version probes have timeout/buffer bounds. Task execution has a total deadline, explicit cancellation, per-stream output limits, `WaitDelay` protection for inherited handles, and on Windows a per-run Job Object established before the process resumes so descendants cannot outlive the run. Phase 4c-A adds bounded active-run count, bounded retained-run count, bounded in-memory event bytes, bounded request bodies, and root-context shutdown cancellation. Live-stream backpressure remains Phase 4c-B work.
+Version probes have timeout/buffer bounds. Task execution has a total deadline, explicit cancellation, per-stream output limits, `WaitDelay` protection for inherited handles, and on Windows a per-run Job Object established before the process resumes so descendants cannot outlive the run. Phase 4c-A adds bounded active-run count, bounded retained-run count, bounded in-memory event bytes, bounded request bodies, and root-context shutdown cancellation. Phase 4c-B streams only from that bounded manager state: no executor sink writes to HTTP, there are no per-client output queues, manager locks are released before network writes, ordinary server write timeouts are overridden only for SSE, and each SSE write/flush has its own finite deadline.
 
 ### T12 — Browser bootstrap exposure
 
@@ -214,11 +214,13 @@ Phase 4b adds integration proof across the real trust chain: an explicitly named
 
 Phase 4c-A regression coverage adds authenticated browser execution without widening authority: exact Host/session/Origin/CSRF controls, strict UTF-8 JSON, duplicate-key/unknown-field rejection, request-size limits, stable sanitized error codes, server-generated run IDs, bounded concurrency/retention/events, explicit cancellation, shutdown cancellation, and application-level bootstrap → CSRF → run execution coverage. Browser-visible snapshots omit executable path and argv; output bytes are Base64-encoded as untrusted data.
 
+Phase 4c-B adds manager-backed replay cursor tests, authenticated SSE framing, malformed/impossible cursor rejection, disconnect-without-cancellation coverage, safe task-catalog filtering, and React coverage showing that CSRF stays out of rendered UI while CLI output containing markup is rendered as inert text. Stream reconnect observes the same run ID and cannot create another process.
+
 Still required before MVP release:
 
-- browser arbitrary task/tool substitution tests once run APIs exist;
-- end-to-end hostile-origin mutation tests for run endpoints;
-- output XSS/redaction/parser-fallback tests when process output reaches the UI;
+- real-browser hostile-origin mutation/stream tests beyond the HTTP boundary tests;
+- broader XSS corpus coverage for ANSI/malformed/very-long output and future structured parser fallback;
+- reconnect/eviction/slow-reader end-to-end coverage under a real browser and production HTTP server;
 - stronger publisher/signature/hash verification if enterprise policy requires it;
 - manual real vendor-path/version/auth/workflow verification on supported Windows environments.
 
