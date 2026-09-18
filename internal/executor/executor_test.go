@@ -198,6 +198,43 @@ func TestRunRejectsExecutableReplacementAfterDiscovery(t *testing.T) {
 	assertExecutorCode(t, err, ErrInvalidPlan)
 }
 
+func TestRunSupportsSpacesAndUnicodeInExecutablePathAndArgs(t *testing.T) {
+	t.Setenv(helperEnv, "1")
+	source, _, _ := currentExecutable(t)
+	dir := filepath.Join(t.TempDir(), "space 雪")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(dir, filepath.Base(source))
+	data, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(destination, data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := discovery.CaptureExecutableIdentity(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	plan := helperPlan(t, "echo", "café 雪")
+	plan.ExecutablePath = destination
+	plan.ExecutableName = filepath.Base(destination)
+	plan.ExecutableIdentity = identity
+	collector := &eventCollector{}
+	result, err := testExecutor(2*time.Second, 1<<20).Run(context.Background(), plan, collector)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Status != StatusExited || result.ExitCode != 0 {
+		t.Fatalf("result = %#v", result)
+	}
+	if got := string(joinEventData(collector.Events(), EventStdout)); got != "stdout:café 雪" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
 func TestRunHonorsCancellationBeforeProcessStart(t *testing.T) {
 	t.Setenv(helperEnv, "1")
 	ctx, cancel := context.WithCancel(context.Background())
