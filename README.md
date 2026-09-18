@@ -172,7 +172,7 @@ go run ./tools/task windows-eval
 # independently re-verify the evaluation manifest against the files on disk
 go run ./tools/task verify-windows-eval
 
-# build two isolated evaluation bundles and require an identical authoritative manifest
+# verify the evaluation candidate against two isolated deterministic rebuilds
 go run ./tools/task verify-windows-eval-repro
 
 # rebuild frontend, sync assets, build the executable, and emit ./bin/SHA256SUMS
