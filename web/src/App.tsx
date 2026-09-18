@@ -42,7 +42,8 @@ function isAbort(error: unknown): boolean {
 }
 
 async function loadRuntime(signal?: AbortSignal): Promise<{ status: RuntimeStatus; tasks: Task[] }> {
-  const [status, tasks] = await Promise.all([fetchRuntimeStatus(signal), fetchTasks(signal)]);
+  const status = await fetchRuntimeStatus(signal);
+  const tasks = await fetchTasks(signal);
   return { status, tasks };
 }
 
