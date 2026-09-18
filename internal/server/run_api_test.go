@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 )
@@ -318,4 +317,3 @@ func (f *fakeRunService) startCalls() int {
 	return len(f.requests)
 }
 
-var _ = time.Time{}
