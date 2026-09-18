@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -342,10 +343,24 @@ func sha256File(path string, expected os.FileInfo) ([]byte, error) {
 		return nil, fmt.Errorf("build artifact changed before checksum")
 	}
 
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
+	firstHasher := sha256.New()
+	if _, err := io.Copy(firstHasher, file); err != nil {
 		_ = file.Close()
 		return nil, fmt.Errorf("hash build artifact: %w", err)
+	}
+	middle, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("reinspect opened build artifact after checksum: %w", err)
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("rewind build artifact for checksum verification: %w", err)
+	}
+	secondHasher := sha256.New()
+	if _, err := io.Copy(secondHasher, file); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("rehash build artifact: %w", err)
 	}
 	finished, err := file.Stat()
 	if err != nil {
@@ -359,12 +374,17 @@ func sha256File(path string, expected os.FileInfo) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reinspect checksum artifact: %w", err)
 	}
-	if current.Mode()&os.ModeSymlink != 0 || !current.Mode().IsRegular() ||
-		!os.SameFile(opened, current) || opened.Size() != finished.Size() ||
-		!opened.ModTime().Equal(finished.ModTime()) {
+	firstDigest := firstHasher.Sum(nil)
+	secondDigest := secondHasher.Sum(nil)
+	if !bytes.Equal(firstDigest, secondDigest) ||
+		current.Mode()&os.ModeSymlink != 0 || !current.Mode().IsRegular() ||
+		!os.SameFile(opened, current) ||
+		opened.Size() != middle.Size() || !opened.ModTime().Equal(middle.ModTime()) ||
+		middle.Size() != finished.Size() || !middle.ModTime().Equal(finished.ModTime()) ||
+		finished.Size() != current.Size() || !finished.ModTime().Equal(current.ModTime()) {
 		return nil, fmt.Errorf("build artifact changed while checksum was calculated")
 	}
-	return hasher.Sum(nil), nil
+	return firstDigest, nil
 }
 
 func writeChecksumFile(destination, content string) error {
