@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	defaultBootstrapTTL = 2 * time.Minute
+	defaultBootstrapTTL  = 2 * time.Minute
+	defaultMaxEventStreams = 16
 	shutdownTimeout     = 5 * time.Second
 	sessionCookieName   = "cliharbor_session"
 	csrfHeaderName      = "X-CLIHarbor-CSRF"
@@ -35,6 +36,7 @@ type Config struct {
 	Frontend        http.Handler
 	Runs            RunService
 	Tasks           TaskService
+	MaxEventStreams int
 }
 
 // Server owns one loopback listener and one in-memory browser session.
@@ -55,6 +57,7 @@ type Server struct {
 	csrfToken         string
 	runs              RunService
 	tasks             TaskService
+	runStreamSlots    chan struct{}
 }
 
 // New creates a server bound to an ephemeral IPv4 loopback port. It does not
@@ -96,6 +99,10 @@ func New(config Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bind loopback listener: %w", err)
 	}
+	maxEventStreams := config.MaxEventStreams
+	if maxEventStreams <= 0 {
+		maxEventStreams = defaultMaxEventStreams
+	}
 
 	s := &Server{
 		listener:         listener,
@@ -109,6 +116,7 @@ func New(config Config) (*Server, error) {
 		csrfToken:        csrfToken,
 		runs:             config.Runs,
 		tasks:            config.Tasks,
+		runStreamSlots:   make(chan struct{}, maxEventStreams),
 	}
 
 	mux := http.NewServeMux()
