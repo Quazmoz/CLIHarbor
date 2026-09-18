@@ -54,6 +54,27 @@ jobs:
       - name: Final embedded Go build
         run: go run ./tools/task go-build
 
+  security:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: '.node-version'
+          package-manager-cache: false
+      - name: Install frontend dependencies
+        run: npm ci --prefix web
+      - name: Audit frontend dependency lock
+        run: npm audit --prefix web --audit-level=high
+      - name: Scan reachable Go vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
   race:
     name: Go race detector
     runs-on: ubuntu-latest
