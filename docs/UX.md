@@ -139,7 +139,9 @@ Stdout and stderr should remain distinguishable.
 
 ## 9. Structured results
 
-Use tables/cards for machine-readable output, but preserve direct access to raw output.
+Phase 5 implements a minimal cards renderer for validated scalar structured results. The browser consumes only the backend's normalized DTO, validates its fixed shape again, and renders labels/values as ordinary React text. HTML/script-looking field values are data, not markup.
+
+If parsing is invalid or unavailable, show the stable parser status/error and explicitly keep raw stdout/stderr accessible. A non-zero CLI exit never becomes a structured success. Raw output remains evidence even when structured parsing succeeds.
 
 Useful features later:
 
