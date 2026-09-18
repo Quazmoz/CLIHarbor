@@ -413,3 +413,9 @@ The next milestone is **real Phase 0 evidence collection on the target company l
 **Implemented in `main`.** CLIHarbor can strictly ingest and review its own `cliharbor.phase0/v1` files with `cliharbor evidence inspect <file>`. The importer is bounded, rejects symlinks and observed file races, disallows unknown/duplicate JSON fields, enforces evidence ID/version/provenance/state/timestamp/sanitization invariants, and renders a deterministic operator report with explicit evidence gaps plus PROVES / UNKNOWN / BLOCKED classifications.
 
 This does not advance the vendor-command authority boundary. The next external milestone remains collection and human review of evidence from the company-managed laptop. The first real read-only Idira/CyberArk workflow may be authored only after that evidence (or approved documentation) proves exact command behavior.
+
+## Phase 0 evidence-transfer integrity milestone
+
+**Implemented in `main`.** Phase 0 export now emits a SHA-256 for the exact bytes written, `evidence checksum <file>` validates and hashes a received bundle, and `evidence inspect --sha256 <digest> <file>` fails closed before rendering if an independently retained digest does not match.
+
+This is intentionally detached from `cliharbor.phase0/v1` and does not alter vendor-command authority. The external gate remains collection of genuine company-laptop evidence and human factual review before the first real read-only Idira/CyberArk workflow.

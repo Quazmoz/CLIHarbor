@@ -123,6 +123,25 @@ func TestInspectEvidenceExpectedSHA256MustMatchBeforeRendering(t *testing.T) {
 	if mismatch.Len() != 0 {
 		t.Fatalf("checksum mismatch produced partial review: %q", mismatch.String())
 	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := bytes.Replace(data, []byte(`"commit": "abc123"`), []byte(`"commit": "abc124"`), 1)
+	if bytes.Equal(data, tampered) {
+		t.Fatal("tamper fixture did not modify evidence bytes")
+	}
+	if err := os.WriteFile(path, tampered, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var tamperedOut bytes.Buffer
+	if err := InspectEvidenceWithConfig(Options{Out: &tamperedOut}, path, EvidenceInspectConfig{ExpectedSHA256: digest}); err == nil {
+		t.Fatal("valid-but-tampered evidence unexpectedly matched original digest")
+	}
+	if tamperedOut.Len() != 0 {
+		t.Fatalf("tampered evidence produced partial review: %q", tamperedOut.String())
+	}
 }
 
 func TestPrintEvidenceChecksumValidatesEvidenceAndPrintsDigest(t *testing.T) {

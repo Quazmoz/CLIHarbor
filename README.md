@@ -249,3 +249,15 @@ cliharbor evidence inspect phase0-evidence.json
 ```
 
 The command is operator-side only. It strictly validates the bounded evidence contract, reports tool/probe observations and gaps, quotes captured output as inert text, and separates internal consistency from what remains unknown or blocked. Validation is not a signature or attestation of the claimed source environment. The command never turns evidence text into a pack or command definition; the first real Idira/CyberArk workflow still requires trusted handling plus factual human review of evidence from the deployed environment or approved documentation.
+
+## Phase 0 transfer integrity
+
+`inventory --export <file>` prints the SHA-256 of the exact evidence bytes it created. Retain that digest independently from the JSON. On the review machine, require it during inspection:
+
+```text
+cliharbor evidence inspect --sha256 <64-hex-digest> phase0-evidence.json
+```
+
+CLIHarbor validates the expected digest before rendering any evidence. A mismatch fails closed. `cliharbor evidence checksum <file>` can calculate the current file's digest, but calculating a checksum from the same transferred file is **not** an independent integrity check.
+
+SHA-256 detects byte changes when the expected value is retained through a trusted independent path. It does not identify who produced the file, sign the evidence, or attest that the reported machine/build/vendor observations are genuine.

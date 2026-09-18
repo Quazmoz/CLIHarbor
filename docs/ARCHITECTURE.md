@@ -357,3 +357,16 @@ bounded local evidence file
 ```
 
 Evidence text never becomes executable authority. The importer validates structure, consistency, provenance shape, and sanitization; it does not provide cryptographic authenticity or attest the claimed source environment. A reviewed artifact can justify later human-authored trusted-pack changes only after trusted handling and human factual verification establish what the evidence actually supports.
+
+## Phase 0 detached transfer-integrity boundary
+
+Evidence export now computes SHA-256 over the exact serialized bytes that are atomically activated at the requested destination and prints that digest to the operator. The digest is deliberately detached from the `cliharbor.phase0/v1` JSON schema so the schema remains unchanged and a checksum stored beside the evidence cannot be mistaken for self-authentication.
+
+Review can require an independently retained digest:
+
+```text
+evidence file -> bounded stable read -> SHA-256 -> constant-time expected-digest comparison
+              -> strict Phase 0 parse/validation -> operator review
+```
+
+A digest mismatch fails before review output is emitted. The same stable file snapshot is hashed and parsed. The checksum path is CLI/operator-only and does not connect to pack loading, discovery, planning, execution, run management, or browser authority.

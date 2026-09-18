@@ -205,3 +205,9 @@ Still deferred until evidence exists:
 The repository now includes the operator-side gate between Phase 0 collection and trusted-pack authoring: `cliharbor evidence inspect <file>`. It validates the evidence contract, summarizes what was actually observed, identifies gaps, and explicitly keeps captured prose/argv inert.
 
 The next milestone is unchanged in substance: collect evidence on the actual company-managed Windows laptop, inspect it, and perform human factual review. Only then should the first verified read-only Idira/CyberArk workflow be encoded and qualified end to end.
+
+## Evidence transfer-integrity checkpoint
+
+The Phase 0 handoff now has detached SHA-256 verification in addition to strict evidence parsing. Operators can retain the export digest independently and require an exact match during review without changing the v1 evidence schema or adding signing-key infrastructure.
+
+This closes accidental/unauthorized byte-change detection for a correctly retained digest. It does not close evidence authenticity/attestation; that remains explicitly outside the current milestone. The next product gate is still genuine managed-laptop evidence followed by the first factually verified read-only vendor workflow.

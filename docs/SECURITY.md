@@ -261,3 +261,11 @@ Imported evidence is untrusted data even when it was originally emitted by CLIHa
 The importer fails closed on oversized/non-regular/symlink inputs, observed file replacement or mutation while reading, invalid JSON/UTF-8, duplicate JSON keys, unknown fields, malformed identifiers/versions, duplicate identities, inconsistent discovery/probe states, invalid provenance/timestamps, unsupported control characters, common unsanitized credential patterns, and identity-bearing path/environment material excluded by the evidence contract. Captured stdout/stderr is shown only as a bounded quoted preview after validation.
 
 A successful inspection establishes only that the file satisfies the internal evidence contract and is internally consistent/sanitized. It does **not** authenticate the file, attest that it came from the claimed build or host, prove current machine state, establish authentication semantics or command safety, or grant permission to promote arbitrary captured text into a pack. Human factual review and trusted handling of the returned artifact remain mandatory before any vendor command gains execution authority.
+
+## Phase 0 evidence transfer integrity
+
+Phase 0 export prints a detached SHA-256 for the exact JSON bytes written. The operator should retain that value independently from the JSON and supply it to `cliharbor evidence inspect --sha256 <digest> <file>` after transfer. Expected digests must be exactly 64 hexadecimal characters; comparison is performed on decoded bytes in constant time and mismatch fails before any review output is rendered.
+
+This is a tamper-detection mechanism, not authentication. An attacker able to replace both the evidence and the independently trusted expected digest can still substitute data. A checksum does not prove signer identity, build identity, host identity, or truth of captured vendor output. Signed/attested provenance remains a separate future release/governance problem.
+
+`evidence checksum <file>` validates the Phase 0 document and reports its current SHA-256, but a digest calculated only after receiving the same file cannot by itself establish transfer integrity.

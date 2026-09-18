@@ -324,3 +324,17 @@ The evidence-consumption boundary adds deterministic regression coverage for:
 - bounded quoted output previews and explicit PROVES / UNKNOWN / BLOCKED classifications.
 
 The final exact `main` SHA must continue to pass both Windows and Ubuntu quality jobs, the race detector, dependency scans, and Windows evaluation artifact smoke tests.
+
+## Phase 0 evidence transfer-integrity verification
+
+Regression coverage must prove:
+
+- export digest equals SHA-256 of the exact activated JSON bytes, including serialization newline;
+- read-side digest is computed from the same stable bounded snapshot that is parsed;
+- uppercase/lowercase hex normalize to identical digest bytes;
+- malformed length/non-hex expected digests fail before file review;
+- checksum mismatch emits no partial evidence review;
+- a still-valid JSON document modified after digest capture fails verification;
+- symlink/non-regular/raced file protections remain in force before hashing;
+- checksum calculation alone is never described as signer authentication or environment attestation;
+- no checksum input can become executable, argv, pack, browser, or workflow authority.

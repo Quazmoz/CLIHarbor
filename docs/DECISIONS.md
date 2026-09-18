@@ -171,3 +171,15 @@ Do not silently change an accepted ADR. Add a new ADR section with:
 **Security/reliability implications:** Evidence files are untrusted, symlinks/non-regular files and observed read races fail closed, malformed/duplicate/unknown data is rejected, and sensitive/path-like material excluded by the schema cannot silently re-enter through import. Successful validation establishes internal consistency only; it is not a signature/attestation and does not establish file authenticity, claimed source environment, freshness, or vendor semantics beyond what is independently verified.
 
 **Revisit when:** A signed/attested evidence format or organization-approved promotion workflow exists and has an explicit authority model. Even then, model-generated or arbitrary captured text must not gain command authority implicitly.
+
+## ADR-018 — Phase 0 evidence uses detached SHA-256 for transfer integrity only
+
+**Status:** Accepted.
+
+**Decision:** Phase 0 export computes and prints SHA-256 over the exact JSON bytes written. The digest remains outside the evidence schema and must be retained independently if it is to be used as a transfer-integrity check. Evidence inspection may require an expected SHA-256 and must fail before rendering on mismatch.
+
+**Why:** The laptop-to-engineering handoff needs deterministic detection of accidental or unauthorized byte changes without introducing signing keys, certificates, organization-specific PKI, or a false authenticity claim.
+
+**Security/reliability implications:** The same bounded stable file snapshot is hashed and parsed; expected digests are strictly decoded and compared in constant time. SHA-256 is not a signature or attestation. Keeping the digest only beside the evidence file does not establish an independent trust path, and no checksum can promote evidence into executable pack authority.
+
+**Revisit when:** The organization has an approved artifact/evidence signing or attestation mechanism with defined key ownership, verification policy, rotation/revocation, and release integration.

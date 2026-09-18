@@ -309,14 +309,22 @@ CLIHarbor installs no Windows service, driver, scheduled task, startup item, cer
 
 ## 13. Inspect returned evidence before promotion
 
-After creating an evidence JSON file, validate and review it locally before using it as engineering input:
+After creating an evidence JSON file, retain the `Evidence SHA-256: ...` value printed by the export independently from the JSON. Then validate transfer integrity and review the file using that independently retained value:
 
 ```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe evidence inspect .\phase0-evidence.json
+.\bin\cliharbor-windows-x64-evaluation.exe evidence inspect --sha256 <64-hex-digest-from-export> .\phase0-evidence.json
 ```
 
 Inspection is read-only and does not load a pack, discover or launch a vendor executable, open a browser, or convert evidence text into command definitions. It prints the artifact/host identity, tool and probe states, bounded quoted output previews, actionable evidence gaps, and explicit PROVES / UNKNOWN / BLOCKED sections.
 
-Inspection validates the evidence contract; it does not authenticate the file or attest that the claimed build/host produced it. Keep the artifact in an approved trusted transfer/storage path and retain the CI artifact/build identity alongside it.
+A successful SHA-256 check proves only that the reviewed bytes match the independently supplied digest. Inspection validates the evidence contract; neither mechanism authenticates who produced the file or attests that the claimed build/host produced it. Keep the artifact in an approved trusted transfer/storage path and retain the CI artifact/build identity alongside it.
+
+To calculate the digest of the currently received file for troubleshooting:
+
+```powershell
+.\bin\cliharbor-windows-x64-evaluation.exe evidence checksum .\phase0-evidence.json
+```
+
+Do not treat that calculation alone as an independent transfer check; compare against the value retained separately at export time.
 
 Treat the generated timestamp as a point-in-time claim. If the installed CLI or managed laptop changed after capture, collect new evidence rather than treating an older artifact as current. Promotion of a real vendor workflow remains a human-reviewed repository change.
