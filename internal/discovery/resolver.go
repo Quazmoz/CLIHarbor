@@ -130,6 +130,11 @@ func (r *Resolver) resolveTool(ctx context.Context, state ToolState, tool packs.
 		state.Message = err.Error()
 		return state, nil
 	}
+	if !state.ExecutableIdentity.Matches(state.Path) {
+		state.Status = StatusIdentityFailed
+		state.Message = "resolved executable changed during version probe"
+		return state, nil
+	}
 	version, err := parseVersion(tool.VersionProbe.Parser, output)
 	if err != nil {
 		state.Status = StatusProbeFailed
