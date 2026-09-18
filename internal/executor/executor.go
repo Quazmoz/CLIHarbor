@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
@@ -78,6 +79,7 @@ type Executor struct {
 	maxOutputBytesPerStream int64
 	now                     func() time.Time
 	newRunID                func() (string, error)
+	newProcessController    processControllerFactory
 }
 
 type Result struct {
@@ -131,6 +133,7 @@ func New(config Config) *Executor {
 		maxOutputBytesPerStream: config.MaxOutputBytesPerStream,
 		now:                     config.Now,
 		newRunID:                config.NewRunID,
+		newProcessController:    newProcessController,
 	}
 }
 
@@ -152,6 +155,16 @@ func (e *Executor) Run(ctx context.Context, plan planner.Plan, sink Sink) (Resul
 	if err != nil || runID == "" {
 		return Result{}, &Error{Code: ErrInvalidPlan, Message: "generate run identifier"}
 	}
+	if err := ctx.Err(); err != nil {
+		now := e.now().UTC()
+		return Result{
+			RunID:     runID,
+			Status:    statusForContextError(err),
+			StartedAt: now,
+			EndedAt:   now,
+			ExitCode:  -1,
+		}, nil
+	}
 
 	runCtx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
@@ -162,40 +175,86 @@ func (e *Executor) Run(ctx context.Context, plan planner.Plan, sink Sink) (Resul
 	}
 	defer func() { _ = os.RemoveAll(workdir) }()
 
-	state := &streamState{sink: sink, cancel: cancel, now: e.now, runID: runID}
+	controllerFactory := e.newProcessController
+	if controllerFactory == nil {
+		controllerFactory = newProcessController
+	}
+	controller, err := controllerFactory()
+	if err != nil {
+		return Result{RunID: runID, Status: StatusFailed, ExitCode: -1}, &Error{Code: ErrStart, Message: "create process lifecycle boundary"}
+	}
+	defer func() { _ = controller.close() }()
+
 	startedGate := make(chan struct{})
 	cmd := exec.CommandContext(runCtx, plan.ExecutablePath, plan.Args...)
 	cmd.Dir = workdir
 	cmd.WaitDelay = e.waitDelay
+
+	var cancellationApplied atomic.Bool
+	cmd.Cancel = func() error {
+		err := controller.cancel(cmd)
+		if err == nil {
+			cancellationApplied.Store(true)
+		}
+		return err
+	}
+	cancelExecution := func() {
+		cancel()
+		if err := controller.cancel(cmd); err == nil {
+			cancellationApplied.Store(true)
+		}
+	}
+	state := &streamState{sink: sink, cancel: cancelExecution, now: e.now, runID: runID}
 	cmd.Stdout = &eventWriter{state: state, eventType: EventStdout, started: startedGate, chunkBytes: e.chunkBytes, maxBytes: e.maxOutputBytesPerStream}
 	cmd.Stderr = &eventWriter{state: state, eventType: EventStderr, started: startedGate, chunkBytes: e.chunkBytes, maxBytes: e.maxOutputBytesPerStream}
 
+	if err := controller.configure(cmd); err != nil {
+		now := e.now().UTC()
+		return Result{RunID: runID, Status: StatusFailed, StartedAt: now, EndedAt: now, ExitCode: -1}, &Error{Code: ErrStart, Message: "configure process lifecycle boundary"}
+	}
 	if err := cmd.Start(); err != nil {
 		now := e.now().UTC()
 		return Result{RunID: runID, Status: StatusFailed, StartedAt: now, EndedAt: now, ExitCode: -1}, &Error{Code: ErrStart, Message: "start planned executable"}
 	}
+	if err := controller.afterStart(cmd); err != nil {
+		close(startedGate)
+		_ = controller.cancel(cmd)
+		_ = cmd.Wait()
+		now := e.now().UTC()
+		if ctxErr := runCtx.Err(); ctxErr != nil {
+			return Result{RunID: runID, Status: statusForContextError(ctxErr), StartedAt: now, EndedAt: now, ExitCode: -1}, nil
+		}
+		return Result{RunID: runID, Status: StatusFailed, StartedAt: now, EndedAt: now, ExitCode: -1}, &Error{Code: ErrStart, Message: "attach planned executable to lifecycle boundary"}
+	}
+
 	started := e.now().UTC()
 	if err := state.emit(Event{RunID: runID, Type: EventStarted, Timestamp: started}); err != nil {
-		cancel()
 		close(startedGate)
+		_ = controller.cancel(cmd)
 		_ = cmd.Wait()
 		return Result{RunID: runID, Status: StatusFailed, StartedAt: started, EndedAt: e.now().UTC(), ExitCode: -1}, err
 	}
 	close(startedGate)
 
 	waitErr := cmd.Wait()
+	closeErr := controller.close()
 	ended := e.now().UTC()
 
 	if streamErr := state.err(); streamErr != nil {
 		return Result{RunID: runID, Status: StatusFailed, StartedAt: started, EndedAt: ended, ExitCode: -1}, streamErr
 	}
-	if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
-		_ = state.emit(Event{RunID: runID, Type: EventTimedOut, Timestamp: ended})
-		return Result{RunID: runID, Status: StatusTimedOut, StartedAt: started, EndedAt: ended, ExitCode: -1}, nil
+	if closeErr != nil {
+		return Result{RunID: runID, Status: StatusFailed, StartedAt: started, EndedAt: ended, ExitCode: -1}, &Error{Code: ErrWait, Message: "close process lifecycle boundary"}
 	}
-	if errors.Is(runCtx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
-		_ = state.emit(Event{RunID: runID, Type: EventCancelled, Timestamp: ended})
-		return Result{RunID: runID, Status: StatusCancelled, StartedAt: started, EndedAt: ended, ExitCode: -1}, nil
+	if cancellationApplied.Load() {
+		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+			_ = state.emit(Event{RunID: runID, Type: EventTimedOut, Timestamp: ended})
+			return Result{RunID: runID, Status: StatusTimedOut, StartedAt: started, EndedAt: ended, ExitCode: -1}, nil
+		}
+		if errors.Is(runCtx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			_ = state.emit(Event{RunID: runID, Type: EventCancelled, Timestamp: ended})
+			return Result{RunID: runID, Status: StatusCancelled, StartedAt: started, EndedAt: ended, ExitCode: -1}, nil
+		}
 	}
 
 	exitCode := 0
@@ -212,6 +271,13 @@ func (e *Executor) Run(ctx context.Context, plan planner.Plan, sink Sink) (Resul
 		return Result{RunID: runID, Status: StatusFailed, StartedAt: started, EndedAt: ended, ExitCode: exitCode}, err
 	}
 	return Result{RunID: runID, Status: StatusExited, StartedAt: started, EndedAt: ended, ExitCode: exitCode}, nil
+}
+
+func statusForContextError(err error) Status {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return StatusTimedOut
+	}
+	return StatusCancelled
 }
 
 type eventWriter struct {
