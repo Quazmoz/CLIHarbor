@@ -35,6 +35,16 @@ func (t *Tool) UnmarshalJSON(data []byte) error {
 			}
 		}
 	}
+	for id, probe := range decoded.HelpProbes {
+		if id == "version" {
+			return fmt.Errorf("helpProbe id %q is reserved", id)
+		}
+		for _, arg := range probe.Args {
+			if strings.ContainsRune(arg, '\x00') {
+				return fmt.Errorf("helpProbe %q args cannot contain NUL", id)
+			}
+		}
+	}
 
 	*t = Tool(decoded)
 	return nil
