@@ -358,7 +358,7 @@ Do not require GNU-specific tooling for Windows contributors.
 
 ## 15. CI target/current state
 
-Current CI covers frontend install/typecheck/lint/tests/build, generated frontend asset drift, Go module verification, formatting/vet/tests, Windows/Linux executable builds, Linux race testing, dependency vulnerability scanning, the production embedded-server Chrome/Chromium E2E gate on Linux, and Windows evaluation-artifact qualification. All jobs resolve the exact Go patch release from `.go-version`; the Windows evaluation job additionally proves two isolated same-checkout rebuilds produce the same authoritative manifest before it creates the upload candidate.
+Current CI covers frontend install/typecheck/lint/tests/build, generated frontend asset drift, Go module verification, formatting/vet/tests, Windows/Linux executable builds, Linux race testing, dependency vulnerability scanning, the production embedded-server Chrome/Chromium E2E gate on Linux, and Windows evaluation-artifact qualification. All jobs resolve the exact Go patch release from `.go-version`; the Windows evaluation job additionally requires the produced upload candidate and two isolated same-checkout rebuilds to share the same authoritative manifest before upload.
 
 Discovery and fixture integration tests remain ordinary Go tests in the Windows/Linux quality gates. The browser E2E is an explicit Linux CI step because it requires a real installed browser; managed-Windows browser/PATH/antivirus behavior remains a separate manual acceptance boundary.
 
