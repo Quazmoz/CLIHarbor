@@ -1,8 +1,11 @@
 package server
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -12,6 +15,28 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/structured"
 )
+
+type constrainedWriteListener struct {
+	net.Listener
+	bytes int
+}
+
+func (l *constrainedWriteListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	tcp, ok := conn.(*net.TCPConn)
+	if !ok {
+		_ = conn.Close()
+		return nil, fmt.Errorf("accepted connection type %T, want *net.TCPConn", conn)
+	}
+	if err := tcp.SetWriteBuffer(l.bytes); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("set TCP write buffer: %w", err)
+	}
+	return conn, nil
+}
 
 type streamRunService struct {
 	mu          sync.Mutex
@@ -361,5 +386,105 @@ func TestRunEventStreamRequiresAuthenticatedSession(t *testing.T) {
 	response.Body.Close()
 	if response.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+func TestRunEventStreamSlowReaderHitsPerWriteDeadline(t *testing.T) {
+	service := &streamRunService{snapshot: runs.Snapshot{
+		RunID:  strings.Repeat("9", 32),
+		Status: runs.StatusRunning,
+		Events: []runs.Event{{
+			Sequence:   1,
+			Type:       "stdout.chunk",
+			Timestamp:  time.Now().UTC(),
+			DataBase64: strings.Repeat("A", 16<<20),
+		}},
+	}}
+	frontend := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	s, err := New(Config{Frontend: frontend, Runs: service, MaxEventStreams: 1, ShutdownTimeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.listener = &constrainedWriteListener{Listener: s.listener, bytes: 1024}
+
+	serverCtx, stopServer := context.WithCancel(context.Background())
+	serverDone := make(chan error, 1)
+	go func() { serverDone <- s.Run(serverCtx) }()
+	t.Cleanup(func() {
+		stopServer()
+		select {
+		case runErr := <-serverDone:
+			if runErr != nil {
+				t.Errorf("server shutdown: %v", runErr)
+			}
+		case <-time.After(2 * time.Second):
+			t.Error("server did not stop after slow-reader test")
+		}
+	})
+
+	conn, err := net.Dial("tcp4", s.listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	host := strings.TrimPrefix(s.BaseURL(), "http://")
+	if _, err := fmt.Fprintf(conn,
+		"GET /api/v1/runs/%s/events HTTP/1.1\r\nHost: %s\r\nCookie: %s=%s\r\nConnection: close\r\n\r\n",
+		service.snapshot.RunID, host, sessionCookieName, s.sessionToken); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	reader := bufio.NewReader(conn)
+	statusLine, err := reader.ReadString('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(statusLine, " 200 ") {
+		t.Fatalf("stream status line = %q, want HTTP 200", statusLine)
+	}
+	for {
+		line, readErr := reader.ReadString('\n')
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if line == "\r\n" {
+			break
+		}
+	}
+	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+
+	acquiredDeadline := time.Now().Add(time.Second)
+	for len(s.runStreamSlots) != 1 && time.Now().Before(acquiredDeadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(s.runStreamSlots) != 1 {
+		t.Fatal("slow SSE reader never held the bounded observer slot")
+	}
+
+	started := time.Now()
+	releaseDeadline := started.Add(sseWriteTimeout + 2*time.Second)
+	for len(s.runStreamSlots) != 0 && time.Now().Before(releaseDeadline) {
+		time.Sleep(25 * time.Millisecond)
+	}
+	elapsed := time.Since(started)
+	if len(s.runStreamSlots) != 0 {
+		t.Fatalf("slow SSE reader still held observer slot after %v", elapsed)
+	}
+	if elapsed < sseWriteTimeout-time.Second {
+		t.Fatalf("slow SSE reader released after %v, before the %v per-write deadline could govern the blocked write", elapsed, sseWriteTimeout)
+	}
+
+	service.mu.Lock()
+	cancelCalls := service.cancelCalls
+	service.mu.Unlock()
+	if cancelCalls != 0 {
+		t.Fatalf("slow SSE reader triggered %d run cancellations", cancelCalls)
 	}
 }

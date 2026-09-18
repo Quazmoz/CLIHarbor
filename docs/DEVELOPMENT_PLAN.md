@@ -221,7 +221,7 @@ Implemented:
 - output rendered as inert React text, never raw HTML;
 - regression coverage for manager replay, cursor rejection, stream authentication/disconnect, safe task filtering, sanitized tool diagnostics, typed browser requests, bounded reconnect/reconciliation, and markup-like output rendering.
 
-Production embedded-server real-browser E2E is now implemented in CI. It covers bootstrap/session, Host/Origin/CSRF behavior, authenticated task loading, fixture execution, live SSE, forced reconnect/`Last-Event-ID`, bounded retry exhaustion and reconciliation, explicit retry/cancellation, retained-run eviction, single-execution semantics, and inert hostile output. Low-level socket slow-reader/write-deadline behavior remains covered at the server boundary rather than being inferred from JavaScript consumption.
+Production embedded-server real-browser E2E is implemented in CI. It covers bootstrap/session, Host/Origin/CSRF behavior, authenticated task loading, fixture execution, live SSE, browser-native reconnect/`Last-Event-ID`, bounded stream-failure handling and reconciliation, explicit retry/cancellation, retained-run eviction, single-execution semantics, and inert hostile output. Low-level slow-reader behavior is qualified separately with a raw-TCP regression that stops consuming after SSE headers and proves the five-second per-write deadline releases the observer slot without cancelling execution.
 
 Do not expose auth-required, secret-bearing, mutating, destructive, interactive, or credential-sensitive commands in Phase 4c.
 
