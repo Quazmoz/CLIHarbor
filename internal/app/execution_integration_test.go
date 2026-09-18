@@ -18,6 +18,7 @@ import (
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/executor"
+	"github.com/Quazmoz/CLIHarbor/internal/packs"
 	"github.com/Quazmoz/CLIHarbor/internal/planner"
 )
 
@@ -316,12 +317,24 @@ commands:
 		t.Fatalf("prepareRuntime() error = %v", err)
 	}
 
+	loaded, ok := state.Registry.FindPack("integration")
+	if !ok || loaded.Source.Kind != packs.SourceExplicitLocal {
+		t.Fatalf("fixture pack source = %#v, want explicit-local", loaded.Source)
+	}
+
 	tool, ok := state.Discovery.Find(ref)
 	if !ok {
 		t.Fatal("fixture discovery state missing")
 	}
-	if tool.Status != discovery.StatusReady || tool.Path != executable || tool.Version != "1.2.3" || !tool.ExecutableIdentity.Valid() {
+	if tool.Status != discovery.StatusReady || tool.Path == "" || tool.Version != "1.2.3" || !tool.ExecutableIdentity.Valid() {
 		t.Fatalf("fixture discovery state = %#v", tool)
+	}
+	if runtime.GOOS == "windows" {
+		if !strings.EqualFold(tool.Path, executable) {
+			t.Fatalf("fixture path = %q, override = %q", tool.Path, executable)
+		}
+	} else if tool.Path != executable {
+		t.Fatalf("fixture path = %q, override = %q", tool.Path, executable)
 	}
 	return state
 }
