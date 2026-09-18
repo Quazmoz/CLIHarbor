@@ -111,6 +111,7 @@ Implemented HTTP surface now includes:
 GET  /bootstrap?token=<one-time-secret>
 GET  /api/v1/status
 GET  /api/v1/tasks
+GET  /api/v1/tools
 POST /api/v1/runs
 GET  /api/v1/runs/{runId}
 GET  /api/v1/runs/{runId}/events
@@ -119,20 +120,19 @@ GET  /
 GET  /assets/*
 ```
 
-`/bootstrap` and `/api/*` are server-owned and never fall through to frontend routing. Authenticated status returns the per-session CSRF token used by same-origin browser mutations. Task metadata exposes only currently runnable read-only/non-auth/non-secret commands and typed input constraints, never executable paths, argv, environment, or pack source paths. Run creation accepts only `packId`, `commandId`, and typed `values`; unknown/duplicate authority fields fail closed. Run-event streaming is read-only and authenticated; `Last-Event-ID` is the only replay cursor.
+`/bootstrap` and `/api/*` are server-owned and never fall through to frontend routing. Authenticated status returns the per-session CSRF token used by same-origin browser mutations. Task metadata exposes only currently runnable read-only/non-auth/non-secret commands and typed input constraints. Tool diagnostics expose only pack/tool IDs, pack name/version, readiness status, detected version/constraint, and sanitized remediation text. Neither surface exposes executable paths/names, candidate lists, file identity, argv, environment, or pack source paths. Run creation accepts only `packId`, `commandId`, and typed `values`; unknown/duplicate authority fields fail closed. Run-event streaming is read-only and authenticated; `Last-Event-ID` is the only replay cursor.
 
 Planned surface still includes:
 
 ```text
 GET  /api/v1/packs
-GET  /api/v1/tools
 GET  /api/v1/tasks/{taskId}
 POST /api/v1/auth/{tool}/login
 POST /api/v1/auth/{tool}/logout
 GET  /api/v1/auth/{tool}/status
 ```
 
-Phase 3 intentionally exposes tool evidence through `doctor`, not new browser endpoints. The browser still cannot choose executable names/paths, flags, or command strings.
+`cliharbor doctor` remains the operator surface for exact resolved filesystem evidence. The browser receives only sanitized tool status/remediation and still cannot choose or observe executable paths, candidate paths, flags, or command strings.
 
 ## 7. Pack authority
 
