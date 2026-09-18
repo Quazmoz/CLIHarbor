@@ -57,14 +57,22 @@ type Runtime struct {
 }
 
 type Tool struct {
-	ExecutableNames   []string      `json:"executableNames"`
-	VersionProbe      *VersionProbe `json:"versionProbe,omitempty"`
-	VersionConstraint string        `json:"versionConstraint,omitempty"`
+	ExecutableNames   []string             `json:"executableNames"`
+	VersionProbe      *VersionProbe        `json:"versionProbe,omitempty"`
+	HelpProbes        map[string]HelpProbe `json:"helpProbes,omitempty"`
+	VersionConstraint string               `json:"versionConstraint,omitempty"`
 }
 
 type VersionProbe struct {
 	Args          []string `json:"args,omitempty"`
 	Parser        string   `json:"parser"`
+	TimeoutMillis int      `json:"timeoutMillis,omitempty"`
+}
+
+// HelpProbe is an operator-invoked, fixed, read-only evidence probe. The
+// executable still comes exclusively from trusted discovery state.
+type HelpProbe struct {
+	Args          []string `json:"args"`
 	TimeoutMillis int      `json:"timeoutMillis,omitempty"`
 }
 
