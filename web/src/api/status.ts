@@ -1,15 +1,10 @@
+import { clientError, errorFromResponse } from './errors';
+
 export interface RuntimeStatus {
   name: string;
   version: string;
   session: 'active';
   csrfToken: string;
-}
-
-export class SessionUnavailableError extends Error {
-  constructor() {
-    super('The local browser session is not active. Relaunch CLIHarbor to establish a new secure session.');
-    this.name = 'SessionUnavailableError';
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -18,18 +13,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseRuntimeStatus(value: unknown): RuntimeStatus {
   if (!isRecord(value)) {
-    throw new Error('CLIHarbor returned an invalid status response.');
+    throw clientError('invalid_response');
   }
 
   const { name, version, session, csrfToken } = value;
   if (typeof name !== 'string' || name.length === 0 || typeof version !== 'string' || version.length === 0) {
-    throw new Error('CLIHarbor returned an invalid status response.');
+    throw clientError('invalid_response');
   }
   if (session !== 'active') {
-    throw new Error('CLIHarbor returned an unknown browser-session state.');
+    throw clientError('invalid_response');
   }
   if (typeof csrfToken !== 'string' || csrfToken.length === 0) {
-    throw new Error('CLIHarbor returned an invalid session mutation token.');
+    throw clientError('invalid_response');
   }
 
   return { name, version, session, csrfToken };
@@ -43,11 +38,8 @@ export async function fetchRuntimeStatus(signal?: AbortSignal): Promise<RuntimeS
     signal,
   });
 
-  if (response.status === 401) {
-    throw new SessionUnavailableError();
-  }
   if (!response.ok) {
-    throw new Error(`CLIHarbor status request failed with HTTP ${response.status}.`);
+    throw await errorFromResponse(response);
   }
 
   return parseRuntimeStatus(await response.json());

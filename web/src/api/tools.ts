@@ -1,3 +1,5 @@
+import { clientError, errorFromResponse } from './errors';
+
 export type ToolStatus =
   | 'ready'
   | 'missing'
@@ -38,7 +40,7 @@ function isToolStatus(value: unknown): value is ToolStatus {
 
 function parseTool(value: unknown): ToolDiagnostic {
   if (!isRecord(value)) {
-    throw new Error('CLIHarbor returned invalid tool diagnostics.');
+    throw clientError('invalid_response');
   }
   const { packId, packName, packVersion, toolId, status, version, versionConstraint, message } = value;
   if (
@@ -51,7 +53,7 @@ function parseTool(value: unknown): ToolDiagnostic {
     (versionConstraint !== undefined && typeof versionConstraint !== 'string') ||
     (message !== undefined && typeof message !== 'string')
   ) {
-    throw new Error('CLIHarbor returned invalid tool diagnostics.');
+    throw clientError('invalid_response');
   }
   return { packId, packName, packVersion, toolId, status, version, versionConstraint, message };
 }
@@ -64,11 +66,11 @@ export async function fetchTools(signal?: AbortSignal): Promise<ToolDiagnostic[]
     signal,
   });
   if (!response.ok) {
-    throw new Error(`CLIHarbor tool diagnostics request failed with HTTP ${response.status}.`);
+    throw await errorFromResponse(response);
   }
   const payload: unknown = await response.json();
   if (!isRecord(payload) || !Array.isArray(payload.tools)) {
-    throw new Error('CLIHarbor returned invalid tool diagnostics.');
+    throw clientError('invalid_response');
   }
   return payload.tools.map(parseTool);
 }

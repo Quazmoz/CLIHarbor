@@ -417,3 +417,62 @@ footer {
     scroll-behavior: auto !important;
   }
 }
+
+
+.field-group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field-error {
+  margin: 0;
+  color: #e7b0b0 !important;
+  font-size: 0.88rem;
+  line-height: 1.5 !important;
+}
+
+.failure-notice {
+  margin-top: 0.9rem;
+  border: 1px solid #765252;
+  border-radius: 0.65rem;
+  padding: 0.85rem;
+  background: #211719;
+}
+
+.failure-notice strong {
+  color: #f0d7d7;
+}
+
+.failure-notice p {
+  margin: 0.35rem 0 0;
+}
+
+.failure-notice .remediation {
+  color: #c9d6d9;
+}
+
+.error-code {
+  color: #91a4aa !important;
+  font-size: 0.82rem;
+}
+
+.error-code code,
+.parser-warning code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.run-state p,
+.stream-state {
+  margin: 0.35rem 0 0;
+}
+
+.stream-state {
+  color: #b7c9ce !important;
+}
+
+.error-panel:focus,
+.failure-notice:focus,
+.output-grid pre:focus-visible {
+  outline: 3px solid #9ad5e1;
+  outline-offset: 3px;
+}

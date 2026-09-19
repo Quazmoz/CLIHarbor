@@ -1,3 +1,11 @@
+import {
+  clientError,
+  errorFromResponse,
+  parseServerErrorDetail,
+  type AppError,
+  type AppErrorDetail,
+} from './errors';
+
 export type RunStatus = 'running' | 'exited' | 'cancelled' | 'timed-out' | 'failed';
 
 export interface RunEvent {
@@ -15,10 +23,30 @@ export interface RunComplete {
   status: RunStatus;
   exitCode?: number;
   structured?: StructuredResult;
+  failure?: AppErrorDetail;
 }
 
 export type StructuredStatus = 'available' | 'invalid' | 'unavailable';
 export type StructuredFieldType = 'string' | 'integer' | 'boolean';
+export type StructuredErrorCode =
+  | 'invalid_encoding'
+  | 'output_too_large'
+  | 'malformed_json'
+  | 'unexpected_schema'
+  | 'duplicate_key'
+  | 'unexpected_field'
+  | 'missing_field'
+  | 'wrong_type'
+  | 'invalid_integer'
+  | 'string_too_large'
+  | 'unsafe_control'
+  | 'parser_cancelled'
+  | 'nonzero_exit'
+  | 'run_cancelled'
+  | 'run_timed_out'
+  | 'execution_failed'
+  | 'sensitive_output'
+  | 'unknown';
 
 export interface StructuredField {
   key: string;
@@ -31,7 +59,7 @@ export interface StructuredField {
 export interface StructuredResult {
   status: StructuredStatus;
   renderer: 'cards';
-  error?: string;
+  error?: StructuredErrorCode;
   fields?: StructuredField[];
 }
 
@@ -46,6 +74,7 @@ export interface RunSnapshot {
   endedAt?: string;
   exitCode?: number;
   structured?: StructuredResult;
+  failure?: AppErrorDetail;
   events?: Array<Omit<RunEvent, 'runId'>>;
 }
 
@@ -55,39 +84,72 @@ export interface CreateRunRequest {
   values: Record<string, unknown>;
 }
 
+const structuredErrorCodes = new Set<StructuredErrorCode>([
+  'invalid_encoding',
+  'output_too_large',
+  'malformed_json',
+  'unexpected_schema',
+  'duplicate_key',
+  'unexpected_field',
+  'missing_field',
+  'wrong_type',
+  'invalid_integer',
+  'string_too_large',
+  'unsafe_control',
+  'parser_cancelled',
+  'nonzero_exit',
+  'run_cancelled',
+  'run_timed_out',
+  'execution_failed',
+  'sensitive_output',
+]);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function invalidResponse(): never {
+  throw clientError('invalid_response');
 }
 
 function isRunStatus(value: unknown): value is RunStatus {
   return value === 'running' || value === 'exited' || value === 'cancelled' || value === 'timed-out' || value === 'failed';
 }
 
+function parseStructuredError(value: unknown): StructuredErrorCode | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'string') {
+    invalidResponse();
+  }
+  return structuredErrorCodes.has(value as StructuredErrorCode) ? (value as StructuredErrorCode) : 'unknown';
+}
+
 function parseStructured(value: unknown): StructuredResult {
   if (!isRecord(value)) {
-    throw new Error('CLIHarbor returned an invalid structured result.');
+    invalidResponse();
   }
   const allowed = new Set(['status', 'renderer', 'error', 'fields']);
   if (Object.keys(value).some((key) => !allowed.has(key))) {
-    throw new Error('CLIHarbor returned an invalid structured result.');
+    invalidResponse();
   }
   const { status, renderer, error, fields } = value;
   if (
     !['available', 'invalid', 'unavailable'].includes(String(status)) ||
     renderer !== 'cards' ||
-    (error !== undefined && typeof error !== 'string') ||
     (fields !== undefined && !Array.isArray(fields))
   ) {
-    throw new Error('CLIHarbor returned an invalid structured result.');
+    invalidResponse();
   }
   const parsedFields = Array.isArray(fields)
     ? fields.map((field): StructuredField => {
         if (!isRecord(field)) {
-          throw new Error('CLIHarbor returned an invalid structured field.');
+          invalidResponse();
         }
         const fieldAllowed = new Set(['key', 'label', 'type', 'present', 'value']);
         if (Object.keys(field).some((key) => !fieldAllowed.has(key))) {
-          throw new Error('CLIHarbor returned an invalid structured field.');
+          invalidResponse();
         }
         const { key, label, type, present, value: fieldValue } = field;
         if (
@@ -97,22 +159,64 @@ function parseStructured(value: unknown): StructuredResult {
           typeof present !== 'boolean' ||
           typeof fieldValue !== 'string'
         ) {
-          throw new Error('CLIHarbor returned an invalid structured field.');
+          invalidResponse();
         }
         return { key, label, type: type as StructuredFieldType, present, value: fieldValue };
       })
     : undefined;
   if (status === 'available' && parsedFields === undefined) {
-    throw new Error('CLIHarbor returned an invalid structured result.');
+    invalidResponse();
   }
-  return { status: status as StructuredStatus, renderer: 'cards', error, fields: parsedFields };
+  return {
+    status: status as StructuredStatus,
+    renderer: 'cards',
+    error: parseStructuredError(error),
+    fields: parsedFields,
+  };
+}
+
+function parseFailure(value: unknown): AppErrorDetail | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return parseServerErrorDetail(value) ?? clientError('invalid_response').detail;
 }
 
 function parseSnapshot(value: unknown): RunSnapshot {
   if (!isRecord(value)) {
-    throw new Error('CLIHarbor returned an invalid run response.');
+    invalidResponse();
   }
-  const { runId, packId, commandId, toolId, toolVersion, status, startedAt, endedAt, exitCode, structured, events } = value;
+  const allowed = new Set([
+    'runId',
+    'packId',
+    'commandId',
+    'toolId',
+    'toolVersion',
+    'status',
+    'startedAt',
+    'endedAt',
+    'exitCode',
+    'structured',
+    'failure',
+    'events',
+  ]);
+  if (Object.keys(value).some((key) => !allowed.has(key))) {
+    invalidResponse();
+  }
+  const {
+    runId,
+    packId,
+    commandId,
+    toolId,
+    toolVersion,
+    status,
+    startedAt,
+    endedAt,
+    exitCode,
+    structured,
+    failure,
+    events,
+  } = value;
   if (
     typeof runId !== 'string' ||
     typeof packId !== 'string' ||
@@ -124,9 +228,10 @@ function parseSnapshot(value: unknown): RunSnapshot {
     (endedAt !== undefined && typeof endedAt !== 'string') ||
     (exitCode !== undefined && typeof exitCode !== 'number') ||
     (structured !== undefined && !isRecord(structured)) ||
+    (failure !== undefined && !isRecord(failure)) ||
     (events !== undefined && !Array.isArray(events))
   ) {
-    throw new Error('CLIHarbor returned an invalid run response.');
+    invalidResponse();
   }
   return {
     runId,
@@ -139,8 +244,12 @@ function parseSnapshot(value: unknown): RunSnapshot {
     endedAt,
     exitCode,
     structured: structured === undefined ? undefined : parseStructured(structured),
+    failure: parseFailure(failure),
     events: Array.isArray(events)
       ? events.map((event) => {
+          if (!isRecord(event)) {
+            invalidResponse();
+          }
           const parsed = parseEvent({ ...event, runId });
           return {
             sequence: parsed.sequence,
@@ -156,7 +265,11 @@ function parseSnapshot(value: unknown): RunSnapshot {
 
 function parseEvent(value: unknown): RunEvent {
   if (!isRecord(value)) {
-    throw new Error('CLIHarbor returned an invalid run event.');
+    invalidResponse();
+  }
+  const allowed = new Set(['runId', 'sequence', 'type', 'timestamp', 'dataBase64', 'exitCode']);
+  if (Object.keys(value).some((key) => !allowed.has(key))) {
+    invalidResponse();
   }
   const { runId, sequence, type, timestamp, dataBase64, exitCode } = value;
   if (
@@ -169,20 +282,23 @@ function parseEvent(value: unknown): RunEvent {
     (dataBase64 !== undefined && typeof dataBase64 !== 'string') ||
     (exitCode !== undefined && typeof exitCode !== 'number')
   ) {
-    throw new Error('CLIHarbor returned an invalid run event.');
+    invalidResponse();
+  }
+  if (dataBase64 !== undefined) {
+    decodeBase64Text(dataBase64);
   }
   return { runId, sequence, type, timestamp, dataBase64, exitCode };
 }
 
 function parseComplete(value: unknown): RunComplete {
   if (!isRecord(value)) {
-    throw new Error('CLIHarbor returned an invalid run completion event.');
+    invalidResponse();
   }
-  const allowed = new Set(['runId', 'sequence', 'status', 'exitCode', 'structured']);
+  const allowed = new Set(['runId', 'sequence', 'status', 'exitCode', 'structured', 'failure']);
   if (Object.keys(value).some((key) => !allowed.has(key))) {
-    throw new Error('CLIHarbor returned an invalid run completion event.');
+    invalidResponse();
   }
-  const { runId, sequence, status, exitCode, structured } = value;
+  const { runId, sequence, status, exitCode, structured, failure } = value;
   if (
     typeof runId !== 'string' ||
     typeof sequence !== 'number' ||
@@ -190,9 +306,10 @@ function parseComplete(value: unknown): RunComplete {
     sequence < 0 ||
     !isRunStatus(status) ||
     (exitCode !== undefined && typeof exitCode !== 'number') ||
-    (structured !== undefined && !isRecord(structured))
+    (structured !== undefined && !isRecord(structured)) ||
+    (failure !== undefined && !isRecord(failure))
   ) {
-    throw new Error('CLIHarbor returned an invalid run completion event.');
+    invalidResponse();
   }
   return {
     runId,
@@ -200,10 +317,11 @@ function parseComplete(value: unknown): RunComplete {
     status,
     exitCode,
     structured: structured === undefined ? undefined : parseStructured(structured),
+    failure: parseFailure(failure),
   };
 }
 
-async function mutation<T>(path: string, csrfToken: string, body?: unknown): Promise<T> {
+async function mutation(path: string, csrfToken: string, body?: unknown): Promise<unknown> {
   const response = await fetch(path, {
     method: 'POST',
     credentials: 'same-origin',
@@ -215,17 +333,17 @@ async function mutation<T>(path: string, csrfToken: string, body?: unknown): Pro
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(`CLIHarbor run request failed with HTTP ${response.status}.`);
+    throw await errorFromResponse(response);
   }
-  return (await response.json()) as T;
+  return response.json();
 }
 
 export async function createRun(csrfToken: string, request: CreateRunRequest): Promise<RunSnapshot> {
-  return parseSnapshot(await mutation<unknown>('/api/v1/runs', csrfToken, request));
+  return parseSnapshot(await mutation('/api/v1/runs', csrfToken, request));
 }
 
 export async function cancelRun(csrfToken: string, runId: string): Promise<RunSnapshot> {
-  return parseSnapshot(await mutation<unknown>(`/api/v1/runs/${encodeURIComponent(runId)}/cancel`, csrfToken));
+  return parseSnapshot(await mutation(`/api/v1/runs/${encodeURIComponent(runId)}/cancel`, csrfToken));
 }
 
 export async function fetchRun(runId: string): Promise<RunSnapshot> {
@@ -235,7 +353,7 @@ export async function fetchRun(runId: string): Promise<RunSnapshot> {
     headers: { Accept: 'application/json' },
   });
   if (!response.ok) {
-    throw new Error(`CLIHarbor run status request failed with HTTP ${response.status}.`);
+    throw await errorFromResponse(response);
   }
   return parseSnapshot(await response.json());
 }
@@ -246,26 +364,31 @@ export function subscribeRunEvents(
   runId: string,
   onEvent: (event: RunEvent) => void,
   onComplete: (complete: RunComplete) => void,
-  onError: (error: Error) => void,
+  onError: (error: AppError) => void,
+  onOpen?: () => void,
 ): () => void {
   const source = new EventSource(`/api/v1/runs/${encodeURIComponent(runId)}/events`);
   let failures = 0;
   let closed = false;
 
+  const failClosed = (error: unknown) => {
+    closed = true;
+    source.close();
+    onError(error instanceof Error && error.name === 'AppError' ? (error as AppError) : clientError('invalid_response'));
+  };
+
   const handleEvent = (raw: Event) => {
     try {
       onEvent(parseEvent(JSON.parse((raw as MessageEvent<string>).data)));
     } catch (error) {
-      closed = true;
-      source.close();
-      onError(error instanceof Error ? error : new Error('CLIHarbor returned an invalid run event.'));
+      failClosed(error);
     }
   };
   const handleComplete = (raw: Event) => {
     try {
       onComplete(parseComplete(JSON.parse((raw as MessageEvent<string>).data)));
     } catch (error) {
-      onError(error instanceof Error ? error : new Error('CLIHarbor returned an invalid run completion event.'));
+      onError(error instanceof Error && error.name === 'AppError' ? (error as AppError) : clientError('invalid_response'));
     } finally {
       closed = true;
       source.close();
@@ -276,6 +399,7 @@ export function subscribeRunEvents(
   source.addEventListener('run-complete', handleComplete);
   source.onopen = () => {
     failures = 0;
+    onOpen?.();
   };
   source.onerror = () => {
     if (closed) {
@@ -287,7 +411,7 @@ export function subscribeRunEvents(
     }
     closed = true;
     source.close();
-    onError(new Error('Live run stream stopped after repeated disconnects; run status was refreshed.'));
+    onError(clientError('stream_disconnected'));
   };
 
   return () => {

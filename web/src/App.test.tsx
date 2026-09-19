@@ -94,7 +94,20 @@ describe('App', () => {
   });
 
   test('shows a recoverable session-expired state for unauthenticated requests', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(401, { error: 'unauthorized' })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response(401, {
+          error: {
+            code: 'session_unavailable',
+            category: 'security',
+            message: 'The local browser session is not active.',
+            remediation: 'Relaunch CLIHarbor to establish a new secure session.',
+            retryable: false,
+          },
+        }),
+      ),
+    );
 
     render(<App />);
 
@@ -110,7 +123,17 @@ describe('App', () => {
       if (path === '/api/v1/status') {
         statusCalls += 1;
         if (statusCalls === 1) {
-          return Promise.resolve(response(503, { error: 'unavailable' }));
+          return Promise.resolve(
+          response(503, {
+            error: {
+              code: 'stream_unavailable',
+              category: 'stream',
+              message: 'Live run updates are temporarily unavailable.',
+              remediation: 'Refresh the run status and retry live updates if the run is still active.',
+              retryable: true,
+            },
+          }),
+        );
         }
         return Promise.resolve(
           response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf' }),
@@ -215,9 +238,9 @@ describe('App', () => {
     fireEvent.change(count, { target: { value: '9007199254740992' } });
     fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
 
-    expect(
-      await screen.findByText(/must be an integer within the browser's exact numeric range/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/one or more task inputs are invalid/i)).toBeInTheDocument();
+    await waitFor(() => expect(count).toHaveFocus());
+    expect(count).toHaveAttribute('aria-invalid', 'true');
     expect(
       fetchMock.mock.calls.some(([input, init]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs' && init?.method === 'POST'),
     ).toBe(false);
@@ -591,9 +614,252 @@ describe('App', () => {
     });
 
     expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
-    expect(screen.getByText(/structured rendering invalid: wrong_type/i)).toBeInTheDocument();
+    expect(screen.getByText(/structured rendering could not validate this output/i)).toBeInTheDocument();
+    expect(screen.getByText('wrong_type')).toBeInTheDocument();
     expect(screen.getByText('{"name":42}')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'exited' })).toBeInTheDocument();
+  });
+
+  test('associates backend input failures with the affected field and moves focus', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+        );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                inputs: [{ id: 'query', type: 'string', label: 'Query', required: true }],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        return Promise.resolve(
+          response(400, {
+            error: {
+              code: 'invalid_input',
+              category: 'validation',
+              message: 'One or more task inputs are invalid.',
+              remediation: 'Correct the highlighted field and retry.',
+              retryable: false,
+              field: 'values.query',
+            },
+          }),
+        );
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    const query = await screen.findByRole('textbox', { name: 'Query' });
+    fireEvent.change(query, { target: { value: 'bad' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+
+    expect(await screen.findByText(/correct the highlighted field and retry/i)).toBeInTheDocument();
+    await waitFor(() => expect(query).toHaveFocus());
+    expect(query).toHaveAttribute('aria-invalid', 'true');
+    expect(query).toHaveAttribute('aria-describedby', 'task-input-query-error');
+  });
+
+  test('renders hostile-looking typed error text inertly', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response(500, {
+          error: {
+            code: 'internal_error',
+            category: 'internal',
+            message: '<img src=x onerror=alert(1)>',
+            remediation: 'Use local diagnostics.',
+            retryable: false,
+          },
+        }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
+    expect(document.querySelector('img')).toBeNull();
+  });
+
+  test('falls back safely for unknown backend error codes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response(500, {
+          error: {
+            code: 'future_private_failure',
+            category: 'internal',
+            message: 'PRIVATE_INTERNAL_MARKER',
+            remediation: 'PRIVATE_REMEDIATION_MARKER',
+            retryable: false,
+          },
+        }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText(/invalid or unsupported local response/i)).toBeInTheDocument();
+    expect(screen.queryByText(/PRIVATE_INTERNAL_MARKER/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/future_private_failure/i)).not.toBeInTheDocument();
+  });
+
+  test('handles retained-run eviction after stream exhaustion without stale active controls', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const runID = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+        );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                inputs: [],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        return Promise.resolve(
+          response(202, {
+            runId: runID,
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            status: 'running',
+          }),
+        );
+      }
+      if (path === `/api/v1/runs/${runID}`) {
+        return Promise.resolve(
+          response(404, {
+            error: {
+              code: 'run_not_found',
+              category: 'lifecycle',
+              message: 'This run is no longer available in local retention.',
+              remediation: 'Start the task again if you still need the result.',
+              retryable: false,
+            },
+          }),
+        );
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Run task' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
+
+    const source = FakeEventSource.latest;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      source?.onerror?.(new Event('error'));
+    }
+
+    expect(await screen.findByRole('heading', { name: 'run no longer retained' })).toBeInTheDocument();
+    expect(screen.getByText(/no longer available in local retention/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry live stream' })).not.toBeInTheDocument();
+  });
+
+  test('announces live connection and timeout states without color-only semantics', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const runID = 'ffffffffffffffffffffffffffffffff';
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+        );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                inputs: [],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        return Promise.resolve(
+          response(202, {
+            runId: runID,
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            status: 'running',
+          }),
+        );
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Run task' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
+
+    FakeEventSource.latest?.onopen?.(new Event('open'));
+    expect(await screen.findByText('Live updates: connected.')).toBeInTheDocument();
+
+    FakeEventSource.latest?.emit('run-complete', {
+      runId: runID,
+      sequence: 1,
+      status: 'timed-out',
+    });
+
+    expect(await screen.findByRole('heading', { name: 'timed-out' })).toBeInTheDocument();
+    expect(screen.getByText(/execution time limit and was stopped/i)).toBeInTheDocument();
+    for (const output of screen.getAllByText(/No stdout yet\.|No stderr yet\./i)) {
+      expect(output.closest('pre')).toHaveAttribute('tabindex', '0');
+    }
   });
 
 });

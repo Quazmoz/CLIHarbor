@@ -1,3 +1,5 @@
+import { clientError, errorFromResponse } from './errors';
+
 export type TaskInputType = 'string' | 'integer' | 'boolean' | 'enum' | 'multiselect';
 
 export interface TaskInputValidation {
@@ -35,7 +37,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseTask(value: unknown): Task {
   if (!isRecord(value)) {
-    throw new Error('CLIHarbor returned invalid task metadata.');
+    throw clientError('invalid_response');
   }
   const { packId, packName, commandId, name, description, toolId, toolVersion, inputs } = value;
   if (
@@ -48,12 +50,12 @@ function parseTask(value: unknown): Task {
     (toolVersion !== undefined && typeof toolVersion !== 'string') ||
     !Array.isArray(inputs)
   ) {
-    throw new Error('CLIHarbor returned invalid task metadata.');
+    throw clientError('invalid_response');
   }
 
   const parsedInputs = inputs.map((input): TaskInput => {
     if (!isRecord(input)) {
-      throw new Error('CLIHarbor returned invalid task input metadata.');
+      throw clientError('invalid_response');
     }
     const { id, type, label, required, validation } = input;
     if (
@@ -63,7 +65,7 @@ function parseTask(value: unknown): Task {
       (required !== undefined && typeof required !== 'boolean') ||
       (validation !== undefined && !isRecord(validation))
     ) {
-      throw new Error('CLIHarbor returned invalid task input metadata.');
+      throw clientError('invalid_response');
     }
 
     const parsedValidation: TaskInputValidation = {};
@@ -72,26 +74,26 @@ function parseTask(value: unknown): Task {
         const current = validation[key];
         if (current !== undefined) {
           if (typeof current !== 'number' || !Number.isFinite(current)) {
-            throw new Error('CLIHarbor returned invalid task validation metadata.');
+            throw clientError('invalid_response');
           }
           parsedValidation[key] = current;
         }
       }
       if (validation.pattern !== undefined) {
         if (typeof validation.pattern !== 'string') {
-          throw new Error('CLIHarbor returned invalid task validation metadata.');
+          throw clientError('invalid_response');
         }
         parsedValidation.pattern = validation.pattern;
       }
       if (validation.enum !== undefined) {
         if (!Array.isArray(validation.enum) || validation.enum.some((item) => typeof item !== 'string')) {
-          throw new Error('CLIHarbor returned invalid task validation metadata.');
+          throw clientError('invalid_response');
         }
         parsedValidation.enum = [...validation.enum];
       }
       if (validation.disallowLeadingDash !== undefined) {
         if (typeof validation.disallowLeadingDash !== 'boolean') {
-          throw new Error('CLIHarbor returned invalid task validation metadata.');
+          throw clientError('invalid_response');
         }
         parsedValidation.disallowLeadingDash = validation.disallowLeadingDash;
       }
@@ -126,11 +128,11 @@ export async function fetchTasks(signal?: AbortSignal): Promise<Task[]> {
     signal,
   });
   if (!response.ok) {
-    throw new Error(`CLIHarbor task metadata request failed with HTTP ${response.status}.`);
+    throw await errorFromResponse(response);
   }
   const payload: unknown = await response.json();
   if (!isRecord(payload) || !Array.isArray(payload.tasks)) {
-    throw new Error('CLIHarbor returned invalid task metadata.');
+    throw clientError('invalid_response');
   }
   return payload.tasks.map(parseTask);
 }
