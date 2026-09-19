@@ -446,12 +446,6 @@ export function App() {
     taskErrorRef.current?.focus();
   }, [taskFailure, selectedTask]);
 
-  useEffect(() => {
-    if (run?.snapshot.status !== 'running') {
-      setCancelRequested(false);
-    }
-  }, [run?.snapshot.status]);
-
   const activeRunID =
     run !== null && run.retained && run.snapshot.status === 'running' ? run.snapshot.runId : null;
 
@@ -459,15 +453,11 @@ export function App() {
     if (activeRunID === null) {
       return;
     }
-    setRun((current) =>
-      current === null || current.snapshot.runId !== activeRunID
-        ? current
-        : { ...current, streamState: 'connecting' },
-    );
     const close = subscribeRunEvents(
       activeRunID,
       (event) => setRun((current) => (current === null ? current : appendRunEvent(current, event))),
       (complete) => {
+        setCancelRequested(false);
         setRun((current) => (current === null ? current : completeRun(current, complete)));
       },
       (error) => {
@@ -478,8 +468,12 @@ export function App() {
             : { ...current, streamFailure: failure, streamState: 'stopped' },
         );
         void fetchRun(activeRunID).then(
-          (snapshot) =>
-            setRun((current) => (current === null ? current : reconcileRunSnapshot(current, snapshot))),
+          (snapshot) => {
+            if (snapshot.status !== 'running') {
+              setCancelRequested(false);
+            }
+            setRun((current) => (current === null ? current : reconcileRunSnapshot(current, snapshot)));
+          },
           (fetchError: unknown) => {
             const reconcileFailure = normalizeError(fetchError).detail;
             setRun((current) => {

@@ -117,12 +117,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function safeDisplayText(value: unknown, maxLength: number): value is string {
-  return (
-    typeof value === 'string' &&
-    value.length > 0 &&
-    value.length <= maxLength &&
-    !/[\u0000-\u001f\u007f]/u.test(value)
-  );
+  if (typeof value !== 'string' || value.length === 0 || value.length > maxLength) {
+    return false;
+  }
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x1f || code === 0x7f) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function safeField(value: unknown): value is string {
