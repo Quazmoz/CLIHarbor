@@ -158,17 +158,20 @@ func TestRunRejectsPlansOutsideCurrentSafetyEnvelope(t *testing.T) {
 		PackID: "demo", PackVersion: "1.0.0", CommandID: "inspect", ToolID: "fixture",
 		ExecutablePath: executable, ExecutableName: name, ExecutableIdentity: identity, Risk: packs.RiskRead, Output: packs.Output{Mode: packs.OutputRaw},
 	}
-	for _, mutate := range []func(*planner.Plan){
-		func(plan *planner.Plan) { plan.Risk = packs.RiskChange },
-		func(plan *planner.Plan) { plan.Requirements.RequiresAuth = true },
-		func(plan *planner.Plan) { plan.Output.Sensitivity.ContainsSecrets = true },
-		func(plan *planner.Plan) { plan.Args = []string{"contains\x00nul"} },
-		func(plan *planner.Plan) { plan.ExecutableName = "different-binary" },
+	for _, test := range []struct {
+		mutate func(*planner.Plan)
+		code   ErrorCode
+	}{
+		{mutate: func(plan *planner.Plan) { plan.Risk = packs.RiskChange }, code: ErrInvalidPlan},
+		{mutate: func(plan *planner.Plan) { plan.Requirements.RequiresAuth = true }, code: ErrInvalidPlan},
+		{mutate: func(plan *planner.Plan) { plan.Output.Sensitivity.ContainsSecrets = true }, code: ErrInvalidPlan},
+		{mutate: func(plan *planner.Plan) { plan.Args = []string{"contains\x00nul"} }, code: ErrInvalidPlan},
+		{mutate: func(plan *planner.Plan) { plan.ExecutableName = "different-binary" }, code: ErrExecutableChanged},
 	} {
 		plan := base.Clone()
-		mutate(&plan)
+		test.mutate(&plan)
 		_, err := testExecutor(time.Second, 1<<20).Run(context.Background(), plan, nil)
-		assertExecutorCode(t, err, ErrInvalidPlan)
+		assertExecutorCode(t, err, test.code)
 	}
 }
 
@@ -195,7 +198,7 @@ func TestRunRejectsExecutableReplacementAfterDiscovery(t *testing.T) {
 	}
 
 	_, err = testExecutor(time.Second, 1<<20).Run(context.Background(), plan, nil)
-	assertExecutorCode(t, err, ErrInvalidPlan)
+	assertExecutorCode(t, err, ErrExecutableChanged)
 }
 
 func TestRunSupportsSpacesAndUnicodeInExecutablePathAndArgs(t *testing.T) {

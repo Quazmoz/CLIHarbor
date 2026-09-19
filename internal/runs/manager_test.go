@@ -255,7 +255,7 @@ func TestManagerFailsClosedOnPlannerPolicyAndOutputLimit(t *testing.T) {
 	})
 
 	_, err := manager.Start(Request{PackID: "fixture", CommandID: "change"})
-	assertRunCode(t, err, ErrUnavailable)
+	assertRunCode(t, err, ErrPolicyBlocked)
 
 	run, err := manager.Start(Request{PackID: "fixture", CommandID: "flood"})
 	if err != nil {
