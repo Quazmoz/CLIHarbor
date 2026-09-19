@@ -120,7 +120,10 @@ function appendRunEvent(current: RunView, event: RunEvent): RunView {
 }
 
 function reconcileRunSnapshot(current: RunView, snapshot: RunSnapshot): RunView {
-  if (snapshot.runId !== current.snapshot.runId) {
+  if (snapshot.runId !== current.snapshot.runId || !current.retained) {
+    return current;
+  }
+  if (current.snapshot.status !== 'running' && snapshot.status !== current.snapshot.status) {
     return current;
   }
 
@@ -568,7 +571,7 @@ export function App() {
     setCancelRequested(true);
     try {
       const snapshot = await cancelRun(state.status.csrfToken, run.snapshot.runId);
-      setRun((current) => (current === null ? current : { ...current, snapshot }));
+      setRun((current) => (current === null ? current : reconcileRunSnapshot(current, snapshot)));
       if (snapshot.status !== 'running') {
         setCancelRequested(false);
       }

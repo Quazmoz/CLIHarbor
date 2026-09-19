@@ -53,40 +53,32 @@ export class AppError extends Error {
   }
 }
 
-const serverCodes = new Set<ServerErrorCode>([
-  'invalid_request',
-  'invalid_input',
-  'request_too_large',
-  'method_not_allowed',
-  'request_forbidden',
-  'session_unavailable',
-  'resource_not_found',
-  'command_blocked',
-  'tool_unavailable',
-  'tool_changed',
-  'run_capacity',
-  'run_not_found',
-  'runtime_closed',
-  'invalid_cursor',
-  'stream_capacity',
-  'stream_unavailable',
-  'execution_failed',
-  'output_limit',
-  'event_capacity',
-  'internal_error',
-]);
+const serverCodeCategories: Record<ServerErrorCode, AppErrorCategory> = {
+  invalid_request: 'validation',
+  invalid_input: 'validation',
+  request_too_large: 'validation',
+  method_not_allowed: 'validation',
+  request_forbidden: 'security',
+  session_unavailable: 'security',
+  resource_not_found: 'lifecycle',
+  command_blocked: 'policy',
+  tool_unavailable: 'discovery',
+  tool_changed: 'discovery',
+  run_capacity: 'capacity',
+  run_not_found: 'lifecycle',
+  runtime_closed: 'lifecycle',
+  invalid_cursor: 'stream',
+  stream_capacity: 'capacity',
+  stream_unavailable: 'stream',
+  execution_failed: 'execution',
+  output_limit: 'execution',
+  event_capacity: 'execution',
+  internal_error: 'internal',
+};
 
-const categories = new Set<AppErrorCategory>([
-  'validation',
-  'security',
-  'discovery',
-  'policy',
-  'capacity',
-  'lifecycle',
-  'stream',
-  'execution',
-  'internal',
-]);
+function isServerErrorCode(value: string): value is ServerErrorCode {
+  return Object.prototype.hasOwnProperty.call(serverCodeCategories, value);
+}
 
 const clientDetails: Record<ClientErrorCode, AppErrorDetail> = {
   network_unavailable: {
@@ -147,9 +139,9 @@ export function parseServerErrorDetail(value: unknown): AppErrorDetail | null {
   const { code, category, message, remediation, retryable, field } = value;
   if (
     typeof code !== 'string' ||
-    !serverCodes.has(code as ServerErrorCode) ||
+    !isServerErrorCode(code) ||
     typeof category !== 'string' ||
-    !categories.has(category as AppErrorCategory) ||
+    category !== serverCodeCategories[code] ||
     !safeDisplayText(message, 512) ||
     (remediation !== undefined && !safeDisplayText(remediation, 512)) ||
     typeof retryable !== 'boolean' ||
@@ -158,8 +150,8 @@ export function parseServerErrorDetail(value: unknown): AppErrorDetail | null {
     return null;
   }
   return {
-    code: code as ServerErrorCode,
-    category: category as AppErrorCategory,
+    code,
+    category: serverCodeCategories[code],
     message,
     remediation,
     retryable,

@@ -862,4 +862,87 @@ describe('App', () => {
     }
   });
 
+  test('does not let a stale cancel response regress a completed run', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const runID = 'abababababababababababababababab';
+    let resolveCancel: ((value: Response) => void) | undefined;
+    const cancelResponse = new Promise<Response>((resolve) => {
+      resolveCancel = resolve;
+    });
+
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+        );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                inputs: [],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        return Promise.resolve(
+          response(202, {
+            runId: runID,
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            status: 'running',
+          }),
+        );
+      }
+      if (path === `/api/v1/runs/${runID}/cancel` && init?.method === 'POST') {
+        return cancelResponse;
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Run task' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
+    expect(screen.getByRole('button', { name: 'Cancellation requested' })).toBeDisabled();
+
+    FakeEventSource.latest?.emit('run-complete', {
+      runId: runID,
+      sequence: 2,
+      status: 'cancelled',
+    });
+    expect(await screen.findByRole('heading', { name: 'cancelled' })).toBeInTheDocument();
+
+    resolveCancel?.(
+      response(200, {
+        runId: runID,
+        packId: 'fixture',
+        commandId: 'inspect',
+        toolId: 'fixture',
+        status: 'running',
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'cancelled' })).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancellation requested' })).not.toBeInTheDocument();
+  });
+
 });

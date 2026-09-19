@@ -55,6 +55,14 @@ describe('browser error contract', () => {
         retryable: false,
       }),
     ).toBeNull();
+    expect(
+      parseServerErrorDetail({
+        code: 'run_not_found',
+        category: 'execution',
+        message: 'Mismatched category',
+        retryable: false,
+      }),
+    ).toBeNull();
   });
 
   test('unknown response payload becomes a generic bounded client error', async () => {
