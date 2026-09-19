@@ -228,7 +228,7 @@ Verify:
 
 Maintain tests that server binds only loopback, unexpected Host/Origin/mutation requests fail, session/CSRF/bootstrap controls hold, bootstrap URLs clean up and remain token-free in normal startup output, API/bootstrap never fall through to frontend routing, static traversal fails, dev proxy remains explicit loopback-only and strips session/auth/CSRF/cookies, CORS stays restrictive, and CSP avoids unsafe execution.
 
-HTTP boundary tests cover Host/session/Origin/CSRF enforcement for run mutations and authenticated SSE reads. Add hostile-origin real-browser coverage before release so browser behavior is verified in addition to handler semantics.
+HTTP boundary tests cover Host/session/Origin/CSRF enforcement for run mutations and authenticated SSE reads. Production real-browser coverage now also verifies hostile-origin rejection. Typed error-boundary tests require stable code/status mapping and prove arbitrary internal causes do not enter browser JSON.
 
 ## 9. XSS/output rendering tests
 
@@ -256,7 +256,9 @@ Once run APIs exist prove read tasks do not require destructive confirmation, de
 
 ## 14. UI and accessibility tests
 
-Current component coverage handles authenticated status loading and failure/retry states. Expand as pack/tool/task UI arrives: discovery states, task forms, validation, auth gating, risk banners, preview redaction, run transitions, output modes, keyboard/focus/live-region semantics, labels/errors, reduced motion, and no color-only state.
+Current component coverage exercises authenticated status loading and typed failure/retry states, server and client input validation, focus movement to invalid controls, `aria-invalid`/description association, inert hostile-looking text, unknown error-code fallback, bounded SSE exhaustion/reconciliation, retained-run eviction, live connection status, timeout text, and keyboard-focusable raw-output regions. The application uses native keyboard-operable controls and targeted live regions so raw stdout/stderr are not continuously announced.
+
+Continue coverage as auth/risk/confirmation surfaces arrive: auth gating, destructive warnings, dialogs, confirmation focus return, reduced motion where motion is introduced, responsive overflow, and no color-only state.
 
 ## 15. Windows matrix
 

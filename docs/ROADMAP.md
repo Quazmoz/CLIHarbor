@@ -82,8 +82,8 @@ Deliverables:
 - timeouts/output limits;
 - strict CSP/security headers;
 - security regression suite;
-- accessibility pass;
-- clean error taxonomy;
+- accessibility pass; **implemented for the current task/run/error UI; future auth/confirmation surfaces require their own qualification**
+- clean error taxonomy; **implemented across the current browser/runtime boundary with stable safe DTOs and terminal run failures**
 - clean Windows release build;
 - checksums/SBOM;
 - signing when feasible.

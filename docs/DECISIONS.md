@@ -411,3 +411,89 @@ Negative:
 ### Supersedes / superseded by
 
 - Does not supersede Phase 0 evidence ADRs; support diagnostics and vendor evidence serve different trust/provenance purposes.
+
+
+## ADR-024 — Browser failures use a closed typed operator contract
+
+**Date:** 2026-09-19  
+**Status:** Accepted.
+
+### Context
+
+CLIHarbor already prevented executable paths and argv from entering normal browser run snapshots, but browser-facing failures were inconsistent. HTTP routes returned short string codes, the run manager collapsed distinct planner failures, executor failure reason was lost from terminal run state, and the React client converted failures into HTTP-status prose. That made remediation inconsistent, encouraged future string matching, and left stale UI after retained-run eviction.
+
+The browser is an untrusted presentation boundary. Internal Go errors, discovery paths/candidates, process details, session/CSRF material, and future vendor error prose must not become error metadata merely because they are useful for local debugging.
+
+### Decision
+
+Introduce a narrow `internal/apperror` contract for the current browser/runtime boundary. A browser-safe failure contains:
+
+- stable machine-readable `code`;
+- bounded `category`;
+- reviewed safe `message`;
+- optional reviewed `remediation`;
+- explicit `retryable`;
+- optional validated task-field association limited to `packId`, `commandId`, or `values.<input-id>`.
+
+Planner and executor errors remain richer internal types. The run manager maps only material UX distinctions into the operator contract: invalid task input, unavailable tool, stale/replaced executable, blocked local policy, capacity/lifecycle failures, output/event limits, and generic process-lifecycle failure. Failed retained runs carry the same DTO in snapshots and SSE completion. Cancellation and timeout remain explicit run statuses rather than being reclassified as generic errors.
+
+HTTP security/session/method/not-found/stream failures use the same DTO envelope. Arbitrary `err.Error()`, discovery prose, executable/candidate paths, argv, environment values, bootstrap/session/CSRF material, and unreviewed vendor output are not serialized into it.
+
+The React client validates the error envelope, known code/category set, text bounds/control characters, retryability, and field syntax. Unknown or malformed responses become a generic local-response error. UI behavior branches on codes/state, never message text.
+
+### Alternatives considered
+
+1. Continue returning short string codes and let each React caller invent its own prose.
+2. Serialize wrapped Go errors and redact sensitive substrings.
+3. Convert every Go error in the repository to one global application-error framework.
+4. Treat run status plus stdout/stderr as sufficient error UX.
+
+### Rationale
+
+A closed DTO creates a stable cross-layer contract while preserving the richer local errors needed for engineering and `doctor`. Selecting safe text from reviewed constants prevents forbidden data from entering the browser boundary at all; regex redaction is not the primary control. Limiting the abstraction to UX/trust boundaries avoids turning ordinary Go error handling into a framework.
+
+### Consequences
+
+Positive:
+
+- the browser can classify failures deterministically without string parsing;
+- safe remediation is consistent across HTTP, run snapshots, and stream completion;
+- stale executable identity is distinguishable from malformed input or generic execution failure;
+- field-specific validation can be associated accessibly with controls;
+- retained-run eviction and stream exhaustion have explicit recoverable UI states;
+- unknown future codes fail safely instead of crashing the browser.
+
+Negative:
+
+- adding a new browser-visible failure class requires coordinated backend DTO and frontend known-code updates;
+- vendor-specific failure/remediation remains intentionally unavailable until real evidence defines it;
+- `doctor` and other operator-local CLI surfaces remain richer and are not forced into the browser taxonomy.
+
+### Security / reliability implications
+
+- no raw internal cause crosses the browser error boundary;
+- browser-safe text is fixed/bounded and field association is allowlisted;
+- React renders all messages/output as text, never HTML;
+- cancellation/timeout races continue to be resolved by authoritative executor/run state;
+- EventSource automatic recovery remains bounded; after exhaustion the browser performs one snapshot reconciliation and requires explicit retry;
+- run eviction during reconciliation disables stale active controls.
+
+### Verification
+
+- Go unit tests cover planner/executor classification, unsafe field rejection, stable HTTP mapping, hostile internal-cause exclusion, and stale executable classification;
+- React/Vitest coverage exercises malformed/unknown DTOs, hostile-looking text rendering, field focus/ARIA association, stream exhaustion, eviction, live status, and timeout visibility;
+- existing run-manager/executor race and lifecycle suites remain authoritative for cancellation/timeout ordering;
+- production embedded-browser E2E remains the real-runtime gate for bootstrap/session, SSE/reconnect, cancellation, hostile output, and single execution;
+- Linux/Windows CI, Go race detector, dependency scans, embedded-asset synchronization, and Windows evaluation qualification remain required.
+
+### Revisit when
+
+- real vendor evidence justifies vendor-specific safe failure classes;
+- authentication or destructive confirmation introduces new operator error state;
+- browser/API versioning requires backward compatibility across independently deployed frontend/backend versions;
+- remote/multi-user operation is proposed.
+
+### Supersedes / superseded by
+
+- Complements ADR-020's browser-origin boundary and ADR-014's structured-output boundary.
+- Does not change the vendor-owned authentication decision or Phase 0 evidence gate.

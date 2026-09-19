@@ -67,6 +67,7 @@ Phase 3 uses `github.com/Masterminds/semver/v3` for validated tool constraints. 
 cmd/cliharbor/             # process entry point + serve/doctor CLI parsing
 internal/app/              # application lifecycle / runtime wiring / doctor
 internal/server/           # loopback HTTP, browser bootstrap, origin/session checks
+internal/apperror/         # closed browser-safe operator failure DTO/taxonomy
 internal/webui/            # embedded frontend + constrained dev reverse proxy
 internal/platform/browser/ # platform default-browser launch boundary
 internal/packs/            # pack model/validation/loading/registry
@@ -122,6 +123,8 @@ GET  /assets/*
 ```
 
 `/bootstrap` and `/api/*` are server-owned and never fall through to frontend routing. The server accepts only its exact bound Host. Any request carrying a non-empty `Origin` from another origin is rejected, including GET/SSE; state-changing requests additionally require the exact application origin and CSRF token. Origin-less reads remain possible for local non-browser clients but still pass route/session authorization. Authenticated status returns the per-session CSRF token used by same-origin browser mutations. Task metadata exposes only currently runnable read-only/non-auth/non-secret commands and typed input constraints. Tool diagnostics expose only pack/tool IDs, pack name/version, readiness status, detected version/constraint, and sanitized remediation text. Neither surface exposes executable paths/names, candidate lists, file identity, argv, environment, or pack source paths. Run creation accepts only `packId`, `commandId`, and typed `values`; unknown/duplicate authority fields fail closed. Run-event streaming is read-only and authenticated; `Last-Event-ID` is the only replay cursor.
+
+Browser-facing API failures use one bounded contract: `{error:{code,category,message,remediation?,retryable,field?}}`. The runtime maps planner, discovery, lifecycle, stream-capacity, and process failures to a closed reviewed set; arbitrary Go error text, executable/candidate paths, argv, environment data, browser-session material, and unreviewed vendor output are not copied into this DTO. Field association is limited to `packId`, `commandId`, and declared `values.<input-id>` paths. Failed run snapshots and `run-complete` events may carry the same safe failure detail, while cancellation and timeout remain explicit authoritative run statuses. The React client validates the DTO shape and known code set; malformed or future-unknown codes degrade to a generic local-response error instead of string matching or raw rendering.
 
 Planned surface still includes:
 

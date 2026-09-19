@@ -190,6 +190,9 @@ Current CLI configuration is process-local via explicit `--pack-file`, `--pack-d
 - no eval/dynamic remote scripts;
 - no production CDN dependencies/analytics by default;
 - untrusted output rendered as data;
+- browser-facing errors selected from a closed typed taxonomy rather than raw internal/vendor error strings;
+- client-side validation of error DTO code/category/text bounds/field association, with unknown or malformed responses degraded safely;
+- separate task-level, run-level, stream, cancellation, timeout, and retained-run-eviction states without browser string parsing;
 - dependency pinning/scanning;
 - embedded frontend source/build drift checks;
 - dev proxy never receives CLIHarbor session authority;
@@ -222,7 +225,7 @@ Phase 4b adds integration proof across the real trust chain: an explicitly named
 
 Phase 4c-A regression coverage adds authenticated browser execution without widening authority: exact Host/session/Origin/CSRF controls, strict UTF-8 JSON, duplicate-key/unknown-field rejection, request-size limits, stable sanitized error codes, server-generated run IDs, bounded concurrency/retention/events, explicit cancellation, shutdown cancellation, and application-level bootstrap → CSRF → run execution coverage. Browser-visible snapshots omit executable path and argv; output bytes are Base64-encoded as untrusted data.
 
-Phase 4c-B adds manager-backed replay cursor tests, authenticated SSE framing, malformed/impossible cursor rejection, disconnect-without-cancellation and server-shutdown ownership coverage, safe task-catalog filtering, sanitized authenticated tool-status diagnostics, bounded browser reconnect/reconciliation tests, and React coverage showing that CSRF stays out of rendered UI while CLI output containing markup is rendered as inert text. Browser tool diagnostics derive fixed remediation from discovery status and omit executable names/paths, candidate paths, executable identity, argv, environment, and pack source paths. Stream reconnect or manual retry observes the same run ID and cannot create another process.
+Phase 4c-B adds manager-backed replay cursor tests, authenticated SSE framing, malformed/impossible cursor rejection, disconnect-without-cancellation and server-shutdown ownership coverage, safe task-catalog filtering, sanitized authenticated tool-status diagnostics, bounded browser reconnect/reconciliation tests, and React coverage showing that CSRF stays out of rendered UI while CLI output containing markup is rendered as inert text. Production hardening additionally covers typed error mapping, hostile internal-cause exclusion, malformed/unknown error DTOs, field-linked validation, retained-run eviction after stream reconciliation, accessible asynchronous state, and stale executable identity as a distinct safe failure. Browser tool diagnostics derive fixed remediation from discovery status and omit executable names/paths, candidate paths, executable identity, argv, environment, and pack source paths. Stream reconnect or manual retry observes the same run ID and cannot create another process.
 
 The production embedded-server browser gate adds real Chrome/Chromium proof of one-time bootstrap, clean redirect, Host/Origin/CSRF rejection, authenticated task metadata, fixture execution, SSE replay, forced stream interruption, `Last-Event-ID` reconnect, bounded reconnect exhaustion plus retained-snapshot reconciliation, explicit retry/cancellation, bounded run eviction, single execution, and inert hostile markup/control-like output. Any request carrying a foreign `Origin` is rejected before session/API handling, including read/SSE requests; mutations still require the exact application origin and CSRF token.
 

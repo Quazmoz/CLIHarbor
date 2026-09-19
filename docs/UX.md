@@ -154,19 +154,21 @@ Do not add export to secret-bearing results without explicit classification and 
 
 ## 10. Error UX
 
-Errors should explain what layer failed:
+The implemented local browser contract separates task-start failures, run failures, live-stream failures, cancellation, timeout, and retained-run eviction. Browser API errors carry a stable code, category, reviewed safe message, optional remediation, retryability, and an optional validated task-field association. The frontend branches on the typed code; it does not parse backend prose.
 
-- CLIHarbor validation;
-- executable not found;
-- incompatible version;
-- unauthenticated/expired session;
-- vendor permission denied;
-- vendor/network error;
-- command exited non-zero;
-- output parser failed;
-- internal runtime error.
+Current generic categories cover:
 
-When safe, show vendor stderr and exit code. Avoid generic “Something went wrong” messaging.
+- CLIHarbor request/input validation;
+- browser security/session boundary rejection;
+- unavailable or changed discovered tools;
+- current execution-policy blocks;
+- run/stream capacity and lifecycle state;
+- local process/output-limit failure;
+- internal local runtime failure.
+
+Task-field failures are associated with the affected control, mark it invalid, expose an accessible description, and move focus to that control. Material runtime-load failures receive focus. Run status and live-stream connection state use targeted live regions rather than making raw stdout/stderr one large live region. Cancellation and timeout remain visible text states, and retained-run eviction removes stale cancel/retry controls.
+
+Raw vendor stderr remains untrusted run evidence and is not promoted into the typed error DTO. Vendor-specific permission/network/auth remediation remains gated on documented managed-laptop evidence rather than guessed strings. Unknown or malformed future error DTOs degrade to a generic bounded local-response failure.
 
 ## 11. Destructive commands
 
@@ -234,6 +236,8 @@ MVP requirements:
 - screen-reader-compatible run status changes;
 - sufficient text contrast;
 - logical heading structure.
+
+The current task/run UI implements semantic labels, visible focus, field-linked validation errors, keyboard-operable native controls, focused material load/task failures, targeted `aria-live`/status regions for asynchronous run/stream state, text descriptions for cancellation/timeout/failure, and keyboard-focusable stdout/stderr regions. Continue qualifying new auth/confirmation/dialog surfaces as they are introduced.
 
 ## 16. Responsive behavior
 

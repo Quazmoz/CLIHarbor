@@ -36,6 +36,7 @@ The installed CLI remains the operational authority. CLIHarbor owns only the loc
 | Planning and execution | Typed inputs, server-owned executable + argv, no ordinary shell execution, exact executable identity revalidation, bounded timeout/output |
 | Windows process lifecycle | Suspended launch, Job Object assignment before resume, descendant containment, cancellation/timeout teardown |
 | Browser runs | Authenticated run APIs, bounded SSE streaming/replay, reconnect reconciliation, cancellation, bounded retained state |
+| Operator failures | Stable typed browser-safe error codes/remediation, field-linked validation, retained-run eviction handling, accessible async status |
 | Structured results | Strict bounded scalar JSON parsing with inert React rendering and raw-output fallback |
 | Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, detached SHA-256, strict inspection |
 | Support diagnostics | `cliharbor diagnostics export` emits only allowlisted non-secret metadata; no command output, argv, paths, environment values, browser secrets, or credential material |
@@ -65,6 +66,7 @@ The important invariants are simple:
 - **Outputs and state are bounded.** Run output, structured parsing, replay, retention, probes, evidence, and diagnostics have explicit resource limits.
 - **Execution evidence is exact.** Discovery-time executable identity is revalidated immediately before launch.
 - **Diagnostics are allowlisted, not scraped.** Support export is constructed from approved metadata fields rather than filesystem/log/environment collection or regex-only redaction.
+- **Browser failures are allowlisted too.** HTTP/run failures cross the browser boundary only as reviewed typed codes, safe messages/remediation, retryability, and optional task-field association; internal causes and vendor error strings are not serialized as error metadata.
 
 See [Security](docs/SECURITY.md), [Architecture](docs/ARCHITECTURE.md), and [Authentication](docs/AUTHENTICATION.md) for the full threat model and trust boundaries.
 

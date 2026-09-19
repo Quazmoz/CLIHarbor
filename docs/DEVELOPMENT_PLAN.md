@@ -286,9 +286,10 @@ Add/complete:
 - redaction tests;
 - fuzz/property tests for planner/schema boundaries where useful;
 - dependency scanning with locked-tree `npm audit` and pinned `govulncheck@v1.8.0` in CI; **implemented**
-- frontend accessibility pass;
-- error taxonomy;
-- privacy-preserving diagnostic bundle; **implemented** as deterministic allowlisted \`cliharbor.diagnostics/v1\` export with bounded no-clobber filesystem publication;\n- redacted doctor output remains optional/future; current \`doctor\` is explicitly operator-local and may expose exact paths;
+- frontend accessibility pass; **implemented for the current task/run/error surface** with field-linked errors, focus handling, targeted live regions, keyboard-operable controls, explicit stream/cancel/timeout/eviction text, and focusable raw-output regions;
+- error taxonomy; **implemented for the current browser/runtime boundary** with stable typed codes/categories, reviewed safe remediation, optional validated field association, terminal run failure DTOs, and unknown-code fail-safe handling;
+- privacy-preserving diagnostic bundle; **implemented** as deterministic allowlisted \`cliharbor.diagnostics/v1\` export with bounded no-clobber filesystem publication;
+- redacted doctor output remains optional/future; current \`doctor\` is explicitly operator-local and may expose exact paths;
 - optional publisher/signature/hash verification where enterprise policy requires stronger PATH-binary identity.
 
 Schema/parser resource bounds, adversarial pack tests, discovery ambiguity handling, and bounded version probes already exist; continue extending them rather than duplicating validation logic.
