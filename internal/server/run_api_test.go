@@ -3,11 +3,14 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/Quazmoz/CLIHarbor/internal/apperror"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/structured"
 )
@@ -216,18 +219,23 @@ func TestRunAPIRejectsOversizeRequestBeforePlanning(t *testing.T) {
 	}
 }
 
-func TestRunAPIMapsStableRunErrorsWithoutDetails(t *testing.T) {
+func TestRunAPIMapsStableOperatorErrorsWithoutInternalDetails(t *testing.T) {
 	for _, test := range []struct {
-		code       runs.ErrorCode
+		name       string
+		runErr     *runs.Error
 		wantStatus int
+		wantCode   apperror.Code
+		wantField  string
 	}{
-		{runs.ErrInvalidRequest, http.StatusBadRequest},
-		{runs.ErrUnavailable, http.StatusConflict},
-		{runs.ErrCapacity, http.StatusTooManyRequests},
-		{runs.ErrClosed, http.StatusServiceUnavailable},
+		{name: "invalid input", runErr: &runs.Error{Code: runs.ErrInvalidRequest, Field: "values.query"}, wantStatus: http.StatusBadRequest, wantCode: apperror.CodeInvalidInput, wantField: "values.query"},
+		{name: "tool unavailable", runErr: &runs.Error{Code: runs.ErrToolUnavailable}, wantStatus: http.StatusConflict, wantCode: apperror.CodeToolUnavailable},
+		{name: "tool changed", runErr: &runs.Error{Code: runs.ErrToolChanged}, wantStatus: http.StatusConflict, wantCode: apperror.CodeToolChanged},
+		{name: "policy blocked", runErr: &runs.Error{Code: runs.ErrPolicyBlocked}, wantStatus: http.StatusForbidden, wantCode: apperror.CodeCommandBlocked},
+		{name: "capacity", runErr: &runs.Error{Code: runs.ErrCapacity}, wantStatus: http.StatusTooManyRequests, wantCode: apperror.CodeRunCapacity},
+		{name: "closed", runErr: &runs.Error{Code: runs.ErrClosed}, wantStatus: http.StatusServiceUnavailable, wantCode: apperror.CodeRuntimeClosed},
 	} {
-		t.Run(string(test.code), func(t *testing.T) {
-			service := &fakeRunService{startErr: &runs.Error{Code: test.code}}
+		t.Run(test.name, func(t *testing.T) {
+			service := &fakeRunService{startErr: test.runErr}
 			s := newTestServer(t, Config{Runs: service})
 			client := sessionClient(t)
 			bootstrap(t, client, s)
@@ -237,16 +245,42 @@ func TestRunAPIMapsStableRunErrorsWithoutDetails(t *testing.T) {
 			if response.StatusCode != test.wantStatus {
 				t.Fatalf("status = %d, want %d", response.StatusCode, test.wantStatus)
 			}
-			var payload struct {
-				Error string `json:"error"`
-			}
+			var payload apiErrorResponse
 			if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 				t.Fatal(err)
 			}
-			if payload.Error != string(test.code) {
-				t.Fatalf("error = %q, want %q", payload.Error, test.code)
+			if payload.Error.Code != test.wantCode || payload.Error.Field != test.wantField {
+				t.Fatalf("error = %#v, want code=%q field=%q", payload.Error, test.wantCode, test.wantField)
+			}
+			if payload.Error.Message == "" || payload.Error.Category == "" {
+				t.Fatalf("incomplete error DTO: %#v", payload.Error)
 			}
 		})
+	}
+}
+
+func TestRunAPIInternalErrorDoesNotCrossBrowserBoundary(t *testing.T) {
+	const marker = "PRIVATE_INTERNAL_MARKER <em>markup</em>"
+	service := &fakeRunService{startErr: errors.New(marker)}
+	s := newTestServer(t, Config{Runs: service})
+	client := sessionClient(t)
+	bootstrap(t, client, s)
+	csrf := fetchStatus(t, client, s).CSRFToken
+
+	response := doAuthorizedRunPost(t, client, s, csrf, "/api/v1/runs", []byte(`{"packId":"fixture","commandId":"inspect"}`))
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusInternalServerError)
+	}
+	if strings.Contains(string(body), marker) || strings.Contains(string(body), "PRIVATE_INTERNAL_MARKER") {
+		t.Fatalf("browser error leaked internal cause: %s", body)
+	}
+	if !strings.Contains(string(body), "\"code\":\"internal_error\"") {
+		t.Fatalf("browser error missing stable code: %s", body)
 	}
 }
 

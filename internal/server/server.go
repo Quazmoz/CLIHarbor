@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/Quazmoz/CLIHarbor/internal/apperror"
 )
 
 const (
@@ -141,7 +143,7 @@ func New(config Config) (*Server, error) {
 	if s.tools != nil {
 		mux.Handle("/api/v1/tools", s.requireSession(http.HandlerFunc(s.handleTools)))
 	}
-	mux.Handle("/api/", s.requireSession(http.HandlerFunc(http.NotFound)))
+	mux.Handle("/api/", s.requireSession(http.HandlerFunc(s.handleAPINotFound)))
 	mux.Handle("/", s.requireSession(config.Frontend))
 
 	s.httpServer = &http.Server{
@@ -227,23 +229,23 @@ func randomToken(reader io.Reader) (string, error) {
 func (s *Server) validateRequestBoundary(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Host != s.listener.Addr().String() {
-			http.Error(w, "forbidden host", http.StatusForbidden)
+			writeRequestBoundaryError(w, r, http.StatusForbidden, apperror.CodeRequestForbidden)
 			return
 		}
 
 		origin := r.Header.Get("Origin")
 		if origin != "" && origin != s.baseURL {
-			http.Error(w, "forbidden origin", http.StatusForbidden)
+			writeRequestBoundaryError(w, r, http.StatusForbidden, apperror.CodeRequestForbidden)
 			return
 		}
 
 		if isStateChangingMethod(r.Method) {
 			if origin != s.baseURL {
-				http.Error(w, "forbidden origin", http.StatusForbidden)
+				writeRequestBoundaryError(w, r, http.StatusForbidden, apperror.CodeRequestForbidden)
 				return
 			}
 			if !constantTimeEqual(r.Header.Get(csrfHeaderName), s.csrfToken) {
-				http.Error(w, "invalid CSRF token", http.StatusForbidden)
+				writeRequestBoundaryError(w, r, http.StatusForbidden, apperror.CodeRequestForbidden)
 				return
 			}
 		}
@@ -316,17 +318,21 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(sessionCookieName)
 		if err != nil || !constantTimeEqual(cookie.Value, s.sessionToken) {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			writeRequestBoundaryError(w, r, http.StatusUnauthorized, apperror.CodeSessionUnavailable)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
 }
 
+func (s *Server) handleAPINotFound(w http.ResponseWriter, _ *http.Request) {
+	writeResourceNotFound(w)
+}
+
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		writeMethodNotAllowed(w)
 		return
 	}
 

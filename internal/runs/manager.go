@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Quazmoz/CLIHarbor/internal/apperror"
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/executor"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
@@ -41,16 +42,19 @@ const (
 type ErrorCode string
 
 const (
-	ErrInvalidRequest ErrorCode = "invalid_request"
-	ErrUnavailable    ErrorCode = "unavailable"
-	ErrCapacity       ErrorCode = "capacity"
-	ErrNotFound       ErrorCode = "not_found"
-	ErrClosed         ErrorCode = "closed"
-	ErrInvalidCursor  ErrorCode = "invalid_cursor"
+	ErrInvalidRequest  ErrorCode = "invalid_request"
+	ErrToolUnavailable ErrorCode = "tool_unavailable"
+	ErrToolChanged     ErrorCode = "tool_changed"
+	ErrPolicyBlocked   ErrorCode = "policy_blocked"
+	ErrCapacity        ErrorCode = "capacity"
+	ErrNotFound        ErrorCode = "not_found"
+	ErrClosed          ErrorCode = "closed"
+	ErrInvalidCursor   ErrorCode = "invalid_cursor"
 )
 
 type Error struct {
-	Code ErrorCode
+	Code  ErrorCode
+	Field string
 }
 
 func (e *Error) Error() string {
@@ -82,6 +86,7 @@ type Snapshot struct {
 	EndedAt     *time.Time         `json:"endedAt,omitempty"`
 	ExitCode    *int               `json:"exitCode,omitempty"`
 	Structured  *structured.Result `json:"structured,omitempty"`
+	Failure     *apperror.Detail   `json:"failure,omitempty"`
 	Events      []Event            `json:"events,omitempty"`
 }
 
@@ -91,6 +96,7 @@ type EventBatch struct {
 	Status     Status
 	ExitCode   *int
 	Structured *structured.Result
+	Failure    *apperror.Detail
 	Complete   bool
 }
 
@@ -143,7 +149,10 @@ type record struct {
 	structuredStdout   []byte
 	structuredTooLarge bool
 	structuredResult   *structured.Result
+	failure            *apperror.Detail
 }
+
+var errEventCapacity = errors.New("run event capacity exhausted")
 
 func NewManager(parent context.Context, registry *packs.Registry, snapshot discovery.Snapshot, config Config) (*Manager, error) {
 	if parent == nil {
@@ -307,6 +316,7 @@ func (m *Manager) WaitEvents(ctx context.Context, runID string, after uint64) (E
 				Status:     rec.status,
 				ExitCode:   cloneInt(rec.exitCode),
 				Structured: cloneStructuredResult(rec.structuredResult),
+				Failure:    cloneFailure(rec.failure),
 				Complete:   complete,
 			}
 			m.mu.Unlock()
@@ -411,6 +421,12 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 		return m.recordEvent(rec, event)
 	}))
 
+	var failure *apperror.Detail
+	if runErr != nil {
+		detail := classifyExecutionFailure(runErr)
+		failure = &detail
+	}
+
 	var parsed *structured.Result
 	if rec.structuredSpec != nil {
 		m.mu.Lock()
@@ -451,6 +467,7 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 	switch {
 	case runErr != nil:
 		rec.status = StatusFailed
+		rec.failure = failure
 		now := time.Now().UTC()
 		rec.endedAt = &now
 		rec.exitCode = nil
@@ -486,7 +503,7 @@ func (m *Manager) recordEvent(rec *record, event executor.Event) error {
 	}
 	dataBytes := int64(len(event.Data))
 	if rec.eventBytes+dataBytes > m.config.MaxEventBytesPerRun || len(rec.events) >= m.config.MaxEventsPerRun {
-		return errors.New("run event buffer exhausted")
+		return errEventCapacity
 	}
 	if rec.structuredSpec != nil && event.Type == executor.EventStdout && len(event.Data) != 0 && !rec.structuredTooLarge {
 		if len(event.Data) > structured.MaxInputBytes-len(rec.structuredStdout) {
@@ -557,6 +574,7 @@ func (r *record) snapshot() Snapshot {
 		EndedAt:     cloneTime(r.endedAt),
 		ExitCode:    cloneInt(r.exitCode),
 		Structured:  cloneStructuredResult(r.structuredResult),
+		Failure:     cloneFailure(r.failure),
 		Events:      events,
 	}
 }
@@ -581,9 +599,33 @@ func classifyPlannerError(err error) error {
 	}
 	switch plannerErr.Code {
 	case planner.ErrUnknownPack, planner.ErrUnknownCommand, planner.ErrUnknownInput, planner.ErrMissingInput, planner.ErrInvalidInput:
-		return &Error{Code: ErrInvalidRequest}
+		return &Error{Code: ErrInvalidRequest, Field: plannerErr.Path}
+	case planner.ErrToolUnavailable:
+		return &Error{Code: ErrToolUnavailable}
+	case planner.ErrStaleDiscovery:
+		return &Error{Code: ErrToolChanged}
+	case planner.ErrRiskPolicy, planner.ErrAuthPolicy, planner.ErrOutputPolicy:
+		return &Error{Code: ErrPolicyBlocked}
 	default:
-		return &Error{Code: ErrUnavailable}
+		return fmt.Errorf("build execution plan: %w", err)
+	}
+}
+
+func classifyExecutionFailure(err error) apperror.Detail {
+	if errors.Is(err, errEventCapacity) {
+		return apperror.DetailFor(apperror.CodeEventCapacity)
+	}
+	var execErr *executor.Error
+	if !errors.As(err, &execErr) {
+		return apperror.DetailFor(apperror.CodeExecutionFailed)
+	}
+	switch execErr.Code {
+	case executor.ErrExecutableChanged:
+		return apperror.DetailFor(apperror.CodeToolChanged)
+	case executor.ErrOutputLimit:
+		return apperror.DetailFor(apperror.CodeOutputLimit)
+	default:
+		return apperror.DetailFor(apperror.CodeExecutionFailed)
 	}
 }
 
@@ -626,6 +668,14 @@ func cloneStructuredResult(value *structured.Result) *structured.Result {
 	}
 	cloned := *value
 	cloned.Fields = append([]structured.Field(nil), value.Fields...)
+	return &cloned
+}
+
+func cloneFailure(value *apperror.Detail) *apperror.Detail {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
 	return &cloned
 }
 

@@ -35,7 +35,7 @@ func TestRejectsHostileOriginForReadRequests(t *testing.T) {
 			if readErr != nil {
 				t.Fatal(readErr)
 			}
-			if response.StatusCode != http.StatusForbidden || !strings.Contains(string(body), "forbidden origin") {
+			if response.StatusCode != http.StatusForbidden || !strings.Contains(string(body), "\"code\":\"request_forbidden\"") || strings.Contains(string(body), "origin") {
 				t.Fatalf("path %s hostile origin %q response = HTTP %d %q", path, origin, response.StatusCode, body)
 			}
 		}

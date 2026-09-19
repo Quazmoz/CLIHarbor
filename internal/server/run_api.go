@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Quazmoz/CLIHarbor/internal/apperror"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/structured"
 )
@@ -43,17 +44,17 @@ type createRunRequest struct {
 func (s *Server) handleRuns(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
-		writeAPIError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		writeMethodNotAllowed(w)
 		return
 	}
 	request, err := decodeCreateRunRequest(w, r)
 	if err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			writeAPIError(w, http.StatusRequestEntityTooLarge, "request_too_large")
+			writeAPIError(w, http.StatusRequestEntityTooLarge, apperror.CodeRequestTooLarge)
 			return
 		}
-		writeAPIError(w, http.StatusBadRequest, "invalid_request")
+		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
 		return
 	}
 
@@ -72,7 +73,7 @@ func (s *Server) handleRuns(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRunByID(w http.ResponseWriter, r *http.Request) {
 	relative := strings.TrimPrefix(r.URL.Path, "/api/v1/runs/")
 	if relative == "" {
-		http.NotFound(w, r)
+		writeResourceNotFound(w)
 		return
 	}
 	parts := strings.Split(relative, "/")
@@ -80,7 +81,7 @@ func (s *Server) handleRunByID(w http.ResponseWriter, r *http.Request) {
 	case len(parts) == 1 && r.Method == http.MethodGet:
 		snapshot, ok := s.runs.Get(parts[0])
 		if !ok {
-			writeAPIError(w, http.StatusNotFound, "not_found")
+			writeAPIError(w, http.StatusNotFound, apperror.CodeRunNotFound)
 			return
 		}
 		writeJSON(w, http.StatusOK, snapshot)
@@ -93,7 +94,7 @@ func (s *Server) handleRunByID(w http.ResponseWriter, r *http.Request) {
 		}
 		snapshot, ok := s.runs.Get(parts[0])
 		if !ok {
-			writeAPIError(w, http.StatusNotFound, "not_found")
+			writeAPIError(w, http.StatusNotFound, apperror.CodeRunNotFound)
 			return
 		}
 		writeJSON(w, http.StatusAccepted, snapshot)
@@ -104,26 +105,26 @@ func (s *Server) handleRunByID(w http.ResponseWriter, r *http.Request) {
 			} else {
 				w.Header().Set("Allow", http.MethodPost)
 			}
-			writeAPIError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+			writeMethodNotAllowed(w)
 			return
 		}
-		http.NotFound(w, r)
+		writeResourceNotFound(w)
 	}
 }
 
 func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request, runID string) {
 	stream, ok := s.runs.(RunEventService)
 	if !ok {
-		writeAPIError(w, http.StatusServiceUnavailable, "stream_unavailable")
+		writeAPIError(w, http.StatusServiceUnavailable, apperror.CodeStreamUnavailable)
 		return
 	}
 	cursor, err := parseLastEventID(r.Header.Get("Last-Event-ID"))
 	if err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid_cursor")
+		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidCursor)
 		return
 	}
 	if !s.acquireRunStream() {
-		writeAPIError(w, http.StatusTooManyRequests, "stream_capacity")
+		writeAPIError(w, http.StatusTooManyRequests, apperror.CodeStreamCapacity)
 		return
 	}
 	defer s.releaseRunStream()
@@ -150,7 +151,7 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request, runID s
 
 	controller := http.NewResponseController(w)
 	if err := controller.SetWriteDeadline(time.Time{}); err != nil {
-		writeAPIError(w, http.StatusInternalServerError, "stream_unavailable")
+		writeAPIError(w, http.StatusInternalServerError, apperror.CodeStreamUnavailable)
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
@@ -198,15 +199,15 @@ func writeRunStreamError(w http.ResponseWriter, err error) {
 	if errors.As(err, &runErr) {
 		switch runErr.Code {
 		case runs.ErrNotFound:
-			writeAPIError(w, http.StatusNotFound, string(runErr.Code))
+			writeAPIError(w, http.StatusNotFound, apperror.CodeRunNotFound)
 		case runs.ErrInvalidCursor:
-			writeAPIError(w, http.StatusBadRequest, string(runErr.Code))
+			writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidCursor)
 		default:
-			writeAPIError(w, http.StatusServiceUnavailable, "stream_unavailable")
+			writeAPIError(w, http.StatusServiceUnavailable, apperror.CodeStreamUnavailable)
 		}
 		return
 	}
-	writeAPIError(w, http.StatusServiceUnavailable, "stream_unavailable")
+	writeAPIError(w, http.StatusServiceUnavailable, apperror.CodeStreamUnavailable)
 }
 
 func writeSSEBatch(w http.ResponseWriter, controller *http.ResponseController, batch runs.EventBatch, cursor uint64) (uint64, bool, error) {
@@ -286,12 +287,14 @@ func writeSSEComplete(w http.ResponseWriter, controller *http.ResponseController
 		Status     runs.Status        `json:"status"`
 		ExitCode   *int               `json:"exitCode,omitempty"`
 		Structured *structured.Result `json:"structured,omitempty"`
+		Failure    *apperror.Detail   `json:"failure,omitempty"`
 	}{
 		RunID:      batch.RunID,
 		Sequence:   sequence,
 		Status:     batch.Status,
 		ExitCode:   batch.ExitCode,
 		Structured: batch.Structured,
+		Failure:    batch.Failure,
 	})
 	if err != nil {
 		return err
@@ -455,31 +458,33 @@ func ensureJSONEOF(decoder *json.Decoder) error {
 func writeRunError(w http.ResponseWriter, err error) {
 	var runErr *runs.Error
 	if !errors.As(err, &runErr) {
-		writeAPIError(w, http.StatusInternalServerError, "internal_error")
+		writeAPIError(w, http.StatusInternalServerError, apperror.CodeInternalError)
 		return
 	}
 	switch runErr.Code {
 	case runs.ErrInvalidRequest:
-		writeAPIError(w, http.StatusBadRequest, string(runErr.Code))
-	case runs.ErrUnavailable:
-		writeAPIError(w, http.StatusConflict, string(runErr.Code))
+		code := apperror.CodeInvalidRequest
+		if strings.HasPrefix(runErr.Field, "values.") {
+			code = apperror.CodeInvalidInput
+		}
+		writeAPIFieldError(w, http.StatusBadRequest, code, runErr.Field)
+	case runs.ErrToolUnavailable:
+		writeAPIError(w, http.StatusConflict, apperror.CodeToolUnavailable)
+	case runs.ErrToolChanged:
+		writeAPIError(w, http.StatusConflict, apperror.CodeToolChanged)
+	case runs.ErrPolicyBlocked:
+		writeAPIError(w, http.StatusForbidden, apperror.CodeCommandBlocked)
 	case runs.ErrCapacity:
-		writeAPIError(w, http.StatusTooManyRequests, string(runErr.Code))
+		writeAPIError(w, http.StatusTooManyRequests, apperror.CodeRunCapacity)
 	case runs.ErrNotFound:
-		writeAPIError(w, http.StatusNotFound, string(runErr.Code))
+		writeAPIError(w, http.StatusNotFound, apperror.CodeRunNotFound)
 	case runs.ErrClosed:
-		writeAPIError(w, http.StatusServiceUnavailable, string(runErr.Code))
+		writeAPIError(w, http.StatusServiceUnavailable, apperror.CodeRuntimeClosed)
 	case runs.ErrInvalidCursor:
-		writeAPIError(w, http.StatusBadRequest, string(runErr.Code))
+		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidCursor)
 	default:
-		writeAPIError(w, http.StatusInternalServerError, "internal_error")
+		writeAPIError(w, http.StatusInternalServerError, apperror.CodeInternalError)
 	}
-}
-
-func writeAPIError(w http.ResponseWriter, status int, code string) {
-	writeJSON(w, status, struct {
-		Error string `json:"error"`
-	}{Error: code})
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

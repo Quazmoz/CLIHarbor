@@ -40,7 +40,7 @@ type TaskService interface {
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		writeAPIError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		writeMethodNotAllowed(w)
 		return
 	}
 	tasks := s.tasks.ListTasks()

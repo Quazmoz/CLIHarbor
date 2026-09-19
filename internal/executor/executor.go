@@ -93,19 +93,23 @@ type Result struct {
 type ErrorCode string
 
 const (
-	ErrInvalidPlan ErrorCode = "invalid_plan"
-	ErrStart       ErrorCode = "start_failed"
-	ErrOutputLimit ErrorCode = "output_limit"
-	ErrSink        ErrorCode = "sink_failed"
-	ErrWait        ErrorCode = "wait_failed"
+	ErrInvalidPlan       ErrorCode = "invalid_plan"
+	ErrExecutableChanged ErrorCode = "executable_changed"
+	ErrStart             ErrorCode = "start_failed"
+	ErrOutputLimit       ErrorCode = "output_limit"
+	ErrSink              ErrorCode = "sink_failed"
+	ErrWait              ErrorCode = "wait_failed"
 )
 
 type Error struct {
 	Code    ErrorCode
 	Message string
+	cause   error
 }
 
 func (e *Error) Error() string { return fmt.Sprintf("%s: %s", e.Code, e.Message) }
+
+func (e *Error) Unwrap() error { return e.cause }
 
 func New(config Config) *Executor {
 	if config.Timeout <= 0 {
@@ -338,7 +342,7 @@ func (s *streamState) emit(event Event) error {
 		event.Data = append([]byte(nil), event.Data...)
 	}
 	if err := s.sink.Emit(event); err != nil {
-		s.first = &Error{Code: ErrSink, Message: "deliver process event"}
+		s.first = &Error{Code: ErrSink, Message: "deliver process event", cause: err}
 		s.cancel()
 		return s.first
 	}
@@ -384,25 +388,25 @@ func validatePlan(plan planner.Plan) error {
 func revalidateExecutable(plan planner.Plan) error {
 	clean := filepath.Clean(plan.ExecutablePath)
 	if !plan.ExecutableIdentity.Matches(clean) {
-		return &Error{Code: ErrInvalidPlan, Message: "planned executable changed since discovery"}
+		return &Error{Code: ErrExecutableChanged, Message: "planned executable changed since discovery"}
 	}
 	info, err := os.Lstat(clean)
 	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return &Error{Code: ErrInvalidPlan, Message: "planned executable is no longer a regular file"}
+		return &Error{Code: ErrExecutableChanged, Message: "planned executable is no longer a regular file"}
 	}
 	if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
-		return &Error{Code: ErrInvalidPlan, Message: "planned executable is no longer executable"}
+		return &Error{Code: ErrExecutableChanged, Message: "planned executable is no longer executable"}
 	}
 	if _, err := filepath.EvalSymlinks(clean); err != nil {
-		return &Error{Code: ErrInvalidPlan, Message: "revalidate planned executable"}
+		return &Error{Code: ErrExecutableChanged, Message: "revalidate planned executable"}
 	}
 	actualName := filepath.Base(clean)
 	if runtime.GOOS == "windows" {
 		if !strings.EqualFold(actualName, plan.ExecutableName) {
-			return &Error{Code: ErrInvalidPlan, Message: "planned executable basename changed since discovery"}
+			return &Error{Code: ErrExecutableChanged, Message: "planned executable basename changed since discovery"}
 		}
 	} else if actualName != plan.ExecutableName {
-		return &Error{Code: ErrInvalidPlan, Message: "planned executable basename changed since discovery"}
+		return &Error{Code: ErrExecutableChanged, Message: "planned executable basename changed since discovery"}
 	}
 	return nil
 }

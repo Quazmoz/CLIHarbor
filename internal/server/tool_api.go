@@ -20,7 +20,7 @@ type ToolService interface {
 func (s *Server) handleTools(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		writeAPIError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		writeMethodNotAllowed(w)
 		return
 	}
 	tools := s.tools.ListTools()
