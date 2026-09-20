@@ -945,4 +945,65 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: 'Cancellation requested' })).not.toBeInTheDocument();
   });
 
+  test('prioritizes the operator workflow and keeps diagnostics secondary', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const path = requestPath(input);
+        if (path === '/api/v1/status') {
+          return Promise.resolve(
+            response(200, { name: 'CLIHarbor', version: '1.2.3', session: 'active', csrfToken: 'csrf-runtime-only' }),
+          );
+        }
+        if (path === '/api/v1/tools') {
+          return Promise.resolve(
+            response(200, {
+              tools: [
+                {
+                  packId: 'fixture',
+                  packName: 'Fixture',
+                  packVersion: '1.0.0',
+                  toolId: 'fixture',
+                  status: 'ready',
+                  version: '1.2.3',
+                },
+              ],
+            }),
+          );
+        }
+        if (path === '/api/v1/tasks') {
+          return Promise.resolve(
+            response(200, {
+              tasks: [
+                {
+                  packId: 'fixture',
+                  packName: 'Fixture',
+                  commandId: 'inspect',
+                  name: 'Inspect',
+                  description: 'Inspect local fixture state.',
+                  toolId: 'fixture',
+                  toolVersion: '1.2.3',
+                  inputs: [],
+                },
+              ],
+            }),
+          );
+        }
+        return Promise.resolve(response(404, {}));
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Ready for curated local work' })).toBeInTheDocument();
+    expect(screen.queryByText(/Run curated CLI tasks without handing execution authority/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Read-only safe task')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No active run' })).toBeInTheDocument();
+
+    const diagnostics = screen.getByText('Tool readiness').closest('details');
+    expect(diagnostics).not.toBeNull();
+    expect(diagnostics).not.toHaveAttribute('open');
+    expect(screen.getAllByText('1/1 ready').length).toBeGreaterThanOrEqual(1);
+  });
+
 });
