@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -68,6 +69,22 @@ async function poll(label, fn, timeoutMs = 10000, intervalMs = 75) {
     throw new Error(label + ' timed out: ' + lastError.message);
   }
   throw new Error(label + ' timed out');
+}
+
+async function reserveLoopbackPort() {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string' || !Number.isInteger(address.port) || address.port <= 0) {
+    await closeHTTPServer(server);
+    throw new Error('could not reserve a loopback DevTools port');
+  }
+  const port = address.port;
+  await closeHTTPServer(server);
+  return port;
 }
 
 function findChrome() {
@@ -238,41 +255,53 @@ class ChromeHarness {
   static async start() {
     const chrome = findChrome();
     const userDataDir = await mkdtemp(path.join(os.tmpdir(), 'cliharbor-browser-e2e-'));
+    const port = await reserveLoopbackPort();
     const args = [
       '--headless=new',
-      '--remote-debugging-port=0',
+      '--remote-debugging-address=127.0.0.1',
+      '--remote-debugging-port=' + port,
       '--user-data-dir=' + userDataDir,
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-background-networking',
       '--disable-component-update',
       '--disable-default-apps',
+      '--disable-dev-shm-usage',
       '--disable-extensions',
       '--disable-sync',
       'about:blank',
     ];
     const processHandle = spawn(chrome, args, { stdio: ['ignore', 'ignore', 'pipe'] });
     const harness = new ChromeHarness(chrome, userDataDir, processHandle);
+    harness.port = port;
     processHandle.once('exit', (code, signal) => {
       harness.exit = { code, signal };
     });
 
-    const activePortPath = path.join(userDataDir, 'DevToolsActivePort');
-    const active = await poll('Chrome DevTools port', async () => {
-      if (harness.exit) {
-        throw new Error('Chrome exited before DevTools became ready');
-      }
-      try {
-        const text = await readFile(activePortPath, 'utf8');
-        const lines = text.trim().split(/\r?\n/);
-        const port = Number(lines[0]);
-        return Number.isInteger(port) && port > 0 ? port : false;
-      } catch {
-        return false;
-      }
-    }, 10000, 50);
-    harness.port = active;
-    return harness;
+    try {
+      await poll('Chrome DevTools endpoint', async () => {
+        if (harness.exit) {
+          throw new Error('Chrome exited before DevTools became ready');
+        }
+        try {
+          const response = await fetch('http://127.0.0.1:' + port + '/json/version');
+          if (!response.ok) {
+            return false;
+          }
+          const payload = await response.json();
+          return typeof payload?.webSocketDebuggerUrl === 'string' && payload.webSocketDebuggerUrl.length > 0;
+        } catch {
+          return false;
+        }
+      }, 15000, 50);
+      return harness;
+    } catch (error) {
+      const stderr = harness.stderr.trim();
+      await harness.close();
+      const detail = stderr ? '\nChrome stderr (bounded):\n' + stderr : '';
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(message + detail);
+    }
   }
 
   async newPage(url = 'about:blank') {
