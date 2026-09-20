@@ -383,7 +383,7 @@ async function waitJS(page, label, expression, timeoutMs = 10000) {
 
 async function chooseTask(page, value) {
   const expression = '(() => {' +
-    'const select = Array.from(document.querySelectorAll("select")).find((element) => element.closest("label")?.querySelector(".field-label-text > span:first-child, :scope > span:first-child")?.textContent === "Available task");' +
+    'const select = Array.from(document.querySelectorAll("select")).find((element) => element.closest("label")?.querySelector(".field-label-text > span:first-child, :scope > span:first-child:not(.field-label-text)")?.textContent === "Available task");' +
     'if (!select) return false;' +
     'const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set;' +
     'setter.call(select, ' + JSON.stringify(value) + ');' +
@@ -395,7 +395,7 @@ async function chooseTask(page, value) {
 
 async function setTextInput(page, label, value) {
   const expression = '(() => {' +
-    'const input = Array.from(document.querySelectorAll("input")).find((element) => element.closest("label")?.querySelector(".field-label-text > span:first-child, :scope > span:first-child")?.textContent === ' + JSON.stringify(label) + ');' +
+    'const input = Array.from(document.querySelectorAll("input")).find((element) => element.closest("label")?.querySelector(".field-label-text > span:first-child, :scope > span:first-child:not(.field-label-text)")?.textContent === ' + JSON.stringify(label) + ');' +
     'if (!input) return false;' +
     'const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;' +
     'setter.call(input, ' + JSON.stringify(value) + ');' +
@@ -495,7 +495,7 @@ async function main() {
     stage('typed fixture execution and inert rendering');
     await chooseTask(page, 'integration/inspect');
     await waitJS(page, 'inspect query field',
-      'Array.from(document.querySelectorAll("input")).some((element) => element.closest("label")?.querySelector(".field-label-text > span:first-child, :scope > span:first-child")?.textContent === "Query")');
+      'Array.from(document.querySelectorAll("input")).some((element) => element.closest("label")?.querySelector(".field-label-text > span:first-child, :scope > span:first-child:not(.field-label-text)")?.textContent === "Query")');
     const hostileOutput = '<img id="cliharbor-e2e-pwn" src=x onerror="document.body.dataset.cliharborE2EPwned=1">\u001b[31m';
     await setTextInput(page, 'Query', hostileOutput);
 
