@@ -17,6 +17,16 @@ if (typeof WebSocket !== 'function') {
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const stage = (name) => console.log('E2E stage: ' + name);
 
+function assertRequestForbidden(body, label) {
+  const payload = JSON.parse(body);
+  assert.equal(payload?.error?.code, 'request_forbidden', label + ' must use the stable security error code');
+  assert.equal(payload?.error?.category, 'security', label + ' must use the security category');
+  assert.equal(payload?.error?.retryable, false, label + ' must not invite automatic retry');
+  assert.equal(typeof payload?.error?.message, 'string', label + ' must include reviewed operator text');
+  assert.equal(typeof payload?.error?.remediation, 'string', label + ' must include reviewed remediation');
+  assert.doesNotMatch(body, /forbidden host|invalid CSRF token/i, label + ' must not expose internal boundary causes');
+}
+
 async function closeHTTPServer(server, timeoutMs = 2000) {
   if (!server.listening) {
     return;
@@ -435,7 +445,11 @@ async function main() {
       (params) => params.response?.url === hostileHostURL);
     await navigate(hostProbe, hostileHostURL);
     assert.equal((await hostResponse).response.status, 403, 'alternate Host must be rejected');
-    await waitJS(hostProbe, 'forbidden-host body', 'document.body.innerText.includes("forbidden host")');
+    const hostBody = await poll('typed forbidden-host body', async () => {
+      const body = await hostProbe.evaluate('document.body.innerText');
+      return body.includes('"request_forbidden"') ? body : '';
+    });
+    assertRequestForbidden(hostBody, 'alternate Host rejection');
 
     const csrfProbe = await page.evaluate('(async () => {' +
       'const response = await fetch("/api/v1/runs", {' +
@@ -447,7 +461,7 @@ async function main() {
       'return { status: response.status, body: await response.text() };' +
     '})()');
     assert.equal(csrfProbe.status, 403);
-    assert.match(csrfProbe.body, /invalid CSRF token/);
+    assertRequestForbidden(csrfProbe.body, 'missing CSRF rejection');
 
     stage('typed fixture execution and inert rendering');
     await chooseTask(page, 'integration/inspect');
