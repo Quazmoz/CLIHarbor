@@ -203,6 +203,17 @@ function FieldFailure({ id, failure }: { id: string; failure: AppErrorDetail }) 
   );
 }
 
+function FieldLabel({ input }: { input: TaskInput }) {
+  return (
+    <span className="field-label-text">
+      <FieldLabel input={input} />
+      <span className="field-requirement" aria-hidden="true">
+        {input.required ? 'Required' : 'Optional'}
+      </span>
+    </span>
+  );
+}
+
 function InputControl({
   input,
   value,
@@ -231,7 +242,7 @@ function InputControl({
             aria-describedby={describedBy}
             onChange={(event) => onChange(event.target.checked)}
           />
-          <span>{input.label}</span>
+          <FieldLabel input={input} />
         </label>
         {error && <FieldFailure id={errorID} failure={error} />}
       </div>
@@ -242,7 +253,7 @@ function InputControl({
     return (
       <div className="field-group">
         <label className="field">
-          <span>{input.label}</span>
+          <FieldLabel input={input} />
           <select
             id={domID}
             required={input.required}
@@ -269,7 +280,7 @@ function InputControl({
     return (
       <div className="field-group">
         <label className="field">
-          <span>{input.label}</span>
+          <FieldLabel input={input} />
           <select
             id={domID}
             multiple
@@ -294,7 +305,7 @@ function InputControl({
   return (
     <div className="field-group">
       <label className="field">
-        <span>{input.label}</span>
+        <FieldLabel input={input} />
         <input
           id={domID}
           type={input.type === 'integer' ? 'number' : 'text'}
@@ -590,25 +601,17 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
-          <span className="eyebrow">LOCAL OPERATOR CONSOLE</span>
+        <div className="brand-block">
+          <span className="eyebrow">LOCAL OPERATOR WORKSPACE</span>
           <h1>CLIHarbor</h1>
         </div>
-        <span className="local-badge">Local only</span>
+        <div className="topbar-context" aria-label="Runtime boundary">
+          <span className="local-badge">Local only</span>
+          {state.kind === 'ready' && <span className="build-id">v{state.status.version}</span>}
+        </div>
       </header>
 
       <main aria-busy={state.kind === 'loading'}>
-        <section className="hero" aria-labelledby="runtime-heading">
-          <div>
-            <p className="hero-kicker">Secure local runtime</p>
-            <h2 id="runtime-heading">Run curated CLI tasks without handing execution authority to the browser.</h2>
-            <p>
-              CLIHarbor is listening only on the loopback interface. Task metadata is server-provided and execution stays
-              bound to trusted packs and discovered tools.
-            </p>
-          </div>
-        </section>
-
         {state.kind === 'loading' && (
           <section className="panel" role="status" aria-live="polite" aria-busy="true">
             <h2>Checking runtime</h2>
@@ -635,67 +638,42 @@ export function App() {
 
         {state.kind === 'ready' && (
           <>
-            <section className="status-grid" aria-label="CLIHarbor status">
-              <article className="panel">
-                <p className="status-label">Application</p>
-                <h2>{state.status.name}</h2>
-                <dl>
-                  <div>
-                    <dt>Version</dt>
-                    <dd>{state.status.version}</dd>
-                  </div>
-                </dl>
-              </article>
-              <article className="panel">
-                <p className="status-label">Local runtime</p>
-                <h2>Running</h2>
-                <p>Bound to this computer only.</p>
-              </article>
-              <article className="panel">
-                <p className="status-label">Tools ready</p>
-                <h2>
-                  {readyToolCount}/{state.tools.length}
+            <section className="runtime-overview" aria-labelledby="runtime-heading">
+              <div className="runtime-copy">
+                <p className="runtime-state">Authenticated local runtime</p>
+                <h2 id="runtime-heading">
+                  {state.tasks.length > 0 ? 'Ready for curated local work' : 'Local runtime active'}
                 </h2>
-                <p>Discovery state is sanitized before it reaches the browser.</p>
-              </article>
-              <article className="panel">
-                <p className="status-label">Safe tasks</p>
-                <h2>{state.tasks.length}</h2>
-                <p>Only read-only, non-secret tasks with a ready tool are exposed.</p>
-              </article>
+                <p>
+                  Execution remains server-owned and loopback-only. The browser can select only safe tasks exposed by the
+                  authenticated runtime.
+                </p>
+              </div>
+              <dl className="runtime-facts" aria-label="Runtime summary">
+                <div>
+                  <dt>Version</dt>
+                  <dd>{state.status.version}</dd>
+                </div>
+                <div>
+                  <dt>Tools</dt>
+                  <dd>{readyToolCount}/{state.tools.length} ready</dd>
+                </div>
+                <div>
+                  <dt>Safe tasks</dt>
+                  <dd>{state.tasks.length}</dd>
+                </div>
+              </dl>
             </section>
 
-            <section className="panel tool-diagnostics" aria-labelledby="tool-diagnostics-heading">
-              <p className="status-label">Tool diagnostics</p>
-              <h2 id="tool-diagnostics-heading">Configured CLI tools</h2>
-              {state.tools.length === 0 ? (
-                <p>No tools are configured. Load an explicitly trusted pack to inspect tool availability.</p>
-              ) : (
-                <ul className="tool-list">
-                  {state.tools.map((tool) => (
-                    <li key={`${tool.packId}/${tool.toolId}`}>
-                      <div className="tool-summary">
-                        <strong>{tool.packName} — {tool.toolId}</strong>
-                        <span className="tool-status">{tool.status}</span>
-                      </div>
-                      <p>
-                        Pack {tool.packVersion}
-                        {tool.version ? ` · Detected ${tool.version}` : ''}
-                        {tool.versionConstraint ? ` · Required ${tool.versionConstraint}` : ''}
-                      </p>
-                      {tool.message && <p>{tool.message}</p>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section className="workspace-grid">
-              <article className="panel" aria-labelledby="task-heading">
+            <section className="workspace-grid">            <section className="workspace-grid">
+              <article className="panel task-panel" aria-labelledby="task-heading">
                 <p className="status-label">Task</p>
                 <h2 id="task-heading">Run a safe task</h2>
                 {state.tasks.length === 0 ? (
-                  <p>No runnable tasks are currently available. Load a trusted pack and ensure its tool is discovered.</p>
+                  <div className="empty-state">
+                    <strong>No safe tasks are available.</strong>
+                    <p>CLIHarbor is still local-only. Load an explicitly trusted pack and resolve its tool readiness, then refresh this runtime.</p>
+                  </div>
                 ) : (
                   <form onSubmit={startRun}>
                     <label className="field">
@@ -725,14 +703,18 @@ export function App() {
                     {selectedTask !== undefined && (
                       <>
                         <div className="task-context">
-                          <strong>{selectedTask.name}</strong>
+                          <div className="task-context-header">
+                            <strong>{selectedTask.name}</strong>
+                            <span className="safety-chip">Read-only safe task</span>
+                          </div>
                           {selectedTask.description && <p>{selectedTask.description}</p>}
-                          <p>
+                          <p className="task-tool">
                             Tool: {selectedTask.toolId}
-                            {selectedTask.toolVersion ? ` ${selectedTask.toolVersion}` : ''}
+                            {selectedTask.toolVersion ? ' ' + selectedTask.toolVersion : ''}
                           </p>
+                          <p>Run submits only the validated values below; executable and argument authority stay on the local runtime.</p>
                         </div>
-                        <div className="form-stack">
+                        <div className="form-stack">                        <div className="form-stack">
                           {selectedTask.inputs.map((input) => (
                             <InputControl
                               key={input.id}
@@ -762,9 +744,9 @@ export function App() {
                 )}
               </article>
 
-              <article className="panel run-panel" aria-labelledby="run-heading">
+              <article className={"panel run-panel" + (run !== null ? " run-panel--engaged" : "")} aria-labelledby="run-heading">
                 <p className="status-label">Run</p>
-                <div className="run-state" role="status" aria-live="polite" aria-atomic="true">
+                <div className={"run-state run-state--" + (run === null ? "idle" : run.retained ? run.snapshot.status : "unavailable")} role="status" aria-live="polite" aria-atomic="true">
                   <h2 id="run-heading">{run === null ? 'No active run' : run.retained ? run.snapshot.status : 'run no longer retained'}</h2>
                   <p>{run === null ? 'Start a safe task to stream its output here.' : runStatusDescription(run, cancelRequested)}</p>
                 </div>
@@ -832,26 +814,69 @@ export function App() {
                         )}
                       </section>
                     )}
-                    <div className="output-grid">
-                      <section aria-labelledby="stdout-heading">
-                        <h3 id="stdout-heading">stdout</h3>
-                        <pre tabIndex={0}>{run.stdout || 'No stdout yet.'}</pre>
-                      </section>
-                      <section aria-labelledby="stderr-heading">
-                        <h3 id="stderr-heading">stderr</h3>
-                        <pre tabIndex={0}>{run.stderr || 'No stderr yet.'}</pre>
-                      </section>
-                    </div>
+                    <details className="raw-output" open={run.snapshot.structured?.status !== 'available'}>
+                      <summary>
+                        <span>Raw process output</span>
+                        <span className="raw-output-note">stdout and stderr remain separate</span>
+                      </summary>
+                      <div className="output-grid">
+                        <section aria-labelledby="stdout-heading">
+                          <h3 id="stdout-heading">stdout</h3>
+                          <pre tabIndex={0}>{run.stdout || 'No stdout yet.'}</pre>
+                        </section>
+                        <section aria-labelledby="stderr-heading">
+                          <h3 id="stderr-heading">stderr</h3>
+                          <pre tabIndex={0}>{run.stderr || 'No stderr yet.'}</pre>
+                        </section>
+                      </div>
+                    </details>
                   </>
                 )}
               </article>
             </section>
+
+            <details className="panel tool-diagnostics">
+              <summary>
+                <span className="diagnostics-summary-copy">
+                  <span className="status-label">Diagnostics</span>
+                  <strong>Tool readiness</strong>
+                </span>
+                <span className="summary-meta">{readyToolCount}/{state.tools.length} ready</span>
+              </summary>
+              <div className="diagnostics-body" aria-label="Configured CLI tool diagnostics">
+                {state.tools.length === 0 ? (
+                  <div className="empty-state">
+                    <strong>No tools are configured.</strong>
+                    <p>Load an explicitly trusted pack to inspect sanitized tool readiness.</p>
+                  </div>
+                ) : (
+                  <ul className="tool-list">
+                    {state.tools.map((tool) => (
+                      <li key={tool.packId + '/' + tool.toolId}>
+                        <div className="tool-summary">
+                          <strong>{tool.packName} — {tool.toolId}</strong>
+                          <span className={"tool-status " + (tool.status === 'ready' ? 'tool-status--ready' : 'tool-status--attention')}>
+                            {tool.status}
+                          </span>
+                        </div>
+                        <p>
+                          Pack {tool.packVersion}
+                          {tool.version ? ' · Detected ' + tool.version : ''}
+                          {tool.versionConstraint ? ' · Required ' + tool.versionConstraint : ''}
+                        </p>
+                        {tool.message && <p>{tool.message}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </details>
           </>
         )}
       </main>
 
       <footer>
-        <p>No cloud backend. No telemetry by default. No remote runtime assets.</p>
+        <p>Local runtime · No cloud backend · No telemetry by default · No remote runtime assets</p>
       </footer>
     </div>
   );
