@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   quality:
@@ -39,17 +39,6 @@ jobs:
         run: npm run build --prefix web
       - name: Generate embedded frontend
         run: go run ./tools/task sync-web
-      - name: Synchronize generated frontend for UI refinement
-        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        shell: bash
-        run: |
-          if ! git diff --quiet -- internal/webui/static; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add internal/webui/static
-            git commit -m "Sync refined operator frontend"
-            git push origin HEAD:main
-          fi
       - name: Capture generated frontend for synchronization
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4.6.2
