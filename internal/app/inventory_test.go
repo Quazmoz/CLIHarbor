@@ -3,7 +3,9 @@ package app
 import (
 	"bytes"
 	"context"
+	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -173,5 +175,40 @@ func TestInventoryExportPrintsExactEvidenceSHA256(t *testing.T) {
 	}
 	if !strings.Contains(got, "not a signature or attestation") {
 		t.Fatalf("inventory export output missing integrity limitation: %q", got)
+	}
+}
+
+func TestPackagedPhase0InventoryRemainsDiscoveryOnly(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join("..", "..", "packs", "phase0", "idira-cyberark-inventory.yaml")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read packaged Phase 0 pack: %v", err)
+	}
+	pack, err := packs.Parse(content)
+	if err != nil {
+		t.Fatalf("parse packaged Phase 0 pack: %v", err)
+	}
+	if pack.Metadata.ID != "idira-cyberark-phase0" || pack.Metadata.Version != "0.1.0" {
+		t.Fatalf("unexpected packaged Phase 0 identity: %s %s", pack.Metadata.ID, pack.Metadata.Version)
+	}
+	if len(pack.Commands) != 0 {
+		t.Fatalf("packaged Phase 0 pack unexpectedly grants command authority: %d commands", len(pack.Commands))
+	}
+
+	toolIDs := make([]string, 0, len(pack.Runtime.Tools))
+	for id, tool := range pack.Runtime.Tools {
+		toolIDs = append(toolIDs, id)
+		if tool.VersionProbe != nil {
+			t.Fatalf("packaged Phase 0 tool %s unexpectedly configures a version probe", id)
+		}
+		if len(tool.HelpProbes) != 0 {
+			t.Fatalf("packaged Phase 0 tool %s unexpectedly configures %d help probes", id, len(tool.HelpProbes))
+		}
+	}
+	sort.Strings(toolIDs)
+	if got := strings.Join(toolIDs, ","); got != "conjur,idsec" {
+		t.Fatalf("packaged Phase 0 tools = %q, want conjur,idsec", got)
 	}
 }

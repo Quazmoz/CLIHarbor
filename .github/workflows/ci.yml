@@ -155,8 +155,18 @@ jobs:
             if ($tool.packVersion -ne "0.1.0") {
               throw "packaged Phase 0 evidence reported an unexpected pack version"
             }
-            if ($tool.versionProbeConfigured -or @($tool.availableHelpProbes).Count -ne 0 -or @($tool.probes).Count -ne 0) {
-              throw "packaged Phase 0 pack unexpectedly granted vendor probe execution authority"
+
+            $helpProbeCount = 0
+            if ($null -ne $tool.availableHelpProbes) {
+              $helpProbeCount = @($tool.availableHelpProbes).Count
+            }
+            $executedProbeCount = 0
+            if ($null -ne $tool.probes) {
+              $executedProbeCount = @($tool.probes).Count
+            }
+            $versionProbeConfigured = [bool]$tool.versionProbeConfigured
+            if ($versionProbeConfigured -or $helpProbeCount -ne 0 -or $executedProbeCount -ne 0) {
+              throw "packaged Phase 0 pack unexpectedly granted vendor probe execution authority (version=$versionProbeConfigured help=$helpProbeCount executed=$executedProbeCount)"
             }
           }
 
