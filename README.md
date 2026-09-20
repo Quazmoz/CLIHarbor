@@ -40,7 +40,7 @@ The installed CLI remains the operational authority. CLIHarbor owns only the loc
 | Structured results | Strict bounded scalar JSON parsing with inert React rendering and raw-output fallback |
 | Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, detached SHA-256, strict inspection |
 | Support diagnostics | `cliharbor diagnostics export` emits only allowlisted non-secret metadata; no command output, argv, paths, environment values, browser secrets, or credential material |
-| Evaluation qualification | Exact Go toolchain, controlled build inputs, isolated deterministic rebuilds, authoritative `EVALUATION_SHA256SUMS`, vendor-free self-test/evidence smoke |
+| Evaluation qualification | Exact Go toolchain, controlled build inputs, isolated deterministic rebuilds, authoritative `EVALUATION_SHA256SUMS`, vendor-free self-test, and packaged discovery-only Phase 0 evidence smoke |
 
 Not yet implemented or intentionally gated:
 

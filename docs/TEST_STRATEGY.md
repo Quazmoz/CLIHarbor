@@ -377,7 +377,7 @@ Regression coverage must prove:
 - symlink/non-regular/raced file protections remain in force before hashing;
 - checksum calculation alone is never described as signer authentication or environment attestation;
 - no checksum input can become executable, argv, pack, browser, or workflow authority;
-- the packaged Windows evaluation binary completes a vendor-free `inventory --export` -> `evidence checksum` -> checksum-required `evidence inspect` smoke flow before artifact upload.
+- the packaged Windows evaluation binary loads the shipped `packs/phase0/idira-cyberark-inventory.yaml`, exports evidence, asserts that the artifact grants exactly the declared `idsec`/`conjur` discovery identities with no version/help probes or executed probe records, then completes `evidence checksum` -> checksum-required `evidence inspect` before artifact upload.
 
 
 ## Privacy-preserving diagnostic export verification

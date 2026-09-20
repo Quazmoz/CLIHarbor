@@ -130,11 +130,36 @@ jobs:
         shell: pwsh
         run: |
           $evidence = Join-Path $env:RUNNER_TEMP "cliharbor-phase0-smoke.json"
-          $exportOutput = & .\bin\cliharbor-windows-x64-evaluation.exe inventory --export $evidence
+          $pack = Join-Path $PWD "packs\phase0\idira-cyberark-inventory.yaml"
+          $exportOutput = & .\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file $pack --export $evidence
           if ($LASTEXITCODE -ne 0) {
-            throw "inventory export failed with exit code $LASTEXITCODE"
+            throw "packaged Phase 0 inventory export failed with exit code $LASTEXITCODE"
           }
           $exportOutput | ForEach-Object { Write-Host $_ }
+
+          $bundle = Get-Content -Raw $evidence | ConvertFrom-Json
+          $tools = @($bundle.tools)
+          $expectedToolIdentities = @(
+            "idira-cyberark-phase0/conjur",
+            "idira-cyberark-phase0/idsec"
+          )
+          $actualToolIdentities = @(
+            $tools |
+              ForEach-Object { "$($_.packId)/$($_.toolId)" } |
+              Sort-Object
+          )
+          if (($actualToolIdentities -join "`n") -ne ($expectedToolIdentities -join "`n")) {
+            throw "packaged Phase 0 evidence did not contain exactly the expected discovery-only tools"
+          }
+          foreach ($tool in $tools) {
+            if ($tool.packVersion -ne "0.1.0") {
+              throw "packaged Phase 0 evidence reported an unexpected pack version"
+            }
+            if ($tool.versionProbeConfigured -or @($tool.availableHelpProbes).Count -ne 0 -or @($tool.probes).Count -ne 0) {
+              throw "packaged Phase 0 pack unexpectedly granted vendor probe execution authority"
+            }
+          }
+
           $digestMatch = $exportOutput |
             Select-String -Pattern '^Evidence SHA-256: ([0-9a-f]{64})$' |
             Select-Object -First 1

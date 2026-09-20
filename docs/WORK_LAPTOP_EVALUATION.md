@@ -6,7 +6,7 @@ The evaluation executable is **unsigned**. Do not disable or bypass Windows Defe
 
 ## 1. Obtain the qualified artifact
 
-The CI workflow produces an artifact only after the repository's Windows/Linux quality jobs, dependency vulnerability scan, Go race detector, exact `.go-version` toolchain check, and deterministic two-build Windows evaluation qualification succeed.
+The CI workflow produces an artifact only after the repository's Windows/Linux quality jobs, dependency vulnerability scan, Go race detector, exact `.go-version` toolchain check, and deterministic two-build Windows evaluation qualification succeed. Before upload, the packaged Windows executable also loads the shipped Phase 0 pack, exports evidence, verifies that the pack contributes exactly the `idsec` and `conjur` discovery identities with no configured or executed vendor probes, and completes checksum-required evidence inspection.
 
 Artifact name:
 
