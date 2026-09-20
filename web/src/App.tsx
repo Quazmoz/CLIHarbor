@@ -206,7 +206,7 @@ function FieldFailure({ id, failure }: { id: string; failure: AppErrorDetail }) 
 function FieldLabel({ input }: { input: TaskInput }) {
   return (
     <span className="field-label-text">
-      <FieldLabel input={input} />
+      <span>{input.label}</span>
       <span className="field-requirement" aria-hidden="true">
         {input.required ? 'Required' : 'Optional'}
       </span>
@@ -665,7 +665,7 @@ export function App() {
               </dl>
             </section>
 
-            <section className="workspace-grid">            <section className="workspace-grid">
+            <section className="workspace-grid">
               <article className="panel task-panel" aria-labelledby="task-heading">
                 <p className="status-label">Task</p>
                 <h2 id="task-heading">Run a safe task</h2>
@@ -714,7 +714,7 @@ export function App() {
                           </p>
                           <p>Run submits only the validated values below; executable and argument authority stay on the local runtime.</p>
                         </div>
-                        <div className="form-stack">                        <div className="form-stack">
+                        <div className="form-stack">
                           {selectedTask.inputs.map((input) => (
                             <InputControl
                               key={input.id}
