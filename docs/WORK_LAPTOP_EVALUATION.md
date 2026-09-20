@@ -168,11 +168,19 @@ If discovery is ambiguous or the tool is not on PATH, use `doctor` locally to in
 
 If an explicit path is required, the backend-only form is:
 
+PowerShell:
+
 ```powershell
 .\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file .\packs\phase0\idira-cyberark-inventory.yaml --tool-path 'idira-cyberark-phase0/idsec=<absolute-path-to-idsec.exe>'
 ```
 
-The browser cannot supply or alter this path.
+CMD (use double quotes around the complete `pack/tool=path` value when the path can contain spaces):
+
+```bat
+.\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file .\packs\phase0\idira-cyberark-inventory.yaml --tool-path "idira-cyberark-phase0/idsec=<absolute-path-to-idsec.exe>"
+```
+
+The browser cannot supply or alter this path. Do not copy PowerShell single-quote syntax into CMD; CMD treats those quote characters literally.
 
 ## 7. Export the initial sanitized evidence bundle
 
@@ -289,7 +297,7 @@ Do not disable or evade the control. Record the policy/error message and use the
 
 ### PowerShell is restricted
 
-CLIHarbor does not require PowerShell. Run the same executable commands from CMD if company policy permits normal executables. Do not change execution policy for CLIHarbor.
+CLIHarbor does not require PowerShell. Run the executable commands from CMD if company policy permits normal executables. Use the CMD-specific double-quoted `--tool-path` form above when an explicit path contains spaces; do not change PowerShell execution policy for CLIHarbor.
 
 ### Tool is missing
 
