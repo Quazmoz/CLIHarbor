@@ -40,7 +40,7 @@ The installed CLI remains the operational authority. CLIHarbor owns only the loc
 | Structured results | Strict bounded scalar JSON parsing with inert React rendering and raw-output fallback |
 | Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, detached SHA-256, strict inspection |
 | Support diagnostics | `cliharbor diagnostics export` emits only allowlisted non-secret metadata; no command output, argv, paths, environment values, browser secrets, or credential material |
-| Evaluation qualification | Exact Go toolchain, controlled build inputs, isolated deterministic rebuilds, authoritative `EVALUATION_SHA256SUMS`, vendor-free self-test, and packaged discovery-only Phase 0 evidence smoke |
+| Evaluation qualification | Exact Go toolchain, controlled build inputs, isolated deterministic rebuilds, authoritative `EVALUATION_SHA256SUMS`, vendor-free self-test/evidence smoke, and a self-contained extracted-bundle `evaluation preflight` gate |
 
 Not yet implemented or intentionally gated:
 
@@ -188,12 +188,14 @@ verify-windows-eval
     ↓
 verify-windows-eval-repro
     ↓
-self-test / evidence smoke
+self-test / packaged evidence smoke
     ↓
-artifact upload
+clean extracted-bundle evaluation preflight
+    ↓
+final bundle verification / artifact upload
 ```
 
-`EVALUATION_SHA256SUMS` covers the evaluation executable and trusted Phase 0 pack. The deterministic rebuild gate requires the candidate and two isolated rebuilds to produce the same authoritative manifest under the pinned toolchain and controlled build inputs.
+`EVALUATION_SHA256SUMS` covers the evaluation executable and trusted Phase 0 pack. The deterministic rebuild gate requires the candidate and two isolated rebuilds to produce the same authoritative manifest under the pinned toolchain and controlled build inputs. The packaged `evaluation preflight` then validates the exact extracted layout, those covered bytes, the discovery-only pack authority, the running executable identity, and vendor-free runtime suitability before Phase 0 inventory.
 
 Checksum equality proves byte integrity/determinism under that qualification contract. It is **not** code signing, publisher identity, host attestation, or independent supply-chain provenance.
 

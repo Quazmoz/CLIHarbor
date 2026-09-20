@@ -8,6 +8,22 @@ import (
 	"testing"
 )
 
+const validEvaluationPhase0Pack = `apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: idira-cyberark-phase0
+  name: Idira/CyberArk Phase 0 Inventory
+  version: 0.1.0
+runtime:
+  platforms: [windows]
+  tools:
+    idsec:
+      executableNames: [idsec]
+    conjur:
+      executableNames: [conjur]
+commands: {}
+`
+
 func TestVerifyWindowsEvaluationAcceptsExactAuthoritativeBundle(t *testing.T) {
 	t.Parallel()
 
@@ -386,7 +402,7 @@ func makeEvaluationBundle(t *testing.T) string {
 	if err := os.WriteFile(executable, []byte("evaluation executable"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(pack, []byte("phase0 pack"), 0o644); err != nil {
+	if err := os.WriteFile(pack, []byte(validEvaluationPhase0Pack), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeSHA256Manifest(root, filepath.Join(root, evaluationManifestName), []string{executable, pack}); err != nil {

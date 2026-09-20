@@ -160,8 +160,10 @@ The repository now implements the pre-vendor-integration work-laptop evaluation 
 - evidence probes revalidate discovery-time executable fingerprints immediately before launch;
 - `cliharbor.phase0/v1` evidence export is typed, bounded, sanitized, self-describing with sanitized fixed argv, omits timestamps for probes that did not execute, and uses atomic no-clobber activation;
 - `packs/phase0/idira-cyberark-inventory.yaml` is discovery-only and asserts no vendor command/probe argv;
-- `go run ./tools/task windows-eval` produces `bin/cliharbor-windows-x64-evaluation.exe` and `SHA256SUMS`;
-- CI verifies the Windows evaluation executable's `version` and `self-test` commands, recomputes `EVALUATION_SHA256SUMS` for both the executable and shipped trusted Phase 0 pack, and uploads the unsigned artifact only after existing quality/security/race gates;
+- `go run ./tools/task windows-eval` produces `bin/cliharbor-windows-x64-evaluation.exe` plus the root authoritative `EVALUATION_SHA256SUMS` covering that executable and the trusted Phase 0 pack;
+- `cliharbor evaluation preflight` is the self-contained extracted-bundle gate: it validates exact build identity, exact bundle layout/integrity, discovery-only Phase 0 pack authority, temp/loopback/frontend/self-process suitability, then revalidates the bundle without running discovery or any vendor executable;
+- CI stages an extracted-copy bundle, places deliberately invalid `idsec.exe`/`conjur.exe` sentinels first on `PATH`, and requires the packaged evaluation executable to pass preflight without touching those sentinels before upload;
+- evidence/diagnostics from a managed-laptop run belong outside the immutable extracted evaluation bundle so exact-layout preflight remains meaningful;
 - the exact laptop procedure is `WORK_LAPTOP_EVALUATION.md`.
 
 The next product step is to run this artifact on the actual company-managed Windows laptop and return the reviewed Phase 0 evidence. Real Idira/CyberArk command definitions remain blocked on that evidence; do not guess them.

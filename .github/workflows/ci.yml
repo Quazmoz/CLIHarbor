@@ -126,6 +126,28 @@ jobs:
         run: go run ./tools/task verify-windows-eval
       - name: Run vendor-free evaluation self-test
         run: .\bin\cliharbor-windows-x64-evaluation.exe self-test
+      - name: Run extracted-bundle evaluation preflight
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $env:RUNNER_TEMP "cliharbor-evaluation-preflight"
+          $vendorSentinel = Join-Path $env:RUNNER_TEMP "cliharbor-vendor-sentinel"
+          Remove-Item -Recurse -Force $bundle -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force $vendorSentinel -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force (Join-Path $bundle "bin") | Out-Null
+          New-Item -ItemType Directory -Force (Join-Path $bundle "packs\phase0") | Out-Null
+          New-Item -ItemType Directory -Force $vendorSentinel | Out-Null
+          Copy-Item .\EVALUATION_SHA256SUMS (Join-Path $bundle "EVALUATION_SHA256SUMS")
+          Copy-Item .\bin\cliharbor-windows-x64-evaluation.exe (Join-Path $bundle "bin\cliharbor-windows-x64-evaluation.exe")
+          Copy-Item .\packs\phase0\idira-cyberark-inventory.yaml (Join-Path $bundle "packs\phase0\idira-cyberark-inventory.yaml")
+
+          Set-Content -NoNewline (Join-Path $vendorSentinel "idsec.exe") "must-not-launch"
+          Set-Content -NoNewline (Join-Path $vendorSentinel "conjur.exe") "must-not-launch"
+          $env:PATH = "$vendorSentinel;$env:PATH"
+
+          & (Join-Path $bundle "bin\cliharbor-windows-x64-evaluation.exe") evaluation preflight --bundle $bundle
+          if ($LASTEXITCODE -ne 0) {
+            throw "evaluation preflight failed with exit code $LASTEXITCODE"
+          }
       - name: Verify packaged Phase 0 evidence integrity flow
         shell: pwsh
         run: |

@@ -118,3 +118,16 @@ func TestDiagnosticsExportCommandCreatesBundle(t *testing.T) {
 		t.Fatalf("empty-runtime diagnostics unexpectedly contained pack/tool state: %#v", bundle)
 	}
 }
+
+func TestEvaluationPreflightCommandShapeFailsClosed(t *testing.T) {
+	for _, args := range [][]string{
+		{"evaluation"},
+		{"evaluation", "unknown"},
+		{"evaluation", "preflight", "unexpected"},
+		{"evaluation", "preflight", "--bundle"},
+	} {
+		if err := run(args); err == nil {
+			t.Fatalf("run(%v) unexpectedly succeeded", args)
+		}
+	}
+}

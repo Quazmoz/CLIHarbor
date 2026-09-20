@@ -1,12 +1,12 @@
 # Work-Laptop Evaluation
 
-This procedure is for the first CLIHarbor evaluation on a normal company-managed Windows 10/11 laptop. It is deliberately read-only and does not require administrator rights, an installer, Node/npm/Vite, or Go on the target laptop.
+This is the controlled first CLIHarbor run on a company-managed Windows 10/11 laptop. It is intentionally read-only and vendor-free until the explicit Phase 0 `inventory` step.
 
-The evaluation executable is **unsigned**. Do not disable or bypass Windows Defender, EDR, AppLocker, WDAC, SmartScreen, proxy policy, browser policy, or any other company security control to run it.
+The target laptop does **not** need Go, Node/npm, Git, PowerShell, administrator rights, or external internet access. The evaluation executable is unsigned. Do not disable, bypass, or weaken Windows Defender, EDR, AppLocker, WDAC, SmartScreen, proxy policy, browser policy, firewall policy, or any other company security control to run it.
 
-## 1. Obtain the qualified artifact
+## 1. Obtain and extract the exact qualified artifact
 
-The CI workflow produces an artifact only after the repository's Windows/Linux quality jobs, dependency vulnerability scan, Go race detector, exact `.go-version` toolchain check, and deterministic two-build Windows evaluation qualification succeed. Before upload, the packaged Windows executable also loads the shipped Phase 0 pack, exports evidence, verifies that the pack contributes exactly the `idsec` and `conjur` discovery identities with no configured or executed vendor probes, and completes checksum-required evidence inspection.
+GitHub Actions uploads one artifact only after the repository quality, security, race, deterministic rebuild, evaluation-integrity, vendor-free runtime, Phase 0 evidence, and evaluation-preflight gates succeed.
 
 Artifact name:
 
@@ -14,63 +14,261 @@ Artifact name:
 cliharbor-windows-x64-evaluation-<commit-sha>
 ```
 
-The artifact contains:
+The ZIP contains exactly this evaluated layout:
 
 ```text
 EVALUATION_SHA256SUMS
-bin/cliharbor-windows-x64-evaluation.exe
-packs/phase0/idira-cyberark-inventory.yaml
+bin/
+  cliharbor-windows-x64-evaluation.exe
+packs/
+  phase0/
+    idira-cyberark-inventory.yaml
 ```
 
-`EVALUATION_SHA256SUMS` is the **only checksum manifest packaged in the Windows evaluation artifact**. It covers both files that define the evaluation execution boundary: the executable and the explicitly trusted Phase 0 pack. `bin/SHA256SUMS` remains a local-build compatibility checksum for `go-build`/`build`; it is deliberately invalidated by `windows-eval` and is not uploaded in the evaluation artifact.
+`EVALUATION_SHA256SUMS` is the only checksum manifest in the qualified evaluation bundle. It covers the executable and the Phase 0 pack. A GitHub artifact ZIP digest, if retained separately, is archive-level evidence and does not replace the internal manifest.
 
-The executable embeds the production React frontend. The work laptop does not need the source tree or frontend tooling.
+Use Windows **Extract All** or another company-approved ZIP extractor. Do not run the executable from inside a ZIP viewer. Extract into a new, otherwise empty, user-writable directory and preserve the directory tree exactly. The built-in preflight deliberately rejects missing, unexpected, case-conflicting, symlink/reparse-point, or otherwise non-canonical bundle entries.
 
-To build the same Windows x64 evaluation executable from a repository checkout on a development machine, install the exact Go patch release in `.go-version` and run:
+If the chosen extraction path contains spaces, that is supported.
 
-```text
-go run ./tools/task windows-eval
-```
+## 2. Open CMD in the extracted bundle root
 
-To exercise the deterministic same-checkout rebuild gate locally before using that output:
-
-```text
-go run ./tools/task verify-windows-eval-repro
-```
-
-The reproduction task verifies the real evaluation candidate, stages two private temporary rebuild bundles, and requires all three authoritative manifests to match; it does not publish or replace the real evaluation artifact.
-
-Expected executable location:
-
-```text
-bin/cliharbor-windows-x64-evaluation.exe
-```
-
-The build task emits only the root `EVALUATION_SHA256SUMS` for evaluation integrity and removes any stale generated `bin/SHA256SUMS` before building. Evaluation builds report `build: evaluation-unsigned`. Ordinary local `go-build`/`build` commands continue to emit `bin/SHA256SUMS` for local compatibility.
-
-## 2. Copy to a user-writable directory
-
-Use a directory allowed by company policy, for example a user-owned tools directory. Do not request elevation merely for CLIHarbor.
-
-The examples below assume the artifact was extracted with its `bin` and `packs` directories intact.
-
-PowerShell:
-
-```powershell
-cd <extracted-artifact-directory>
-```
-
-CMD:
+PowerShell is not required. These instructions use CMD so they also work where PowerShell is restricted.
 
 ```bat
-cd /d <extracted-artifact-directory>
+cd /d "C:\path\to\extracted\artifact"
 ```
 
-Paths containing spaces are supported. Quote the path when invoking the executable from another directory.
+The current directory must contain `EVALUATION_SHA256SUMS`, `bin`, and `packs` as shown above. CLIHarbor does not need to be added to `PATH`; invoke the exact packaged executable by relative path.
 
-## 3. Verify the evaluation bundle SHA-256 before running
+## 3. Run the self-contained evaluation preflight
 
-PowerShell:
+From the extracted bundle root:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe evaluation preflight --bundle "."
+```
+
+The preflight is the primary laptop-readiness gate. It does **not** invoke `idsec`, `conjur`, or any other discovered vendor executable. It does not authenticate, read credential stores, enumerate secrets, change `PATH`, alter Windows policy, invoke PowerShell/CMD as a child shell, download anything, or modify machine configuration.
+
+It validates:
+
+- CLIHarbor version, full source commit, evaluation build mode, Windows OS, and amd64 architecture;
+- the exact extracted bundle layout;
+- the authoritative `EVALUATION_SHA256SUMS` manifest and its exact two permitted entries;
+- SHA-256 of the packaged executable and Phase 0 pack;
+- that the running process is the executable covered by this bundle;
+- the packaged Phase 0 pack ID/version and discovery-only authority;
+- exactly the declared `idsec` and `conjur` executable basenames;
+- zero vendor commands, version probes, help probes, or version constraints;
+- writable temporary storage;
+- embedded frontend initialization and IPv4 loopback/session operation;
+- direct child-process mechanics by invoking CLIHarbor's own `version` command;
+- the bundle again after runtime checks, so an observed mid-preflight replacement fails closed.
+
+Output uses deterministic status labels:
+
+```text
+[PASS]
+[WARNING]
+[BLOCKED]
+```
+
+A successful run ends with:
+
+```text
+READY FOR PHASE 0 INVENTORY
+```
+
+A blocked run ends with:
+
+```text
+NOT READY FOR PHASE 0 INVENTORY
+```
+
+Do not continue to Phase 0 inventory after a blocked preflight.
+
+The normal successful preflight includes a warning that a default-browser launch was not attempted. The embedded production frontend and loopback session are tested without opening a browser; default-browser policy is checked separately only if you later run `serve`.
+
+### Running preflight from another working directory
+
+Prefer working from the bundle root. If that is not practical, quote the absolute bundle path and invoke the executable by its exact absolute path, for example:
+
+```bat
+"C:\CLI Harbor Eval\bin\cliharbor-windows-x64-evaluation.exe" evaluation preflight --bundle "C:\CLI Harbor Eval"
+```
+
+Do not copy only the `.exe` elsewhere and run preflight from the copy. The running executable must be the one covered by the bundle manifest.
+
+## 4. If Windows application control blocks the executable
+
+The evaluation executable is unsigned. SmartScreen, AppLocker, WDAC, EDR, antivirus, or another enterprise control may prevent it from starting or may block its self-process check.
+
+Do **not** disable or evade the control. Stop the evaluation, retain the exact policy/error message, and use the organization's approved allowlisting, exception, or code-signing process. A company-signed build is a separate release-engineering step and is not claimed by this artifact.
+
+A policy block is an environmental prerequisite failure, not a reason to loosen CLIHarbor security controls.
+
+## 5. Run the discovery-only Phase 0 inventory
+
+Only after preflight reports `READY FOR PHASE 0 INVENTORY`, run:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file "packs\phase0\idira-cyberark-inventory.yaml"
+```
+
+The supplied pack is intentionally discovery-only. It contains no vendor command argv, version probe, help probe, authentication operation, or mutation authority. The inventory step may discover executable candidates by their approved basenames, but it does not execute a vendor CLI because the packaged Phase 0 pack grants no probe or task authority.
+
+The sanitized inventory reports build/host identity, each tool ID, discovery state, candidate count, and safe remediation. Exact executable/candidate paths are intentionally omitted from shareable inventory output.
+
+Expected discovery states include `ready`, `missing`, `ambiguous`, `incompatible`, and `probe-failed`. With the current packaged pack, no version probe is configured, so no vendor version command is guessed or launched.
+
+## 6. Missing, ambiguous, or out-of-PATH vendor CLIs
+
+### Tool is missing
+
+If `inventory` reports `missing`, confirm the vendor CLI is installed through the normal company process. Do not download or install a vendor CLI merely to satisfy CLIHarbor unless that is already approved.
+
+If the approved executable exists outside `PATH`, provide an explicit backend-only path. Quote the complete `pack/tool=path` argument when the path may contain spaces:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file "packs\phase0\idira-cyberark-inventory.yaml" --tool-path "idira-cyberark-phase0/idsec=C:\Program Files\Approved Tool\idsec.exe"
+```
+
+For `conjur`, use the corresponding tool identity:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file "packs\phase0\idira-cyberark-inventory.yaml" --tool-path "idira-cyberark-phase0/conjur=C:\Program Files\Approved Tool\conjur.exe"
+```
+
+The browser cannot provide or alter these paths.
+
+### Tool is ambiguous
+
+CLIHarbor fails closed when multiple candidates match. It never silently selects the first `PATH` hit. If local troubleshooting is necessary, run:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe doctor --pack-file "packs\phase0\idira-cyberark-inventory.yaml"
+```
+
+`doctor` may contain exact local filesystem paths. Review it locally and do not paste it into ChatGPT, a ticket, or another system without appropriate redaction. After identifying the approved executable, rerun `inventory` with the explicit `--tool-path` form above.
+
+## 7. Export Phase 0 evidence outside the qualified bundle
+
+The preflight treats the extracted bundle as immutable qualified input. Therefore, write evidence **outside** the bundle directory. Do not create evidence, diagnostics, notes, screenshots, or other files inside the extracted artifact if you expect to rerun preflight on the same extraction.
+
+Create a sibling evidence directory:
+
+```bat
+mkdir "..\cliharbor-phase0-evidence"
+```
+
+Then export discovery evidence:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file "packs\phase0\idira-cyberark-inventory.yaml" --export "..\cliharbor-phase0-evidence\phase0-inventory.json"
+```
+
+If you needed an explicit tool path, include the same reviewed `--tool-path` argument on the export command.
+
+CLIHarbor refuses to overwrite an existing evidence file. If `phase0-inventory.json` already exists, choose a new filename rather than deleting or replacing it as part of the same capture, for example:
+
+```text
+phase0-inventory-2.json
+```
+
+The export prints:
+
+```text
+Evidence SHA-256: <64-lowercase-hex-digest>
+```
+
+Retain that digest independently from the JSON in an approved note, ticket field, password-manager note, or other company-approved location. The digest proves byte equality when later compared; it is not a signature, publisher identity, or host attestation.
+
+## 8. Inspect evidence before sharing it
+
+Use the independently retained digest:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe evidence inspect --sha256 <retained-64-hex-digest> "..\cliharbor-phase0-evidence\phase0-inventory.json"
+```
+
+Inspection is read-only. It does not load a pack, discover or launch a vendor executable, open a browser, or convert evidence text into executable command authority.
+
+For troubleshooting only, this command computes the digest of the currently received file:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe evidence checksum "..\cliharbor-phase0-evidence\phase0-inventory.json"
+```
+
+Do not treat a digest calculated only after receipt as independent transfer evidence; compare against the value retained separately at export time.
+
+Even after successful inspection, review the JSON before sharing. No generic redactor can prove that arbitrary future vendor-generated prose is free of organization-specific information.
+
+## 9. Exactly what to return for engineering review
+
+For the initial discovery-only Phase 0 run, return:
+
+1. the reviewed `phase0-inventory.json` file; and
+2. the independently retained `Evidence SHA-256` value through the approved communication channel.
+
+Also record the evaluation artifact name/commit SHA used. The JSON already includes CLIHarbor build/host identity, but retaining the CI artifact identity separately makes the handoff easier to audit.
+
+Do **not** routinely return:
+
+- `doctor` output;
+- the evaluation executable or trusted pack;
+- the one-time browser bootstrap URL;
+- vendor credential/profile/keystore files;
+- passwords, tokens, cookies, MFA values, environment dumps, or unrelated company paths;
+- raw output from unrelated vendor commands.
+
+If CLIHarbor itself needs troubleshooting, engineering may request the privacy-preserving diagnostics bundle described below. Do not substitute broad filesystem/log collection.
+
+## 10. Optional browser/runtime check
+
+Preflight already verifies the embedded frontend and loopback session without opening a browser. If you also want to validate the normal browser handoff, run:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe serve
+```
+
+CLIHarbor binds only to an ephemeral IPv4 loopback address.
+
+If the default browser launch is blocked or unavailable, CLIHarbor prints a short-lived `http://127.0.0.1:<port>/bootstrap?...` URL. Open that exact local URL manually only in a company-approved browser. Treat the bootstrap URL as short-lived sensitive material; do not paste or share it.
+
+If browser policy blocks loopback HTTP, record that environmental restriction and stop the browser check. Do not weaken browser, firewall, proxy, or EDR policy.
+
+Press `Ctrl+C` in the terminal to stop CLIHarbor cleanly.
+
+## 11. No-internet and proxy environments
+
+The evaluation preflight and discovery-only Phase 0 flow require no external network access from CLIHarbor. The loopback self-test explicitly disables proxy use for its in-process HTTP client. No downloads occur.
+
+A future approved vendor command may have its own network behavior. The current packaged Phase 0 pack does not grant that execution authority.
+
+## 12. Optional privacy-preserving support diagnostics
+
+For CLIHarbor runtime/discovery troubleshooting, export diagnostics outside the qualified bundle:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe diagnostics export --pack-file "packs\phase0\idira-cyberark-inventory.yaml" "..\cliharbor-phase0-evidence\cliharbor-diagnostics.json"
+```
+
+`cliharbor.diagnostics/v1` is allowlisted metadata. It intentionally excludes command output, argv, environment values, executable/candidate paths, pack source paths, browser secrets, and credential material. It is no-clobber and is not uploaded automatically.
+
+Share this only when engineering requests it.
+
+## 13. Manual checksum commands are troubleshooting aids, not the primary gate
+
+The built-in preflight already parses the authoritative manifest and hashes both privileged files. If you need an independent local troubleshooting view and company policy permits the tools, CMD can use:
+
+```bat
+type EVALUATION_SHA256SUMS
+certutil -hashfile bin\cliharbor-windows-x64-evaluation.exe SHA256
+certutil -hashfile packs\phase0\idira-cyberark-inventory.yaml SHA256
+```
+
+PowerShell equivalents are optional:
 
 ```powershell
 Get-Content .\EVALUATION_SHA256SUMS
@@ -78,297 +276,21 @@ Get-FileHash .\bin\cliharbor-windows-x64-evaluation.exe -Algorithm SHA256
 Get-FileHash .\packs\phase0\idira-cyberark-inventory.yaml -Algorithm SHA256
 ```
 
-CMD:
+Do not substitute the ZIP digest for `EVALUATION_SHA256SUMS`, and do not treat either checksum surface as code signing or publisher attestation.
 
-```bat
-type .\EVALUATION_SHA256SUMS
-certutil -hashfile .\bin\cliharbor-windows-x64-evaluation.exe SHA256
-certutil -hashfile .\packs\phase0\idira-cyberark-inventory.yaml SHA256
-```
+## 14. Cleanup
 
-The root `EVALUATION_SHA256SUMS` must contain exactly these two relative paths:
+After the approved evaluation and evidence transfer are complete:
 
-```text
-bin/cliharbor-windows-x64-evaluation.exe
-packs/phase0/idira-cyberark-inventory.yaml
-```
-
-The computed SHA-256 for **both** files must exactly match the corresponding manifest entry. No `bin/SHA256SUMS` should be present in the qualified evaluation artifact; if one is present, treat the bundle as not matching the qualified packaging contract and do not run it. The GitHub artifact ZIP digest, when retained separately, is distinct archive-level integrity evidence and must not be substituted for either privileged-file checksum.
-
-## 4. Confirm build identity
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe version
-```
-
-Expected fields include:
-
-```text
-CLIHarbor 0.0.0-eval
-commit: <40-character source commit>
-build: evaluation-unsigned
-go: <Go runtime version>
-platform: windows/amd64
-```
-
-Record the commit SHA with the evidence returned from the laptop.
-
-## 5. Run the vendor-free self-test
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe self-test
-```
-
-The self-test verifies, without touching a vendor CLI:
-
-- user-writable temporary-directory access;
-- embedded pack schema and registry loading;
-- the bounded structured-output parser;
-- the embedded frontend;
-- an ephemeral IPv4 loopback listener;
-- the one-time bootstrap/session path using an in-process HTTP client with proxy use disabled;
-- direct child-process execution by invoking this same CLIHarbor executable's `version` command.
-
-A successful run ends with:
-
-```text
-Self-test passed. No vendor CLI, credential store, or external network endpoint was accessed by CLIHarbor.
-```
-
-The self-test does not open a browser and does not require an internet connection.
-
-## 6. Run Phase 0 vendor discovery
-
-The supplied Phase 0 pack is intentionally **discovery-only**. It declares only the `idsec` and `conjur` executable basenames already recorded in CLIHarbor's product documentation. It declares no vendor command argv, no version probe, no help probe, no authentication operation, and no mutation.
-
-Run:
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file .\packs\phase0\idira-cyberark-inventory.yaml
-```
-
-The sanitized inventory reports:
-
-- Windows version and architecture;
-- CLIHarbor version/build identity;
-- each declared tool ID;
-- status such as `ready`, `missing`, `ambiguous`, `incompatible`, or `probe-failed`;
-- parsed version when a trusted version probe is actually declared;
-- candidate count and sanitized remediation text.
-
-It does **not** print discovered executable paths or candidate paths.
-
-If discovery is ambiguous or the tool is not on PATH, use `doctor` locally to inspect exact operator-side paths:
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe doctor --pack-file .\packs\phase0\idira-cyberark-inventory.yaml
-```
-
-`doctor` is local troubleshooting output and may contain exact filesystem paths. Do not paste `doctor` output into ChatGPT or a ticket without reviewing/redacting it.
-
-If an explicit path is required, the backend-only form is:
-
-PowerShell:
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file .\packs\phase0\idira-cyberark-inventory.yaml --tool-path 'idira-cyberark-phase0/idsec=<absolute-path-to-idsec.exe>'
-```
-
-CMD (use double quotes around the complete `pack/tool=path` value when the path can contain spaces):
-
-```bat
-.\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file .\packs\phase0\idira-cyberark-inventory.yaml --tool-path "idira-cyberark-phase0/idsec=<absolute-path-to-idsec.exe>"
-```
-
-The browser cannot supply or alter this path. Do not copy PowerShell single-quote syntax into CMD; CMD treats those quote characters literally.
-
-## 7. Export the initial sanitized evidence bundle
-
-Even before approved help/version probes are known, export the discovery evidence:
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file .\packs\phase0\idira-cyberark-inventory.yaml --export .\phase0-evidence.json
-```
-
-CLIHarbor refuses to overwrite an existing export. Use a new filename for a second capture. On Windows, export stages the complete JSON in the destination directory and activates it with a no-replace move, so the evidence path does not depend on filesystem hard-link support.
-
-The evidence schema is:
-
-```text
-cliharbor.phase0/v1
-```
-
-The bundle is typed and bounded. When an approved probe runs, its record includes the sanitized fixed argument vector from the trusted pack so the evidence is self-describing; it never includes the resolved executable path. Probes that did not run omit execution timestamps. The bundle intentionally excludes executable paths, candidate paths, raw process environment, PATH dumps, passwords, tokens, MFA values, cookies, browser bootstrap/session/CSRF secrets, vendor credential stores, and unrelated file enumeration.
-
-## 8. Capture approved version/help evidence
-
-Do not guess `--version`, `--help`, command names, or subcommands.
-
-A probe can run only after its exact fixed argv has been added to an explicitly trusted pack. The relevant pack shape is:
-
-```yaml
-runtime:
-  tools:
-    idsec:
-      executableNames: [idsec]
-      versionProbe:
-        args: [<exact-approved-version-argument>]
-        parser: semver-text
-        timeoutMillis: 3000
-      helpProbes:
-        root:
-          args: [<exact-approved-help-argument>]
-          timeoutMillis: 3000
-commands: {}
-```
-
-The placeholders above are documentation only. Do not run a pack containing guessed placeholders. Populate them only from approved company/vendor documentation or other factual evidence from the exact installed CLI.
-
-Once the trusted pack declares an approved version probe:
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file .\packs\phase0\idira-cyberark-inventory.yaml --probe idira-cyberark-phase0/idsec/version --export .\phase0-idsec-version.json
-```
-
-Once it declares the named `root` help probe:
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file .\packs\phase0\idira-cyberark-inventory.yaml --probe idira-cyberark-phase0/idsec/root --export .\phase0-idsec-help.json
-```
-
-Multiple approved probes may be selected by repeating `--probe`.
-
-Evidence probes:
-
-- launch the already-discovered executable directly, never through PowerShell/CMD/a shell;
-- use only pack-declared fixed argv;
-- have no interactive stdin;
-- run from a temporary neutral working directory;
-- receive a minimal environment rather than the full parent environment and run from a neutral temporary working directory;
-- use the same bounded platform lifecycle controller as normal execution; on Windows the process and descendants are owned by a Job Object;
-- are strictly time/output bounded;
-- preserve exit code and separate stdout/stderr;
-- revalidate the discovery-time executable fingerprint immediately before launch;
-- sanitize invalid UTF-8, unsafe control characters, common secret-bearing assignments, Authorization credentials, JWT-shaped data, the user-home/temp paths, and the resolved executable path before export.
-
-Explicit evidence capture records a non-zero exit, timeout, cancellation, or truncation as evidence rather than rewriting it as success. Discovery-time semantic-version probing is stricter: non-zero exit, timeout, truncation, invalid UTF-8, ambiguous version text, or missing semantic-version text makes the tool fail closed as `probe-failed`.
-
-## 9. Browser/runtime check
-
-To validate the normal browser handoff without running a vendor task:
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe serve
-```
-
-CLIHarbor binds only to an ephemeral IPv4 loopback address. It requests the default browser and prints the local runtime URL.
-
-If browser auto-launch is blocked by policy or unavailable, CLIHarbor prints a short-lived URL similar to:
-
-```text
-http://127.0.0.1:<port>/bootstrap?token=<one-time-token>
-```
-
-Open that exact URL manually in the browser. Treat the bootstrap URL as short-lived sensitive material; do not paste or share it.
-
-Verify that the CLIHarbor UI loads and reports the local runtime. With no packs configured, no vendor task is runnable. Press `Ctrl+C` in the terminal to stop CLIHarbor cleanly.
-
-## 10. What is safe to share
-
-The intended artifact to return for the next integration pass is a reviewed `phase0-*.json` evidence bundle from `inventory --export`.
-
-Before sharing, still inspect the JSON because no generic redactor can prove that arbitrary vendor-generated prose contains no organization-specific data.
-
-Do not share without review:
-
-- `doctor` output;
-- the one-time browser bootstrap URL;
-- raw terminal output from unrelated vendor login/auth commands;
-- credentials, tokens, cookies, MFA values, keystore files, profile files, or environment dumps;
-- unrelated corporate filesystem paths or configuration.
-
-## 11. Troubleshooting
-
-### Executable blocked by company policy
-
-The evaluation binary is unsigned. AppLocker, WDAC, SmartScreen, EDR, antivirus, or another application-control policy may block it.
-
-Do not disable or evade the control. Record the policy/error message and use the organization's approved exception, allowlisting, or code-signing process. A company-signed build is a separate release-engineering step and is not claimed by this evaluation artifact.
-
-### PowerShell is restricted
-
-CLIHarbor does not require PowerShell. Run the executable commands from CMD if company policy permits normal executables. Use the CMD-specific double-quoted `--tool-path` form above when an explicit path contains spaces; do not change PowerShell execution policy for CLIHarbor.
-
-### Tool is missing
-
-`inventory` reports `missing` when no matching declared basename is found across absolute PATH entries. Confirm the CLI is installed through the normal company process. If it is intentionally installed outside PATH, use the explicit CLI-side `--tool-path pack/tool=<absolute-path>` override.
-
-### Tool is ambiguous
-
-`inventory` reports `ambiguous` and a candidate count, but not candidate paths. Run `doctor` locally to see the exact candidates, then rerun `inventory` with one explicit `--tool-path`. CLIHarbor never silently chooses the first candidate.
-
-### Tool version is incompatible or probe failed
-
-Keep the evidence. `incompatible` means the detected semantic version does not satisfy the trusted pack constraint. `probe-failed` means the configured version probe did not produce usable version evidence. Do not loosen constraints or invent a different argv without evidence.
-
-### Browser does not launch
-
-Use the short-lived loopback bootstrap URL printed by CLIHarbor. If company browser policy blocks loopback HTTP entirely, record that as an environment prerequisite; do not weaken browser security controls.
-
-### Loopback cannot bind
-
-CLIHarbor uses `127.0.0.1` with an ephemeral port, so ordinary occupied ports are avoided automatically. If IPv4 loopback itself is disabled or blocked by policy, record the failure. Do not change host firewall/EDR policy merely for this evaluation.
-
-### Corporate proxy or no internet
-
-CLIHarbor's evaluation path is local. The self-test explicitly disables proxy use for its loopback HTTP client. The browser/runtime server is loopback-only. No external network is required by CLIHarbor itself for `version`, `self-test`, or discovery-only `inventory`.
-
-A vendor CLI may have its own startup/network behavior. CLIHarbor does not log in automatically or invoke a vendor command unless an explicit trusted probe is selected.
-
-## 12. Cleanup
-
-1. Stop a running browser session with `Ctrl+C` in the CLIHarbor terminal.
-2. Close the browser tab.
-3. Delete any Phase 0 JSON bundle after it has been transferred/stored according to company policy.
-4. Delete the extracted evaluation artifact directory if the evaluation is complete.
+1. stop any running CLIHarbor browser session with `Ctrl+C`;
+2. close the browser tab;
+3. retain or delete Phase 0 JSON evidence according to company policy;
+4. delete the extracted evaluation bundle when no longer needed.
 
 CLIHarbor installs no Windows service, driver, scheduled task, startup item, certificate, browser extension, registry persistence, or machine-wide configuration during this workflow.
 
-## 13. Inspect returned evidence before promotion
+## 15. Scope boundary after Phase 0
 
-After creating an evidence JSON file, retain the `Evidence SHA-256: ...` value printed by the export independently from the JSON. Then validate transfer integrity and review the file using that independently retained value:
+Do not add or infer real Idira/CyberArk commands from filenames, discovery state, captured prose, memory, or guesses.
 
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe evidence inspect --sha256 <64-hex-digest-from-export> .\phase0-evidence.json
-```
-
-Inspection is read-only and does not load a pack, discover or launch a vendor executable, open a browser, or convert evidence text into command definitions. It prints the artifact/host identity, tool and probe states, bounded quoted output previews, actionable evidence gaps, and explicit PROVES / UNKNOWN / BLOCKED sections.
-
-A successful SHA-256 check proves only that the reviewed bytes match the independently supplied digest. Inspection validates the evidence contract; neither mechanism authenticates who produced the file or attests that the claimed build/host produced it. Keep the artifact in an approved trusted transfer/storage path and retain the CI artifact/build identity alongside it.
-
-To calculate the digest of the currently received file for troubleshooting:
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe evidence checksum .\phase0-evidence.json
-```
-
-Do not treat that calculation alone as an independent transfer check; compare against the value retained separately at export time.
-
-Treat the generated timestamp as a point-in-time claim. If the installed CLI or managed laptop changed after capture, collect new evidence rather than treating an older artifact as current. Promotion of a real vendor workflow remains a human-reviewed repository change.
-
-
-## 14. Export a privacy-preserving support diagnostic bundle
-
-For CLIHarbor-runtime troubleshooting that does **not** require vendor output, create the dedicated support artifact:
-
-```powershell
-.\bin\cliharbor-windows-x64-evaluation.exe diagnostics export --pack-file .\packs\phase0\idira-cyberark-inventory.yaml .\cliharbor-diagnostics.json
-```
-
-The file uses schema `cliharbor.diagnostics/v1` and is deterministic for the same approved runtime/discovery state. It contains build/host identity, sanitized pack/tool identity and readiness metadata, configuration counts, and aggregate health counts.
-
-It intentionally does **not** contain executable or candidate paths, pack source paths, PATH/environment values, command argv, command stdout/stderr, discovery prose, usernames/home-directory paths, browser bootstrap/session/CSRF material, internal URLs, or vendor credentials. CLIHarbor does not upload the bundle or send telemetry.
-
-The export refuses to overwrite an existing path and prints SHA-256 for the exact JSON bytes. That digest is useful for byte comparison only; it is not code signing, evidence authenticity, or host attestation.
-
-Use this bundle for generic CLIHarbor support before sharing `doctor` output. `doctor` remains operator-local because it can expose exact filesystem paths.
+The next engineering milestone begins only after the genuine company-managed Windows evidence has been returned, checksum-verified, inspected, and human-reviewed. Only facts supported by that evidence or approved vendor/company documentation may be promoted into a real trusted pack.

@@ -313,6 +313,8 @@ Required cases include:
 - dependency vulnerability scan and npm audit;
 - Windows evaluation binary `version` and vendor-free `self-test` execution before artifact upload;
 - authoritative evaluation-manifest verification after build and immediately before upload, including exact entry set/order, canonical forward-slash paths, case-insensitive duplicate rejection for the Windows target, regular/non-symlink privileged-file enforcement, digest recomputation, and rejection of a packaged `bin/SHA256SUMS` compatibility manifest;
+- evaluation-preflight regression coverage for valid bundle readiness, executable/pack digest mismatch, missing/malformed/unexpected/duplicate or case-conflicting manifest entries, missing/expanded/wrong-ID-or-version pack authority, unexpected extracted entries, symlink/reparse-sensitive paths where supported, wrong evaluation build identity/architecture, unwritable temp behavior, deterministic status output, running-executable mismatch, and proof that vendor executables are never launched;
+- Windows artifact CI stages only the three qualified bundle files into a clean extracted-layout directory, places invalid `idsec.exe` and `conjur.exe` sentinels first on `PATH`, and requires `evaluation preflight` to reach `READY FOR PHASE 0 INVENTORY` before final upload verification;
 - explicit upload of only `EVALUATION_SHA256SUMS`, the evaluation executable, and the trusted Phase 0 pack.
 
 A real company-laptop run remains environment evidence, not a CI assertion. Application-control/EDR/browser-policy behavior must be reported from the actual managed machine.

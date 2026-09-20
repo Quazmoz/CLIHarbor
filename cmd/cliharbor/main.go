@@ -46,6 +46,9 @@ func run(args []string) error {
 	if len(args) > 0 && args[0] == "diagnostics" {
 		return runDiagnosticsCommand(args[1:])
 	}
+	if len(args) > 0 && args[0] == "evaluation" {
+		return runEvaluationCommand(args[1:])
+	}
 
 	command := "serve"
 	if len(args) > 0 {
@@ -118,6 +121,30 @@ func run(args []string) error {
 	default:
 		return app.Run(ctx, options)
 	}
+}
+
+func runEvaluationCommand(args []string) error {
+	if len(args) == 0 || args[0] != "preflight" {
+		return fmt.Errorf("usage: cliharbor evaluation preflight [--bundle <directory>]")
+	}
+	flags := flag.NewFlagSet("cliharbor evaluation preflight", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	bundleRoot := flags.String("bundle", "", "extracted Windows evaluation bundle directory")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("usage: cliharbor evaluation preflight [--bundle <directory>]")
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return app.EvaluationPreflight(ctx, app.Options{
+		Out:       os.Stdout,
+		Version:   version,
+		Commit:    commit,
+		BuildMode: buildMode,
+	}, app.EvaluationPreflightConfig{BundleRoot: *bundleRoot})
 }
 
 func runDiagnosticsCommand(args []string) error {

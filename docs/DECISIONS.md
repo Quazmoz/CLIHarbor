@@ -497,3 +497,61 @@ Negative:
 
 - Complements ADR-020's browser-origin boundary and ADR-014's structured-output boundary.
 - Does not change the vendor-owned authentication decision or Phase 0 evidence gate.
+
+## ADR-024 — Ship a self-contained extracted-bundle evaluation preflight
+
+**Date:** 2026-09-20  
+**Status:** Accepted.
+
+### Context
+
+The Windows evaluation artifact already had deterministic build qualification, an authoritative two-file checksum manifest, vendor-free self-test, and packaged Phase 0 evidence smoke. The managed-laptop procedure still required the operator to manually reconcile the manifest and individual hashes before separately running identity and runtime checks. That duplicated security logic outside the shipped executable and left avoidable ambiguity around wrong working directories, partial extraction, copied executables, altered discovery-only packs, and evidence files written back into the qualified bundle.
+
+### Decision
+
+Ship `cliharbor evaluation preflight [--bundle <directory>]` as the primary pre-Phase-0 laptop gate.
+
+The preflight:
+
+- accepts only the qualified Windows amd64 evaluation identity;
+- binds the running process to the manifest-covered packaged executable;
+- requires the exact extracted evaluation layout and rejects unexpected/case-conflicting/symlink/reparse-point entries where supported;
+- reuses one importable evaluation-bundle checksum authority shared with `tools/task`;
+- parses the packaged Phase 0 pack through the production pack parser and requires the exact discovery-only `idsec`/`conjur` authority with zero commands, version probes, help probes, or version constraints;
+- reuses the vendor-free temp, embedded-frontend/loopback-session, and direct self-process checks already exercised by `self-test`;
+- never runs discovery and therefore never launches a vendor executable;
+- revalidates the bundle after runtime checks before reporting `READY FOR PHASE 0 INVENTORY`;
+- emits deterministic PASS/WARNING/BLOCKED output with safe, non-path-leaking remediation.
+
+The extracted qualified bundle is treated as immutable input. Managed-laptop evidence and diagnostics are written outside it so a later exact-layout preflight remains meaningful.
+
+### Alternatives considered
+
+1. Keep manual `certutil`/PowerShell hashing as the primary operator procedure.
+2. Duplicate the task-package verifier inside the CLI.
+3. Run discovery as part of preflight to prove vendor presence.
+4. Add code signing/enterprise policy bypass guidance as part of this milestone.
+
+### Rationale
+
+A shipped deterministic gate removes shell/tooling dependencies and manual reconciliation while preserving the existing trust boundary. Sharing the checksum/parser primitives prevents drift between CI packaging verification and the operator executable. Keeping discovery out of preflight makes the preflight safe even when unknown or malformed vendor binaries are present on `PATH`.
+
+### Security / reliability implications
+
+- checksum equality remains integrity evidence, not signing, publisher identity, provenance, or host attestation;
+- exact-layout checks make partial extraction and post-extraction additions explicit instead of silently tolerated;
+- the preflight does not modify firewall, proxy, execution policy, registry, `PATH`, application-control policy, or machine configuration;
+- SmartScreen/AppLocker/WDAC/EDR blocks are reported as environmental gates and must not be bypassed;
+- a maliciously replaced executable plus correspondingly replaced manifest is outside checksum-only authenticity guarantees and remains a reason to retain CI artifact identity/digest separately.
+
+### Verification
+
+Unit/regression tests cover manifest and privileged-file corruption, authority expansion, build identity, temp failure, deterministic output, running-executable binding, hostile filesystem entries where supported, and no-vendor-launch behavior. Windows artifact CI stages a clean extracted-copy bundle, puts deliberately invalid vendor executable sentinels first on `PATH`, runs the packaged preflight, then performs the final authoritative bundle verification before upload.
+
+### Revisit when
+
+- the organization adopts approved code signing or artifact attestation;
+- the evaluation bundle gains additional privileged files;
+- the Phase 0 pack intentionally gains approved probe authority;
+- the target architecture or supported Windows profile changes.
+

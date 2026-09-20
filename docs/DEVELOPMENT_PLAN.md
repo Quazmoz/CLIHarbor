@@ -404,14 +404,15 @@ Acceptance implemented:
 - deterministic Windows x64 unsigned evaluation build and checksum;
 - build/source identity via `cliharbor version`;
 - vendor-free `cliharbor self-test`;
+- self-contained `cliharbor evaluation preflight` that binds the running evaluation executable to the exact extracted bundle, validates authoritative checksums and discovery-only pack authority, exercises vendor-free runtime primitives, and revalidates the bundle before reporting readiness;
 - sanitized trusted-pack `cliharbor inventory`;
 - inventory-only packs with zero commands;
 - optional fixed named help probes plus the existing fixed version probe;
 - direct bounded evidence execution with Windows process-tree ownership and executable fingerprint revalidation;
 - strongly typed `cliharbor.phase0/v1` evidence export with atomic non-overwriting file creation;
 - discovery-only Idira/CyberArk Phase 0 pack with no guessed command/probe argv;
-- CI qualification and artifact upload;
-- exact company-managed Windows procedure in `WORK_LAPTOP_EVALUATION.md`.
+- CI qualification including a staged extracted-bundle preflight smoke with non-runnable vendor sentinels on `PATH`, followed by final bundle verification and artifact upload;
+- exact company-managed Windows procedure in `WORK_LAPTOP_EVALUATION.md`, including CMD-only operation, application-control failure handling, evidence outside the immutable bundle, no-clobber export, and reviewed handoff.
 
 The next milestone is **real Phase 0 evidence collection on the target company laptop**. Use that evidence to author the first real read-only Idira/CyberArk pack. Do not add vendor command trees, auth flows, version constraints, or structured schemas until supported by the returned evidence.
 
