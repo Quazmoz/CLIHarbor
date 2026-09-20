@@ -98,6 +98,7 @@ func TestBuildHostileStringCorpusCannotChangeExecutionAuthority(t *testing.T) {
 		}
 	}
 }
+
 func TestBuildOmitsAbsentAndEmptyOptionalFlags(t *testing.T) {
 	registry, snapshot := plannerFixture(t, packs.RiskRead, false, false)
 	plan, err := Build(registry, snapshot, Request{
