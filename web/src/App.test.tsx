@@ -86,9 +86,10 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByText('1.2.3-test')).toBeInTheDocument();
-    expect(screen.getByText('Running')).toBeInTheDocument();
+    expect(screen.getByText('Authenticated local runtime')).toBeInTheDocument();
     expect(screen.getByText('Local only')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '0' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Local runtime active' })).toBeInTheDocument();
+    expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
@@ -153,7 +154,7 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retry status check' }));
 
-    await waitFor(() => expect(screen.getByText('Running')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Local runtime active' })).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
