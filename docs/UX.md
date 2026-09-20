@@ -247,6 +247,8 @@ Primary target is enterprise Windows laptops. Support narrow browser windows wit
 
 The visual style should be clean, restrained, technical, and trustworthy. Avoid heavy animation, consumer-game styling, AI gradients, or visual effects that distract from operational context.
 
+The implemented operator workspace keeps the local-only boundary and build identity in a compact shell, summarizes runtime/tool/task readiness before the primary workflow, places task configuration beside the active run, treats validated structured results as primary, keeps raw stdout/stderr available through native disclosure, and keeps sanitized tool diagnostics collapsed by default. The design uses native controls and disclosure semantics so keyboard and screen-reader behavior do not depend on a component framework.
+
 ## 18. MVP UX acceptance criteria
 
 A first-time user can, without reading documentation:
