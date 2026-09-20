@@ -38,6 +38,66 @@ func TestBuildProducesExactArgvWithoutReparsingUserText(t *testing.T) {
 	}
 }
 
+func TestBuildHostileStringCorpusCannotChangeExecutionAuthority(t *testing.T) {
+	registry, snapshot := plannerFixture(t, packs.RiskRead, false, false)
+	state, ok := snapshot.Find(discovery.ToolRef{PackID: "demo", ToolID: "fixture"})
+	if !ok {
+		t.Fatal("fixture discovery state missing")
+	}
+
+	metacharacters := []rune("&|;><$()%!^\"'`\\\\/*?[]{}=:,+ \t\n\r")
+	for _, first := range metacharacters {
+		for _, second := range metacharacters {
+			query := "x" + string(first) + string(second) + " y"
+			plan, err := Build(registry, snapshot, Request{
+				PackID:    "demo",
+				CommandID: "inspect",
+				Values: map[string]json.RawMessage{
+					"query": rawJSON(t, query),
+					"mode":  rawJSON(t, "safe"),
+				},
+			})
+			if err != nil {
+				t.Fatalf("Build() rejected hostile data %q: %v", query, err)
+			}
+
+			wantArgs := []string{"inspect", "--query", query, "--safe-mode"}
+			if !reflect.DeepEqual(plan.Args, wantArgs) {
+				t.Fatalf("query %q args = %#v, want %#v", query, plan.Args, wantArgs)
+			}
+			if plan.PackID != "demo" || plan.CommandID != "inspect" || plan.ToolID != "fixture" ||
+				plan.ExecutablePath != state.Path || plan.ExecutableName != state.ExecutableName ||
+				!plan.ExecutableIdentity.Valid() {
+				t.Fatalf("query %q changed execution authority: %#v", query, plan)
+			}
+		}
+	}
+
+	for _, query := range []string{
+		"雪 café",
+		"$(whoami)",
+		"%COMSPEC% /c calc",
+		"../..\\\\Windows\\\\System32",
+		"{\"command\":\"other\"}",
+		"line1\n--undeclared-flag=line2",
+	} {
+		plan, err := Build(registry, snapshot, Request{
+			PackID:    "demo",
+			CommandID: "inspect",
+			Values: map[string]json.RawMessage{
+				"query": rawJSON(t, query),
+				"mode":  rawJSON(t, "detailed"),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Build() rejected hostile data %q: %v", query, err)
+		}
+		wantArgs := []string{"inspect", "--query", query, "--detailed-mode"}
+		if !reflect.DeepEqual(plan.Args, wantArgs) {
+			t.Fatalf("query %q args = %#v, want %#v", query, plan.Args, wantArgs)
+		}
+	}
+}
 func TestBuildOmitsAbsentAndEmptyOptionalFlags(t *testing.T) {
 	registry, snapshot := plannerFixture(t, packs.RiskRead, false, false)
 	plan, err := Build(registry, snapshot, Request{

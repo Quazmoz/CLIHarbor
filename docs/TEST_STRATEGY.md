@@ -199,6 +199,7 @@ For each input type prove:
 - enum values are pack-declared only;
 - one browser value becomes only its intended argv element(s);
 - whitespace/quotes/metacharacters such as `& | ; > < $ ( ) % ! ^` remain data and are never reparsed by a shell;
+- deterministic pairwise hostile-metacharacter coverage proves shell syntax, command-looking JSON/text, path traversal-looking strings, Windows environment syntax, Unicode, and embedded newlines remain exactly one user-data argv element and cannot change pack/command/tool/executable authority;
 - omitted optional values omit the entire flag/value pair;
 - boolean switches emit only their pack-authored flag;
 - enum maps emit only pack-authored literals;
