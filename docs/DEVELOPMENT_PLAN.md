@@ -339,6 +339,7 @@ Current cross-platform Go task entry point:
 ```text
 go run ./tools/task web-dev
 go run ./tools/task web-build
+go run ./tools/task verify-web-sync
 go run ./tools/task check
 go run ./tools/task go-build
 go run ./tools/task windows-eval

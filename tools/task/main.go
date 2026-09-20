@@ -35,6 +35,8 @@ func main() {
 		err = webBuild(root)
 	case "sync-web":
 		err = syncWeb(root)
+	case "verify-web-sync":
+		err = verifyWebSync(root)
 	case "check":
 		err = check(root)
 	case "go-build":
@@ -59,7 +61,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|check|go-build|windows-eval|verify-windows-eval|verify-windows-eval-repro|build>")
+	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|verify-web-sync|check|go-build|windows-eval|verify-windows-eval|verify-windows-eval-repro|build>")
 }
 
 func fatal(err error) {
@@ -120,6 +122,9 @@ func check(root string) error {
 	if err := webBuild(root); err != nil {
 		return err
 	}
+	if err := verifyWebSync(root); err != nil {
+		return err
+	}
 	if err := run(root, "go", "mod", "verify"); err != nil {
 		return err
 	}
@@ -127,6 +132,26 @@ func check(root string) error {
 		if err := run(root, "go", args...); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func verifyWebSync(root string) error {
+	cmd := exec.Command("git", "status", "--porcelain=v1", "--untracked-files=all", "--", "internal/webui/static")
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		detail := strings.TrimSpace(string(output))
+		if detail == "" {
+			return fmt.Errorf("inspect embedded frontend synchronization: %w", err)
+		}
+		return fmt.Errorf("inspect embedded frontend synchronization: %w: %s", err, detail)
+	}
+	if drift := strings.TrimSpace(string(output)); drift != "" {
+		return fmt.Errorf(
+			"embedded frontend is not synchronized with web source; run go run ./tools/task web-build and commit internal/webui/static:\n%s",
+			drift,
+		)
 	}
 	return nil
 }

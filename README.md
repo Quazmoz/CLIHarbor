@@ -143,7 +143,7 @@ go run ./tools/task web-dev
 go run ./cmd/cliharbor serve --web-dev-url http://127.0.0.1:5173
 ```
 
-Production assets are generated from `web/` and embedded under `internal/webui/static`; do not hand-edit generated assets.
+Production assets are generated from `web/` and embedded under `internal/webui/static`; do not hand-edit generated assets. `go run ./tools/task web-build` rebuilds and replaces the entire embedded tree so stale hashed assets cannot survive. `go run ./tools/task check` and the standalone `verify-web-sync` gate fail on both tracked and untracked generated drift, so a successful local qualification cannot silently leave regenerated assets uncommitted.
 
 ## Build and verification commands
 
@@ -154,8 +154,11 @@ go vet ./...
 go test -timeout 2m ./...
 go test -race -timeout 2m ./...
 
-# Repository-owned quality workflow
+# Repository-owned quality workflow; also enforces committed frontend synchronization
 go run ./tools/task check
+
+# Standalone generated-frontend drift check
+go run ./tools/task verify-web-sync
 
 # Embedded local build
 go run ./tools/task go-build

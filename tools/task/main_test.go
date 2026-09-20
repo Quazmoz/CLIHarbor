@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -180,5 +181,113 @@ func TestValidateBuildMetadataToken(t *testing.T) {
 		if err := validateBuildMetadataToken("metadata", value); err == nil {
 			t.Fatalf("validateBuildMetadataToken(%q) succeeded, want error", value)
 		}
+	}
+}
+
+func TestSyncWebReplacesTreeAndRemovesStaleAssets(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	source := filepath.Join(root, "web", "dist")
+	destination := filepath.Join(root, "internal", "webui", "static")
+	if err := os.MkdirAll(filepath.Join(source, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(destination, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "index.html"), []byte("first"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	firstAsset := filepath.Join(source, "assets", "first.js")
+	if err := os.WriteFile(firstAsset, []byte("first asset"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	staleAsset := filepath.Join(destination, "assets", "stale.js")
+	if err := os.WriteFile(staleAsset, []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := syncWeb(root); err != nil {
+		t.Fatalf("syncWeb() error = %v", err)
+	}
+	if _, err := os.Stat(staleAsset); !os.IsNotExist(err) {
+		t.Fatalf("stale generated asset survived synchronization: %v", err)
+	}
+	if got, err := os.ReadFile(filepath.Join(destination, "assets", "first.js")); err != nil || string(got) != "first asset" {
+		t.Fatalf("first synchronized asset = %q, %v", got, err)
+	}
+
+	if err := os.Remove(firstAsset); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "index.html"), []byte("second"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "assets", "second.css"), []byte("second asset"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := syncWeb(root); err != nil {
+		t.Fatalf("second syncWeb() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(destination, "assets", "first.js")); !os.IsNotExist(err) {
+		t.Fatalf("previous generated asset survived replacement: %v", err)
+	}
+	if got, err := os.ReadFile(filepath.Join(destination, "index.html")); err != nil || string(got) != "second" {
+		t.Fatalf("second synchronized index = %q, %v", got, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(destination, "assets", "second.css")); err != nil || string(got) != "second asset" {
+		t.Fatalf("second synchronized asset = %q, %v", got, err)
+	}
+}
+
+func TestVerifyWebSyncDetectsTrackedAndUntrackedDrift(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git unavailable: %v", err)
+	}
+	root := t.TempDir()
+	staticDir := filepath.Join(root, "internal", "webui", "static")
+	if err := os.MkdirAll(staticDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tracked := filepath.Join(staticDir, "index.html")
+	if err := os.WriteFile(tracked, []byte("baseline"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v failed: %v\n%s", args, err, output)
+		}
+	}
+	runGit("init", "--quiet")
+	runGit("add", "--", "internal/webui/static")
+	runGit("-c", "user.name=CLIHarbor Test", "-c", "user.email=cliharbor-test@example.invalid", "commit", "--quiet", "-m", "baseline")
+
+	if err := verifyWebSync(root); err != nil {
+		t.Fatalf("verifyWebSync() clean error = %v", err)
+	}
+	if err := os.WriteFile(tracked, []byte("changed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyWebSync(root); err == nil {
+		t.Fatal("verifyWebSync() accepted tracked generated drift")
+	}
+	if err := os.WriteFile(tracked, []byte("baseline"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyWebSync(root); err != nil {
+		t.Fatalf("verifyWebSync() after tracked restore error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(staticDir, "untracked.js"), []byte("new hash"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyWebSync(root); err == nil {
+		t.Fatal("verifyWebSync() accepted untracked generated drift")
 	}
 }

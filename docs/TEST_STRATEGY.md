@@ -6,6 +6,10 @@ CLIHarbor sits between a browser and powerful local CLIs. Tests must preserve us
 
 The highest-risk code is pack validation/trust, tool discovery, execution planning/process lifecycle, auth orchestration, and untrusted output handling—not static UI markup.
 
+### Generated frontend authority
+
+`web/` is the authoritative frontend source. Production generation replaces the complete `internal/webui/static` tree from `web/dist`, so obsolete content-hashed assets are removed rather than accumulated. The repository-owned `verify-web-sync` gate uses Git status scoped to the embedded tree and rejects tracked modifications/deletions **and** untracked generated files. `go run ./tools/task check` runs this gate immediately after the production frontend build/synchronization, and CI invokes the same repository-owned check on both Linux and Windows. Regression coverage verifies whole-tree replacement across changing content hashes plus tracked/untracked drift detection.
+
 ### Phase 1 checkpoint
 
 Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/session/bootstrap behavior, restrictive headers/CSP, frontend route ownership, safe dev proxying, browser launch/fallback behavior, React status states, embedded production assets, Go/frontend build gates, and Linux race testing.
