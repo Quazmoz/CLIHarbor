@@ -378,7 +378,9 @@ func TestExecutorHelperProcess(t *testing.T) {
 		if err := child.Start(); err != nil {
 			os.Exit(97)
 		}
-		fmt.Fprintf(os.Stderr, "child-pid:%d\n", child.Process.Pid)
+		// Keep the PID marker and the flood on the same stream so the observer
+		// deterministically captures the descendant before the output cap fires.
+		fmt.Fprintf(os.Stdout, "child-pid:%d\n", child.Process.Pid)
 		fmt.Fprint(os.Stdout, strings.Repeat("x", 4096))
 		time.Sleep(30 * time.Second)
 		os.Exit(0)
