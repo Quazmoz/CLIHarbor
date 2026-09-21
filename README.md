@@ -6,6 +6,8 @@ A Windows-first, local browser UI for safely exposing curated workflows from off
 
 CLIHarbor has **no cloud backend**, does **not** run arbitrary shell strings, and does **not** store vendor credentials.
 
+> **Want to run it?** Start with [QUICKSTART.md](QUICKSTART.md). For a managed Windows work laptop, use the qualified CI artifact in a normal, non-elevated user session — **no Windows administrator login, installation, Go, Node/npm, Git, or PowerShell is required**.
+
 ## What CLIHarbor is
 
 CLIHarbor is a thin orchestration and presentation layer around installed CLIs. The browser never chooses an executable or constructs argv.
@@ -70,25 +72,73 @@ The important invariants are simple:
 
 See [Security](docs/SECURITY.md), [Architecture](docs/ARCHITECTURE.md), and [Authentication](docs/AUTHENTICATION.md) for the full threat model and trust boundaries.
 
-## Getting started
+## Download and run
 
-### Prerequisites
+For the shortest supported path, use [QUICKSTART.md](QUICKSTART.md). The two operating modes are intentionally distinct:
 
-The repository pins:
+| Goal | Recommended path |
+| --- | --- |
+| Evaluate on a Windows work laptop | Download the qualified Windows x64 CI artifact and run it as the currently signed-in user |
+| Develop from source | Clone the repository and use the pinned Go/Node toolchain |
+
+### Windows work-laptop evaluation — no admin login required
+
+The current evaluation distribution is a **qualified GitHub Actions artifact**, not an installer. The work laptop does not need build tools and CLIHarbor does not need machine-wide installation.
+
+1. Open the repository's [CI workflow](https://github.com/Quazmoz/CLIHarbor/actions/workflows/ci.yml).
+2. Choose a **successful** `main` run for the commit you intend to test.
+3. Under **Artifacts**, download:
+   `cliharbor-windows-x64-evaluation-<commit-sha>`
+4. Extract the ZIP with Windows **Extract All** (or another approved extractor) into a new, otherwise empty **user-writable** directory.
+5. Open **Command Prompt normally**. Do **not** use **Run as administrator** just for CLIHarbor.
+6. From the extracted bundle root, run:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe evaluation preflight --bundle "."
+```
+
+Continue only if the final status is:
+
+```text
+READY FOR PHASE 0 INVENTORY
+```
+
+Then run the discovery-only Phase 0 inventory:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file "packs\phase0\idira-cyberark-inventory.yaml"
+```
+
+Optionally validate the local browser UI:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe serve
+```
+
+Press `Ctrl+C` to stop the local runtime.
+
+**User-context guarantee:** CLIHarbor has no privileged helper and must not silently elevate. The evaluation path is designed to run under the Windows account that launched it. It does not require a separate Windows administrator username/password, install a service/driver, add itself to machine `PATH`, or write machine-wide configuration.
+
+If CLIHarbor itself unexpectedly triggers a UAC/admin-credential prompt, cancel it and investigate the launch/policy path rather than supplying administrator credentials. If SmartScreen, AppLocker, WDAC, EDR, antivirus, or another enterprise control blocks the unsigned binary, stop and use the organization's approved allowlisting or signing process; do not bypass or weaken the control.
+
+Vendor authentication is a separate concern from Windows elevation. A future approved vendor workflow may use authentication owned by the vendor CLI, but CLIHarbor does not persist vendor credentials and must not turn Windows administrator credentials into an execution workaround.
+
+The artifact must remain intact: do not copy only the EXE away from `EVALUATION_SHA256SUMS` and the packaged Phase 0 pack. Preflight verifies the exact qualified bundle layout and covered bytes.
+
+For the full evidence/export procedure, out-of-PATH tool handling, policy-block behavior, browser fallback, and cleanup, use [Work-Laptop Evaluation](docs/WORK_LAPTOP_EVALUATION.md).
+
+### Developer/source quickstart
+
+Source development uses the repository-pinned toolchain:
 
 - Go **1.27.1** in [`.go-version`](.go-version)
 - Node **24.21.0** in [`.node-version`](.node-version)
 - npm **>=11.6.0 <12** in `web/package.json`
 
-Install frontend dependencies:
+Install frontend dependencies and run the repository quality task:
 
 ```bash
 npm ci --prefix web
-```
-
-Run the repository quality task:
-
-```bash
 go run ./tools/task check
 ```
 
@@ -237,6 +287,7 @@ The repository already has the safe collection/review boundary. The next vendor 
 
 | Document | Purpose |
 | --- | --- |
+| [Quickstart](QUICKSTART.md) | shortest download/run path, including non-admin work-laptop startup |
 | [PRD](docs/PRD.md) | product scope, goals, non-goals, acceptance |
 | [Architecture](docs/ARCHITECTURE.md) | component boundaries, state, execution and evaluation model |
 | [Security](docs/SECURITY.md) | threat model, controls and explicit trust boundaries |
