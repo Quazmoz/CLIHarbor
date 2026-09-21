@@ -4,6 +4,8 @@ This is the controlled first CLIHarbor run on a company-managed Windows 10/11 la
 
 The target laptop does **not** need Go, Node/npm, Git, PowerShell, administrator rights, or external internet access. The evaluation executable is unsigned. Do not disable, bypass, or weaken Windows Defender, EDR, AppLocker, WDAC, SmartScreen, proxy policy, browser policy, firewall policy, or any other company security control to run it.
 
+Run CLIHarbor from the **currently signed-in user's normal, non-elevated session**. Do not use **Run as administrator** or enter separate Windows administrator credentials just to make CLIHarbor start. CLIHarbor has no privileged helper and must not silently elevate. If CLIHarbor itself unexpectedly triggers a UAC/admin-credential prompt, cancel it and investigate the launch or enterprise-policy path instead of supplying administrator credentials.
+
 ## 1. Obtain and extract the exact qualified artifact
 
 GitHub Actions uploads one artifact only after the repository quality, security, race, deterministic rebuild, evaluation-integrity, vendor-free runtime, Phase 0 evidence, and evaluation-preflight gates succeed.
@@ -31,9 +33,9 @@ Use Windows **Extract All** or another company-approved ZIP extractor. Do not ru
 
 If the chosen extraction path contains spaces, that is supported.
 
-## 2. Open CMD in the extracted bundle root
+## 2. Open a normal, non-elevated CMD in the extracted bundle root
 
-PowerShell is not required. These instructions use CMD so they also work where PowerShell is restricted.
+PowerShell is not required. Open Command Prompt normally — **not** with **Run as administrator**. These instructions use CMD so they also work where PowerShell is restricted.
 
 ```bat
 cd /d "C:\path\to\extracted\artifact"
