@@ -495,7 +495,7 @@ async function main() {
     stage('typed fixture execution and inert rendering');
     await chooseTask(page, 'integration/inspect');
     await waitJS(page, 'inspect query field',
-      'Array.from(document.querySelectorAll("input")).some((element) => element.closest("label")?.textContent?.trim().startsWith("Query")');
+      'Array.from(document.querySelectorAll("input")).some((element) => element.closest("label")?.textContent?.trim().startsWith("Query"))');
     const hostileOutput = '<img id="cliharbor-e2e-pwn" src=x onerror="document.body.dataset.cliharborE2EPwned=1">\u001b[31m';
     await setTextInput(page, 'Query', hostileOutput);
 
