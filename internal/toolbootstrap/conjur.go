@@ -49,8 +49,12 @@ type ConjurProvisioner struct {
 }
 
 func NewConjurProvisioner() *ConjurProvisioner {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.DisableCompression = true
+	transport := http.RoundTripper(http.DefaultTransport)
+	if base, ok := http.DefaultTransport.(*http.Transport); ok {
+		cloned := base.Clone()
+		cloned.DisableCompression = true
+		transport = cloned
+	}
 	p := &ConjurProvisioner{
 		client: &http.Client{
 			Transport: transport,
