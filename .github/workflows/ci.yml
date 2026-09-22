@@ -225,3 +225,12 @@ jobs:
             packs/phase0/idira-cyberark-inventory.yaml
           if-no-files-found: error
           retention-days: 14
+      - name: Upload verified Conjur 9 pack artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cliharbor-conjur-v9-pack-${{ github.sha }}
+          path: |
+            packs/conjur/conjur-v9.yaml
+            docs/CONJUR_INTEGRATION.md
+          if-no-files-found: error
+          retention-days: 14

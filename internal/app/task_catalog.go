@@ -36,7 +36,10 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 		packID := loaded.Pack.Metadata.ID
 		for _, named := range registry.Commands(packID) {
 			command := named.Command
-			if command.Risk != packs.RiskRead || command.Requirements.RequiresAuth || command.Output.Sensitivity.ContainsSecrets {
+			if command.Risk != packs.RiskRead || command.Output.Sensitivity.ContainsSecrets {
+				continue
+			}
+			if command.Requirements.RequiresAuth && command.Requirements.AuthMode != packs.AuthModeVendorSession {
 				continue
 			}
 			tool, ok := snapshot.Find(discovery.ToolRef{PackID: packID, ToolID: command.Tool})
@@ -44,14 +47,15 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 				continue
 			}
 			task := server.Task{
-				PackID:      packID,
-				PackName:    loaded.Pack.Metadata.Name,
-				CommandID:   named.ID,
-				Name:        command.Name,
-				Description: command.Description,
-				ToolID:      command.Tool,
-				ToolVersion: tool.Version,
-				Inputs:      make([]server.TaskInput, len(command.Inputs)),
+				PackID:       packID,
+				PackName:     loaded.Pack.Metadata.Name,
+				CommandID:    named.ID,
+				Name:         command.Name,
+				Description:  command.Description,
+				ToolID:       command.Tool,
+				ToolVersion:  tool.Version,
+				RequiresAuth: command.Requirements.RequiresAuth,
+				Inputs:       make([]server.TaskInput, len(command.Inputs)),
 			}
 			for i, input := range command.Inputs {
 				task.Inputs[i] = server.TaskInput{

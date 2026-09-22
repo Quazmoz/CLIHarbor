@@ -370,6 +370,18 @@
               "$ref": "#/$defs/mapArgument"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "positional"
+          ],
+          "properties": {
+            "positional": {
+              "$ref": "#/$defs/positionalArgument"
+            }
+          }
         }
       ]
     },
@@ -435,6 +447,21 @@
         }
       }
     },
+    "positionalArgument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "valueFrom"
+      ],
+      "properties": {
+        "valueFrom": {
+          "$ref": "#/$defs/id"
+        },
+        "omitWhenEmpty": {
+          "type": "boolean"
+        }
+      }
+    },
     "flagName": {
       "type": "string",
       "maxLength": 64,
@@ -491,6 +518,11 @@
       "properties": {
         "requiresAuth": {
           "type": "boolean"
+        },
+        "authMode": {
+          "enum": [
+            "vendor-session"
+          ]
         }
       }
     },

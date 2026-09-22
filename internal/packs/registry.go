@@ -185,6 +185,10 @@ func cloneCommand(command Command) Command {
 			}
 			out.Argv[i].Map = &value
 		}
+		if argument.Positional != nil {
+			value := *argument.Positional
+			out.Argv[i].Positional = &value
+		}
 	}
 	return out
 }

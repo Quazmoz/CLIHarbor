@@ -1,16 +1,16 @@
 # CLIHarbor
 
-A Windows-first, local browser UI for safely exposing curated workflows from official command-line tools.
+A Windows-first local browser UI for safely exposing curated workflows from official command-line tools.
 
-**Status:** active hardening. The generic local runtime, trusted-pack model, bounded read-only execution path, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, and Windows evaluation qualification are implemented. Real Idira/CyberArk command definitions remain intentionally gated on evidence from the actual company-managed Windows environment.
+**Status:** active hardening. The generic runtime, trusted-pack model, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x read-only pack are implemented.
 
-CLIHarbor has **no cloud backend**, does **not** run arbitrary shell strings, and does **not** store vendor credentials.
+CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
-> **Want to run it?** Start with [QUICKSTART.md](QUICKSTART.md). For a managed Windows work laptop, use the qualified CI artifact in a normal, non-elevated user session — **no Windows administrator login, installation, Go, Node/npm, Git, or PowerShell is required**.
+> **Want to run it?** Start with [QUICKSTART.md](QUICKSTART.md). For a managed Windows work laptop, use the qualified CI artifact in a normal non-elevated user session — **no Windows administrator login, installation, Go, Node/npm, Git, or PowerShell is required**.
 
 ## What CLIHarbor is
 
-CLIHarbor is a thin orchestration and presentation layer around installed CLIs. The browser never chooses an executable or constructs argv.
+CLIHarbor is a thin orchestration and presentation layer around installed official CLIs:
 
 ```text
 Browser UI
@@ -19,215 +19,252 @@ authenticated loopback API
     ↓
 trusted declarative pack
     ↓
-validated planner
+validated deterministic planner
     ↓
-direct executable + argv
+exact executable + argv[]
     ↓
 official installed CLI
 ```
 
-The installed CLI remains the operational authority. CLIHarbor owns only the local UI/runtime boundary: trusted pack loading, deterministic discovery, typed planning, bounded process execution, streaming, structured rendering, and support/evaluation tooling.
+The installed CLI remains the operational authority. The browser never chooses an executable, executable path, subcommand, flag name, shell string, or raw argv.
 
 ## Current capabilities
 
 | Area | Implemented |
 | --- | --- |
-| Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, in-memory HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
+| Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
 | Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, explicit trusted sources only, deterministic registry |
-| Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, fixed bounded semantic-version probes |
-| Planning and execution | Typed inputs, server-owned executable + argv, no ordinary shell execution, exact executable identity revalidation, bounded timeout/output |
-| Windows process lifecycle | Suspended launch, Job Object assignment before resume, descendant containment, cancellation/timeout teardown |
-| Browser runs | Authenticated run APIs, bounded SSE streaming/replay, reconnect reconciliation, cancellation, bounded retained state |
-| Operator failures | Stable typed browser-safe error codes/remediation, field-linked validation, retained-run eviction handling, accessible async status |
-| Structured results | Strict bounded scalar JSON parsing with inert React rendering and raw-output fallback |
-| Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, detached SHA-256, strict inspection |
-| Support diagnostics | `cliharbor diagnostics export` emits only allowlisted non-secret metadata; no command output, argv, paths, environment values, browser secrets, or credential material |
-| Evaluation qualification | Exact Go toolchain, controlled build inputs, isolated deterministic rebuilds, authoritative `EVALUATION_SHA256SUMS`, vendor-free self-test/evidence smoke, and a self-contained extracted-bundle `evaluation preflight` gate |
+| Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
+| Planning | Typed inputs, trusted literals/flags/switches/enum mappings, constrained positional values, deterministic argv |
+| Execution | Direct executable launch, no ordinary shell, executable identity revalidation, bounded timeout/output/cancellation |
+| Vendor sessions | Explicit `vendor-session` mode lets read-only commands reuse vendor-owned authentication without CLIHarbor accepting credentials |
+| Windows lifecycle | Suspended launch, Job Object assignment before resume, descendant containment and teardown |
+| Browser runs | Authenticated run APIs, bounded SSE streaming/replay, reconnect reconciliation, cancellation and bounded retention |
+| Structured results | Strict bounded scalar JSON parsing, inert React rendering and raw-output fallback |
+| Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, SHA-256 and strict inspection |
+| Diagnostics | Allowlisted non-secret support export; no command output, argv, paths, environment values, browser secrets or credentials |
+| Windows qualification | Exact Go toolchain, controlled inputs, deterministic rebuild checks, `EVALUATION_SHA256SUMS`, self-test/evidence smoke and extracted-bundle preflight |
+| Conjur integration | Version-gated Conjur CLI 9.x read-only workflows derived from official CyberArk source/release evidence |
 
-Not yet implemented or intentionally gated:
+Still intentionally gated:
 
-- real Idira/CyberArk workflow argv and output schemas;
-- vendor authentication orchestration;
-- mutating/destructive or secret-bearing workflows;
-- credential persistence;
-- code signing/publisher attestation;
+- CLIHarbor-owned username/password/MFA forms or token persistence;
+- secret-returning workflows;
+- change/destructive browser execution;
+- automatic execution of unreviewed generated commands;
+- Windows code signing/publisher attestation;
 - public pack distribution.
 
-The vendor-specific items are blocked by design until Phase 0 evidence establishes the exact installed CLI behavior. CLIHarbor does not guess enterprise command syntax.
+## Real Conjur 9.x integration
+
+CLIHarbor now includes:
+
+```text
+packs/conjur/conjur-v9.yaml
+```
+
+The pack is derived from the official `cyberark/conjur-cli-go` **v9.3.1** release and commit:
+
+```text
+7207d6a4a2005130978e10d03d7f6b55ab0216d6
+```
+
+It requires:
+
+```text
+>=9.3.1 <10.0.0
+```
+
+so an older or future-major binary does not silently inherit command authority.
+
+Implemented browser workflows:
+
+- `whoami`
+- list resources with approved filters
+- resource exists / show / permitted roles
+- role exists / show / members / memberships
+
+The integration deliberately excludes secret retrieval, login/password/MFA handling, API-key rotation, policy mutations, issuer mutations, and deployment-specific commands that cannot be safely generalized.
+
+See [Conjur CLI 9.x Integration](docs/CONJUR_INTEGRATION.md) for provenance, command mapping and qualification details.
+
+### Run the Conjur pack from source
+
+```bash
+go run ./cmd/cliharbor doctor --pack-file packs/conjur/conjur-v9.yaml
+go run ./cmd/cliharbor serve --pack-file packs/conjur/conjur-v9.yaml
+```
+
+If the approved `conjur` executable is outside `PATH`, configure it at the backend/operator boundary:
+
+```text
+--tool-path cyberark-conjur-v9/conjur=C:\path\to\conjur.exe
+```
+
+The browser cannot provide or change that path.
+
+### Authentication behavior
+
+Conjur read-only tasks declare:
+
+```yaml
+requirements:
+  requiresAuth: true
+  authMode: vendor-session
+```
+
+CLIHarbor may therefore invoke the verified read-only command using the vendor CLI's existing session/configuration. It supplies no password, token, API key, MFA response, or interactive stdin. If no valid vendor session exists, authenticate through the approved vendor-owned flow and retry.
+
+Generic `requiresAuth: true` commands without an approved auth mode remain blocked.
 
 ## Security model
 
-The important invariants are simple:
+The core invariants are:
 
-- **Loopback only.** The application server binds to `127.0.0.1`; there is no remote multi-user service.
-- **The browser has no execution authority.** It submits pack/command IDs and typed values, never an executable path, shell command, flag name, or raw argv.
-- **Trusted packs are allowlists.** Packs are explicitly loaded privileged configuration, not discovered from the current directory or downloaded dynamically.
-- **No arbitrary shell.** Normal tasks and probes start the resolved executable directly with an argument array.
-- **Fail closed.** Missing, ambiguous, incompatible, replaced, or otherwise invalid tools do not execute.
-- **No credential store.** Vendor passwords, MFA values, cookies, tokens, and keystore contents are outside CLIHarbor's persistence model.
-- **Outputs and state are bounded.** Run output, structured parsing, replay, retention, probes, evidence, and diagnostics have explicit resource limits.
-- **Execution evidence is exact.** Discovery-time executable identity is revalidated immediately before launch.
-- **Diagnostics are allowlisted, not scraped.** Support export is constructed from approved metadata fields rather than filesystem/log/environment collection or regex-only redaction.
-- **Browser failures are allowlisted too.** HTTP/run failures cross the browser boundary only as reviewed typed codes, safe messages/remediation, retryability, and optional task-field association; internal causes and vendor error strings are not serialized as error metadata.
+- **Loopback only.** The server binds to `127.0.0.1`; CLIHarbor is not a remote multi-user service.
+- **No browser execution authority.** Browser requests identify trusted tasks plus typed values only.
+- **Packs are allowlists.** Validation does not create trust; packs must be explicitly loaded from trusted sources.
+- **No arbitrary shell.** Normal tasks/probes execute an exact executable plus argument array directly.
+- **Constrained positional values.** One validated scalar becomes exactly one argv element; no tokenization, templates or shell interpretation. Leading-dash values are rejected where they could become undeclared flags.
+- **Fail closed.** Missing, ambiguous, incompatible, replaced or otherwise invalid tools do not execute.
+- **No credential store.** Vendor credentials/session tokens remain outside CLIHarbor's persistence model.
+- **Secret-bearing execution remains blocked.** Current browser execution is read-only and non-secret.
+- **Bounds everywhere.** Process time/output, streams, replay, retained runs, probes, evidence and diagnostics are bounded.
+- **Exact execution evidence.** Discovery-time executable identity is revalidated immediately before launch.
+- **Enterprise controls win.** Do not disable or evade SmartScreen, Defender, EDR, AppLocker, WDAC, proxy, firewall or browser policy to run CLIHarbor.
 
-See [Security](docs/SECURITY.md), [Architecture](docs/ARCHITECTURE.md), and [Authentication](docs/AUTHENTICATION.md) for the full threat model and trust boundaries.
+See [Security](docs/SECURITY.md), [Authentication](docs/AUTHENTICATION.md), [Architecture](docs/ARCHITECTURE.md), and [Pack specification](docs/PACK_SPEC.md).
 
 ## Download and run
 
-For the shortest supported path, use [QUICKSTART.md](QUICKSTART.md). The two operating modes are intentionally distinct:
+There are two intentionally different paths:
 
 | Goal | Recommended path |
 | --- | --- |
-| Evaluate on a Windows work laptop | Download the qualified Windows x64 CI artifact and run it as the currently signed-in user |
-| Develop from source | Clone the repository and use the pinned Go/Node toolchain |
+| Evaluate on a managed Windows laptop | Download the qualified Windows x64 CI artifact and run it as the currently signed-in user |
+| Develop or run packs from source | Clone the repository and use the pinned Go/Node toolchain |
 
 ### Windows work-laptop evaluation — no admin login required
 
-The current evaluation distribution is a **qualified GitHub Actions artifact**, not an installer. The work laptop does not need build tools and CLIHarbor does not need machine-wide installation.
+The evaluation distribution is a qualified GitHub Actions artifact, not an installer.
 
 1. Open the repository's [CI workflow](https://github.com/Quazmoz/CLIHarbor/actions/workflows/ci.yml).
 2. Choose a **successful** `main` run for the commit you intend to test.
-3. Under **Artifacts**, download:
-   `cliharbor-windows-x64-evaluation-<commit-sha>`
-4. Extract the ZIP with Windows **Extract All** (or another approved extractor) into a new, otherwise empty **user-writable** directory.
-5. Open **Command Prompt normally**. Do **not** use **Run as administrator** just for CLIHarbor.
-6. From the extracted bundle root, run:
+3. Download `cliharbor-windows-x64-evaluation-<commit-sha>` from **Artifacts**.
+4. Extract it into a new, otherwise empty, user-writable directory.
+5. Open Command Prompt normally — **not** with **Run as administrator**.
+6. From the extracted bundle root run:
 
 ```bat
 bin\cliharbor-windows-x64-evaluation.exe evaluation preflight --bundle "."
 ```
 
-Continue only if the final status is:
+Continue only if it ends with:
 
 ```text
 READY FOR PHASE 0 INVENTORY
 ```
 
-Then run the discovery-only Phase 0 inventory:
+Then run the discovery-only packaged inventory:
 
 ```bat
 bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file "packs\phase0\idira-cyberark-inventory.yaml"
 ```
 
-Optionally validate the local browser UI:
+The qualified evaluation bundle is intentionally immutable. Do **not** copy `conjur-v9.yaml` into it before preflight. To test the real Conjur pack after successful preflight, keep the pack outside the bundle and load it explicitly as documented in [Conjur CLI 9.x Integration](docs/CONJUR_INTEGRATION.md).
 
-```bat
-bin\cliharbor-windows-x64-evaluation.exe serve
-```
+**User-context guarantee:** CLIHarbor has no privileged helper and must not silently elevate. If CLIHarbor itself unexpectedly requests UAC/admin credentials, cancel and investigate the launch or enterprise-policy path rather than supplying administrator credentials.
 
-Press `Ctrl+C` to stop the local runtime.
+For the full managed-device process, use [Work-Laptop Evaluation](docs/WORK_LAPTOP_EVALUATION.md).
 
-**User-context guarantee:** CLIHarbor has no privileged helper and must not silently elevate. The evaluation path is designed to run under the Windows account that launched it. It does not require a separate Windows administrator username/password, install a service/driver, add itself to machine `PATH`, or write machine-wide configuration.
+## Developer quickstart
 
-If CLIHarbor itself unexpectedly triggers a UAC/admin-credential prompt, cancel it and investigate the launch/policy path rather than supplying administrator credentials. If SmartScreen, AppLocker, WDAC, EDR, antivirus, or another enterprise control blocks the unsigned binary, stop and use the organization's approved allowlisting or signing process; do not bypass or weaken the control.
+Pinned toolchain:
 
-Vendor authentication is a separate concern from Windows elevation. A future approved vendor workflow may use authentication owned by the vendor CLI, but CLIHarbor does not persist vendor credentials and must not turn Windows administrator credentials into an execution workaround.
-
-The artifact must remain intact: do not copy only the EXE away from `EVALUATION_SHA256SUMS` and the packaged Phase 0 pack. Preflight verifies the exact qualified bundle layout and covered bytes.
-
-For the full evidence/export procedure, out-of-PATH tool handling, policy-block behavior, browser fallback, and cleanup, use [Work-Laptop Evaluation](docs/WORK_LAPTOP_EVALUATION.md).
-
-### Developer/source quickstart
-
-Source development uses the repository-pinned toolchain:
-
-- Go **1.27.1** in [`.go-version`](.go-version)
-- Node **24.21.0** in [`.node-version`](.node-version)
-- npm **>=11.6.0 <12** in `web/package.json`
-
-Install frontend dependencies and run the repository quality task:
+- Go **1.27.1** from [`.go-version`](.go-version)
+- Node **24.21.0** from [`.node-version`](.node-version)
+- npm **>=11.6.0 <12** from `web/package.json`
 
 ```bash
+git clone https://github.com/Quazmoz/CLIHarbor.git
+cd CLIHarbor
 npm ci --prefix web
 go run ./tools/task check
-```
-
-Run the vendor-free local self-test:
-
-```bash
 go run ./cmd/cliharbor self-test
-```
-
-Start the production-style embedded application without a pack:
-
-```bash
 go run ./cmd/cliharbor serve
 ```
 
-Load the synthetic example pack for discovery:
+Synthetic pack discovery:
 
 ```bash
 go run ./cmd/cliharbor doctor --pack-file packs/example/pack.yaml
 go run ./cmd/cliharbor inventory --pack-file packs/example/pack.yaml
 ```
 
-The example pack does not auto-trust or auto-execute anything; it normally reports its fixture tool as unavailable unless you deliberately provide a compatible executable.
-
-### Privacy-preserving diagnostics
-
-Export a support bundle without loading a vendor pack:
+Conjur 9.x:
 
 ```bash
-go run ./cmd/cliharbor diagnostics export ./cliharbor-diagnostics.json
+go run ./cmd/cliharbor doctor --pack-file packs/conjur/conjur-v9.yaml
+go run ./cmd/cliharbor serve --pack-file packs/conjur/conjur-v9.yaml
 ```
-
-Or include sanitized readiness metadata for an explicitly trusted pack:
-
-```bash
-go run ./cmd/cliharbor diagnostics export \
-  --pack-file packs/example/pack.yaml \
-  ./cliharbor-diagnostics.json
-```
-
-The destination is explicit and no-clobber. The `cliharbor.diagnostics/v1` document is deterministic for the same runtime state and excludes command stdout/stderr, argv, executable/candidate paths, PATH/environment values, pack source paths, usernames/home paths, browser bootstrap/session/CSRF material, and credential data. CLIHarbor performs no upload or telemetry step.
 
 ### Frontend development
 
 Use two terminals:
 
 ```bash
-# Terminal 1: Vite on loopback
+# Terminal 1
 go run ./tools/task web-dev
 
-# Terminal 2: authenticated Go origin proxying to Vite
+# Terminal 2
 go run ./cmd/cliharbor serve --web-dev-url http://127.0.0.1:5173
 ```
 
-Production assets are generated from `web/` and embedded under `internal/webui/static`; do not hand-edit generated assets. `go run ./tools/task web-build` rebuilds and replaces the entire embedded tree so stale hashed assets cannot survive. `go run ./tools/task check` and the standalone `verify-web-sync` gate fail on both tracked and untracked generated drift, so a successful local qualification cannot silently leave regenerated assets uncommitted.
+Production assets are generated from `web/` and embedded under `internal/webui/static`. Do not edit generated assets manually.
 
-## Build and verification commands
+## Verification commands
+
+Use the repository-owned workflow where possible:
 
 ```bash
-# Go formatting/static/tests
+go run ./tools/task check
+```
+
+Individual gates include:
+
+```bash
 go fmt ./...
 go vet ./...
 go test -timeout 2m ./...
 go test -race -timeout 2m ./...
-
-# Repository-owned quality workflow; also enforces committed frontend synchronization
-go run ./tools/task check
-
-# Standalone generated-frontend drift check
 go run ./tools/task verify-web-sync
-
-# Embedded local build
 go run ./tools/task go-build
-
-# Windows x64 evaluation candidate
 go run ./tools/task windows-eval
-
-# Verify the authoritative evaluation bundle
 go run ./tools/task verify-windows-eval
-
-# Rebuild twice in isolated controlled inputs and compare manifests
 go run ./tools/task verify-windows-eval-repro
 ```
 
-CI additionally runs frontend typecheck/lint/tests/build, generated-asset drift checks, module verification, dependency vulnerability scans, the production embedded-browser E2E test, Windows/Linux quality jobs, and the Windows evaluation smoke flow.
+CI additionally runs frontend typecheck/lint/tests/build, generated-asset drift checks, module verification, dependency vulnerability scans, production browser E2E, Windows/Linux quality jobs, race detection and the Windows evaluation smoke/preflight flow.
+
+## Privacy-preserving diagnostics
+
+Without a pack:
+
+```bash
+go run ./cmd/cliharbor diagnostics export ./cliharbor-diagnostics.json
+```
+
+With an explicitly trusted pack:
+
+```bash
+go run ./cmd/cliharbor diagnostics export \
+  --pack-file packs/conjur/conjur-v9.yaml \
+  ./cliharbor-diagnostics.json
+```
+
+Diagnostics are allowlisted metadata and exclude command stdout/stderr, argv, executable/candidate paths, environment values, pack source paths, browser secrets and credential data. CLIHarbor performs no automatic upload.
 
 ## Windows evaluation flow
-
-The evaluation path is intentionally unsigned and evidence-oriented:
 
 ```text
 windows-eval
@@ -245,11 +282,7 @@ clean extracted-bundle evaluation preflight
 final bundle verification / artifact upload
 ```
 
-`EVALUATION_SHA256SUMS` covers the evaluation executable and trusted Phase 0 pack. The deterministic rebuild gate requires the candidate and two isolated rebuilds to produce the same authoritative manifest under the pinned toolchain and controlled build inputs. The packaged `evaluation preflight` then validates the exact extracted layout, those covered bytes, the discovery-only pack authority, the running executable identity, and vendor-free runtime suitability before Phase 0 inventory.
-
-Checksum equality proves byte integrity/determinism under that qualification contract. It is **not** code signing, publisher identity, host attestation, or independent supply-chain provenance.
-
-For the exact managed-laptop procedure, use [Work-Laptop Evaluation](docs/WORK_LAPTOP_EVALUATION.md).
+`EVALUATION_SHA256SUMS` covers the evaluation executable and trusted Phase 0 pack. Checksum equality proves byte integrity/determinism under that qualification contract; it is **not** publisher identity, code signing, host attestation or independent supply-chain provenance.
 
 ## Repository layout
 
@@ -257,52 +290,60 @@ For the exact managed-laptop procedure, use [Work-Laptop Evaluation](docs/WORK_L
 cmd/cliharbor/             CLI entry point and operator commands
 internal/app/              application lifecycle and command wiring
 internal/server/           loopback HTTP/session/origin/CSRF boundary
-internal/packs/            pack model, loader, schema and semantic validation
+internal/packs/            pack model, loader, schema and validation
 internal/discovery/        executable discovery, version probes and identity
-internal/planner/          typed input → immutable execution plan
+internal/planner/          typed input -> immutable execution plan
 internal/executor/         direct bounded process execution
 internal/processcontrol/   platform process-lifecycle ownership
 internal/runs/             bounded run state, events and replay
 internal/structured/       bounded structured-result parsing
 internal/evidence/         Phase 0 evidence export/import/integrity
-internal/diagnostics/      allowlisted privacy-preserving support export
+internal/diagnostics/      allowlisted support export
 internal/webui/            embedded production frontend assets
 web/                       React + TypeScript + Vite source
-packs/                     synthetic/example and Phase 0 trusted pack sources
+packs/example/             synthetic fixtures
+packs/phase0/              discovery/evidence-only vendor pack
+packs/conjur/              real version-gated Conjur pack
 schemas/                   embedded pack JSON Schema
-tools/task/                repository build/verification/evaluation tasks
-test/                      browser E2E support
+tools/task/                build/verification/evaluation tasks
 docs/                      product, architecture, security and operations docs
 ```
 
-## Current vendor integration gate
+## Current vendor qualification boundary
 
-The major blocker is factual, not architectural:
+The generic Conjur 9.x command contract is now implemented from authoritative online CyberArk source/release evidence. What online evidence cannot prove is the exact binary, version, enterprise configuration, authentication state and policy installed on a specific managed work laptop.
 
-> **Real Idira/CyberArk workflow definitions require genuine company-managed Windows Phase 0 evidence.**
+Therefore the remaining managed-device gate is **qualification**, not command invention:
 
-The repository already has the safe collection/review boundary. The next vendor milestone is to run the qualified evaluation artifact on the managed laptop, collect reviewed inventory/help/version evidence using only approved fixed probes, then encode the first verified read-only workflow. Until that evidence exists, adding guessed vendor argv would weaken the security model.
+1. run the qualified CLIHarbor preflight;
+2. identify the intended corporate `conjur.exe` unambiguously;
+3. require a compatible version;
+4. compare fixed help probes where needed;
+5. execute a non-secret read workflow using the approved existing vendor session.
+
+A mismatch should produce a revised/versioned pack, not relaxed validation.
 
 ## Documentation
 
 | Document | Purpose |
 | --- | --- |
 | [Quickstart](QUICKSTART.md) | shortest download/run path, including non-admin work-laptop startup |
-| [PRD](docs/PRD.md) | product scope, goals, non-goals, acceptance |
+| [Conjur integration](docs/CONJUR_INTEGRATION.md) | official upstream provenance, implemented workflows and qualification boundary |
+| [PRD](docs/PRD.md) | product scope, goals, non-goals and acceptance |
 | [Architecture](docs/ARCHITECTURE.md) | component boundaries, state, execution and evaluation model |
-| [Security](docs/SECURITY.md) | threat model, controls and explicit trust boundaries |
-| [Authentication](docs/AUTHENTICATION.md) | vendor-owned authentication model |
+| [Security](docs/SECURITY.md) | threat model, controls and trust boundaries |
+| [Authentication](docs/AUTHENTICATION.md) | vendor-owned session/authentication model |
 | [Pack specification](docs/PACK_SPEC.md) | declarative pack contract and safety constraints |
 | [UX](docs/UX.md) | browser/operator interaction model |
-| [Decisions / ADRs](docs/DECISIONS.md) | accepted architecture and security decisions |
+| [Decisions](docs/DECISIONS.md) | architecture/security decisions |
 | [Development plan](docs/DEVELOPMENT_PLAN.md) | implementation phases and acceptance gates |
 | [Test strategy](docs/TEST_STRATEGY.md) | risk-based verification contract |
-| [Roadmap](docs/ROADMAP.md) | product stages and current evidence gate |
-| [Work-laptop evaluation](docs/WORK_LAPTOP_EVALUATION.md) | exact safe Windows evaluation procedure |
+| [Roadmap](docs/ROADMAP.md) | current product stages and next gates |
+| [Work-laptop evaluation](docs/WORK_LAPTOP_EVALUATION.md) | controlled managed-Windows evaluation procedure |
 | [Contributing](CONTRIBUTING.md) | repository development workflow |
 
 ## Design position
 
-CLIHarbor is intentionally narrower than a terminal emulator, shell wrapper, remote execution service, or credential manager. Its value comes from making known CLI workflows easier to use while preserving a small, inspectable authority boundary.
+CLIHarbor is intentionally narrower than a terminal emulator, shell wrapper, remote execution service, credential manager, or automatic CLI scraper at runtime.
 
-If a workflow cannot be represented safely as a trusted executable plus validated argv, it does not belong in the generic execution path.
+Its value comes from making **known, reviewed CLI workflows** easier to use while retaining a small inspectable authority boundary. If a workflow cannot be represented safely as trusted configuration plus validated typed input and exact argv, it does not belong in the generic execution path.

@@ -1,0 +1,356 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: cyberark-conjur-v9
+  name: CyberArk / Idira Secrets Manager CLI 9.x
+  version: 0.1.0
+  description: >-
+    Read-only Conjur CLI workflows verified from the official cyberark/conjur-cli-go
+    v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
+    Secret-returning, interactive, mutating, deprecated, and environment-conditional
+    commands are intentionally excluded from executable browser authority.
+runtime:
+  platforms: [windows]
+  tools:
+    conjur:
+      executableNames: [conjur]
+      versionProbe:
+        args: [--version]
+        parser: semver-text
+        timeoutMillis: 3000
+      versionConstraint: ">=9.3.1 <10.0.0"
+      helpProbes:
+        root:
+          args: [--help]
+          timeoutMillis: 3000
+        list:
+          args: [list, --help]
+          timeoutMillis: 3000
+        resource:
+          args: [resource, --help]
+          timeoutMillis: 3000
+        role:
+          args: [role, --help]
+          timeoutMillis: 3000
+        whoami:
+          args: [whoami, --help]
+          timeoutMillis: 3000
+commands:
+  whoami:
+    name: Who am I
+    description: Display non-secret information about the currently authenticated Conjur identity.
+    tool: conjur
+    risk: read
+    argv:
+      - literal: whoami
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  list-resources:
+    name: List resources
+    description: List resources visible to the current Conjur identity with optional server-side filters.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: kind
+        type: enum
+        label: Resource kind
+        validation:
+          enum: [user, host, layer, group, policy, variable, webservice, host_factory]
+          disallowLeadingDash: true
+      - id: search
+        type: string
+        label: Search text
+        validation:
+          maxLength: 512
+          disallowLeadingDash: true
+      - id: limit
+        type: integer
+        label: Maximum results (-1 for unlimited)
+        validation:
+          min: -1
+          max: 1000000
+      - id: offset
+        type: integer
+        label: Result offset
+        validation:
+          min: 0
+          max: 1000000000
+      - id: role
+        type: string
+        label: Role ID
+        validation:
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: inspect
+        type: boolean
+        label: Include resource metadata
+      - id: count
+        type: boolean
+        label: Return count only
+    argv:
+      - literal: list
+      - flag:
+          name: --kind
+          valueFrom: kind
+          omitWhenEmpty: true
+      - flag:
+          name: --search
+          valueFrom: search
+          omitWhenEmpty: true
+      - flag:
+          name: --limit
+          valueFrom: limit
+          omitWhenEmpty: true
+      - flag:
+          name: --offset
+          valueFrom: offset
+          omitWhenEmpty: true
+      - flag:
+          name: --role
+          valueFrom: role
+          omitWhenEmpty: true
+      - switch:
+          name: --inspect
+          enabledFrom: inspect
+      - switch:
+          name: --count
+          enabledFrom: count
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  resource-exists:
+    name: Check resource exists
+    description: Check whether a Conjur resource ID exists.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: resource-id
+        type: string
+        label: Resource ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+    argv:
+      - literal: resource
+      - literal: exists
+      - positional:
+          valueFrom: resource-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: cards
+      structured:
+        fields:
+          - key: exists
+            label: Exists
+            type: boolean
+            required: true
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  resource-show:
+    name: Show resource
+    description: Show metadata for one Conjur resource.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: resource-id
+        type: string
+        label: Resource ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+    argv:
+      - literal: resource
+      - literal: show
+      - positional:
+          valueFrom: resource-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  resource-permitted-roles:
+    name: List permitted roles
+    description: List roles with the requested privilege on a Conjur resource.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: resource-id
+        type: string
+        label: Resource ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: privilege
+        type: string
+        label: Privilege
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 64
+          disallowLeadingDash: true
+    argv:
+      - literal: resource
+      - literal: permitted-roles
+      - positional:
+          valueFrom: resource-id
+      - positional:
+          valueFrom: privilege
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  role-exists:
+    name: Check role exists
+    description: Check whether a Conjur role ID exists.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: role-id
+        type: string
+        label: Role ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+    argv:
+      - literal: role
+      - literal: exists
+      - positional:
+          valueFrom: role-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: cards
+      structured:
+        fields:
+          - key: exists
+            label: Exists
+            type: boolean
+            required: true
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  role-show:
+    name: Show role
+    description: Show metadata for one Conjur role.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: role-id
+        type: string
+        label: Role ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+    argv:
+      - literal: role
+      - literal: show
+      - positional:
+          valueFrom: role-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  role-members:
+    name: List role members
+    description: List members of a Conjur role, optionally with verbose membership objects.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: role-id
+        type: string
+        label: Role ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: verbose
+        type: boolean
+        label: Verbose membership details
+    argv:
+      - literal: role
+      - literal: members
+      - positional:
+          valueFrom: role-id
+      - switch:
+          name: --verbose
+          enabledFrom: verbose
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  role-memberships:
+    name: List role memberships
+    description: List the roles to which a Conjur role belongs.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: role-id
+        type: string
+        label: Role ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+    argv:
+      - literal: role
+      - literal: memberships
+      - positional:
+          valueFrom: role-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
