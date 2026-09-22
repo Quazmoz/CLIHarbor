@@ -67,7 +67,7 @@ func NewConjurProvisioner() *ConjurProvisioner {
 }
 
 func (p *ConjurProvisioner) Ensure(ctx context.Context, ref discovery.ToolRef) (string, bool, error) {
-	if ref != ConjurRef || p == nil || p.goos != "windows" || p.goarch != "amd64" {
+	if p == nil || ref != ConjurRef || p.goos != "windows" || p.goarch != "amd64" {
 		return "", false, nil
 	}
 
@@ -75,9 +75,11 @@ func (p *ConjurProvisioner) Ensure(ctx context.Context, ref discovery.ToolRef) (
 	if err != nil {
 		return "", false, err
 	}
-	if ok, err := p.verifyFile(target); err == nil && ok {
+	ok, verifyErr := p.verifyFile(target)
+	if verifyErr == nil && ok {
 		return target, false, nil
-	} else if err != nil && !os.IsNotExist(err) {
+	}
+	if verifyErr == nil || !os.IsNotExist(verifyErr) {
 		if removeErr := os.Remove(target); removeErr != nil && !os.IsNotExist(removeErr) {
 			return "", false, fmt.Errorf("remove invalid managed Conjur executable: %w", removeErr)
 		}
@@ -146,18 +148,18 @@ func (p *ConjurProvisioner) Ensure(ctx context.Context, ref discovery.ToolRef) (
 	if err := os.Rename(tempPath, target); err != nil {
 		// A concurrent CLIHarbor instance may have completed the same pinned
 		// installation first. Accept only the exact reviewed bytes.
-		if ok, verifyErr := p.verifyFile(target); verifyErr == nil && ok {
+		if valid, targetErr := p.verifyFile(target); targetErr == nil && valid {
 			return target, false, nil
 		}
 		return "", false, fmt.Errorf("activate managed Conjur executable: %w", err)
 	}
 	keepTemp = false
 
-	ok, err := p.verifyFile(target)
+	valid, err := p.verifyFile(target)
 	if err != nil {
 		return "", false, fmt.Errorf("verify activated Conjur executable: %w", err)
 	}
-	if !ok {
+	if !valid {
 		return "", false, fmt.Errorf("verify activated Conjur executable: content mismatch")
 	}
 	return target, true, nil
