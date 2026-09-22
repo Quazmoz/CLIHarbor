@@ -64,6 +64,14 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 			continue
 		}
 		ref := discovery.ToolRef{PackID: tool.PackID, ToolID: tool.ToolID}
+		if ref == toolbootstrap.ConjurRef && options.Out != nil {
+			if _, writeErr := fmt.Fprintf(options.Out,
+				"Setup: Conjur CLI was not found; installing verified CyberArk Conjur CLI %s for the current user...\n",
+				toolbootstrap.ConjurVersion,
+			); writeErr != nil {
+				return RuntimeState{}, fmt.Errorf("write automatic setup progress: %w", writeErr)
+			}
+		}
 		path, installed, provisionErr := provisioner.Ensure(ctx, ref)
 		if provisionErr != nil {
 			if ref == toolbootstrap.ConjurRef {
