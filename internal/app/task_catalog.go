@@ -39,6 +39,9 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 			if command.Risk != packs.RiskRead || command.Output.Sensitivity.ContainsSecrets {
 				continue
 			}
+			if command.Requirements.RequiresAuth && command.Requirements.AuthMode != packs.AuthModeVendorSession {
+				continue
+			}
 			tool, ok := snapshot.Find(discovery.ToolRef{PackID: packID, ToolID: command.Tool})
 			if !ok || !tool.Healthy() {
 				continue
