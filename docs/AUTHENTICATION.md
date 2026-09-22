@@ -1,82 +1,91 @@
 # Authentication and Session Model
 
-## 1. Objective
+## Objective
 
-CLIHarbor should make authentication feel integrated without becoming an authentication system.
+CLIHarbor should orchestrate authenticated CLI workflows without becoming an authentication system or credential store.
 
-The wrapped CLI owns credentials, MFA challenges, token exchange, session persistence, and keystore behavior. CLIHarbor owns only orchestration and status presentation.
+The wrapped vendor CLI owns passwords, MFA challenges, API keys/tokens, token exchange, session persistence, profile/context, and OS-keystore behavior. CLIHarbor owns only the local workflow/orchestration boundary.
 
-## 2. Initial Idira/CyberArk facts
+## Current authentication capabilities
 
-Current upstream documentation indicates:
+CLIHarbor distinguishes two states in pack metadata:
 
-- `idsec` is the official CLI for Idira Identity Security Platform operations.
-- `idsec login` can prompt for passwords and MFA as required by the configured authentication method.
-- after successful login, `idsec` stores access tokens in the computer keystore for their lifetime.
-- the current `conjur-cli-go` project is the supported Go CLI for Idira Secrets Manager.
+### Generic authentication requirement
 
-These upstream behaviors are the basis for the initial design, but implementation must test the exact versions deployed in the target company environment before relying on particular flags/status commands.
-
-## 3. MVP authentication UX
-
-The UI should present a clear status card:
-
-```text
-Idira CLI: detected
-Version: x.y.z
-Profile/context: <value if safely discoverable>
-Authentication: Signed out | Signed in | Expired | Unknown
-[Sign in] [Refresh status] [Sign out]
+```yaml
+requirements:
+  requiresAuth: true
 ```
 
-Selecting **Sign in** should invoke a vendor-owned login flow.
+This alone does **not** grant executable browser authority. A generic auth-required task remains fail-closed because CLIHarbor has no general authentication adapter or credential-input contract.
 
-Preferred MVP order:
+### Existing vendor-owned session
 
-1. If the CLI has a safe documented browser/device-code login flow, invoke it and monitor status.
-2. If login requires interactive terminal prompts, launch the CLI in a separate terminal window owned by the user's session.
-3. Once that process completes, re-query auth status and update the browser.
-4. If no reliable status command exists, run a safe read-only probe defined by the pack and interpret only documented outcomes.
+A read-only pack command may explicitly declare:
 
-## 4. Why not start with a browser username/password form?
+```yaml
+requirements:
+  requiresAuth: true
+  authMode: vendor-session
+```
 
-A browser form can look seamless, but it expands CLIHarbor's security responsibility substantially:
+This mode is implemented.
 
-- the password enters frontend memory;
-- frontend/backend transport must handle it;
-- accidental logs/devtools/error capture become possible;
-- command-line argument passing can leak into process listings;
-- MFA and challenge flows differ by provider;
-- CLIHarbor risks duplicating a vendor authentication protocol that the CLI already handles.
+It means CLIHarbor may launch the verified read-only vendor command and let that command use its existing vendor configuration/session/OS-keystore behavior.
 
-Therefore direct credential entry is **not an MVP requirement**.
+CLIHarbor does not:
 
-## 5. Future credential-form exception
+- ask the browser for vendor passwords;
+- accept MFA values;
+- pass access tokens/API keys/passwords in argv;
+- synthesize terminal keystrokes;
+- read a vendor token merely to execute a task;
+- provide interactive stdin to the task process;
+- persist vendor credentials.
 
-A future pack may define a browser credential flow only if all conditions are met:
+If no usable vendor session exists, the command is expected to fail. The operator then authenticates through the approved vendor-owned flow outside the read-only browser task.
 
-- the vendor CLI officially supports an appropriate non-interactive credential input mechanism;
-- credentials can be supplied through stdin or another channel that does not expose them in process listings;
-- the value is never persisted;
-- frontend and runtime logs demonstrably exclude it;
-- the feature has explicit threat-model review and tests;
-- MFA/challenge semantics remain vendor-controlled or are implemented via a documented supported interface;
-- there is a concrete UX need that justifies the additional attack surface.
+## Conjur 9.x implementation
 
-Even then, the preferred state is for the vendor CLI to cache only its own session token in its existing OS-backed keystore.
+The official `cyberark/conjur-cli-go` source shows that authenticated command clients use the vendor configuration/authentication layer. CLIHarbor's real Conjur pack therefore uses `vendor-session` for its non-secret read commands.
 
-## 6. Auth adapter interface
-
-Conceptual adapter contract:
+Examples:
 
 ```text
-Detect() -> tool capability metadata
+conjur whoami --output json
+conjur list ... --output json
+conjur resource show <resource-id> --output json
+conjur role members <role-id> --output json
+```
+
+The Conjur pack does not expose `login`, `authenticate`, secret retrieval, password changes, API-key rotation, or other credential-sensitive operations as browser tasks.
+
+See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md).
+
+## Why CLIHarbor does not start with a browser username/password form
+
+A browser credential form would materially expand the trust boundary:
+
+- password/MFA data would enter frontend memory;
+- frontend/backend transport and logging would become credential-sensitive;
+- argv passing can leak secrets through process inspection;
+- vendor authentication methods/MFA challenges vary;
+- CLIHarbor would risk duplicating a vendor protocol already implemented by the official CLI.
+
+Therefore direct credential input is not part of the current product contract.
+
+## Future explicit login adapter
+
+A future integration may add vendor-owned login orchestration if real usage requires it. A reviewed adapter would need an explicit interface such as:
+
+```text
+Detect() -> capability metadata
 Status(ctx) -> AuthState
-Login(ctx, mode) -> LoginHandle
+Login(ctx, approvedMode) -> LoginHandle
 Logout(ctx) -> result
 ```
 
-`AuthState` should avoid carrying secret token material:
+Possible non-secret auth states:
 
 ```text
 unknown
@@ -87,84 +96,57 @@ expired
 error
 ```
 
-Optional non-secret fields:
+Any such change must preserve these invariants:
 
-- username/display name if the CLI exposes it safely;
-- active profile/context;
-- expiration timestamp if documented;
-- human-readable remediation.
+- the vendor owns credential validation/token storage;
+- credentials are never written to normal logs/run history/URLs;
+- secret values are not process-list-visible argv;
+- cancellation and challenge/MFA behavior are explicit;
+- status detection is based on documented vendor behavior;
+- browser UI does not become the authorization boundary.
 
-## 7. External terminal login
+## External-terminal login
 
-For Windows MVP, an interactive login can be launched in a new terminal process when required.
+If a future vendor workflow truly requires interactive terminal authentication, the preferred model is a separate vendor-owned terminal process in the current user's session rather than a password form in CLIHarbor.
 
-Requirements:
+Requirements would include:
 
-- exact command comes from a trusted pack/adapter;
-- CLIHarbor does not synthesize password keystrokes;
-- terminal process runs as the current user;
-- terminal title/instructions make it clear which tool is authenticating;
-- browser shows “Waiting for sign-in…” and provides cancel/recheck controls;
-- completion triggers a status refresh;
-- output from the auth terminal is not blindly captured into normal run history.
+- exact command from a trusted pack/adapter;
+- no synthesized password keystrokes;
+- no silent elevation;
+- clear terminal ownership/title;
+- bounded wait/cancellation;
+- no blind capture of interactive credential output into run history.
 
-The implementation should evaluate Windows Terminal (`wt.exe`) availability but must have a fallback compatible with standard Windows environments. Do not make a third-party terminal a hard dependency.
+This is not currently implemented by the generic read-only task executor.
 
-## 8. Embedded PTY — later capability
+## Embedded PTY
 
-A future embedded terminal could make authentication more seamless, but it introduces:
+An embedded PTY remains deferred because it would introduce secret keystroke handling, masking, escape-sequence parsing, clipboard concerns, and substantial platform-specific attack surface.
 
-- keystroke/input handling;
-- secret input masking;
-- terminal escape sequence parsing;
-- potential clipboard concerns;
-- a larger browser/runtime attack surface;
-- significantly more platform-specific code.
+## Logout
 
-PTY support should be added only after a real workflow requires it.
+If/when logout is exposed, it must use a documented vendor command and accurately state its scope. CLIHarbor must never delete vendor keystore/session files directly as a substitute for vendor logout behavior.
 
-## 9. Logout
+## Profiles and contexts
 
-If the wrapped CLI provides a documented logout command, the pack/adapter may expose it.
+Profile/tenant/account context should be explicit where the vendor CLI exposes it safely. CLIHarbor must not infer authorization from a displayed profile name. For future mutations, exact target/context will need to be bound into backend confirmation.
 
-Logout should clearly state scope: profile, service, or global CLI session. CLIHarbor must not delete keystore files directly as a substitute for vendor logout behavior.
+## Failure behavior
 
-## 10. Multiple profiles/contexts
+Authentication-related failures should remain distinguishable where the vendor contract permits safe classification:
 
-CLIHarbor should model profile/context as explicit execution context, not global invisible state where possible.
+- signed out / no cached session;
+- expired session;
+- user/MFA cancellation in a vendor-owned flow;
+- permission denied after authentication;
+- network/service failure;
+- unknown sanitized vendor failure.
 
-The UI should show the active profile/tenant/account before mutating operations. If a CLI supports selecting a profile via explicit flags, the pack may prefer those flags over hidden global state provided credentials remain vendor-managed.
+Do not flatten every failure into a misleading generic success/failure state, and do not expose credential material in diagnostics.
 
-## 11. Authentication failure behavior
+## Phase 0
 
-CLIHarbor should distinguish:
+The discovery-only Phase 0 pack still performs no vendor login/logout and contains no credential authority. Version/help evidence probes are fixed read-only argv and receive no interactive stdin.
 
-- binary missing;
-- profile missing;
-- signed out;
-- token expired;
-- MFA/user cancellation;
-- permission denied after successful auth;
-- network/service error;
-- unknown CLI error.
-
-Do not flatten all failures into “login failed.” Preserve sanitized vendor error details.
-
-## 12. Acceptance tests
-
-- signing in through the vendor CLI causes CLIHarbor status to become authenticated without CLIHarbor reading the token;
-- passwords/MFA values do not appear in CLIHarbor logs, run metadata, URLs, or frontend persistence;
-- cancelled vendor login returns the UI to a recoverable state;
-- expired sessions are detected or represented as unknown with a safe re-login path;
-- logout uses the vendor command and updates the UI;
-- wrong-profile/context risk is visible before change/destructive workflows.
-
-## Phase 0 evaluation authentication behavior
-
-The Phase 0 work-laptop workflow does not add an authentication adapter and does not call vendor login/logout.
-
-`version`, `self-test`, and discovery-only `inventory` require no vendor credential input. Operator-selected evidence probes are allowed only when their fixed read-only argv is explicitly declared in a trusted pack; they receive no interactive stdin and CLIHarbor never supplies username/password/token/MFA values.
-
-The supplied Idira/CyberArk Phase 0 inventory pack contains no evidence probes and therefore cannot invoke vendor authentication accidentally. Existing vendor-owned authentication/profile/keystore semantics remain out of scope until exact deployed-command evidence is collected.
-
-Browser bootstrap/session/CSRF tokens are CLIHarbor-local credentials and are explicitly excluded from Phase 0 evidence exports.
+Browser bootstrap/session/CSRF tokens are CLIHarbor-local credentials and remain excluded from Phase 0 evidence exports.
