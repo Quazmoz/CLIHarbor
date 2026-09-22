@@ -459,6 +459,29 @@ func validateArgument(arg Argument, inputs map[string]Input, path string) error 
 		}
 		return nil
 	}
+	if arg.Positional != nil {
+		input, ok := inputs[arg.Positional.ValueFrom]
+		if !ok {
+			return validationError(ErrSemantic, path+".positional.valueFrom", "positional argument references an undeclared input")
+		}
+		if input.Type == InputBoolean || input.Type == InputMultiselect {
+			return validationError(ErrSemantic, path+".positional.valueFrom", "positional arguments must come from string, integer, or enum inputs")
+		}
+		if !input.Required && !arg.Positional.OmitWhenEmpty {
+			return validationError(ErrSemantic, path+".positional.omitWhenEmpty", "optional positional arguments must be omitted when empty")
+		}
+		if (input.Type == InputString || input.Type == InputEnum) && !input.Validation.DisallowLeadingDash {
+			return validationError(ErrSemantic, path+".positional.valueFrom", "string and enum positional values must reject leading dashes to prevent undeclared flag injection")
+		}
+		if input.Type == InputEnum {
+			for _, value := range input.Validation.Enum {
+				if strings.HasPrefix(value, "-") {
+					return validationError(ErrSemantic, path+".positional.valueFrom", "enum values used as positional arguments cannot begin with a dash")
+				}
+			}
+		}
+		return nil
+	}
 	if arg.Switch != nil {
 		input, ok := inputs[arg.Switch.EnabledFrom]
 		if !ok {
