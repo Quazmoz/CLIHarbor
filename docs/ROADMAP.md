@@ -1,168 +1,193 @@
 # Roadmap
 
+CLIHarbor's foundation and first real vendor read-only integration are now implemented. The roadmap is therefore organized around qualification and controlled capability expansion rather than generic infrastructure invention.
+
 ## Stage 0 — Foundation
 
-Status: specification stage.
+**Status: complete.**
 
-Deliverables:
+Implemented:
 
-- product requirements;
-- architecture/security/auth model;
-- pack specification;
-- UX specification;
-- research/competitive record;
-- development/test plans;
-- repository governance.
+- product/architecture/security/auth specifications;
+- Windows-first local runtime;
+- trusted pack model and schema;
+- React browser UI;
+- repository governance and test strategy.
 
-Exit condition: implementation can start without re-litigating the product boundary.
+## Stage 1 — Generic read-only execution platform
 
-## Stage 1 — Idira read-only vertical slice
+**Status: complete.**
 
-Goal: prove the local-browser architecture with one real, high-value, read-only Idira/CyberArk workflow.
+Implemented:
 
-Deliverables:
+- authenticated loopback browser boundary;
+- explicit trusted pack loading;
+- deterministic executable discovery/version probing;
+- executable identity capture/revalidation;
+- typed request validation and deterministic argv planning;
+- bounded direct process execution;
+- Windows Job Object lifecycle containment;
+- bounded run state, SSE streaming/replay and cancellation;
+- structured scalar JSON cards plus raw fallback;
+- operator-safe error taxonomy;
+- privacy-preserving diagnostics.
 
-- Windows loopback server;
-- React UI;
-- browser bootstrap/session protection;
-- pack v1 schema;
-- Idira pack skeleton;
-- binary discovery/version probing;
-- secure direct process execution;
-- stdout/stderr streaming;
-- raw output and exit state;
-- first verified workflow.
+## Stage 2 — Managed-Windows evaluation and evidence
 
-Exit condition: a Windows user can complete the workflow from browser to official CLI without CLIHarbor owning credentials.
+**Status: complete generically; environment qualification remains external.**
 
-## Stage 2 — Authentication and structured results
+Implemented:
 
-Current status: the generic structured-result foundation is implemented with synthetic fixtures; vendor authentication and vendor-specific schemas remain pending Phase 0 evidence.
+- unsigned Windows x64 evaluation artifact;
+- authoritative `EVALUATION_SHA256SUMS`;
+- deterministic isolated rebuild verification;
+- vendor-free self-test;
+- immutable extracted-bundle preflight;
+- discovery-only Idira/CyberArk Phase 0 pack;
+- bounded help/evidence probes;
+- sanitized evidence export/inspection/checksum flow.
 
-Deliverables:
+The evaluation path does not require administrator rights, Go, Node/npm, Git, PowerShell or outbound internet access.
 
-- auth-state adapter;
+## Stage 3 — Conjur 9.x read-only vertical slice
+
+**Status: implemented from authoritative upstream evidence; managed-laptop qualification pending.**
+
+The repository now includes `packs/conjur/conjur-v9.yaml`, derived from the official `cyberark/conjur-cli-go` v9.3.1 release and commit `7207d6a4a2005130978e10d03d7f6b55ab0216d6`.
+
+Implemented workflows:
+
+- current authenticated identity (`whoami`);
+- resource listing with bounded approved filters;
+- resource exists/show/permitted-roles;
+- role exists/show/members/memberships.
+
+Supporting platform work:
+
+- constrained positional input: one validated scalar -> exactly one argv element;
+- explicit `vendor-session` authentication mode;
+- generic auth-required tasks remain blocked unless that mode is declared;
+- no credential stdin/argv/persistence;
+- Conjur version constraint `>=9.3.1 <10.0.0`;
+- fixed help probes for deployed-command comparison.
+
+See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md).
+
+### Exit condition
+
+On the target company-managed Windows laptop:
+
+1. CLIHarbor evaluation preflight succeeds;
+2. the intended corporate `conjur.exe` resolves unambiguously;
+3. version probing satisfies the trusted pack constraint;
+4. relevant help probes agree with the expected command surface;
+5. at least one non-secret read workflow succeeds using the approved existing vendor session.
+
+Online source evidence can establish the generic command contract; it cannot attest the exact enterprise-installed binary/configuration.
+
+## Stage 4 — Authentication UX
+
+**Current state:** read-only `vendor-session` execution is implemented; CLIHarbor-owned login orchestration is not.
+
+Potential deliverables, only when justified by real operator needs:
+
+- safe auth-state detection;
 - vendor-owned login launch;
-- session status refresh;
-- logout when supported;
-- reliable structured-output parser/renderer for at least one verified vendor task;
-- raw fallback (**generic foundation implemented**);
-- bounded strict scalar JSON parsing + inert cards UI (**implemented generically**);
-- redaction hardening.
+- session refresh/status display;
+- documented vendor logout;
+- explicit profile/context visibility.
 
-Exit condition: signed-out -> login -> verified vendor task -> structured result works end-to-end without credential persistence.
+The preferred architecture remains vendor-owned credentials/session storage. Browser password/MFA forms and embedded PTY remain deferred because they materially expand the security boundary.
 
-## Stage 3 — Useful Idira console
+## Stage 5 — Additional useful read-only workflows
 
-Expand only from real operator needs.
+Expand from verified operator demand and authoritative CLI evidence.
 
-Candidate task categories after exact command discovery:
+Candidates include:
 
-- identity/session/profile visibility;
-- common read-only inventory/search operations;
-- common change workflows;
-- controlled secret-management operations where output classification is explicit;
-- diagnostics.
+- additional non-secret Conjur inventory/search operations;
+- other Idira CLI read-only operations;
+- deployment-mode-specific read commands when environment detection can be deterministic;
+- richer non-secret result renderers.
 
-Add:
+Do not expose commands merely because upstream source contains them. Every browser task must have a justified user workflow and safe execution/output classification.
 
-- risk badges;
-- backend-enforced confirmation;
-- context/tenant visibility;
-- local run metadata/history policy;
-- `cliharbor doctor`.
+## Stage 6 — Change/destructive workflows
 
-Exit condition: CLIHarbor is genuinely faster/safer than raw CLI for several recurring internal workflows.
+**Deferred.**
 
-## Stage 4 — Production hardening
+Before enabling `change` or `destructive` risk classes, implement and qualify:
 
-Deliverables:
+- backend-enforced confirmation bound to exact command/target/context;
+- explicit tenant/profile visibility;
+- idempotency/reconciliation where the vendor operation requires it;
+- safe failure/timeout-after-success behavior;
+- audit evidence that does not leak secrets;
+- workflow-specific regression and managed-environment tests.
 
-- Windows process-tree cancellation;
-- timeouts/output limits;
-- strict CSP/security headers;
-- security regression suite;
-- accessibility pass; **implemented for the current task/run/error UI; future auth/confirmation surfaces require their own qualification**
-- clean error taxonomy; **implemented across the current browser/runtime boundary with stable safe DTOs and terminal run failures**
-- clean Windows release build;
-- checksums/SBOM;
-- signing when feasible.
+Frontend confirmation alone is not an authorization boundary.
 
-Exit condition: suitable for routine internal use under the documented local threat model.
+## Stage 7 — Secret-bearing workflows
 
-## Stage 5 — Embed into internal company CLI
+**Deferred.**
 
-Goal: reduce adoption friction by making CLIHarbor a natural extension of the already-used company CLI.
+Secret retrieval/handling requires a separate reviewed contract for:
 
-Potential UX:
+- reveal/copy UX;
+- no persistence by default;
+- redaction and diagnostics;
+- clipboard/history behavior;
+- output retention and crash handling;
+- authorization/context clarity.
 
-```text
-company-cli ui
-company-cli ui --pack idira
-```
+Until that contract exists, the planner/executor continue to reject secret-bearing browser tasks.
 
-Deliverables depend on host CLI technology, but the browser contract and pack system should remain unchanged.
+## Stage 8 — Distribution hardening
 
-Exit condition: internal users do not need to install/learn a separate front-door tool beyond the approved company CLI distribution path.
+Potential deliverables:
 
-## Stage 6 — Prove multi-CLI engine
+- Windows code signing/publisher identity;
+- SBOM/provenance/attestation;
+- approved internal pack distribution;
+- installer only if it improves deployment without introducing unnecessary privilege/persistence;
+- rollback/version compatibility policy.
 
-Add a second materially different pack selected from real demand.
+The current evaluation artifact is intentionally unsigned and portable; it must not be described as signed or independently attested.
+
+## Stage 9 — Second real CLI
+
+Add a materially different second tool only after real demand demonstrates value.
 
 Selection criteria:
 
-- recurring user pain;
-- poor/absent GUI;
-- stable CLI semantics;
-- reasonable licensing/distribution story;
-- useful structured output;
-- no dominant high-quality existing GUI that makes the pack redundant.
+- recurring operator pain;
+- stable documented CLI semantics;
+- reasonable licensing/distribution;
+- useful non-secret read workflows;
+- enough difference from Conjur to validate the generic engine.
 
-A fixture/test pack does not count as market validation; this stage needs a real second tool.
+Exit condition: two real packs operate without vendor-specific branches in the generic planner/executor.
 
-Exit condition: two real packs run on the same core without vendor-specific branching in planner/executor.
-
-## Stage 7 — Pack authoring tooling
+## Stage 10 — Pack authoring tooling
 
 Potential features:
 
 - `cliharbor pack init`;
-- schema editor/validation;
-- capture `--help` trees;
-- generate a draft pack from help/man output;
-- AI-assisted draft generation as an optional authoring aid;
+- schema-aware editor/validation;
+- help-tree capture;
+- draft generation from authoritative help/source;
 - fixture generation;
 - `cliharbor pack test`;
-- security linter;
+- static security linter;
 - compatibility matrix.
 
-Generated packs must remain reviewable artifacts. Runtime execution should never depend on an LLM making live security-sensitive command decisions.
+AI may help author **reviewable source artifacts**, but runtime execution must not depend on an LLM inventing security-sensitive commands.
 
-## Stage 8 — Public pack ecosystem (optional)
+## Optional later work
 
-Only pursue if actual adoption supports it.
-
-Prerequisites:
-
-- pack signatures;
-- publisher identity;
-- capability manifest;
-- static linting;
-- version/update policy;
-- trust UI;
-- malicious-pack threat-model expansion.
-
-A marketplace is not required for CLIHarbor to be successful as an internal/enterprise tool.
-
-## Stage 9 — Cross-platform expansion
-
-Potential order:
-
-1. Windows — primary/initial.
-2. Linux — likely straightforward for non-interactive execution.
-3. macOS — later, with signing/notarization considerations.
-
-Cross-platform support should be declared only after real end-to-end tests, not merely cross-compilation.
+- embed CLIHarbor into an approved internal company CLI;
+- Linux/macOS qualification;
+- signed/public pack ecosystem if adoption justifies the trust infrastructure.
 
 ## Explicitly deferred
 
@@ -170,64 +195,17 @@ Cross-platform support should be declared only after real end-to-end tests, not 
 - arbitrary remote execution;
 - multi-user remote server;
 - built-in credential vault;
-- full terminal emulator;
-- “support every CLI automatically” promise;
-- community marketplace before trust/signature model exists;
-- mobile client.
+- generic shell/terminal emulator;
+- automatic trust of downloaded packs;
+- “support every CLI automatically” runtime behavior;
+- community marketplace before signature/publisher trust exists.
 
 ## Product validation loop
 
-After each pack/workflow ships:
+For each shipped workflow:
 
-1. measure whether it replaces repeated manual CLI steps;
-2. record confusing fields/errors;
-3. identify new high-value workflow requests;
-4. decide whether the solution belongs in the generic pack model or a narrow adapter;
-5. avoid adding abstraction until at least two real use cases need it.
-
-## Work-laptop readiness checkpoint
-
-The pre-vendor-integration Windows work-laptop evaluation checkpoint is implemented. The repository can now produce and CI-qualify an unsigned embedded-frontend Windows x64 executable, self-test CLIHarbor without a vendor dependency, inventory explicitly declared vendor executable basenames, and export bounded sanitized Phase 0 evidence.
-
-The immediate roadmap gate is no longer implementation of generic discovery/execution infrastructure; it is **collection of reviewed evidence from the actual installed Idira/CyberArk CLI versions**. That evidence determines the first real read-only pack commands and any necessary version/help probe declarations.
-
-Still deferred until evidence exists:
-
-- real Idira/CyberArk task argv and output schemas;
-- vendor authentication orchestration;
-- mutating/destructive tasks;
-- secret-bearing structured output;
-- installer/code-signing/public release;
-- automatic command-tree extraction or AI-authored live execution.
-
-## Evidence-review checkpoint
-
-The repository now includes the operator-side gate between Phase 0 collection and trusted-pack authoring: `cliharbor evidence inspect <file>`. It validates the evidence contract, summarizes what was actually observed, identifies gaps, and explicitly keeps captured prose/argv inert.
-
-The next milestone is unchanged in substance: collect evidence on the actual company-managed Windows laptop, inspect it, and perform human factual review. Only then should the first verified read-only Idira/CyberArk workflow be encoded and qualified end to end.
-
-## Evidence transfer-integrity checkpoint
-
-The Phase 0 handoff now has detached SHA-256 verification in addition to strict evidence parsing. The Windows evaluation artifact carries exactly one packaged checksum authority: root `EVALUATION_SHA256SUMS`, covering both the executable and the privileged Phase 0 pack so either file changing after qualification is detectable. The executable-only `bin/SHA256SUMS` remains an ordinary local-build compatibility artifact and is deliberately absent from evaluation packaging. CI recomputes the authoritative manifest against the on-disk privileged files immediately before upload. Operators can retain the export digest independently and require an exact match during evidence review without changing the v1 evidence schema or adding signing-key infrastructure.
-
-This closes accidental/unauthorized byte-change detection for a correctly retained digest. It does not close evidence authenticity/attestation; that remains explicitly outside the current milestone. The next product gate is still genuine managed-laptop evidence followed by the first factually verified read-only vendor workflow.
-
-## Evaluation deterministic-rebuild checkpoint
-
-The Windows evaluation pipeline now fixes the Go build toolchain from `.go-version`, disables user workspace/environment/default-flag influence on the qualified build, pins target-affecting Go settings, and builds two isolated evaluation bundles before producing the upload candidate. The produced evaluation candidate and both staged rebuilds must independently pass the normal bundle verifier and produce byte-identical authoritative `EVALUATION_SHA256SUMS` bytes.
-
-This reduces accidental build-environment drift and proves deterministic rebuilding for the same checkout, metadata, exact toolchain, and controlled environment. It is deliberately not described as cross-machine reproducibility, software-supply-chain provenance, signer identity, or host attestation. Those remain future release-governance capabilities.
-
-
-## Production-browser hardening checkpoint
-
-The production embedded-server browser qualification gate is implemented with a synthetic fixture only. Linux CI drives a real headless Chrome/Chromium instance against the embedded React application and proves one-time bootstrap/session establishment, exact Host/Origin/CSRF behavior, authenticated task discovery, typed read-only execution without browser-selected executable/argv authority, live SSE, replay and forced reconnect using `Last-Event-ID`, bounded reconnect exhaustion with retained-snapshot reconciliation, explicit retry/cancellation, retained-run eviction, single-execution semantics, and inert rendering of hostile markup/control-like output.
-
-This closes the documented browser-runtime hardening gap without changing the vendor-evidence gate. Managed-Windows default-browser/application-control behavior and genuine Idira/CyberArk workflow acceptance remain separate external qualifications.
-
-
-## Privacy-preserving diagnostics checkpoint
-
-A production-safe operator support bundle is now implemented as `cliharbor diagnostics export <output>`. It emits the deterministic, bounded `cliharbor.diagnostics/v1` allowlisted schema and performs no upload. The bundle intentionally excludes command output, argv, environment values, executable/candidate paths, pack source paths, browser session material, and credentials; local `doctor` remains the path-rich operator-only troubleshooting surface.
-
-This closes the generic diagnostic-bundle item in the hardening plan. It does not change the product gate: the first real Idira/CyberArk workflow still requires reviewed Phase 0 evidence from the actual company-managed Windows laptop.
+1. verify it against authoritative source/docs and the target installed version;
+2. measure whether it replaces repeated manual CLI work;
+3. capture confusing fields/errors and operational failures;
+4. add regressions for defects;
+5. generalize the pack/runtime model only when multiple real workflows require the same capability.
