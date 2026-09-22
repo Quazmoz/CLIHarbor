@@ -126,6 +126,25 @@ jobs:
         run: go run ./tools/task verify-windows-eval
       - name: Run vendor-free evaluation self-test
         run: .\bin\cliharbor-windows-x64-evaluation.exe self-test
+      - name: Verify embedded first-party Conjur pack without network setup
+        shell: pwsh
+        run: |
+          $doctorOutput = & .\bin\cliharbor-windows-x64-evaluation.exe doctor 2>&1
+          $doctorExit = $LASTEXITCODE
+          $doctorOutput | ForEach-Object { Write-Host $_ }
+          if ($doctorExit -ne 0 -and $doctorExit -ne 1) {
+            throw "zero-config doctor returned unexpected exit code $doctorExit"
+          }
+          if (($doctorOutput -join "`n") -notmatch 'Configured packs: 1') {
+            throw "zero-config doctor did not load exactly one embedded first-party pack"
+          }
+          if (($doctorOutput -join "`n") -notmatch 'cyberark-conjur-v9/conjur:') {
+            throw "zero-config doctor did not expose the embedded Conjur tool state"
+          }
+          # A missing vendor tool intentionally makes doctor exit 1. The smoke
+          # assertion succeeded, so do not leak that expected native exit code
+          # into the PowerShell step result.
+          $global:LASTEXITCODE = 0
       - name: Run extracted-bundle evaluation preflight
         shell: pwsh
         run: |
@@ -223,14 +242,5 @@ jobs:
             EVALUATION_SHA256SUMS
             bin/cliharbor-windows-x64-evaluation.exe
             packs/phase0/idira-cyberark-inventory.yaml
-          if-no-files-found: error
-          retention-days: 14
-      - name: Upload verified Conjur 9 pack artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: cliharbor-conjur-v9-pack-${{ github.sha }}
-          path: |
-            packs/conjur/conjur-v9.yaml
-            docs/CONJUR_INTEGRATION.md
           if-no-files-found: error
           retention-days: 14

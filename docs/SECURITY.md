@@ -4,7 +4,7 @@
 
 CLIHarbor is a local browser UI over explicitly approved command-line workflows. It is security-sensitive because it discovers and launches powerful local CLIs while accepting browser input and rendering CLI output.
 
-`localhost` alone is not a security boundary. Browser requests, packs, PATH, executables, process output, filesystem state, environment/configuration and user input all cross trust boundaries.
+`localhost` alone is not a security boundary. Browser requests, packs, PATH, executables, process output, filesystem state, network downloads, environment/configuration and user input all cross trust boundaries.
 
 The current runtime intentionally supports only a narrow browser execution envelope:
 
@@ -18,7 +18,7 @@ The current runtime intentionally supports only a narrow browser execution envel
 - generic unauthenticated tasks, or explicit `vendor-session` authenticated tasks;
 - bounded direct process execution.
 
-The real Conjur 9.x pack stays inside this envelope.
+The real Conjur 9.x pack and optional first-party Conjur bootstrap stay inside this envelope.
 
 ## 2. Assets to protect
 
@@ -28,6 +28,7 @@ The real Conjur 9.x pack stays inside this envelope.
 - Current-user filesystem and process authority.
 - Integrity of pack/tool/task definitions.
 - Integrity of executable selection and argv construction.
+- Integrity of any application-managed vendor executable download.
 - Browser session/bootstrap/CSRF material.
 - Diagnostic/run/evidence metadata.
 
@@ -36,11 +37,12 @@ The real Conjur 9.x pack stays inside this envelope.
 ### Trusted with constraints
 
 - The qualified CLIHarbor runtime.
-- Built-in pack bytes deliberately supplied by trusted application code.
+- Built-in pack bytes deliberately compiled into trusted application code.
 - Explicitly approved local pack files/directories.
 - A discovered executable only after it satisfies basename/path/version policy and executable-identity checks.
+- A CLIHarbor-managed first-party vendor executable only after exact pinned source, size and SHA-256 verification and subsequent normal discovery/version qualification.
 
-A discovered path/version is **not** proof of publisher identity. Code signing or enterprise publisher verification remains a separate distribution control.
+A discovered path/version is **not** proof of publisher identity. A pinned hash identifies exact reviewed bytes but is also not equivalent to Authenticode publisher validation, organization approval or build attestation. Code signing or enterprise publisher verification remains a separate distribution control.
 
 ### Untrusted or potentially hostile
 
@@ -49,6 +51,8 @@ A discovered path/version is **not** proof of publisher identity. Code signing o
 - User-entered strings, integers, enums and booleans.
 - Environment variables and vendor configuration.
 - PATH contents/order and binaries found through PATH.
+- Network responses before pinned artifact verification.
+- Existing files in CLIHarbor's current-user managed-tool directory until reverified.
 - Repository/cwd files merely because CLIHarbor runs nearby.
 - Development Vite responses.
 - Third-party/unapproved packs.
@@ -82,7 +86,8 @@ It cannot supply:
 - shell program;
 - arbitrary argv array;
 - environment-variable name;
-- working directory.
+- working directory;
+- download URL, expected hash or managed-tool destination.
 
 Backend-only `--tool-path` overrides must reference an already declared pack/tool and an approved matching executable basename.
 
@@ -134,6 +139,8 @@ This allows a **read-only, non-secret** command to use authentication already su
 
 For the qualified Conjur 9.3.1 contract, the pinned upstream `conjur-api-go v0.15.4` path loads environment/stored credentials and returns an error when no valid credentials are present. CLIHarbor therefore does not need to start a password/MFA flow merely to execute one of these read tasks.
 
+Installing the pinned Conjur executable does not configure a Conjur account or create/authenticate vendor credentials.
+
 ### SI-6 — Secret-bearing browser execution remains disabled
 
 Pack metadata may classify output as secret-bearing, but the current planner/executor reject those plans.
@@ -160,13 +167,47 @@ Raw process state/stdout/stderr remain authoritative evidence.
 
 Schema validation does not make a pack trusted.
 
-CLIHarbor does not implicitly scan cwd, auto-trust repository `packs/`, load remote URLs, auto-download packs or execute pack/plugin code. Supported pack sources are deliberate built-in bytes or explicitly named local files/directories.
+CLIHarbor does not implicitly scan cwd, auto-trust repository `packs/`, load remote pack URLs, auto-download packs or execute pack/plugin code. Supported pack sources are deliberate built-in bytes or explicitly named local files/directories.
+
+The first-party Conjur pack is compiled into CLIHarbor and still passes the hardened built-in pack loader. This does not create remote pack authority.
 
 ### SI-9 — Fail closed on executable ambiguity/change
 
 CLIHarbor rejects missing, ambiguous, incompatible, invalid-override, identity-failed or replaced executables.
 
 Discovery captures executable identity/content evidence and execution revalidates it immediately before launch.
+
+Automatic dependency provisioning is attempted only when the first-party Conjur tool's authoritative discovery status is exactly `missing`. Ambiguous, incompatible, probe-failed, identity-failed and explicit override states are never auto-replaced.
+
+### SI-10 — Managed vendor downloads are immutable and current-user scoped
+
+CLIHarbor's only current automatic vendor executable is the explicitly reviewed CyberArk Conjur CLI v9.3.1 Windows amd64 asset.
+
+The runtime pins:
+
+```text
+version: 9.3.1
+asset: conjur_windows_amd64.exe
+size: 21,950,000 bytes
+SHA-256: da2b31ca00b8faaefb8e1fe891563b5cc07c39460e776fb42e7f89b05d3ee4f6
+```
+
+Controls:
+
+- no mutable `latest` URL;
+- HTTPS only in production;
+- redirect count bounded and final/redirect origins restricted to GitHub/GitHubusercontent;
+- response/body size bounded;
+- download writes to a same-directory staging file;
+- exact size and SHA-256 required before activation;
+- file synced before activation;
+- activated target verified again;
+- pre-existing managed file is reused only if the exact pinned bytes still match;
+- corrupt/altered managed copies are removed rather than executed;
+- current-user cache only;
+- no Program Files, machine PATH, registry, service, driver, scheduled task or elevation;
+- explicit `--no-auto-setup` opt-out;
+- normal discovery/version/executable-identity controls still apply after provisioning.
 
 ## 5. Threats and mitigations
 
@@ -264,13 +305,34 @@ The bootstrap token is short-lived and single-use, exchanged for a session, then
 
 ### T14 — Local privilege confusion
 
-CLIHarbor runs as the current user and must not silently elevate. A managed-laptop user should not enter separate administrator credentials merely to start CLIHarbor.
+CLIHarbor runs as the current user and must not silently elevate. A managed-laptop user should not enter separate administrator credentials merely to start CLIHarbor or provision the managed Conjur fallback.
 
 Application-control blocks must be handled through approved allowlisting/signing, not policy bypass.
 
 ### T15 — Development frontend receives session authority
 
 The dev proxy is restricted to explicit IPv4 loopback, strips Cookie/Authorization/Proxy-Authorization/CSRF before forwarding, drops Set-Cookie and does not own `/bootstrap` or `/api/*` routes.
+
+### T16 — Vendor download substitution / downgrade / cache poisoning
+
+**Threat:** a network response, redirect, mutable release reference or pre-existing local file substitutes a different executable for the reviewed Conjur binary.
+
+**Controls:**
+
+- version/URL/size/SHA are compile-time reviewed constants;
+- no latest-version discovery;
+- production HTTPS and restricted redirect origins;
+- bounded redirect count and payload size;
+- staged file never becomes executable authority before size/hash validation;
+- the activated target is rehashed;
+- cached files are reverified on reuse;
+- invalid cached targets are removed;
+- normal Conjur version probing and executable identity checks run after bootstrap;
+- only an authoritative `missing` state may invoke this fallback;
+- explicit operator overrides are never superseded;
+- `--no-auto-setup` disables the network behavior.
+
+Residual risk: SHA-256 pinning proves exact bytes against a reviewed digest; it does not independently prove CyberArk publisher identity or that GitHub's upstream release process was uncompromised when the digest was reviewed.
 
 ## 6. Conjur-specific security boundary
 
@@ -279,6 +341,8 @@ The real pack at `packs/conjur/conjur-v9.yaml` is derived from the official `cyb
 ```text
 >=9.3.1 <10.0.0
 ```
+
+The same pack is embedded in the normal CLIHarbor executable for the default user path.
 
 It exposes only reviewed non-secret read operations:
 
@@ -296,7 +360,7 @@ It intentionally excludes:
 - host-factory mutations;
 - deployment-specific commands that cannot be safely generalized.
 
-Online upstream evidence establishes the generic CLI contract but does not attest a particular enterprise-installed binary. The managed laptop must still pass executable discovery/version qualification.
+Online upstream evidence establishes the generic CLI contract and the pinned release bytes but does not establish organization approval, endpoint configuration or account/session state on a particular laptop.
 
 See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md).
 
@@ -316,11 +380,15 @@ Support diagnostics are constructed from approved allowlisted metadata rather th
 
 `doctor` is local troubleshooting output and may contain executable paths; it should not be shared blindly.
 
-## 8. Local configuration
+Managed-tool bootstrap errors shown during normal startup use reviewed sanitized operator text. Raw network/path errors are not copied into the browser-facing diagnostic contract.
 
-Current CLI configuration is process-local through explicit `--pack-file`, `--pack-dir` and `--tool-path` flags. Repository/cwd contents do not become trusted configuration by implication.
+## 8. Local configuration and managed state
 
-The Conjur pack distributed by CI is a separate artifact from the immutable Phase 0 evaluation bundle and must be loaded explicitly.
+Current operator configuration remains process-local through explicit `--pack-file`, `--pack-dir` and `--tool-path` flags. Repository/cwd contents do not become trusted configuration by implication.
+
+Normal `serve` startup additionally loads the compiled-in first-party Conjur pack. If automatic setup is enabled and the tool is truly missing, CLIHarbor may persist only the exact verified Conjur executable under its current-user cache. This is managed runtime content, not credential/configuration storage.
+
+`--no-auto-setup` preserves embedded-pack startup while prohibiting the automatic vendor download.
 
 ## 9. Dependency / supply-chain controls
 
@@ -334,9 +402,11 @@ Relevant controls include:
 - generated frontend drift detection;
 - deterministic Windows evaluation rebuild comparison;
 - authoritative `EVALUATION_SHA256SUMS` for the immutable Phase 0 evaluation bundle;
-- re-verification before upload.
+- re-verification before upload;
+- embedded first-party Conjur pack bytes compiled into the qualified executable;
+- exact CyberArk Conjur v9.3.1 Windows x64 URL, size and SHA-256 pin for the optional managed fallback.
 
-The Conjur integration records its upstream source/release commit and version compatibility boundary. That provenance is evidence for command semantics; it is not Windows publisher attestation for the installed `conjur.exe`.
+The Conjur integration records its upstream source/release commit and compatibility boundary. The pinned binary digest strengthens exact-byte identity for the managed fallback; it is not Windows publisher attestation.
 
 Code signing, SBOM/provenance attestation and enterprise publisher verification remain separate future release-hardening work.
 
@@ -345,6 +415,7 @@ Code signing, SBOM/provenance attestation and enterprise publisher verification 
 The repository test/CI contract covers, among other things:
 
 - pack schema/semantic/trust/resource bounds;
+- embedded first-party pack loading;
 - executable discovery ambiguity and override behavior;
 - version compatibility/probe failures;
 - executable replacement/identity checks;
@@ -359,6 +430,7 @@ The repository test/CI contract covers, among other things:
 - structured-output parser bounds;
 - Phase 0 evidence/integrity behavior;
 - deterministic Windows evaluation/preflight flow;
-- Conjur pack parsing, exact documented argv construction and vendor-session execution policy.
+- Conjur pack parsing, exact documented argv construction and vendor-session execution policy;
+- managed Conjur download digest validation, cache reuse, corrupt-cache repair, no-activation-on-mismatch and unsupported-platform/tool no-op behavior.
 
-A successful CI run proves the repository-controlled contract under CI environments. It does not prove a private company endpoint has the expected `conjur.exe`, account configuration, network reachability, permissions or live vendor session.
+A successful CI run proves the repository-controlled contract under CI environments. It does not prove a private company endpoint has the expected account configuration, network reachability, permissions, application-control policy or live vendor session.

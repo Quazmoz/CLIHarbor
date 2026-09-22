@@ -2,11 +2,15 @@
 
 ## Status
 
-CLIHarbor includes a real, version-gated read-only pack for the official CyberArk / Idira Secrets Manager Conjur CLI:
+CLIHarbor includes a real, version-gated read-only integration for the official CyberArk / Idira Secrets Manager Conjur CLI.
+
+The reviewed source pack remains in the repository at:
 
 ```text
 packs/conjur/conjur-v9.yaml
 ```
+
+For normal `serve` startup, the same trusted pack bytes are **embedded in the CLIHarbor executable**. Users do not need to download, copy, or select a separate pack.
 
 The implementation is derived from the official upstream `cyberark/conjur-cli-go` v9.3.1 release and source, not from remembered or guessed CLI syntax.
 
@@ -17,14 +21,80 @@ The implementation is derived from the official upstream `cyberark/conjur-cli-go
 - upstream commit: `7207d6a4a2005130978e10d03d7f6b55ab0216d6`
 - CLIHarbor compatibility constraint: `>=9.3.1 <10.0.0`
 
-The deployed company-managed Windows binary is still an environment-specific compatibility surface. CLIHarbor therefore runs a fixed `conjur --version` probe and fails closed when the discovered version does not satisfy the pack constraint.
+## Zero-config startup
+
+Normal Windows startup is:
+
+```bat
+cliharbor-windows-x64-evaluation.exe
+```
+
+or explicitly:
+
+```bat
+cliharbor-windows-x64-evaluation.exe serve
+```
+
+With no `--pack-file` or `--pack-dir`, CLIHarbor:
+
+1. loads the embedded first-party Conjur pack through the same hardened pack loader used for other trusted sources;
+2. performs normal executable discovery and version qualification;
+3. uses an already installed compatible Conjur executable when one unambiguous candidate exists;
+4. only when the trusted Conjur tool state is exactly `missing`, attempts current-user bootstrap of the reviewed official Conjur binary;
+5. re-runs normal discovery/version probing against the provisioned executable before any browser task can use it.
+
+Automatic setup does **not** run for ambiguous, incompatible, probe-failed, identity-failed, unsupported-platform, or explicit-invalid-override states. Those conditions remain fail-closed and require operator review.
+
+Supplying an explicit local pack also retains the advanced/operator behavior and does not trigger first-party default-pack provisioning.
+
+## Pinned Windows fallback binary
+
+CyberArk's official v9.3.1 GitHub release publishes a standalone Windows amd64 executable suitable for a non-admin per-user fallback:
+
+```text
+asset: conjur_windows_amd64.exe
+size: 21,950,000 bytes
+SHA-256: da2b31ca00b8faaefb8e1fe891563b5cc07c39460e776fb42e7f89b05d3ee4f6
+```
+
+CLIHarbor does not use a mutable `latest` URL. The release version, URL, expected size, and digest are compiled into the reviewed bootstrap implementation.
+
+When needed, the binary is downloaded over HTTPS into a staging file, bounded before activation, verified by SHA-256, synced, then activated under the current user's CLIHarbor cache. The activated file is verified again before CLIHarbor returns it to normal discovery as a backend-only tool override.
+
+The normal Windows location is equivalent to:
+
+```text
+%LOCALAPPDATA%\CLIHarbor\tools\conjur\9.3.1\conjur.exe
+```
+
+(the exact root is resolved with the operating system's current-user cache directory API).
+
+CLIHarbor does not add this path to machine `PATH` and does not write `Program Files`, Windows services, drivers, certificates, scheduled tasks, startup entries, or machine-wide registry/configuration.
+
+### Enterprise opt-out
+
+If application-managed dependency downloads are prohibited:
+
+```bat
+cliharbor-windows-x64-evaluation.exe serve --no-auto-setup
+```
+
+The embedded pack is still loaded; a missing vendor tool simply remains unavailable.
+
+An approved existing installation can always be pinned explicitly:
+
+```text
+--tool-path cyberark-conjur-v9/conjur=C:\path\to\approved\conjur.exe
+```
+
+Explicit operator selection remains authoritative and is never silently replaced by the managed fallback.
 
 ## Authoritative upstream evidence
 
 The pack was derived from these official upstream surfaces:
 
 - [`cyberark/conjur-cli-go`](https://github.com/cyberark/conjur-cli-go) — certified Conjur/Idira CLI source repository;
-- [`v9.3.1`](https://github.com/cyberark/conjur-cli-go/releases/tag/v9.3.1) — release tied to the qualified upstream commit;
+- [`v9.3.1`](https://github.com/cyberark/conjur-cli-go/releases/tag/v9.3.1) — release tied to the qualified upstream commit and containing the pinned Windows executable/digest;
 - `pkg/cmd/list.go` — list filters and output behavior;
 - `pkg/cmd/resource.go` — resource exists/show/permitted-roles commands;
 - `pkg/cmd/role.go` — role exists/show/members/memberships commands;
@@ -68,10 +138,10 @@ requirements:
 
 - execution may use the vendor CLI's existing config/session/keystore behavior;
 - CLIHarbor supplies no password, token, API key, MFA response, or interactive stdin;
-- if the vendor CLI cannot use an existing session, the command is expected to fail and the operator should authenticate through the approved vendor-owned flow;
+- if the vendor CLI cannot use an existing session, the command fails and the operator authenticates through the approved vendor-owned flow;
 - generic `requiresAuth: true` commands without this explicit mode remain blocked and are not surfaced in the browser.
 
-This is deliberately narrower than implementing a CLIHarbor authentication adapter or browser credential form.
+Downloading the Conjur executable does not configure a Conjur appliance/account, authenticate a user, or create vendor credentials.
 
 ## Commands intentionally not exposed
 
@@ -79,7 +149,7 @@ The upstream CLI contains more functionality than CLIHarbor currently grants bro
 
 ### Secret-bearing
 
-Examples include variable/secret retrieval and authentication commands that can return credential material. These remain excluded because CLIHarbor's current executor refuses secret-bearing plans.
+Variable/secret retrieval and authentication commands that can return credential material remain excluded because CLIHarbor's current executor refuses secret-bearing plans.
 
 ### Interactive authentication
 
@@ -91,48 +161,36 @@ Policy load/update/replace, issuer create/update/delete, API-key rotation, passw
 
 ### Environment-conditional/deprecated
 
-Commands registered only for some deployment types, such as certain self-hosted-only operations, are not placed in the general cross-environment browser pack unless the deployment mode can be established deterministically. Deprecated commands are also excluded from new browser authority.
+Commands registered only for some deployment types are not placed in the general cross-environment browser pack unless deployment mode can be established deterministically. Deprecated commands are excluded from new browser authority.
 
 ## Run from source
 
-On a machine with the repository/toolchain:
+Normal development startup now exercises the embedded first-party pack:
+
+```bash
+go run ./cmd/cliharbor serve
+```
+
+Explicit source-pack qualification remains available:
 
 ```bash
 go run ./cmd/cliharbor doctor --pack-file packs/conjur/conjur-v9.yaml
-go run ./cmd/cliharbor serve --pack-file packs/conjur/conjur-v9.yaml
+go run ./cmd/cliharbor serve --pack-file packs/conjur/conjur-v9.yaml --no-auto-setup
 ```
 
-If `conjur` is installed outside `PATH`, use the normal backend-only override:
+This explicit path is useful when reviewing a modified pack and deliberately does not imply trust from repository location alone.
 
-```text
---tool-path cyberark-conjur-v9/conjur=C:\path\to\conjur.exe
-```
+## Work-laptop qualification boundary
 
-The browser cannot select or alter that executable path.
+Online evidence is sufficient to implement, pin, and regression-test the command and fallback-download contracts, but it cannot prove a specific organization's policy, endpoint configuration, authentication state, or corporate executable provenance.
 
-## Work-laptop use with the qualified evaluation executable
+For a managed laptop:
 
-The Phase 0 evaluation bundle remains intentionally immutable and discovery-only. Do not copy this pack into the extracted qualified bundle before running `evaluation preflight`, because preflight rejects unexpected bundle entries.
+1. run `evaluation preflight` against the unchanged qualified CLIHarbor bundle;
+2. start CLIHarbor normally;
+3. if a compatible corporate `conjur.exe` exists, require unambiguous discovery/version qualification;
+4. if no Conjur exists and policy permits the pinned GitHub release, allow the verified current-user fallback;
+5. if automatic download is blocked by policy, do not bypass it—use the approved corporate install or `--no-auto-setup`;
+6. execute a non-secret read workflow using an approved vendor-owned session.
 
-After preflight succeeds, place `conjur-v9.yaml` in a separate company-approved user-writable location and explicitly load it, for example:
-
-```bat
-bin\cliharbor-windows-x64-evaluation.exe doctor --pack-file "..\cliharbor-packs\conjur-v9.yaml"
-bin\cliharbor-windows-x64-evaluation.exe serve --pack-file "..\cliharbor-packs\conjur-v9.yaml"
-```
-
-If company policy does not permit transferring the pack separately, keep using the discovery-only Phase 0 flow until an internally approved distribution mechanism is available.
-
-## Qualification boundary
-
-Online source evidence is sufficient to implement and regression-test the command contract, but it does not prove the exact binary/configuration installed on a managed corporate endpoint.
-
-Before calling a specific work-laptop installation qualified, verify at minimum:
-
-1. `evaluation preflight` succeeds for the CLIHarbor executable;
-2. discovery resolves the intended `conjur.exe` unambiguously;
-3. the fixed version probe reports a version satisfying `>=9.3.1 <10.0.0`;
-4. the relevant fixed help probes match the expected command family;
-5. at least one non-secret read workflow succeeds using the existing approved vendor session.
-
-A mismatch is evidence to revise or version the pack, not a reason to loosen discovery, version, or argument validation.
+A corporate CLI/version/help mismatch is evidence to revise or version the pack, not a reason to loosen discovery, version, argument, or supply-chain validation.

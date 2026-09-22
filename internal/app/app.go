@@ -11,21 +11,25 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
+	"github.com/Quazmoz/CLIHarbor/internal/toolbootstrap"
 	"github.com/Quazmoz/CLIHarbor/internal/webui"
 )
 
 // Options contains process-level dependencies, explicit trusted pack sources,
 // backend-only tool overrides, and development-only frontend configuration.
 type Options struct {
-	Out           io.Writer
-	Version       string
-	Commit        string
-	BuildMode     string
-	Browser       browser.Launcher
-	WebDevURL     string
-	PackFiles     []string
-	PackDirectory string
-	ToolOverrides map[discovery.ToolRef]string
+	Out                io.Writer
+	Version            string
+	Commit             string
+	BuildMode          string
+	Browser            browser.Launcher
+	WebDevURL          string
+	PackFiles          []string
+	PackDirectory      string
+	ToolOverrides      map[discovery.ToolRef]string
+	LoadDefaultPacks   bool
+	AutoProvisionTools bool
+	ToolProvisioner    toolbootstrap.Provisioner
 }
 
 // Run starts the local runtime, resolves configured pack/tool state, opens the
@@ -116,13 +120,34 @@ func frontendHandler(webDevURL string) (http.Handler, error) {
 func writeStartupStatus(out io.Writer, version, baseURL, bootstrapURL string, launchErr error, state RuntimeState) error {
 	packsCount, ready, unavailable := state.counts()
 	if launchErr == nil {
-		_, err := fmt.Fprintf(out, "CLIHarbor %s\nLocal runtime: %s\nConfigured packs: %d\nTools: %d ready, %d unavailable\nDefault browser launch requested.\n", version, baseURL, packsCount, ready, unavailable)
+		if _, err := fmt.Fprintf(out, "CLIHarbor %s\nLocal runtime: %s\nConfigured packs: %d\nTools: %d ready, %d unavailable\n", version, baseURL, packsCount, ready, unavailable); err != nil {
+			return err
+		}
+		if err := writeSetupMessages(out, state.SetupMessages); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintln(out, "Default browser launch requested.")
 		return err
 	}
 
 	// The launcher error is deliberately not printed: platform errors can echo
 	// command arguments. The bootstrap URL is shown only in this explicit
 	// interactive fallback path because the user otherwise cannot establish a session.
-	_, err := fmt.Fprintf(out, "CLIHarbor %s\nConfigured packs: %d\nTools: %d ready, %d unavailable\nDefault browser launch failed. Open this local URL in your browser:\n%s\n", version, packsCount, ready, unavailable, bootstrapURL)
+	if _, err := fmt.Fprintf(out, "CLIHarbor %s\nConfigured packs: %d\nTools: %d ready, %d unavailable\n", version, packsCount, ready, unavailable); err != nil {
+		return err
+	}
+	if err := writeSetupMessages(out, state.SetupMessages); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(out, "Default browser launch failed. Open this local URL in your browser:\n%s\n", bootstrapURL)
 	return err
+}
+
+func writeSetupMessages(out io.Writer, messages []string) error {
+	for _, message := range messages {
+		if _, err := fmt.Fprintf(out, "Setup: %s\n", message); err != nil {
+			return err
+		}
+	}
+	return nil
 }

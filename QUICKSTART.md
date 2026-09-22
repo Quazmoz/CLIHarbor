@@ -1,40 +1,35 @@
 # CLIHarbor Quickstart
 
-This is the shortest supported path from download to a safe CLIHarbor run. For full managed-device evidence and troubleshooting procedures, see [Work-Laptop Evaluation](docs/WORK_LAPTOP_EVALUATION.md).
+The normal Windows path is intentionally simple: **download CLIHarbor once, extract it, run preflight, then start CLIHarbor with no pack or Conjur install arguments.** CLIHarbor carries its reviewed Conjur pack inside the executable and can provision the pinned official Conjur CLI for the current user when Conjur is genuinely missing.
 
-## Choose your path
-
-| Goal | Use |
-| --- | --- |
-| Evaluate CLIHarbor on a Windows work laptop | Qualified Windows evaluation artifact; no build tools or administrator credentials required |
-| Run the real Conjur 9.x pack | Download the separately qualified Conjur pack artifact and load it explicitly after preflight |
-| Develop CLIHarbor | Clone the repository and use the pinned Go/Node toolchain |
+For full managed-device evidence and troubleshooting procedures, see [Work-Laptop Evaluation](docs/WORK_LAPTOP_EVALUATION.md).
 
 ## Work-laptop quickstart — no admin required
 
-CLIHarbor runs in the **currently signed-in Windows user's context**. The evaluation path does not require an administrator account, elevation, Windows service, machine-wide installation, registry changes, Go, Node/npm, Git, PowerShell or outbound internet access.
+CLIHarbor runs in the **currently signed-in Windows user's context**. It does not require an administrator account, elevation, Windows service, machine-wide installation, registry changes, Go, Node/npm, Git, or PowerShell.
 
-Do **not** use **Run as administrator** merely to launch CLIHarbor. If application control blocks the unsigned executable, use the organization's approved allowlisting/signing process rather than bypassing the control.
+Do **not** use **Run as administrator** merely to launch CLIHarbor. If application control blocks CLIHarbor or a vendor executable, use the organization's approved allowlisting/signing process rather than bypassing the control.
 
-### 1. Download the qualified artifacts
+### 1. Download one qualified artifact
 
 1. Open the repository's [CI workflow](https://github.com/Quazmoz/CLIHarbor/actions/workflows/ci.yml).
 2. Select a **successful `main` run** for the commit you intend to evaluate.
 3. Download `cliharbor-windows-x64-evaluation-<commit-sha>` from **Artifacts**.
-4. To use the real Conjur integration, also download `cliharbor-conjur-v9-pack-<commit-sha>` from the **same run**.
-5. Record that commit SHA with your test notes.
+4. Record that commit SHA with your test notes.
 
-Do not substitute a copied standalone EXE. The executable, Phase 0 pack and `EVALUATION_SHA256SUMS` form one qualified evaluation bundle. The real Conjur pack is intentionally distributed as a separate artifact so it cannot alter the immutable preflight layout.
+You do **not** need to download a separate Conjur pack for the normal path. The reviewed first-party Conjur v9 pack is embedded in the CLIHarbor executable.
 
-### 2. Extract into user-writable directories
+Do not substitute a copied standalone EXE. The executable, Phase 0 pack, and `EVALUATION_SHA256SUMS` form one qualified evaluation bundle.
 
-Use Windows **Extract All** or another approved ZIP extractor. A per-user evaluation path is appropriate, for example:
+### 2. Extract into a user-writable directory
+
+Use Windows **Extract All** or another approved ZIP extractor. A per-user path is appropriate, for example:
 
 ```text
 %USERPROFILE%\Downloads\CLIHarbor-Eval
 ```
 
-The evaluation root must remain otherwise empty and contain:
+The extracted root must remain otherwise empty and contain:
 
 ```text
 EVALUATION_SHA256SUMS
@@ -45,15 +40,7 @@ packs\
     idira-cyberark-inventory.yaml
 ```
 
-Extract the separate Conjur pack artifact somewhere else, for example:
-
-```text
-%USERPROFILE%\Downloads\CLIHarbor-Conjur
-  packs\conjur\conjur-v9.yaml
-  docs\CONJUR_INTEGRATION.md
-```
-
-Do not run the executable directly from inside the ZIP and do not copy the real Conjur pack into the evaluation bundle before preflight.
+Do not run directly from inside the ZIP and do not add files to this evaluation bundle before preflight.
 
 ### 3. Open normal Command Prompt
 
@@ -77,9 +64,9 @@ Continue only when the final status is:
 READY FOR PHASE 0 INVENTORY
 ```
 
-Preflight verifies the qualified bundle and local runtime without authenticating to Conjur, executing vendor commands, changing Windows policy or modifying machine configuration.
+Preflight verifies the qualified CLIHarbor bundle and local runtime. It does not authenticate to Conjur, execute vendor commands, download Conjur, change Windows policy, or modify machine configuration.
 
-### 5. Run discovery-only inventory
+### 5. Optional: collect discovery-only Phase 0 inventory
 
 ```bat
 bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file "packs\phase0\idira-cyberark-inventory.yaml"
@@ -87,48 +74,84 @@ bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file "packs\phase0\idi
 
 This packaged Phase 0 pack is discovery-only. It cannot execute vendor tasks or login flows.
 
-### 6. Test the real Conjur 9.x pack
+### 6. Start CLIHarbor
 
-After preflight succeeds, inspect readiness using the separately extracted trusted pack:
-
-```bat
-bin\cliharbor-windows-x64-evaluation.exe doctor --pack-file "%USERPROFILE%\Downloads\CLIHarbor-Conjur\packs\conjur\conjur-v9.yaml"
-```
-
-If the discovered `conjur.exe` is compatible, start the browser UI:
+For the normal user path, no pack flags are required:
 
 ```bat
-bin\cliharbor-windows-x64-evaluation.exe serve --pack-file "%USERPROFILE%\Downloads\CLIHarbor-Conjur\packs\conjur\conjur-v9.yaml"
+bin\cliharbor-windows-x64-evaluation.exe
 ```
 
-The trusted pack requires Conjur CLI `>=9.3.1 <10.0.0` and exposes only reviewed read-only, non-secret workflows. It uses the vendor CLI's existing session (`vendor-session`); CLIHarbor does not ask for or persist Conjur passwords, tokens or MFA values.
-
-If no valid stored/vendor session exists, the Conjur client returns a login-required error. Authenticate through your organization's approved vendor-owned process, then retry the read-only workflow.
-
-See [Conjur CLI 9.x Integration](docs/CONJUR_INTEGRATION.md) for exact command provenance and scope.
-
-### 7. If Conjur is outside PATH
-
-Do not alter machine-wide `PATH`. Pin the approved executable at the backend boundary:
+Equivalent explicit form:
 
 ```bat
-bin\cliharbor-windows-x64-evaluation.exe doctor --pack-file "%USERPROFILE%\Downloads\CLIHarbor-Conjur\packs\conjur\conjur-v9.yaml" --tool-path "cyberark-conjur-v9/conjur=C:\Program Files\Approved Tool\conjur.exe"
+bin\cliharbor-windows-x64-evaluation.exe serve
 ```
 
-Use the same reviewed `--tool-path` value when starting `serve`.
+CLIHarbor then:
 
-CLIHarbor fails closed on ambiguous discovery rather than choosing the first PATH match.
+1. loads its embedded, reviewed Conjur 9.x pack;
+2. checks for an already installed compatible `conjur.exe`;
+3. uses that existing compatible installation when exactly one valid candidate is available;
+4. if Conjur is genuinely missing, downloads the exact reviewed CyberArk Conjur CLI **9.3.1 Windows x64** executable over HTTPS;
+5. verifies the pinned byte size and SHA-256 before activation and verifies the activated file again;
+6. stores that fallback executable only in the current user's CLIHarbor cache;
+7. re-runs normal executable discovery/version validation and opens the local browser UI.
 
-## What current-user execution means
+The managed fallback path is under the current user's cache, not `Program Files`, and CLIHarbor does not add it to machine `PATH`.
+
+Pinned upstream fallback:
+
+```text
+CyberArk conjur-cli-go v9.3.1
+asset: conjur_windows_amd64.exe
+SHA-256: da2b31ca00b8faaefb8e1fe891563b5cc07c39460e776fb42e7f89b05d3ee4f6
+```
+
+Automatic setup requires outbound HTTPS access to the official GitHub/CyberArk release path **only when a compatible Conjur executable is not already available**.
+
+### 7. Vendor authentication
+
+The Conjur pack exposes reviewed read-only, non-secret workflows and uses `vendor-session` authentication. CLIHarbor does not ask for or persist Conjur passwords, tokens, API keys, or MFA values.
+
+If no valid vendor session exists, authenticate through your organization's approved Conjur/CyberArk process, then retry the workflow in CLIHarbor.
+
+## Locked-down enterprise options
+
+### Disable automatic dependency download
+
+If company policy prohibits application-managed vendor downloads:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe serve --no-auto-setup
+```
+
+CLIHarbor still loads the embedded trusted pack but does not download a missing Conjur executable.
+
+### Pin an approved existing Conjur executable
+
+If Conjur is installed outside normal `PATH`, do not modify machine-wide `PATH`. Use an explicit backend override:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe serve --tool-path "cyberark-conjur-v9/conjur=C:\Program Files\Approved Tool\conjur.exe"
+```
+
+An explicit operator override is authoritative. CLIHarbor will not replace it with the managed fallback.
+
+## What automatic setup never does
 
 CLIHarbor does not:
 
-- require a separate Windows administrator login;
-- install a service, driver, scheduled task, startup item, browser extension or certificate;
-- add itself to machine `PATH`;
-- write machine-wide configuration;
-- disable or weaken Defender, EDR, AppLocker, WDAC, SmartScreen, firewall, proxy or browser policy;
-- persist vendor passwords, MFA values, tokens or keystore contents.
+- request a separate Windows administrator login;
+- trigger elevation intentionally;
+- install a Windows service, driver, scheduled task, startup item, browser extension, or certificate;
+- write `Program Files`;
+- add itself or Conjur to machine `PATH`;
+- write machine-wide registry/configuration;
+- silently replace an ambiguous or incompatible corporate Conjur installation;
+- disable or weaken Defender, EDR, AppLocker, WDAC, SmartScreen, firewall, proxy, or browser policy;
+- persist vendor passwords, MFA values, tokens, or keystore contents;
+- download arbitrary executables or follow an unpinned latest-version URL.
 
 If CLIHarbor itself unexpectedly triggers UAC/admin credentials, cancel the prompt and investigate the policy/launch path.
 
@@ -136,11 +159,13 @@ If CLIHarbor itself unexpectedly triggers UAC/admin credentials, cancel the prom
 
 | Result | Action |
 | --- | --- |
-| Windows/EDR blocks unsigned EXE | Stop and use approved allowlisting/signing; do not bypass policy |
+| Windows/EDR blocks unsigned CLIHarbor | Stop and use approved allowlisting/signing; do not bypass policy |
 | Preflight reports `BLOCKED` | Follow remediation; do not continue to vendor execution |
-| Vendor tool is `missing` | Confirm installation through the normal company software process |
-| Vendor tool is `ambiguous` | Review local `doctor` output and pin the approved executable with `--tool-path` |
-| Conjur version is incompatible | Do not bypass the constraint; qualify/version another pack if the installed CLI contract differs |
+| Compatible Conjur already installed | CLIHarbor uses it; no vendor download is needed |
+| Conjur genuinely missing | Default `serve` downloads and verifies the pinned current-user fallback automatically |
+| GitHub/vendor download blocked | Use the approved corporate Conjur installation path or rerun with `--no-auto-setup`; do not bypass controls |
+| Vendor tool is `ambiguous` | Review local evidence and pin the approved executable with `--tool-path`; CLIHarbor will not guess or auto-replace it |
+| Conjur version is incompatible | Do not bypass the version constraint; use/qualify a compatible approved version |
 | Conjur command reports login required | Authenticate through the approved vendor-owned flow; CLIHarbor does not collect credentials |
 | Browser launch fails | Use the printed short-lived loopback URL in an approved browser if company policy permits it |
 
@@ -160,17 +185,17 @@ go run ./tools/task check
 go run ./cmd/cliharbor self-test
 ```
 
-Run without a pack:
+Normal product startup uses the embedded first-party pack:
 
 ```bash
 go run ./cmd/cliharbor serve
 ```
 
-Run the verified Conjur pack:
+Advanced/source pack testing remains available explicitly:
 
 ```bash
 go run ./cmd/cliharbor doctor --pack-file packs/conjur/conjur-v9.yaml
-go run ./cmd/cliharbor serve --pack-file packs/conjur/conjur-v9.yaml
+go run ./cmd/cliharbor serve --pack-file packs/conjur/conjur-v9.yaml --no-auto-setup
 ```
 
 Build/qualify locally:

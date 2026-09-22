@@ -41,8 +41,10 @@ func TestCommandSpecificFlagsFailClosed(t *testing.T) {
 		{"version", "--pack-file", "pack.yaml"},
 		{"self-test", "--tool-path", "demo/tool=/tmp/tool"},
 		{"doctor", "--probe", "demo/tool/help"},
+		{"doctor", "--no-auto-setup"},
 		{"serve", "--export", "phase0.json"},
 		{"inventory", "--web-dev-url", "http://127.0.0.1:5173"},
+		{"inventory", "--no-auto-setup"},
 	}
 	for _, args := range cases {
 		if err := run(args); err == nil {
