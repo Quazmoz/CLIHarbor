@@ -370,6 +370,18 @@
               "$ref": "#/$defs/mapArgument"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "positional"
+          ],
+          "properties": {
+            "positional": {
+              "$ref": "#/$defs/positionalArgument"
+            }
+          }
         }
       ]
     },
@@ -432,6 +444,21 @@
             "minLength": 1,
             "maxLength": 1024
           }
+        }
+      }
+    },
+    "positionalArgument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "valueFrom"
+      ],
+      "properties": {
+        "valueFrom": {
+          "$ref": "#/$defs/id"
+        },
+        "omitWhenEmpty": {
+          "type": "boolean"
         }
       }
     },
