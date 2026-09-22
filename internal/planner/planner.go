@@ -99,6 +99,9 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 	if command.Risk != packs.RiskRead {
 		return zero, &Error{Code: ErrRiskPolicy, Path: "commandId", Message: "this execution milestone permits read-only commands only"}
 	}
+	if command.Requirements.RequiresAuth && command.Requirements.AuthMode != packs.AuthModeVendorSession {
+		return zero, &Error{Code: ErrAuthPolicy, Path: "commandId", Message: "authenticated commands require the explicit vendor-session auth mode"}
+	}
 	if command.Output.Sensitivity.ContainsSecrets {
 		return zero, &Error{Code: ErrOutputPolicy, Path: "commandId", Message: "secret-bearing commands remain disabled until output redaction/reveal policy exists"}
 	}
