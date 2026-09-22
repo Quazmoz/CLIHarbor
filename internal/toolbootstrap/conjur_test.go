@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+
+	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 )
 
 func TestConjurProvisionerDownloadsVerifiesAndReusesManagedCopy(t *testing.T) {
