@@ -20,8 +20,8 @@ import (
 const (
 	ConjurVersion = "9.3.1"
 
-	conjurWindowsAMD64URL = "https://github.com/cyberark/conjur-cli-go/releases/download/v9.3.1/conjur_windows_amd64.exe"
-	conjurWindowsAMD64SHA = "da2b31ca00b8faaefb8e1fe891563b5cc07c39460e776fb42e7f89b05d3ee4f6"
+	conjurWindowsAMD64URL        = "https://github.com/cyberark/conjur-cli-go/releases/download/v9.3.1/conjur_windows_amd64.exe"
+	conjurWindowsAMD64SHA        = "da2b31ca00b8faaefb8e1fe891563b5cc07c39460e776fb42e7f89b05d3ee4f6"
 	conjurWindowsAMD64Size int64 = 21_950_000
 	maxConjurDownloadBytes int64 = 24 << 20
 )
