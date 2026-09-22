@@ -64,6 +64,7 @@ func run(args []string) error {
 	webDevURL := flags.String("web-dev-url", "", "development-only Vite origin (must be http://127.0.0.1:<port>)")
 	packDirectory := flags.String("pack-dir", "", "explicit trusted directory containing pack YAML files")
 	exportPath := flags.String("export", "", "inventory-only sanitized Phase 0 evidence JSON destination")
+	noAutoSetup := flags.Bool("no-auto-setup", false, "serve-only: disable automatic current-user setup of missing first-party CLI dependencies")
 	var packFiles stringList
 	var toolPaths stringList
 	var probes stringList
@@ -79,6 +80,9 @@ func run(args []string) error {
 	if command != "serve" && *webDevURL != "" {
 		return fmt.Errorf("--web-dev-url is valid only with serve")
 	}
+	if command != "serve" && *noAutoSetup {
+		return fmt.Errorf("--no-auto-setup is valid only with serve")
+	}
 	if command != "inventory" && (*exportPath != "" || len(probes) != 0) {
 		return fmt.Errorf("--export and --probe are valid only with inventory")
 	}
@@ -92,15 +96,17 @@ func run(args []string) error {
 		return err
 	}
 	options := app.Options{
-		Out:           os.Stdout,
-		Version:       version,
-		Commit:        commit,
-		BuildMode:     buildMode,
-		Browser:       browser.SystemLauncher(),
-		WebDevURL:     *webDevURL,
-		PackFiles:     append([]string(nil), packFiles...),
-		PackDirectory: *packDirectory,
-		ToolOverrides: overrides,
+		Out:                os.Stdout,
+		Version:            version,
+		Commit:             commit,
+		BuildMode:          buildMode,
+		Browser:            browser.SystemLauncher(),
+		WebDevURL:          *webDevURL,
+		PackFiles:          append([]string(nil), packFiles...),
+		PackDirectory:      *packDirectory,
+		ToolOverrides:      overrides,
+		LoadDefaultPacks:   command == "serve",
+		AutoProvisionTools: command == "serve" && !*noAutoSetup,
 	}
 	if command == "version" {
 		return app.PrintVersion(options)
