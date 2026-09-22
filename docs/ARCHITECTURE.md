@@ -1,113 +1,105 @@
 # Architecture
 
-## 1. Architecture objective
+## 1. Objective
 
-CLIHarbor is a thin local application. The browser is presentation only; the local Go runtime owns trusted pack loading, executable discovery, version compatibility, execution planning/process lifecycle, privacy-preserving support diagnostics, future secret-output redaction, and browser-session security. The wrapped CLI remains the operational authority.
+CLIHarbor is a thin, Windows-first local application that turns explicitly trusted CLI workflows into a guided browser experience without becoming a shell, credential manager, remote execution service, or replacement for the wrapped vendor CLI.
+
+The wrapped CLI remains the operational authority. CLIHarbor owns only the local orchestration boundary:
 
 ```text
 Browser UI
    |
-   | authenticated loopback HTTP + bounded SSE events
+   | authenticated loopback HTTP + bounded SSE
    v
-CLIHarbor local runtime
-   |- pack loader / schema validator       [implemented]
-   |- tool discovery / version probe       [implemented]
-   |- command planner / validation          [implemented: read-only browser boundary]
-   |- process executor                      [implemented: bounded read-only runs]
-   |- auth state adapter                    [planned]
-   |- structured output parser              [implemented: bounded scalar JSON]
-   |- support diagnostics                    [implemented: allowlisted metadata]\n   |- secret-output redaction                [planned for future secret-bearing workflows]
-   |- run manager / event replay              [implemented: bounded in-memory]
+CLIHarbor runtime
+   |- explicit trusted pack loading
+   |- schema + semantic/security validation
+   |- executable discovery + version compatibility
+   |- executable identity capture/revalidation
+   |- typed request validation
+   |- deterministic execution planning
+   |- bounded direct process execution
+   |- run/event ownership and replay
+   |- structured non-secret result parsing
+   |- Phase 0 evidence and support diagnostics
    v
-Approved local CLI binary (idsec.exe, conjur.exe, ...)
+Approved installed CLI executable
    |
    v
-Vendor service / existing auth/session model
+Vendor service / vendor-owned auth/session model
 ```
 
-## 2. Deployment model
+No daemon, Windows service, privileged helper, cloud backend, external database, arbitrary shell, or credential store is required.
 
-### MVP
+## 2. Technology and deployment model
 
-One local executable starts a loopback server, serves embedded frontend assets, and opens the default browser. Approved read-only tasks are exposed only through authenticated server-owned task/run APIs; the browser supplies typed values while executable, argv, lifecycle, and replay authority remain in the Go runtime.
+### Backend
 
-No daemon, Windows service, cloud server, external database, or privileged helper is required.
+Go provides a self-contained Windows executable, standard-library HTTP/process primitives, embedded frontend assets, and a portable core with narrow platform-specific process-control boundaries.
 
-### Future embedded mode
+### Frontend
 
-The same runtime should be embeddable or launchable from an existing internal CLI, for example:
+React + TypeScript + Vite produces static assets embedded into the Go executable. The frontend has no direct filesystem/process authority.
+
+### Packs
+
+Versioned YAML validated against the embedded Draft 2020-12 JSON Schema at `schemas/pack.v1.schema.json`, followed by deterministic semantic/security validation in `internal/packs`.
+
+### Deployment
+
+A single local executable starts an ephemeral IPv4 loopback HTTP server and opens a browser. Approved packs are supplied explicitly by the operator. CLIHarbor installs no Windows service, driver, browser extension, scheduled task, or machine-wide configuration.
+
+## 3. Package boundaries
 
 ```text
-company-cli ui
+cmd/cliharbor/             process entry point and operator commands
+internal/app/              application lifecycle and runtime wiring
+internal/server/           loopback HTTP/session/origin/CSRF boundary
+internal/apperror/         closed browser-safe failure taxonomy
+internal/webui/            embedded frontend + constrained dev proxy
+internal/platform/browser/ default-browser launch boundary
+internal/packs/            pack model/schema/semantic validation/registry
+internal/discovery/        executable resolution, version probes, identity
+internal/planner/          typed values -> immutable execution plan
+internal/executor/         direct bounded process execution
+internal/processcontrol/   platform process-lifecycle ownership
+internal/runs/             bounded run state/events/replay
+internal/structured/       bounded structured-result parsing
+internal/evidence/         Phase 0 evidence export/inspection/integrity
+internal/diagnostics/      allowlisted privacy-preserving diagnostics
+web/                       React + TypeScript source
+packs/example/             synthetic fixtures
+packs/phase0/              discovery/evidence-only vendor pack
+packs/conjur/              real version-gated Conjur pack
+schemas/                   embedded pack schema
+tools/task/                repository build/verification tasks
 ```
 
-The browser, pack, discovery, and execution contracts must not depend on whether the runtime is standalone or embedded.
+Vendor-specific command syntax belongs in verified packs or narrowly scoped adapters. Generic discovery/planner/executor code must not contain Conjur-specific command branches.
 
-## 3. Technology choices
+## 4. Runtime lifecycle
 
-### Backend: Go
-
-Go provides self-contained Windows binaries, standard-library HTTP/process primitives, `embed`, low runtime overhead, and a portable core with narrow platform boundaries.
-
-### Frontend: React + TypeScript + Vite
-
-The production frontend is static and embedded in the Go executable. It has no direct process/filesystem authority. Development Vite traffic is proxied through the authenticated Go origin and is restricted to an explicit loopback target.
-
-### Packs: YAML + JSON Schema
-
-`schemas/pack.v1.schema.json` is the implemented Draft 2020-12 structural contract for `cliharbor.dev/v1`. `internal/packs` adds hardened YAML parsing, semantic/security validation, explicit trusted-source loading, and an effectively immutable registry.
-
-### Version compatibility: semantic versions
-
-Phase 3 uses `github.com/Masterminds/semver/v3` for validated tool constraints. A pack may define only a fixed `semver-text` probe. The runtime does not infer arbitrary probe commands.
-
-## 4. Backend package boundaries
-
-```text
-cmd/cliharbor/             # process entry point + serve/doctor CLI parsing
-internal/app/              # application lifecycle / runtime wiring / doctor
-internal/server/           # loopback HTTP, browser bootstrap, origin/session checks
-internal/apperror/         # closed browser-safe operator failure DTO/taxonomy
-internal/webui/            # embedded frontend + constrained dev reverse proxy
-internal/platform/browser/ # platform default-browser launch boundary
-internal/packs/            # pack model/validation/loading/registry
-internal/discovery/        # executable resolution/version probes/discovery snapshot
-internal/planner/          # typed input -> immutable read-only execution plan
-internal/executor/         # direct process start/stream/cancel/timeout/lifecycle
-internal/runs/             # bounded in-memory run ownership/state/events + final structured DTO
-internal/structured/       # bounded declarative JSON parsing into normalized scalar fields
-internal/auth/             # planned auth adapters/login orchestration
-internal/evidence/         # Phase 0 evidence export/import and transfer-integrity\ninternal/diagnostics/      # bounded allowlisted support bundle + no-clobber export
-tools/task/                # cross-platform repository validation/build entry point
-web/                       # React source
-packs/                     # fixtures/built-in pack sources; never cwd auto-trusted
-schemas/                   # embedded pack schemas
-```
-
-Vendor-specific behavior belongs in a verified pack or narrowly-scoped adapter, not generic discovery/planner/executor packages.
-
-## 5. Runtime lifecycle
-
-Current serve lifecycle:
+Normal `serve` lifecycle:
 
 1. Parse CLIHarbor flags.
-2. Load only explicitly configured pack files/directories; no cwd/repository scan.
-3. Validate pack syntax/schema/semantics and create the registry.
-4. Resolve each declared tool and, when configured, run its fixed bounded version probe.
-5. Build an in-memory discovery snapshot with exact resolved path/version/status and an opaque discovery-time executable file identity for each ready tool.
-6. Bind an ephemeral IPv4 loopback port.
-7. Generate per-launch bootstrap, session, and CSRF secrets.
-8. Start HTTP server and open the one-time browser bootstrap URL.
-9. Exchange bootstrap secret for the in-memory browser session and redirect to a clean URL.
-10. Serve until shutdown.
+2. Load only explicitly configured pack files/directories.
+3. Enforce bounded UTF-8/YAML/schema/semantic/security validation.
+4. Build an effectively immutable registry.
+5. Resolve each declared tool.
+6. Run only fixed pack-authored version probes when configured.
+7. Enforce version constraints and capture executable identity for ready tools.
+8. Build the sanitized task/tool catalog from commands permitted by current backend policy.
+9. Bind an ephemeral IPv4 loopback port.
+10. Create one-time bootstrap/session/CSRF material.
+11. Start the authenticated local server and browser bootstrap flow.
+12. Accept typed task requests, build immutable plans, and execute them through the bounded run manager.
+13. Stop all owned execution and browser state on shutdown.
 
-`cliharbor doctor` performs steps 1-5 without opening a browser and emits the current pack/tool evidence.
+`doctor` performs pack loading/discovery/version checks without opening a browser. Phase 0 inventory/evidence commands use the same trusted discovery boundary but do not grant normal browser task authority.
 
-Unavailable tools do not make the browser shell itself unsafe to start; they remain unavailable discovery states and later planning must refuse them.
+## 5. Browser/API authority
 
-## 6. Browser/API contract
-
-Implemented HTTP surface now includes:
+Implemented browser surface includes:
 
 ```text
 GET  /bootstrap?token=<one-time-secret>
@@ -122,124 +114,211 @@ GET  /
 GET  /assets/*
 ```
 
-`/bootstrap` and `/api/*` are server-owned and never fall through to frontend routing. The server accepts only its exact bound Host. Any request carrying a non-empty `Origin` from another origin is rejected, including GET/SSE; state-changing requests additionally require the exact application origin and CSRF token. Origin-less reads remain possible for local non-browser clients but still pass route/session authorization. Authenticated status returns the per-session CSRF token used by same-origin browser mutations. Task metadata exposes only currently runnable read-only/non-auth/non-secret commands and typed input constraints. Tool diagnostics expose only pack/tool IDs, pack name/version, readiness status, detected version/constraint, and sanitized remediation text. Neither surface exposes executable paths/names, candidate lists, file identity, argv, environment, or pack source paths. Run creation accepts only `packId`, `commandId`, and typed `values`; unknown/duplicate authority fields fail closed. Run-event streaming is read-only and authenticated; `Last-Event-ID` is the only replay cursor.
+The browser may submit:
 
-Browser-facing API failures use one bounded contract: `{error:{code,category,message,remediation?,retryable,field?}}`. The runtime maps planner, discovery, lifecycle, stream-capacity, and process failures to a closed reviewed set; arbitrary Go error text, executable/candidate paths, argv, environment data, browser-session material, and unreviewed vendor output are not copied into this DTO. Field association is limited to `packId`, `commandId`, and declared `values.<input-id>` paths. Failed run snapshots and `run-complete` events may carry the same safe failure detail, while cancellation and timeout remain explicit authoritative run statuses. The React client validates the DTO shape and known code set; malformed or future-unknown codes degrade to a generic local-response error instead of string matching or raw rendering.
+- trusted `packId`;
+- trusted `commandId`;
+- values for pack-declared typed inputs.
 
-Planned surface still includes:
+The browser may **not** submit or select:
 
-```text
-GET  /api/v1/packs
-GET  /api/v1/tasks/{taskId}
-POST /api/v1/auth/{tool}/login
-POST /api/v1/auth/{tool}/logout
-GET  /api/v1/auth/{tool}/status
-```
+- executable names or paths;
+- subcommand names;
+- flag names;
+- shell commands;
+- raw argv arrays;
+- environment-variable names;
+- working directories;
+- pack trust/source.
 
-`cliharbor doctor` remains the operator surface for exact resolved filesystem evidence. The browser receives only sanitized tool status/remediation and still cannot choose or observe executable paths, candidate paths, flags, or command strings.
+Task metadata includes only currently executable commands under backend policy plus their typed input constraints. Tool metadata is sanitized and does not disclose executable/candidate paths or executable identity.
 
-## 7. Pack authority
+Browser-facing failures use the closed safe error DTO. Raw internal errors, unreviewed vendor error metadata, executable paths, argv, environments, and session secrets are not copied into that contract.
 
-The pack path is:
+## 6. Loopback/session boundary
+
+The HTTP server binds to `127.0.0.1` on an ephemeral port.
+
+Controls include:
+
+- one-time unpredictable bootstrap material;
+- host-only HttpOnly session cookie;
+- exact Host validation;
+- rejection of foreign non-empty Origin;
+- exact same-origin + CSRF validation for mutations;
+- restrictive browser headers/CSP;
+- bounded request bodies and stream concurrency.
+
+The one-time bootstrap URL is a narrow local recovery credential and is removed from normal navigation history after exchange.
+
+## 7. Pack authority and trust
+
+Pack loading follows:
 
 ```text
 explicit trusted source
-  -> bounded UTF-8 + hardened single-document YAML
+  -> bounded UTF-8 read
+  -> hardened single-document YAML
   -> supported apiVersion
   -> embedded JSON Schema
-  -> deterministic semantic/security validation
-  -> deep-copied Registry
+  -> semantic/security validation
+  -> deep-copied deterministic Registry
 ```
 
-The registry has deterministic ordering/lookups and returns deep copies, including version-probe argv. There is no global mutable registry.
+Validation is **not** trust. Supported trust sources are deliberately supplied built-in bytes and explicit local files/directories. CLIHarbor does not auto-scan cwd, auto-download packs, load pack URLs, execute pack plugins, or follow arbitrary pack symlinks.
 
-The v1 task argv model admits trusted literals, fixed named flags fed by typed inputs, boolean switches, and enum-to-pack-literal maps. It does not admit executable selection, shell strings, generic interpolation, or free-form positional user input.
+The registry returns defensive copies so callers cannot mutate authoritative validated state through returned maps/slices/pointers.
 
-## 8. Tool discovery and version compatibility
+## 8. Deterministic argv model
 
-Discovery consumes only already-validated `Registry` tool metadata.
+The v1 pack model admits only reviewed argument primitives:
 
-### PATH search
+### Trusted literal
 
-- only absolute PATH directory entries are considered;
-- empty/relative/current-directory entries are ignored;
-- candidates must be regular files; non-Windows candidates must have an executable mode bit;
-- symlinks are resolved to an exact absolute target path;
-- on Windows an extensionless declaration may resolve to the exact name, `.exe`, or `.com`; script extensions are not considered;
-- candidates are de-duplicated and sorted deterministically;
-- zero matches => `missing`;
-- one match => selected;
-- multiple matches => `ambiguous`; no first-hit guessing.
+One pack-authored argv element.
 
-### Explicit path override
+### Flag + typed value
 
-Operators may supply:
+A fixed pack-authored flag followed by one validated scalar value. User-derived string/enum flag values must reject leading `-`.
+
+### Boolean switch
+
+A fixed pack-authored flag emitted only when the referenced boolean is true.
+
+### Enum-mapped literal
+
+A required enum maps to exactly one pack-authored argv literal from a complete allowlist.
+
+### Constrained positional value
+
+One validated scalar becomes **exactly one argv element** at a pack-defined position.
+
+This primitive was added to represent verified CLI forms such as:
+
+```text
+conjur resource show <resource-id>
+```
+
+Its invariants are:
+
+- no tokenization or whitespace splitting;
+- no template/interpolation language;
+- no shell interpretation;
+- only scalar string/integer/enum inputs;
+- optional positional values omit atomically;
+- string/enum positional values must reject leading `-`;
+- the browser cannot move the value to another argv position.
+
+The model still does not support free-form command strings, browser-selected subcommands/flags, arbitrary argv arrays, shell expansion, user-selected executables, or executable parser plugins.
+
+## 9. Tool discovery and compatibility
+
+Discovery consumes only validated registry metadata.
+
+PATH search:
+
+- examines absolute PATH entries only;
+- ignores empty/relative/current-directory entries;
+- requires regular files;
+- resolves and de-duplicates candidates deterministically;
+- fails closed on multiple matching candidates;
+- on Windows permits exact name, `.exe`, or `.com` for an extensionless approved basename, never batch/script extensions.
+
+Operators may explicitly pin one absolute path:
 
 ```text
 --tool-path pack/tool=/absolute/path
 ```
 
-The reference must name a tool in the configured registry. The path must be absolute and resolve to a regular executable whose basename matches the pack allowlist. An invalid override is authoritative and does not fall back to PATH.
+This is backend/operator configuration. An invalid override is authoritative and does not fall back to PATH.
 
-This is backend/operator configuration; it is not browser input.
+### Version probes
 
-### Version probe
+A pack may define one fixed `semver-text` probe and a semantic version constraint. The already selected executable is started directly, without a shell, in a bounded probe process.
 
-A pack may define fixed probe argv plus `semver-text` parser and bounded timeout. `ExecProbeRunner` invokes the already-selected executable directly with `exec.CommandContext`; no shell is used. Stdout/stderr are separately bounded. Raw probe text is not retained in the discovery snapshot or normal diagnostics.
+Probe output must contain exactly one distinct semantic version. No version, ambiguous versions, timeout, invalid output, or a failed probe prevents executable authority. A valid version outside the trusted constraint yields `incompatible`.
 
-The parser accepts exactly one distinct strict semantic version from probe text. No version or multiple distinct versions yields `probe-failed`. A parsed version that does not satisfy `versionConstraint` yields `incompatible`.
+### Executable identity
 
-Current states are:
+Discovery captures identity for the selected regular file. Identity is revalidated after version probing and again immediately before normal execution, including content fingerprint evidence. Same-path replacement/content mutation therefore fails closed.
 
-```text
-ready
-missing
-ambiguous
-incompatible
-probe-failed
-invalid-override
-identity-failed
-unsupported-platform
+This proves file continuity, not vendor publisher identity. Code signing/publisher allowlisting remains a separate enterprise/release control.
+
+## 10. Planning policy
+
+The planner accepts:
+
+- immutable registry;
+- authoritative discovery snapshot;
+- pack/command IDs;
+- typed browser values.
+
+It requires:
+
+- a known pack and command;
+- `risk: read` under the current execution milestone;
+- non-secret output;
+- a current `ready` tool whose discovered pack version matches the configured pack;
+- valid executable identity;
+- exact JSON types and pack validation rules;
+- no unknown inputs.
+
+### Authentication policy
+
+Generic:
+
+```yaml
+requirements:
+  requiresAuth: true
 ```
 
-Only `ready` may become executable authority. A ready state also carries the in-memory executable identity required by the planner.
+remains fail-closed for browser execution unless an approved authentication mode is also declared.
 
-### Executable identity boundary
+The implemented mode is:
 
-Discovery records an in-memory identity for the selected regular file. If a version probe is configured, discovery revalidates that identity after the probe before accepting its version evidence, so replacement during probing fails closed. The planner requires the same identity, and the executor revalidates it immediately before process creation using filesystem identity, size/modification metadata, and a SHA-256 content fingerprint. Same-path replacement or same-size content mutation after discovery therefore fails closed.
+```yaml
+requirements:
+  requiresAuth: true
+  authMode: vendor-session
+```
 
-The content fingerprint detects replacement; it is not a trusted publisher allowlist or code-signing assertion. Enterprise publisher/signature or policy-managed expected-hash verification remains a future hardening option where policy requires it.
+`vendor-session` allows a read-only/non-secret command to use authentication already owned by the vendor CLI/environment/OS credential storage. CLIHarbor does not accept vendor credentials through browser task inputs.
 
-## 9. Execution planning — implemented low-level boundary
+The planner rejects an auth-required task whose mode is not explicitly supported.
 
-The planner accepts the validated registry, authoritative discovery snapshot, pack/command IDs, and typed runtime values. It:
+## 11. Process execution
 
-- requires a current `ready` tool state whose pack version matches the configured pack;
-- requires the discovery-time executable identity;
-- validates exact runtime JSON types and pack constraints server-side;
-- rejects unknown/missing/null/malformed values and unsafe NUL/leading-dash strings;
-- produces only the pack-declared literal/flag/switch/map argv structure;
-- sources executable path/name/version/identity solely from discovery;
-- currently permits only `risk: read` commands;
-- rejects auth-required and secret-bearing commands until those policy boundaries exist.
+The executor starts the planned executable directly with `os/exec` and an argv slice.
 
-The resulting `planner.Plan` is consumed internally; browser input cannot provide executable paths, executable names, flag names, or arbitrary argv structure.
+It does not invoke CMD, PowerShell, or a POSIX shell for ordinary task execution.
 
-## 10. Process invocation and lifecycle — implemented low-level boundary
+Each run has:
 
-The executor invokes the planned executable directly with `os/exec` and an argument slice. It does not invoke CMD, PowerShell, or a POSIX shell for ordinary task execution.
+- server-generated run ID;
+- neutral temporary working directory;
+- bounded execution deadline;
+- bounded stdout/stderr streams;
+- explicit cancellation;
+- finite `WaitDelay`;
+- executable identity revalidation immediately before launch.
 
-Before process creation it revalidates the plan's executable identity. Each run receives a generated run ID and a neutral temporary working directory. Stdout and stderr remain separate, are emitted in bounded chunks, and each stream has a total byte limit. `exec.Cmd.WaitDelay` prevents inherited stdout/stderr handles from keeping a completed root process wait open indefinitely.
+For `vendor-session` tasks, stdin remains unset. CLIHarbor does not send passwords, MFA values, tokens, or synthesized terminal keystrokes to the child process.
 
-Cancellation sources—caller cancellation, timeout, output exhaustion, and event-sink failure—share one lifecycle cancellation path. Non-zero process exits remain normal exited results with the vendor exit code rather than being collapsed into executor failures.
+Non-zero vendor exit codes remain normal process-exit results; they are not falsely rewritten as successful CLIHarbor operations.
 
-On Windows, each run creates a native Job Object with kill-on-close semantics. CLIHarbor starts the target with `CREATE_SUSPENDED`, assigns the process to the run's Job Object before allowing user code to execute, then resumes the initial thread. Descendants therefore inherit the run boundary by default. Cancellation/timeout terminates the Job Object, and closing the Job Object after normal root completion also prevents leftover descendants from outliving the run. A synchronization handle to the root process avoids reclassifying a natural exit as a timeout when those events race.
+## 12. Windows process lifecycle
 
-Non-Windows platforms use the same executor contract behind a platform file boundary and currently cancel the direct process. This Phase 4 slice does not claim non-Windows descendant-tree ownership.
+On Windows each run uses a native Job Object with kill-on-close semantics.
 
-## 11. Internal execution events
+CLIHarbor starts the target suspended, associates it with the run Job Object before user code executes, then resumes it. Descendants inherit the containment boundary by default. Timeout/cancellation tears down the job; closing the Job Object prevents descendants from outliving a completed run.
 
-The executor currently emits:
+Non-Windows platforms retain the same planner/executor contract but do not claim equivalent descendant-tree ownership unless separately implemented/qualified.
+
+## 13. Run state, streaming and replay
+
+The run manager owns bounded in-memory authoritative run state. There is no persisted run database.
+
+Internal events include:
 
 ```text
 run.started
@@ -251,156 +330,157 @@ run.timed-out
 run.failed
 ```
 
-These events are retained only in the bounded in-memory run manager; there is no persisted run store. Phase 4c-A exposes them through authenticated run snapshots. Phase 4c-B also exposes manager-backed SSE replay. Sequence numbers are monotonic per run, `Last-Event-ID` resumes strictly after an observed sequence, impossible cursors fail closed, and completion is emitted from authoritative manager state even when an executor terminal event could not be retained.
+SSE observes manager state rather than owning execution. Disconnect/reconnect does not recreate or cancel a run. Replay is sequence-based and bounded. Stream concurrency and write deadlines are finite.
 
-Phase 4b now proves the production authority chain end to end with purpose-built fixtures: explicit-local trusted pack loading → schema/semantic validation → registry → discovery with backend-only overrides → fixed version probes/constraints → typed planner → executor → bounded events/result. A second independent fixture pack/tool uses a distinct tool ID, semantic version, command shape, and input mapping while sharing no command authority with the first pack; both execute through unchanged core code.
+Request disconnect after successful run creation does not implicitly kill the run; explicit cancellation, timeout, or application shutdown owns termination.
 
-Phase 4c-A exposes only this proven read-only path through authenticated loopback create/get/cancel APIs. The run manager defaults to bounded active and retained run counts, bounded output/event memory, finite execution timeout, server-generated run IDs, and root-context cancellation. Request disconnect after a successful create does not implicitly kill the run; explicit cancellation or application shutdown owns termination.
+## 14. Structured output
 
-Phase 4c-B observes that same bounded manager state through SSE rather than connecting executor sinks to HTTP writers. Streams share a per-run change signal, do not allocate per-client output queues, never hold the manager lock during network writes, and do not cancel or recreate execution on disconnect/reconnect. Long-lived stream handlers are themselves bounded (default 16); excess streams fail fast with `429 stream_capacity` without affecting run execution. The ordinary server write timeout is disabled only for the long-lived stream, while each write/flush receives its own finite deadline and periodic heartbeat. The React task/run UI consumes only safe server metadata and renders process output as untrusted text.
+Structured parsing is downstream of authoritative process execution.
 
-Phase 5 adds a downstream structured-output boundary. A validated pack may declare a strict top-level JSON object with at most 32 named scalar fields (`string`, `integer`, or `boolean`). The run manager captures at most 64 KiB of stdout for parsing while continuing to retain the ordinary raw event evidence. Parsing happens only after the one authoritative executor invocation finishes and only for a zero exit status; parser state cannot alter executable selection, argv, process lifecycle, run status, or exit code. The parser rejects malformed/duplicate/unknown fields, invalid UTF-8, nested values, overlarge strings, integer overflow, control characters, and oversized input. It produces only a normalized DTO of pack-authored labels/types plus normalized scalar text. Temporary structured parse buffers are released once normalization completes. Secret-bearing commands and fields are refused for structured rendering in this phase. On normal completion the normalized DTO is emitted on the same authenticated `run-complete` SSE message as the authoritative run ID/status, eliminating a separate completion-fetch association/eviction window; snapshot GET remains the recovery path after stream failure. The browser revalidates that DTO and renders it with ordinary React text nodes; raw stdout/stderr remain available on parser failure.
+A validated JSON command may declare a bounded top-level scalar object contract. Current structured fields support only string/integer/boolean values. Parsing rejects malformed JSON, duplicate/unknown fields, nested values, invalid UTF-8, oversized input/strings, integer overflow, and unsafe controls.
 
-The next architecture boundary is the first verified read-only Idira workflow after Phase 0 vendor inventory, followed by vendor-owned authentication orchestration and verified vendor-specific structured schemas using the existing generic parser.
+Structured parsing cannot:
 
-## 12. Authentication
+- change executable selection;
+- create argv;
+- start another process;
+- alter run ID/status/exit code.
 
-Authentication remains vendor-owned. CLIHarbor may later query documented status, invoke login/logout, or launch an external interactive terminal, but it must not persist passwords/MFA values/tokens or read vendor keystores merely for convenience.
+Secret-bearing commands cannot enable structured rendering and are currently rejected by normal browser execution entirely.
 
-Pack v1 currently contains only `requirements.requiresAuth`; no credential values or auth scripts exist.
+## 15. Vendor-owned authentication
 
-## 13. Trust model
+CLIHarbor does not own vendor passwords, MFA, access tokens, API keys, or credential storage.
 
-Packs are privileged configuration. Validation proves shape/invariants; it does not confer trust.
+The current Conjur 9.x read-only pack uses `vendor-session`. For the qualified upstream contract (`conjur-cli-go v9.3.1`, which pins `conjur-api-go v0.15.4`), the authenticated client loads environment/stored credentials and returns a login-required error when no valid session is available.
 
-Supported pack source classes:
+Therefore normal browser-triggered Conjur read operations do not need CLIHarbor to implement a credential form or interactive prompt.
 
-- `builtin`: bytes supplied by trusted application code;
-- `explicit-local`: file/directory explicitly named by the trusted caller.
+Future explicit login/logout/status adapters remain separate reviewed capabilities. Browser password forms and embedded PTY support are not implied by `vendor-session`.
 
-Explicit directories are non-recursive; pack symlinks/non-regular YAML entries are rejected; reads are bounded. Remote loading, pack downloads, cwd scanning, plugin execution, and marketplace behavior are out of scope.
+## 16. Real Conjur 9.x vertical slice
 
-Tool discovery does not widen that trust boundary: it operates only after explicit pack loading, and explicit path overrides must name a declared pack/tool.
+The repository includes:
 
-## 14. State and persistence
+```text
+packs/conjur/conjur-v9.yaml
+```
 
-No database is required for MVP.
+Its generic command contract is derived from the official CyberArk/Idira `cyberark/conjur-cli-go` v9.3.1 release at commit:
 
-Current authoritative runtime state is in memory:
+```text
+7207d6a4a2005130978e10d03d7f6b55ab0216d6
+```
+
+The tool is constrained to:
+
+```text
+>=9.3.1 <10.0.0
+```
+
+The pack exposes only reviewed non-secret read workflows:
+
+- authenticated identity (`whoami`);
+- resource listing with approved filters;
+- resource exists/show/permitted roles;
+- role exists/show/members/memberships.
+
+Secret retrieval, interactive login, password/API-key rotation, policy/issuer/host-factory mutation, deprecated operations, and deployment-specific operations that cannot be generalized are intentionally absent from browser authority.
+
+Online upstream evidence establishes the generic command contract. It does not attest the exact binary/configuration installed on a company-managed endpoint; managed-device qualification still verifies discovery, version compatibility, relevant help surfaces, network/session behavior, and at least one safe read workflow.
+
+See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md).
+
+## 17. Phase 0 evidence boundary
+
+The qualified Windows evaluation bundle contains an immutable discovery-only Phase 0 pack. Its exact layout is verified by `evaluation preflight`.
+
+The real Conjur pack is therefore published as a **separate CI artifact** and loaded explicitly after preflight. This prevents normal vendor task authority from silently entering the immutable preflight bundle.
+
+Evidence exports are inert `cliharbor.phase0/v1` review documents. Evidence inspection never converts captured help text or command output into executable pack authority automatically.
+
+## 18. Diagnostics and privacy
+
+Support diagnostics are allowlisted metadata, not filesystem/environment scraping.
+
+Normal diagnostics exclude:
+
+- command stdout/stderr;
+- argv;
+- executable/candidate paths;
+- PATH/environment values;
+- browser bootstrap/session/CSRF values;
+- passwords/tokens/MFA/API keys;
+- credential-store contents.
+
+`doctor` is a local operator diagnostic and may contain exact filesystem paths; it should not be shared without review/redaction.
+
+## 19. Build and distribution architecture
+
+Production frontend assets are generated from `web/` and embedded into the Go executable. CI verifies source/generated synchronization.
+
+Relevant CI qualification includes:
+
+- frontend typecheck/lint/tests/build;
+- generated-asset drift checks;
+- Go formatting/vet/tests;
+- race detection;
+- module verification;
+- npm dependency audit;
+- reachable Go vulnerability scan;
+- production embedded-browser E2E;
+- Linux and Windows quality jobs;
+- Windows evaluation build metadata;
+- deterministic isolated rebuild comparison;
+- authoritative evaluation bundle verification;
+- vendor-free self-test;
+- extracted-bundle preflight;
+- Phase 0 evidence smoke;
+- final bundle re-verification.
+
+The Windows evaluation ZIP and real Conjur pack are separate CI artifacts. The evaluation bundle's checksum manifest proves covered-byte integrity under the repository qualification contract; it is not publisher identity, independent provenance attestation, or code signing.
+
+## 20. State and persistence
+
+No external database is required.
+
+Authoritative runtime state is in memory:
 
 - validated pack registry;
-- discovery snapshot, including opaque executable identities for ready tools;
-- bounded in-memory run records, event buffers, monotonic event sequence, cancellation handles, and completion state;
-- transient planner plans/executor process state while execution is active;
-- browser bootstrap/session state and per-session CSRF secret.
+- discovery snapshot and executable identity;
+- browser session/CSRF state;
+- bounded run/event state.
 
-Future non-secret local config may hold explicitly approved pack/binary paths and UI preferences. Future run history must be redacted and bounded. Never persist credential material.
+CLIHarbor does not persist vendor credentials or command history as part of the current product contract.
 
-## 15. Browser launch/frontend serving
+## 21. Failure semantics
 
-Production uses the OS default browser, not bundled Chromium. Windows uses native `ShellExecuteW`; Linux/macOS use fixed executable + argument invocation. Successful launch does not print the bootstrap token; fallback prints the short-lived local URL only when automatic launch fails.
+Expected failures are explicit and fail closed where authority is uncertain:
 
-Production Vite assets are embedded. Development proxy targets must be explicit `http://127.0.0.1:<port>` origins; CLIHarbor strips session/auth/CSRF headers before proxying and drops development `Set-Cookie` responses.
+- missing/ambiguous/incompatible tool -> no execution;
+- invalid override -> no PATH fallback;
+- changed executable -> no execution;
+- invalid/unknown browser input -> no plan;
+- unsupported auth mode -> no task exposure/plan;
+- secret-bearing output -> no normal browser execution;
+- non-read risk -> no normal browser execution;
+- timeout/cancellation -> process-tree teardown under the platform lifecycle boundary;
+- structured parser failure -> raw process evidence remains, no new execution authority;
+- vendor login-required/permission/network failure -> vendor process failure is surfaced through the existing safe run/error boundary.
 
-## 16. Extensibility
+## 22. Extension rule
 
-Add code adapters only where a CLI cannot safely fit the declarative model, such as nontrivial auth-state detection or complex output parsing. Adapters require narrow interfaces and tests and must not become unrestricted execution hooks.
-
-## 17. Architecture quality gates
-
-Before MVP architecture is complete:
-
-- browser cannot choose arbitrary executable/path/shell command;
-- loopback/session/origin/CSRF controls remain tested;
-- packs must be explicitly trusted and validated;
-- ambiguous/missing/incompatible/probe-failed tools cannot execute;
-- planner exact argv construction and the current read-only/auth/output policy envelope remain regression-tested;
-- Windows task execution owns descendants with a per-run Job Object and must remain regression-tested;
-- output is bounded and browser-rendered as inert text; future structured parsers/redaction must preserve raw non-secret evidence on parser failure;
-- a second fixture pack/tool proves discovery/planner/executor are not Idira-specific;
-- real Idira/CyberArk definitions come only from verified Phase 0 inventory.
-
-## Phase 0 work-laptop evaluation boundary
-
-The work-laptop evaluation path is a CLI-only control plane layered on the existing trusted-pack and discovery boundaries.
+New capabilities must preserve:
 
 ```text
-operator flags
-  -> explicit trusted pack loader
-  -> deterministic executable discovery
-  -> sanitized inventory DTO
-  -> optional fixed named probe selection
-  -> executable fingerprint revalidation
-  -> bounded direct probe process
-  -> sanitizer
-  -> typed cliharbor.phase0/v1 evidence
-  -> atomic no-clobber JSON export
+trusted validated pack
+  -> trusted discovered executable
+  -> validated typed inputs
+  -> deterministic exact argv
+  -> bounded direct execution
 ```
 
-The browser has no inventory/probe endpoint and cannot choose executable path, probe ID, or argv. Probe selectors contain only stable pack/tool/probe IDs. Version probes reuse the existing pack declaration; help evidence uses the optional `helpProbes` declarations. Exported probe records include only the sanitized fixed argument vector from that trusted declaration, never the resolved executable path.
+A feature should not enter the generic runtime if it requires arbitrary shell strings, browser-selected command syntax, hidden credential handling, unbounded process ownership, or model-generated runtime command authority.
 
-Both discovery-time version probes and operator-selected evidence probes use the same platform lifecycle ownership abstraction as normal execution. On Windows that means suspended start, Job Object assignment before resume, descendant termination on timeout/cancellation, and kill-on-close protection after root completion. Probes use no shell, no interactive stdin, a neutral temporary cwd, a minimal environment, and strict timeout/output limits. Version discovery also fails closed on truncated or invalid-UTF-8 probe output.
-
-The Windows evaluation build cross-compiles to `windows/amd64` with the production frontend already embedded. Build metadata is linker-injected and visible through `cliharbor version`. Evaluation mode invalidates stale generated checksum manifests, emits one authoritative root `EVALUATION_SHA256SUMS` over the executable and trusted Phase 0 pack, and rejects a present local-build compatibility `bin/SHA256SUMS`. The evaluation build path requires the exact patch toolchain pinned in `.go-version`; disables user Go environment/workspace/default flags; forces the local bundled toolchain; pins target-affecting `GOAMD64`, FIPS, cgo, experiment/debug, and `GOROOT` inputs; and refuses a mismatch. `verify-windows-eval-repro` first verifies the produced evaluation candidate, then copies the trusted pack from a stable bounded snapshot into two distinct temporary bundle roots, rebuilds the Windows executable twice, verifies each staged bundle independently, and requires the candidate plus both rebuilds to have byte-identical authoritative manifests. The shared `verify-windows-eval` task then re-reads the real manifest as a stable regular file, enforces canonical Windows-target paths and exact required entries, rehashes the privileged files, and CI runs it again immediately before uploading only those files plus the root manifest. The isolated double-build gate demonstrates deterministic rebuilding under the same checkout/toolchain/controlled environment; it is not cross-machine provenance or attestation. CI does not upload the evaluation artifact until Windows/Linux quality, dependency-vulnerability, and race-detector jobs pass.
-
-## Phase 0 evidence consumption and review boundary
-
-Phase 0 exports are consumable through the operator-only `cliharbor evidence inspect <file>` path. The ingestion boundary accepts only a bounded regular non-symlink file, checks for observed replacement or mutation during the read, requires valid UTF-8 JSON, rejects duplicate JSON keys and unknown fields, and then applies the same typed evidence validator used before export.
-
-Semantic validation rejects malformed IDs and semantic versions, duplicate or non-canonical tool/probe identities, impossible discovery/probe state combinations, misleading probe timestamps, undeclared probe provenance, unsafe control characters, unsanitized secret-like material, and path/environment material that the evidence contract excludes.
-
-The review path is intentionally disconnected from pack loading, discovery, planning, execution, run management, and browser APIs:
-
-```text
-bounded local evidence file
-  -> strict JSON decoder
-  -> typed + semantic/provenance validation
-  -> deterministic operator review
-  -> human factual promotion decision (outside the importer)
-```
-
-Evidence text never becomes executable authority. The importer validates structure, consistency, provenance shape, and sanitization; it does not provide cryptographic authenticity or attest the claimed source environment. A reviewed artifact can justify later human-authored trusted-pack changes only after trusted handling and human factual verification establish what the evidence actually supports.
-
-## Phase 0 detached transfer-integrity boundary
-
-Evidence export now computes SHA-256 over the exact serialized bytes that are atomically activated at the requested destination and prints that digest to the operator. The digest is deliberately detached from the `cliharbor.phase0/v1` JSON schema so the schema remains unchanged and a checksum stored beside the evidence cannot be mistaken for self-authentication.
-
-Review can require an independently retained digest:
-
-```text
-evidence file -> bounded stable read -> SHA-256 -> constant-time expected-digest comparison
-              -> strict Phase 0 parse/validation -> operator review
-```
-
-A digest mismatch fails before review output is emitted. The same stable file snapshot is hashed and parsed. The checksum path is CLI/operator-only and does not connect to pack loading, discovery, planning, execution, run management, or browser authority.
-
-
-## Production support diagnostics boundary
-
-`cliharbor diagnostics export <output>` is an operator-only local support path. It does not call a vendor command, read logs, enumerate files, inspect browser session state, dump the environment, or upload anything.
-
-The data flow is intentionally narrower than Phase 0 evidence:
-
-```text
-build metadata + host runtime
-        +
-trusted pack registry identities
-        +
-sanitized discovery status/version/counts
-        ↓
-cliharbor.diagnostics/v1 allowlisted DTO
-        ↓
-strict semantic/bounds validation
-        ↓
-deterministic JSON serialization
-        ↓
-same-directory private staging
-        ↓
-atomic/no-replace activation
-```
-
-The DTO has no fields for executable/candidate paths, pack source paths, argv, command output, discovery prose, environment values, usernames/home directories, bootstrap/session/CSRF data, or credential material. This is the primary privacy control; generic regex redaction is not used to make unsafe source fields acceptable.
-
-The export contains no generation timestamp, maps, or filesystem-derived ordering. Pack and tool records come from deterministic registry/discovery snapshots, so identical approved runtime state produces identical serialized bytes. The command prints SHA-256 for the exact emitted bytes for troubleshooting/integrity comparison, but the digest is not a signature or attestation.
-
-Export refuses traversal-bearing relative destinations, symlink/non-regular destinations, existing files, and symlink/reparse-point parents at the checked boundary. Bytes are staged in the destination directory, permission-restricted where portable, synced, and activated without replacement; concurrent writers therefore cannot silently clobber one another. Imported diagnostic files have no execution or browser authority because no diagnostic import path exists.
+Potential later boundaries—explicit login adapters, secret-bearing output UX, change/destructive confirmation, richer result schemas, code signing, and a pack distribution trust model—require separate reviewed contracts and qualification.
