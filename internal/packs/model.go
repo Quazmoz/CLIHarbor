@@ -110,10 +110,11 @@ type InputValidation struct {
 }
 
 type Argument struct {
-	Literal string          `json:"literal,omitempty"`
-	Flag    *FlagArgument   `json:"flag,omitempty"`
-	Switch  *SwitchArgument `json:"switch,omitempty"`
-	Map     *MapArgument    `json:"map,omitempty"`
+	Literal    string              `json:"literal,omitempty"`
+	Flag       *FlagArgument       `json:"flag,omitempty"`
+	Switch     *SwitchArgument     `json:"switch,omitempty"`
+	Map        *MapArgument        `json:"map,omitempty"`
+	Positional *PositionalArgument `json:"positional,omitempty"`
 }
 
 type FlagArgument struct {
@@ -130,6 +131,13 @@ type SwitchArgument struct {
 type MapArgument struct {
 	ValueFrom string            `json:"valueFrom"`
 	Values    map[string]string `json:"values"`
+}
+
+// PositionalArgument maps one validated scalar input to exactly one argv
+// element. It never tokenizes, templates, or reparses user-controlled text.
+type PositionalArgument struct {
+	ValueFrom     string `json:"valueFrom"`
+	OmitWhenEmpty bool   `json:"omitWhenEmpty,omitempty"`
 }
 
 type StructuredFieldType string
