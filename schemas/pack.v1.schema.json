@@ -518,6 +518,11 @@
       "properties": {
         "requiresAuth": {
           "type": "boolean"
+        },
+        "authMode": {
+          "enum": [
+            "vendor-session"
+          ]
         }
       }
     },
