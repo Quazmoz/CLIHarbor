@@ -99,9 +99,6 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 	if command.Risk != packs.RiskRead {
 		return zero, &Error{Code: ErrRiskPolicy, Path: "commandId", Message: "this execution milestone permits read-only commands only"}
 	}
-	if command.Requirements.RequiresAuth {
-		return zero, &Error{Code: ErrAuthPolicy, Path: "commandId", Message: "authenticated commands remain disabled until the auth adapter exists"}
-	}
 	if command.Output.Sensitivity.ContainsSecrets {
 		return zero, &Error{Code: ErrOutputPolicy, Path: "commandId", Message: "secret-bearing commands remain disabled until output redaction/reveal policy exists"}
 	}
@@ -167,6 +164,15 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 				continue
 			}
 			args = append(args, argument.Flag.Name, current.argument)
+		case argument.Positional != nil:
+			current, ok := values[argument.Positional.ValueFrom]
+			if !ok {
+				return zero, &Error{Code: ErrInvalidPlanState, Path: path, Message: "validated pack references an unavailable positional input"}
+			}
+			if !current.present || (argument.Positional.OmitWhenEmpty && current.argument == "") {
+				continue
+			}
+			args = append(args, current.argument)
 		case argument.Switch != nil:
 			current, ok := values[argument.Switch.EnabledFrom]
 			if !ok {
