@@ -193,6 +193,10 @@ func (e *Executor) Run(ctx context.Context, plan planner.Plan, sink Sink) (Resul
 	cmd := exec.CommandContext(runCtx, plan.ExecutablePath, plan.Args...)
 	cmd.Dir = workdir
 	cmd.WaitDelay = e.waitDelay
+	// Deliberately leave Stdin unset. Auth-required read commands may reuse a
+	// vendor-owned cached session/environment, but CLIHarbor never supplies
+	// passwords, MFA responses, or other interactive credential input.
+	cmd.Stdin = nil
 
 	var cancellationApplied atomic.Bool
 	cmd.Cancel = func() error {
@@ -367,9 +371,6 @@ func (s *streamState) err() error {
 func validatePlan(plan planner.Plan) error {
 	if plan.Risk != packs.RiskRead {
 		return &Error{Code: ErrInvalidPlan, Message: "executor accepts read-only plans only"}
-	}
-	if plan.Requirements.RequiresAuth {
-		return &Error{Code: ErrInvalidPlan, Message: "executor does not yet accept auth-required plans"}
 	}
 	if plan.Output.Sensitivity.ContainsSecrets {
 		return &Error{Code: ErrInvalidPlan, Message: "executor does not yet accept secret-bearing plans"}
