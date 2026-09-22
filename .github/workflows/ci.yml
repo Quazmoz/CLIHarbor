@@ -130,13 +130,21 @@ jobs:
         shell: pwsh
         run: |
           $doctorOutput = & .\bin\cliharbor-windows-x64-evaluation.exe doctor 2>&1
+          $doctorExit = $LASTEXITCODE
           $doctorOutput | ForEach-Object { Write-Host $_ }
+          if ($doctorExit -ne 0 -and $doctorExit -ne 1) {
+            throw "zero-config doctor returned unexpected exit code $doctorExit"
+          }
           if (($doctorOutput -join "`n") -notmatch 'Configured packs: 1') {
             throw "zero-config doctor did not load exactly one embedded first-party pack"
           }
           if (($doctorOutput -join "`n") -notmatch 'cyberark-conjur-v9/conjur:') {
             throw "zero-config doctor did not expose the embedded Conjur tool state"
           }
+          # A missing vendor tool intentionally makes doctor exit 1. The smoke
+          # assertion succeeded, so do not leak that expected native exit code
+          # into the PowerShell step result.
+          $global:LASTEXITCODE = 0
       - name: Run extracted-bundle evaluation preflight
         shell: pwsh
         run: |
