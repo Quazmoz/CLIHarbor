@@ -28,6 +28,7 @@ export interface Task {
   description?: string;
   toolId: string;
   toolVersion?: string;
+  requiresAuth?: boolean;
   inputs: TaskInput[];
 }
 
@@ -39,7 +40,7 @@ function parseTask(value: unknown): Task {
   if (!isRecord(value)) {
     throw clientError('invalid_response');
   }
-  const { packId, packName, commandId, name, description, toolId, toolVersion, inputs } = value;
+  const { packId, packName, commandId, name, description, toolId, toolVersion, requiresAuth, inputs } = value;
   if (
     typeof packId !== 'string' ||
     typeof packName !== 'string' ||
@@ -48,6 +49,7 @@ function parseTask(value: unknown): Task {
     typeof toolId !== 'string' ||
     (description !== undefined && typeof description !== 'string') ||
     (toolVersion !== undefined && typeof toolVersion !== 'string') ||
+    (requiresAuth !== undefined && typeof requiresAuth !== 'boolean') ||
     !Array.isArray(inputs)
   ) {
     throw clientError('invalid_response');
@@ -116,6 +118,7 @@ function parseTask(value: unknown): Task {
     description,
     toolId,
     toolVersion,
+    requiresAuth: requiresAuth === true,
     inputs: parsedInputs,
   };
 }
