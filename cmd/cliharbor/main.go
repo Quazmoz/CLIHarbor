@@ -105,7 +105,7 @@ func run(args []string) error {
 		PackFiles:          append([]string(nil), packFiles...),
 		PackDirectory:      *packDirectory,
 		ToolOverrides:      overrides,
-		LoadDefaultPacks:   command == "serve",
+		LoadDefaultPacks:   command == "serve" || command == "doctor",
 		AutoProvisionTools: command == "serve" && !*noAutoSetup,
 	}
 	if command == "version" {
