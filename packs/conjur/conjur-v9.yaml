@@ -50,6 +50,7 @@ commands:
       renderer: raw
     requirements:
       requiresAuth: true
+      authMode: vendor-session
 
   list-resources:
     name: List resources
@@ -128,6 +129,7 @@ commands:
       renderer: raw
     requirements:
       requiresAuth: true
+      authMode: vendor-session
 
   resource-exists:
     name: Check resource exists
@@ -161,6 +163,7 @@ commands:
             required: true
     requirements:
       requiresAuth: true
+      authMode: vendor-session
 
   resource-show:
     name: Show resource
@@ -188,6 +191,7 @@ commands:
       renderer: raw
     requirements:
       requiresAuth: true
+      authMode: vendor-session
 
   resource-permitted-roles:
     name: List permitted roles
@@ -225,6 +229,7 @@ commands:
       renderer: raw
     requirements:
       requiresAuth: true
+      authMode: vendor-session
 
   role-exists:
     name: Check role exists
@@ -258,6 +263,7 @@ commands:
             required: true
     requirements:
       requiresAuth: true
+      authMode: vendor-session
 
   role-show:
     name: Show role
@@ -285,6 +291,7 @@ commands:
       renderer: raw
     requirements:
       requiresAuth: true
+      authMode: vendor-session
 
   role-members:
     name: List role members
@@ -318,6 +325,7 @@ commands:
       renderer: raw
     requirements:
       requiresAuth: true
+      authMode: vendor-session
 
   role-memberships:
     name: List role memberships
@@ -345,3 +353,4 @@ commands:
       renderer: raw
     requirements:
       requiresAuth: true
+      authMode: vendor-session
