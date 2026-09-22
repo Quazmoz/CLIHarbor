@@ -60,13 +60,10 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 	}
 	changed := false
 	for _, tool := range snapshot.Tools() {
-		if tool.Status != discovery.StatusMissing {
+		if !shouldAutoProvision(tool, options.ToolOverrides) {
 			continue
 		}
 		ref := discovery.ToolRef{PackID: tool.PackID, ToolID: tool.ToolID}
-		if _, explicitlyOverridden := options.ToolOverrides[ref]; explicitlyOverridden {
-			continue
-		}
 		path, installed, provisionErr := provisioner.Ensure(ctx, ref)
 		if provisionErr != nil {
 			if ref == toolbootstrap.ConjurRef {
@@ -95,6 +92,15 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 	}
 	state.Discovery = snapshot
 	return state, nil
+}
+
+func shouldAutoProvision(tool discovery.ToolState, explicit map[discovery.ToolRef]string) bool {
+	if tool.Status != discovery.StatusMissing {
+		return false
+	}
+	ref := discovery.ToolRef{PackID: tool.PackID, ToolID: tool.ToolID}
+	_, overridden := explicit[ref]
+	return !overridden
 }
 
 func cloneToolOverrides(source map[discovery.ToolRef]string) map[discovery.ToolRef]string {
