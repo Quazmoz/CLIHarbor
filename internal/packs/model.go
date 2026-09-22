@@ -15,6 +15,12 @@ const (
 	RiskInteractive         Risk = "interactive"
 )
 
+type AuthMode string
+
+const (
+	AuthModeVendorSession AuthMode = "vendor-session"
+)
+
 type InputType string
 
 const (
@@ -88,7 +94,8 @@ type Command struct {
 }
 
 type Requirements struct {
-	RequiresAuth bool `json:"requiresAuth,omitempty"`
+	RequiresAuth bool     `json:"requiresAuth,omitempty"`
+	AuthMode     AuthMode `json:"authMode,omitempty"`
 }
 
 type Input struct {
