@@ -372,6 +372,9 @@ func validatePlan(plan planner.Plan) error {
 	if plan.Risk != packs.RiskRead {
 		return &Error{Code: ErrInvalidPlan, Message: "executor accepts read-only plans only"}
 	}
+	if plan.Requirements.RequiresAuth && plan.Requirements.AuthMode != packs.AuthModeVendorSession {
+		return &Error{Code: ErrInvalidPlan, Message: "auth-required plans require vendor-session mode"}
+	}
 	if plan.Output.Sensitivity.ContainsSecrets {
 		return &Error{Code: ErrInvalidPlan, Message: "executor does not yet accept secret-bearing plans"}
 	}
