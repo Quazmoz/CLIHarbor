@@ -696,7 +696,7 @@ export function App() {
   };
 
   const previewSelectedTask = async () => {
-    if (state.kind !== 'ready' || selectedTask === undefined || previewing) {
+    if (state.kind !== 'ready' || selectedTask === undefined || previewing || starting) {
       return;
     }
     setPreviewing(true);
@@ -990,7 +990,7 @@ export function App() {
                             <button
                               type="button"
                               className="secondary-button"
-                              disabled={previewing || run?.snapshot.status === 'running'}
+                              disabled={previewing || starting || run?.snapshot.status === 'running'}
                               onClick={() => void previewSelectedTask()}
                             >
                               {previewing ? 'Previewing…' : 'Preview invocation'}
