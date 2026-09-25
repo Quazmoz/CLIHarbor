@@ -25,12 +25,22 @@ export function emptyTaskPreferences(): TaskPreferences {
   return { favorites: [], recent: [] };
 }
 
+function hasControlCharacter(value: string): boolean {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0);
+    if (codePoint !== undefined && (codePoint <= 0x1f || codePoint === 0x7f)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function validIdentifier(value: unknown): value is string {
   return (
     typeof value === 'string' &&
     value.length > 0 &&
     value.length <= MAX_IDENTIFIER_LENGTH &&
-    !/[\u0000-\u001f\u007f]/.test(value)
+    !hasControlCharacter(value)
   );
 }
 
