@@ -96,6 +96,15 @@ export interface CreateRunRequest {
   values: Record<string, unknown>;
 }
 
+export interface RunPreview {
+  packId: string;
+  commandId: string;
+  toolId: string;
+  toolVersion?: string;
+  executableName: string;
+  args: string[];
+}
+
 const structuredErrorCodes = new Set<StructuredErrorCode>([
   'invalid_encoding',
   'output_too_large',
@@ -310,6 +319,39 @@ function parseRunSummary(value: unknown): RunSummary {
   return { runId, packId, commandId, toolId, toolVersion, status, startedAt, endedAt, exitCode };
 }
 
+function parsePreview(value: unknown): RunPreview {
+  if (!isRecord(value)) {
+    invalidResponse();
+  }
+  const allowed = new Set(['packId', 'commandId', 'toolId', 'toolVersion', 'executableName', 'args']);
+  if (Object.keys(value).some((key) => !allowed.has(key))) {
+    invalidResponse();
+  }
+  const { packId, commandId, toolId, toolVersion, executableName, args } = value;
+  if (
+    typeof packId !== 'string' ||
+    typeof commandId !== 'string' ||
+    typeof toolId !== 'string' ||
+    (toolVersion !== undefined && typeof toolVersion !== 'string') ||
+    typeof executableName !== 'string' ||
+    executableName.length === 0 ||
+    executableName.length > 128 ||
+    !Array.isArray(args) ||
+    args.length > 256 ||
+    args.some((arg) => typeof arg !== 'string' || arg.length > 4096)
+  ) {
+    invalidResponse();
+  }
+  return {
+    packId,
+    commandId,
+    toolId,
+    toolVersion,
+    executableName,
+    args: [...args] as string[],
+  };
+}
+
 function parseEvent(value: unknown): RunEvent {
   if (!isRecord(value)) {
     invalidResponse();
@@ -383,6 +425,10 @@ async function mutation(path: string, csrfToken: string, body?: unknown): Promis
     throw await errorFromResponse(response);
   }
   return response.json();
+}
+
+export async function previewRun(csrfToken: string, request: CreateRunRequest): Promise<RunPreview> {
+  return parsePreview(await mutation('/api/v1/runs/preview', csrfToken, request));
 }
 
 export async function createRun(csrfToken: string, request: CreateRunRequest): Promise<RunSnapshot> {
