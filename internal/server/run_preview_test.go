@@ -18,8 +18,8 @@ type previewServiceStub struct {
 }
 
 func (s *previewServiceStub) Start(runs.Request) (runs.Snapshot, error) { return runs.Snapshot{}, nil }
-func (s *previewServiceStub) Get(string) (runs.Snapshot, bool)        { return runs.Snapshot{}, false }
-func (s *previewServiceStub) Cancel(string) error                     { return nil }
+func (s *previewServiceStub) Get(string) (runs.Snapshot, bool)          { return runs.Snapshot{}, false }
+func (s *previewServiceStub) Cancel(string) error                       { return nil }
 func (s *previewServiceStub) Preview(request runs.Request) (runs.Preview, error) {
 	s.request = request
 	return s.preview, s.err
