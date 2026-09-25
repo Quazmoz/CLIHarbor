@@ -24,6 +24,8 @@ jobs:
         with:
           node-version-file: '.node-version'
           package-manager-cache: false
+      - name: Build and synchronize frontend
+        run: go run ./tools/task web-build
       - name: Run repository qualification
         run: go run ./tools/task check
       - name: Commit canonical generated frontend
