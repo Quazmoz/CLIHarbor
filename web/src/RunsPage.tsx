@@ -111,8 +111,6 @@ export function RunsPage({ tasks }: RunsPageProps) {
 
   useEffect(() => {
     const controller = new AbortController();
-    setListLoading(true);
-    setListFailure(null);
     void fetchRuns(controller.signal).then(
       (runs) => {
         setSummaries(runs);
@@ -130,29 +128,11 @@ export function RunsPage({ tasks }: RunsPageProps) {
   }, [listRefresh]);
 
   useEffect(() => {
-    if (
-      selectedRunID !== null &&
-      !listLoading &&
-      listFailure === null &&
-      !summaries.some((summary) => summary.runId === selectedRunID)
-    ) {
-      setSelectedRunID(null);
-      setDetail(null);
-      setDetailFailure(null);
-    }
-  }, [listFailure, listLoading, selectedRunID, summaries]);
-
-  useEffect(() => {
     if (selectedRunID === null) {
-      setDetail(null);
-      setDetailFailure(null);
-      setDetailLoading(false);
       return;
     }
 
     const controller = new AbortController();
-    setDetailLoading(true);
-    setDetailFailure(null);
     void fetchRun(selectedRunID, controller.signal).then(
       (snapshot) => {
         setDetail(snapshot);
@@ -176,10 +156,30 @@ export function RunsPage({ tasks }: RunsPageProps) {
   );
 
   const refresh = () => {
+    setListLoading(true);
+    setListFailure(null);
     setListRefresh((value) => value + 1);
     if (selectedRunID !== null) {
+      setDetailLoading(true);
+      setDetailFailure(null);
       setDetailRefresh((value) => value + 1);
     }
+  };
+
+  const selectRun = (runID: string) => {
+    setSelectedRunID(runID);
+    setDetail(null);
+    setDetailFailure(null);
+    setDetailLoading(true);
+  };
+
+  const refreshRun = () => {
+    if (selectedRunID === null) {
+      return;
+    }
+    setDetailLoading(true);
+    setDetailFailure(null);
+    setDetailRefresh((value) => value + 1);
   };
 
   const stdout = detail === null ? '' : outputFor(detail, 'stdout.chunk');
@@ -227,7 +227,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
                     type="button"
                     className="run-history-entry"
                     aria-pressed={selectedRunID === summary.runId}
-                    onClick={() => setSelectedRunID(summary.runId)}
+                    onClick={() => selectRun(summary.runId)}
                   >
                     <span className="run-history-entry-main">
                       <strong>{taskName(summary, tasks)}</strong>
@@ -272,7 +272,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
                   type="button"
                   className="secondary-button"
                   disabled={detailLoading}
-                  onClick={() => setDetailRefresh((value) => value + 1)}
+                  onClick={refreshRun}
                 >
                   {detailLoading ? 'Refreshing…' : 'Refresh run'}
                 </button>
