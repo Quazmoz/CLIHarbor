@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
@@ -59,6 +60,8 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 		provisioner = toolbootstrap.NewConjurProvisioner()
 	}
 	changed := false
+	managedConjurSelected := false
+	managedConjurInstalled := false
 	for _, tool := range snapshot.Tools() {
 		if !shouldAutoProvision(tool, options.ToolOverrides) {
 			continue
@@ -74,6 +77,15 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 		}
 		path, installed, provisionErr := provisioner.Ensure(ctx, ref)
 		if provisionErr != nil {
+			// Cancellation is a lifecycle signal, not a dependency failure. Do
+			// not swallow it and continue opening a browser/runtime after the
+			// caller has already asked CLIHarbor to stop.
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return RuntimeState{}, ctxErr
+			}
+			if errors.Is(provisionErr, context.Canceled) || errors.Is(provisionErr, context.DeadlineExceeded) {
+				return RuntimeState{}, provisionErr
+			}
 			if ref == toolbootstrap.ConjurRef {
 				state.SetupMessages = append(state.SetupMessages,
 					"Automatic Conjur setup could not complete. CLIHarbor did not bypass device policy; use an approved existing Conjur installation or allow the pinned CyberArk download and restart CLIHarbor.")
@@ -85,9 +97,9 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 		}
 		overrides[ref] = path
 		changed = true
-		if installed && ref == toolbootstrap.ConjurRef {
-			state.SetupMessages = append(state.SetupMessages,
-				"Installed and verified CyberArk Conjur CLI "+toolbootstrap.ConjurVersion+" for the current user; no administrator credentials or machine-wide changes were used.")
+		if ref == toolbootstrap.ConjurRef {
+			managedConjurSelected = true
+			managedConjurInstalled = installed
 		}
 	}
 	if !changed {
@@ -99,6 +111,22 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 		return RuntimeState{}, err
 	}
 	state.Discovery = snapshot
+	if managedConjurSelected {
+		managed, ok := snapshot.Find(toolbootstrap.ConjurRef)
+		if ok && managed.Healthy() {
+			if managedConjurInstalled {
+				state.SetupMessages = append(state.SetupMessages,
+					"Installed, byte-verified, and qualified CyberArk Conjur CLI "+toolbootstrap.ConjurVersion+" for the current user; no administrator credentials or machine-wide changes were used.")
+			}
+		} else {
+			status := "unavailable"
+			if ok {
+				status = string(managed.Status)
+			}
+			state.SetupMessages = append(state.SetupMessages,
+				fmt.Sprintf("Managed CyberArk Conjur CLI %s is byte-verified but did not pass local readiness qualification (%s). No Conjur tasks were enabled; run cliharbor doctor for local diagnostic details.", toolbootstrap.ConjurVersion, status))
+		}
+	}
 	return state, nil
 }
 

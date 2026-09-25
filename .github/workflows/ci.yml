@@ -145,6 +145,57 @@ jobs:
           # assertion succeeded, so do not leak that expected native exit code
           # into the PowerShell step result.
           $global:LASTEXITCODE = 0
+      - name: Qualify pinned CyberArk Conjur runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $vendorDir = Join-Path $env:RUNNER_TEMP "cliharbor-conjur-runtime-smoke"
+          $conjur = Join-Path $vendorDir "conjur.exe"
+          Remove-Item -Recurse -Force $vendorDir -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $vendorDir | Out-Null
+
+          $url = "https://github.com/cyberark/conjur-cli-go/releases/download/v9.3.1/conjur_windows_amd64.exe"
+          $expectedSize = 21950000
+          $expectedSHA256 = "da2b31ca00b8faaefb8e1fe891563b5cc07c39460e776fb42e7f89b05d3ee4f6"
+
+          & curl.exe --fail --location --retry 2 --retry-all-errors --retry-delay 1 --output $conjur $url
+          if ($LASTEXITCODE -ne 0) {
+            throw "failed to download the pinned CyberArk Conjur runtime"
+          }
+
+          $actualSize = (Get-Item $conjur).Length
+          if ($actualSize -ne $expectedSize) {
+            throw "pinned Conjur runtime size mismatch: got $actualSize, want $expectedSize"
+          }
+          $actualSHA256 = (Get-FileHash -Algorithm SHA256 $conjur).Hash.ToLowerInvariant()
+          if ($actualSHA256 -ne $expectedSHA256) {
+            throw "pinned Conjur runtime SHA-256 mismatch"
+          }
+
+          $toolOverride = "cyberark-conjur-v9/conjur=$conjur"
+          $doctorOutput = & .\bin\cliharbor-windows-x64-evaluation.exe doctor --tool-path $toolOverride 2>&1
+          $doctorExit = $LASTEXITCODE
+          $doctorOutput | ForEach-Object { Write-Host $_ }
+          if ($doctorExit -ne 0) {
+            throw "pinned Conjur doctor qualification failed with exit code $doctorExit"
+          }
+          $doctorText = $doctorOutput -join "`n"
+          if ($doctorText -notmatch 'cyberark-conjur-v9/conjur:\s+ready') {
+            throw "pinned Conjur runtime was not marked ready"
+          }
+          if ($doctorText -notmatch 'version:\s+9\.3\.1(?:-[0-9A-Za-z.-]+)?') {
+            throw "pinned Conjur runtime did not report the expected 9.3.1 release version"
+          }
+
+          $inventoryOutput = & .\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file ".\packs\conjur\conjur-v9.yaml" --tool-path $toolOverride --probe "cyberark-conjur-v9/conjur/root" 2>&1
+          $inventoryExit = $LASTEXITCODE
+          $inventoryOutput | ForEach-Object { Write-Host $_ }
+          if ($inventoryExit -ne 0) {
+            throw "pinned Conjur root help probe failed with exit code $inventoryExit"
+          }
+          if (($inventoryOutput -join "`n") -notmatch 'probe root:\s+exited \(exit=0, truncated=false\)') {
+            throw "pinned Conjur root help probe did not complete cleanly"
+          }
       - name: Run extracted-bundle evaluation preflight
         shell: pwsh
         run: |

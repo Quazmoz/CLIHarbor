@@ -68,7 +68,7 @@ Supporting platform work:
 - explicit `vendor-session` authentication mode;
 - generic auth-required tasks remain blocked unless that mode is declared;
 - no credential stdin/argv/persistence;
-- Conjur version constraint `>=9.3.1 <10.0.0`;
+- Conjur version constraint `>=9.3.1-0 <10.0.0-0`;
 - fixed help probes for deployed-command comparison;
 - embedded first-party pack so normal startup needs no `--pack-file`;
 - current-user Conjur fallback provisioning only when discovery is exactly `missing`;
@@ -86,7 +86,7 @@ On the target company-managed Windows laptop:
 1. CLIHarbor evaluation preflight succeeds;
 2. `doctor` loads the embedded first-party pack and reports the local Conjur state without performing a download;
 3. either an approved corporate Conjur binary qualifies unambiguously, or policy permits the exact verified current-user fallback;
-4. the resulting executable satisfies `>=9.3.1 <10.0.0` and normal executable identity checks;
+4. the resulting executable satisfies `>=9.3.1-0 <10.0.0-0` and normal executable identity checks;
 5. application/network policy permits the selected execution path without bypasses;
 6. at least one non-secret read workflow succeeds using the approved vendor-owned session.
 
