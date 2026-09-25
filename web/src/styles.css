@@ -1331,7 +1331,7 @@ footer p {
   gap: 0.45rem;
 }
 
-.task-search > span:first-child {
+.task-search-label {
   color: var(--text-strong);
   font-weight: 650;
 }

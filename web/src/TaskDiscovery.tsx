@@ -155,14 +155,18 @@ export function TaskDiscovery({
 
   return (
     <div className="task-discovery" aria-label="Task discovery">
-      <label className="task-search">
-        <span>Search tasks</span>
+      <div className="task-search">
+        <label className="task-search-label" htmlFor="task-search-input">
+          Search tasks
+        </label>
         <span className="task-search-row">
           <input
             ref={searchRef}
+            id="task-search-input"
             type="search"
             value={query}
             placeholder="Name, description, pack, tool, or command"
+            aria-describedby="task-search-help"
             onChange={(event) => setQuery(event.target.value)}
           />
           <button
@@ -174,8 +178,8 @@ export function TaskDiscovery({
             Clear
           </button>
         </span>
-        <small>Press / from this page to focus search.</small>
-      </label>
+        <small id="task-search-help">Press / from this page to focus search.</small>
+      </div>
 
       {filteredTasks.length === 0 && normalizedQuery.length > 0 ? (
         <div className="task-search-empty" role="status">
