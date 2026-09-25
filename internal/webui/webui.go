@@ -19,7 +19,8 @@ import (
 var embedded embed.FS
 
 // ProductionHandler serves the generated frontend from the executable.
-// No SPA fallback is used yet: only / and generated /assets/* files exist.
+// Only reviewed application routes receive the SPA entry point; unknown paths
+// and generated-asset traversal remain fail-closed.
 func ProductionHandler() (http.Handler, error) {
 	assets, err := fs.Sub(embedded, "static")
 	if err != nil {
@@ -44,7 +45,7 @@ func (h staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	name := ""
 	switch {
-	case r.URL.Path == "/":
+	case isApplicationRoute(r.URL.Path):
 		name = "index.html"
 	case strings.HasPrefix(r.URL.Path, "/assets/"):
 		name = strings.TrimPrefix(r.URL.Path, "/")
@@ -72,6 +73,15 @@ func (h staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodGet {
 		_, _ = w.Write(data)
+	}
+}
+
+func isApplicationRoute(path string) bool {
+	switch path {
+	case "/", "/authentication", "/tasks", "/diagnostics":
+		return true
+	default:
+		return false
 	}
 }
 

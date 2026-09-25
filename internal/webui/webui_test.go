@@ -26,6 +26,28 @@ func TestProductionHandlerServesEmbeddedIndex(t *testing.T) {
 	}
 }
 
+func TestProductionHandlerServesReviewedApplicationRoutes(t *testing.T) {
+	t.Parallel()
+
+	handler, err := ProductionHandler()
+	if err != nil {
+		t.Fatalf("production handler: %v", err)
+	}
+
+	for _, path := range []string{"/", "/authentication", "/tasks", "/diagnostics"} {
+		t.Run(path, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1"+path, nil))
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+			}
+			if !strings.Contains(recorder.Body.String(), "CLIHarbor") {
+				t.Fatal("application route did not serve embedded index")
+			}
+		})
+	}
+}
+
 func TestProductionHandlerRejectsUnknownAndTraversalPaths(t *testing.T) {
 	t.Parallel()
 

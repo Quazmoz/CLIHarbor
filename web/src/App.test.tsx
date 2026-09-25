@@ -56,6 +56,7 @@ class FakeEventSource {
 afterEach(() => {
   FakeEventSource.latest = undefined;
   FakeEventSource.instances = [];
+  window.history.replaceState({}, '', '/');
   vi.unstubAllGlobals();
 });
 
@@ -1007,4 +1008,130 @@ describe('App', () => {
     expect(screen.getAllByText('1/1 ready').length).toBeGreaterThanOrEqual(1);
   });
 
+});
+
+
+describe('App routing', () => {
+  test('supports direct Authentication navigation and native route links without credential fields', async () => {
+    window.history.replaceState({}, '', '/authentication');
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-route-test' }),
+        );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(
+          response(200, {
+            tools: [
+              {
+                packId: 'cyberark-conjur-v9',
+                packName: 'CyberArk / Idira Secrets Manager CLI 9.x',
+                packVersion: '0.1.1',
+                toolId: 'conjur',
+                status: 'ready',
+                version: '9.3.1',
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'cyberark-conjur-v9',
+                packName: 'CyberArk / Idira Secrets Manager CLI 9.x',
+                commandId: 'whoami',
+                name: 'Who am I',
+                toolId: 'conjur',
+                requiresAuth: true,
+                inputs: [],
+              },
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Authentication' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/authentication');
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
+    expect(window.location.pathname).toBe('/tasks');
+    expect(await screen.findByRole('heading', { name: 'Run a safe task' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Authentication' }));
+    expect(window.location.pathname).toBe('/authentication');
+    expect(await screen.findByRole('heading', { name: 'Authentication' })).toBeInTheDocument();
+  });
+
+  test('guides nonzero auth-required task runs back to Authentication without declaring the cause', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-auth-guide' }),
+        );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                requiresAuth: true,
+                inputs: [],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        return Promise.resolve(
+          response(202, {
+            runId: '99999999999999999999999999999999',
+            packId: 'fixture',
+            commandId: 'inspect',
+            toolId: 'fixture',
+            status: 'running',
+          }),
+        );
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await screen.findByRole('button', { name: 'Run task' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
+
+    FakeEventSource.latest?.emit('run-complete', {
+      runId: '99999999999999999999999999999999',
+      sequence: 1,
+      status: 'exited',
+      exitCode: 1,
+    });
+
+    expect(await screen.findByText(/Re-check Authentication before assuming the cause/i)).toBeInTheDocument();
+    const reviewButtons = screen.getAllByRole('button', { name: 'Review authentication' });
+    fireEvent.click(reviewButtons[reviewButtons.length - 1]);
+    expect(window.location.pathname).toBe('/authentication');
+  });
 });

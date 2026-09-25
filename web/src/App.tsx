@@ -14,6 +14,7 @@ import {
   type RunSnapshot,
   type StructuredErrorCode,
 } from './api/runs';
+import { AuthenticationPage } from './AuthenticationPage';
 
 type ViewState =
   | { kind: 'loading' }
@@ -381,8 +382,38 @@ function streamStateText(state: StreamState): string {
   }
 }
 
+type AppRoute = 'overview' | 'authentication' | 'tasks' | 'diagnostics';
+
+const routePaths: Record<AppRoute, string> = {
+  overview: '/',
+  authentication: '/authentication',
+  tasks: '/tasks',
+  diagnostics: '/diagnostics',
+};
+
+const navigationItems: Array<{ route: AppRoute; label: string }> = [
+  { route: 'overview', label: 'Overview' },
+  { route: 'authentication', label: 'Authentication' },
+  { route: 'tasks', label: 'Tasks' },
+  { route: 'diagnostics', label: 'Diagnostics' },
+];
+
+function routeFromPath(pathname: string): AppRoute {
+  switch (pathname) {
+    case '/authentication':
+      return 'authentication';
+    case '/tasks':
+      return 'tasks';
+    case '/diagnostics':
+      return 'diagnostics';
+    default:
+      return 'overview';
+  }
+}
+
 export function App() {
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
+  const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
   const [selectedTaskKey, setSelectedTaskKey] = useState('');
   const [formValues, setFormValues] = useState<Record<string, FormValue>>({});
   const [run, setRun] = useState<RunView | null>(null);
@@ -439,6 +470,12 @@ export function App() {
     );
     return () => controller.abort();
   }, [acceptRuntime, loadFailure]);
+
+  useEffect(() => {
+    const handlePopState = () => setRoute(routeFromPath(window.location.pathname));
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (state.kind === 'error') {
@@ -597,6 +634,23 @@ export function App() {
   };
 
   const taskHasFieldFailure = isTaskFieldFailure(selectedTask, taskFailure);
+  const runTaskRequiresAuth =
+    state.kind === 'ready' &&
+    run !== null &&
+    state.tasks.some(
+      (task) =>
+        task.packId === run.snapshot.packId &&
+        task.commandId === run.snapshot.commandId &&
+        task.requiresAuth === true,
+    );
+
+  const navigate = useCallback((nextRoute: AppRoute) => {
+    const nextPath = routePaths[nextRoute];
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, '', nextPath);
+    }
+    setRoute(nextRoute);
+  }, []);
 
   return (
     <div className="app-shell">
@@ -605,6 +659,24 @@ export function App() {
           <span className="eyebrow">LOCAL OPERATOR WORKSPACE</span>
           <h1>CLIHarbor</h1>
         </div>
+        <nav className="primary-nav" aria-label="Primary">
+          {navigationItems.map((item) => (
+            <a
+              key={item.route}
+              href={routePaths[item.route]}
+              aria-current={route === item.route ? 'page' : undefined}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                  return;
+                }
+                event.preventDefault();
+                navigate(item.route);
+              }}
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
         <div className="topbar-context" aria-label="Runtime boundary">
           <span className="local-badge">Local only</span>
           {state.kind === 'ready' && <span className="build-id">v{state.status.version}</span>}
@@ -636,7 +708,17 @@ export function App() {
           </section>
         )}
 
-        {state.kind === 'ready' && (
+        {state.kind === 'ready' && route === 'authentication' && (
+          <AuthenticationPage
+            status={state.status}
+            tasks={state.tasks}
+            tools={state.tools}
+            onOpenTasks={() => navigate('tasks')}
+            onOpenDiagnostics={() => navigate('diagnostics')}
+          />
+        )}
+
+        {state.kind === 'ready' && route !== 'authentication' && (
           <>
             <section className="runtime-overview" aria-labelledby="runtime-heading">
               <div className="runtime-copy">
@@ -665,7 +747,8 @@ export function App() {
               </dl>
             </section>
 
-            <section className="workspace-grid">
+            {(route === 'overview' || route === 'tasks') && (
+              <section className="workspace-grid">
               <article className="panel task-panel" aria-labelledby="task-heading">
                 <p className="status-label">Task</p>
                 <h2 id="task-heading">Run a safe task</h2>
@@ -713,6 +796,14 @@ export function App() {
                             {selectedTask.toolVersion ? ' ' + selectedTask.toolVersion : ''}
                           </p>
                           <p>Run submits only the validated values below; executable and argument authority stay on the local runtime.</p>
+                          {selectedTask.requiresAuth && (
+                            <div className="task-auth-callout">
+                              <span>This task uses the vendor-owned Conjur session.</span>
+                              <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
+                                Review authentication
+                              </button>
+                            </div>
+                          )}
                         </div>
                         <div className="form-stack">
                           {selectedTask.inputs.map((input) => (
@@ -789,6 +880,18 @@ export function App() {
                     )}
                     {run.snapshot.failure && <FailureNotice title="Run failure" failure={run.snapshot.failure} />}
                     {runActionFailure && <FailureNotice title="Run action failed" failure={runActionFailure} />}
+                    {runTaskRequiresAuth &&
+                      run.retained &&
+                      run.snapshot.status === 'exited' &&
+                      run.snapshot.exitCode !== undefined &&
+                      run.snapshot.exitCode !== 0 && (
+                        <div className="task-auth-callout task-auth-callout--run">
+                          <span>A vendor-session task exited non-zero. Re-check Authentication before assuming the cause.</span>
+                          <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
+                            Review authentication
+                          </button>
+                        </div>
+                      )}
                     {run.snapshot.structured && (
                       <section className="structured-result" aria-labelledby="structured-result-heading">
                         <h3 id="structured-result-heading">Structured result</h3>
@@ -833,9 +936,11 @@ export function App() {
                   </>
                 )}
               </article>
-            </section>
+              </section>
+            )}
 
-            <details className="panel tool-diagnostics">
+            {(route === 'overview' || route === 'diagnostics') && (
+              <details className="panel tool-diagnostics" open={route === 'diagnostics'}>
               <summary>
                 <span className="diagnostics-summary-copy">
                   <span className="status-label">Diagnostics</span>
@@ -870,7 +975,8 @@ export function App() {
                   </ul>
                 )}
               </div>
-            </details>
+              </details>
+            )}
           </>
         )}
       </main>

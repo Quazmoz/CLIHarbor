@@ -62,6 +62,30 @@ The Conjur pack does not expose `login`, `authenticate`, secret retrieval, passw
 
 See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md).
 
+## Authentication readiness page
+
+The browser exposes a first-class `/authentication` page. It is a session-readiness view, not a credential-entry surface.
+
+The page keeps two trust boundaries explicit:
+
+- **CLIHarbor local session** — the HttpOnly loopback browser session established by CLIHarbor bootstrap;
+- **Conjur / Secrets Manager session** — the vendor-owned authentication state used by the official CLI.
+
+Session verification reuses the trusted `cyberark-conjur-v9/whoami` task through the normal run planner/executor and browser run API. The browser does not choose executable paths, argv, flags, or alternate commands.
+
+State is conservative:
+
+- a healthy Conjur executable is only **tool readiness**, never proof of authentication;
+- `whoami` exit code `0` is authenticated-session evidence;
+- the pinned Conjur CLI 9.3.1 integration suite verifies that `whoami` after logout fails with `Please login again`; CLIHarbor recognizes only that reviewed phrase as signed-out/authentication-required evidence;
+- every other non-zero `whoami` result remains **authentication check failed** unless a future reviewed vendor contract adds a deterministic distinction;
+- timeout, cancellation, malformed response, stream failure, tool unavailability, and runtime failure remain separate states.
+
+The page never renders raw vendor stderr as UI guidance. It retains bounded output only for this check, matches the reviewed signed-out evidence, and renders only the allowlisted non-secret `account`, `username`, and `user` scalar fields from successful `whoami` JSON. All values are ordinary escaped React text.
+
+A failed or unknown check does not change authorization. Frontend state is presentation only; backend pack, risk, tool, and auth policy remain authoritative.
+
+Direct refresh/navigation is supported for `/authentication`, `/tasks`, and `/diagnostics` through an explicit server-side application-route allowlist. Unknown paths still fail closed.
 ## Why CLIHarbor does not start with a browser username/password form
 
 A browser credential form would materially expand the trust boundary:

@@ -458,6 +458,29 @@ async function main() {
     assert.equal(bootstrapState.csrfInDOM, false, 'CSRF token must not render into the document');
     assert.equal(bootstrapState.csrfInStorage, false, 'CSRF token must not enter browser storage');
 
+    stage('direct authentication route and enterprise viewport');
+    await page.call('Emulation.setDeviceMetricsOverride', {
+      width: 1366,
+      height: 768,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await navigate(page, baseURL + '/authentication');
+    await waitJS(page, 'authentication route',
+      'location.pathname === "/authentication" && document.body.innerText.includes("Authentication")');
+    const authSurface = await page.evaluate('(() => ({' +
+      'passwordInputs: document.querySelectorAll("input[type=password]").length,' +
+      'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,' +
+      'hasAuthLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Authentication")' +
+    '}))()');
+    assert.equal(authSurface.passwordInputs, 0, 'authentication route must not contain password inputs');
+    assert.equal(authSurface.horizontalOverflow, false, 'authentication route must fit the 1366px enterprise viewport horizontally');
+    assert.equal(authSurface.hasAuthLink, true, 'authentication route must remain in primary navigation');
+
+    await navigate(page, baseURL + '/');
+    await waitJS(page, 'fixture task metadata after direct-route refresh',
+      "Boolean(document.querySelector('select option[value=\\\"integration/inspect\\\"]'))");
+
     stage('bootstrap replay');
     const replay = await chrome.newPage();
     pages.push(replay);
