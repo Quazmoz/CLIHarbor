@@ -120,7 +120,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Execution | Direct executable launch, no ordinary shell, executable identity revalidation, bounded timeout/output/cancellation |
 | Vendor sessions | Explicit `vendor-session` mode plus a first-class Authentication readiness page that verifies the reviewed `whoami` workflow without CLIHarbor credentials |
 | Windows lifecycle | Suspended launch, Job Object assignment before resume, descendant containment and teardown |
-| Browser runs | Authenticated run APIs, bounded SSE streaming/replay, reconnect reconciliation, cancellation, bounded retention and metadata-only Recent Runs history |
+| Browser runs | Authenticated run APIs, planner-backed sanitized invocation preview, bounded SSE streaming/replay, reconnect reconciliation, cancellation, in-memory retry-with-inputs, bounded retention and metadata-only Recent Runs history |
 | Structured results | Strict bounded scalar JSON parsing, inert React rendering and raw-output fallback |
 | Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, SHA-256 and strict inspection |
 | Diagnostics | Allowlisted non-secret support export; no command output, argv, paths, environment values, browser secrets or credentials |
