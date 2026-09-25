@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
@@ -82,9 +81,6 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 			// caller has already asked CLIHarbor to stop.
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return RuntimeState{}, ctxErr
-			}
-			if errors.Is(provisionErr, context.Canceled) || errors.Is(provisionErr, context.DeadlineExceeded) {
-				return RuntimeState{}, provisionErr
 			}
 			if ref == toolbootstrap.ConjurRef {
 				state.SetupMessages = append(state.SetupMessages,

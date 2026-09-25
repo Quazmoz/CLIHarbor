@@ -51,6 +51,32 @@ func TestPrepareRuntimePropagatesAutoProvisionCancellation(t *testing.T) {
 	}
 }
 
+func TestPrepareRuntimeTreatsProvisionerInternalDeadlineAsDependencyFailure(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	provisioner := testProvisionerFunc(func(_ context.Context, _ discovery.ToolRef) (string, bool, error) {
+		return "", false, context.DeadlineExceeded
+	})
+
+	var out bytes.Buffer
+	state, err := prepareRuntime(context.Background(), Options{
+		Out:                &out,
+		LoadDefaultPacks:   true,
+		AutoProvisionTools: true,
+		ToolProvisioner:    provisioner,
+	})
+	if err != nil {
+		t.Fatalf("prepareRuntime() error = %v, want fail-closed unavailable state", err)
+	}
+	conjur, ok := state.Discovery.Find(discovery.ToolRef{PackID: "cyberark-conjur-v9", ToolID: "conjur"})
+	if !ok || conjur.Status != discovery.StatusMissing {
+		t.Fatalf("Conjur state = %#v, want missing", conjur)
+	}
+	if len(state.SetupMessages) != 1 {
+		t.Fatalf("setup messages = %#v, want sanitized dependency failure guidance", state.SetupMessages)
+	}
+}
+
 func TestPrepareRuntimeKeepsOrdinaryProvisionFailureFailClosed(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 
