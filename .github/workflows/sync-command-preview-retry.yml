@@ -38,3 +38,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Sync generated command preview and retry frontend"
           git push origin HEAD:feature/command-preview-retry
+
+# One-time branch qualification trigger.
