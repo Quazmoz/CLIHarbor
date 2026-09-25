@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   sync:
-    if: github.event.head_commit.message == 'Add one-time generated frontend synchronizer'
+    if: github.event.head_commit.message == 'Fix one-time generated frontend synchronizer'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -26,6 +26,8 @@ jobs:
           package-manager-cache: false
       - name: Install frontend dependencies
         run: npm ci --prefix web
+      - name: Build frontend
+        run: npm run build --prefix web
       - name: Generate embedded frontend
         run: go run ./tools/task sync-web
       - name: Commit canonical generated assets
