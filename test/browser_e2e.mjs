@@ -477,6 +477,17 @@ async function main() {
     assert.equal(authSurface.horizontalOverflow, false, 'authentication route must fit the 1366px enterprise viewport horizontally');
     assert.equal(authSurface.hasAuthLink, true, 'authentication route must remain in primary navigation');
 
+    stage('direct run history route');
+    await navigate(page, baseURL + '/runs');
+    await waitJS(page, 'runs route',
+      'location.pathname === "/runs" && document.body.innerText.includes("Recent runs")');
+    const runsSurface = await page.evaluate('(() => ({' +
+      'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,' +
+      'hasRunsLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Runs")' +
+    '}))()');
+    assert.equal(runsSurface.horizontalOverflow, false, 'runs route must fit the 1366px enterprise viewport horizontally');
+    assert.equal(runsSurface.hasRunsLink, true, 'runs route must remain in primary navigation');
+
     await navigate(page, baseURL + '/');
     await waitJS(page, 'fixture task metadata after direct-route refresh',
       "Boolean(document.querySelector('select option[value=\\\"integration/inspect\\\"]'))");

@@ -1054,6 +1054,9 @@ describe('App routing', () => {
           }),
         );
       }
+      if (path === '/api/v1/runs') {
+        return Promise.resolve(response(200, { runs: [] }));
+      }
       return Promise.resolve(response(404, {}));
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -1067,6 +1070,10 @@ describe('App routing', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
     expect(window.location.pathname).toBe('/tasks');
     expect(await screen.findByRole('heading', { name: 'Run a safe task' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Runs' }));
+    expect(window.location.pathname).toBe('/runs');
+    expect(await screen.findByRole('heading', { name: 'Recent runs' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('link', { name: 'Authentication' }));
     expect(window.location.pathname).toBe('/authentication');

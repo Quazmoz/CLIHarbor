@@ -292,6 +292,26 @@ func (m *Manager) Get(runID string) (Snapshot, bool) {
 	return rec.snapshot(), true
 }
 
+// List returns retained runs newest-first. Snapshots are cloned under the
+// manager lock so callers cannot mutate authoritative retained state.
+func (m *Manager) List() []Snapshot {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	out := make([]Snapshot, 0, len(m.order))
+	for index := len(m.order) - 1; index >= 0; index-- {
+		rec := m.runs[m.order[index]]
+		if rec == nil {
+			continue
+		}
+		out = append(out, rec.snapshot())
+	}
+	return out
+}
+
 func (m *Manager) WaitEvents(ctx context.Context, runID string, after uint64) (EventBatch, error) {
 	if m == nil || ctx == nil || !validRunID(runID) {
 		return EventBatch{}, &Error{Code: ErrNotFound}

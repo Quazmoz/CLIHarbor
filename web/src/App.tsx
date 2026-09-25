@@ -15,6 +15,7 @@ import {
   type StructuredErrorCode,
 } from './api/runs';
 import { AuthenticationPage } from './AuthenticationPage';
+import { RunsPage } from './RunsPage';
 
 type ViewState =
   | { kind: 'loading' }
@@ -382,12 +383,13 @@ function streamStateText(state: StreamState): string {
   }
 }
 
-type AppRoute = 'overview' | 'authentication' | 'tasks' | 'diagnostics';
+type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'diagnostics';
 
 const routePaths: Record<AppRoute, string> = {
   overview: '/',
   authentication: '/authentication',
   tasks: '/tasks',
+  runs: '/runs',
   diagnostics: '/diagnostics',
 };
 
@@ -395,6 +397,7 @@ const navigationItems: Array<{ route: AppRoute; label: string }> = [
   { route: 'overview', label: 'Overview' },
   { route: 'authentication', label: 'Authentication' },
   { route: 'tasks', label: 'Tasks' },
+  { route: 'runs', label: 'Runs' },
   { route: 'diagnostics', label: 'Diagnostics' },
 ];
 
@@ -404,6 +407,8 @@ function routeFromPath(pathname: string): AppRoute {
       return 'authentication';
     case '/tasks':
       return 'tasks';
+    case '/runs':
+      return 'runs';
     case '/diagnostics':
       return 'diagnostics';
     default:
@@ -718,7 +723,9 @@ export function App() {
           />
         )}
 
-        {state.kind === 'ready' && route !== 'authentication' && (
+        {state.kind === 'ready' && route === 'runs' && <RunsPage tasks={state.tasks} />}
+
+        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && (
           <>
             <section className="runtime-overview" aria-labelledby="runtime-heading">
               <div className="runtime-copy">

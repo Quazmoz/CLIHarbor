@@ -102,7 +102,8 @@ Normal `serve` lifecycle with no pack flags:
 12. Create one-time bootstrap/session/CSRF material.
 13. Start the authenticated local server and browser bootstrap flow.
 14. Accept typed task requests, build immutable plans, and execute them through the bounded run manager.
-15. Stop all owned execution and browser state on shutdown.
+15. Expose newest-first retained run metadata through the authenticated list API without copying output, inputs, argv, paths or credentials into history summaries; fetch full retained evidence only through the existing single-run endpoint.
+16. Stop all owned execution and browser state on shutdown.
 
 `--no-auto-setup` disables step 6 while retaining the embedded pack.
 

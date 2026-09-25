@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/apperror"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
@@ -123,6 +124,65 @@ func TestRunAPICreateGetCancelUsesExistingSecurityBoundary(t *testing.T) {
 			t.Fatalf("cancelled = %q", got)
 		}
 	})
+}
+
+func TestRunAPIListReturnsMetadataOnly(t *testing.T) {
+	started := time.Date(2026, 9, 25, 15, 0, 0, 0, time.UTC)
+	ended := started.Add(1500 * time.Millisecond)
+	exitCode := 0
+	const secretMarker = "MUST_NOT_APPEAR_IN_RUN_LIST"
+	service := &fakeRunService{
+		history: []runs.Snapshot{
+			{
+				RunID: strings.Repeat("2", 32), PackID: "fixture", CommandID: "newest", ToolID: "fixture",
+				ToolVersion: "1.2.3", Status: runs.StatusExited, StartedAt: &started, EndedAt: &ended, ExitCode: &exitCode,
+				Events: []runs.Event{{Sequence: 1, Type: "stdout.chunk", DataBase64: secretMarker}},
+				Structured: &structured.Result{Status: structured.StatusInvalid, Renderer: "cards", Error: structured.ErrWrongType},
+				Failure: &apperror.Detail{Code: apperror.CodeExecutionFailed, Category: apperror.CategoryExecution, Message: secretMarker},
+			},
+			{
+				RunID: strings.Repeat("1", 32), PackID: "fixture", CommandID: "older", ToolID: "fixture",
+				Status: runs.StatusCancelled,
+			},
+		},
+	}
+	s := newTestServer(t, Config{Runs: service})
+	client := sessionClient(t)
+	bootstrap(t, client, s)
+
+	response, err := client.Get(s.BaseURL() + "/api/v1/runs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusOK)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{secretMarker, "events", "structured", "failure", "dataBase64"} {
+		if strings.Contains(string(body), forbidden) {
+			t.Fatalf("run list leaked %q: %s", forbidden, body)
+		}
+	}
+
+	var payload struct {
+		Runs []runSummary `json:"runs"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Runs) != 2 {
+		t.Fatalf("runs = %d, want 2", len(payload.Runs))
+	}
+	if payload.Runs[0].RunID != strings.Repeat("2", 32) || payload.Runs[0].CommandID != "newest" {
+		t.Fatalf("first summary = %#v", payload.Runs[0])
+	}
+	if payload.Runs[0].ExitCode == nil || *payload.Runs[0].ExitCode != 0 || payload.Runs[0].StartedAt == nil || payload.Runs[0].EndedAt == nil {
+		t.Fatalf("first summary metadata = %#v", payload.Runs[0])
+	}
 }
 
 func TestRunAPIFailsClosedOnExecutionAuthorityFieldsAndMalformedJSON(t *testing.T) {
@@ -317,6 +377,7 @@ type fakeRunService struct {
 	cancelErr error
 	requests  []runs.Request
 	cancelled []string
+	history   []runs.Snapshot
 }
 
 func (f *fakeRunService) Start(request runs.Request) (runs.Snapshot, error) {
@@ -335,6 +396,12 @@ func (f *fakeRunService) Start(request runs.Request) (runs.Snapshot, error) {
 	}
 	f.requests = append(f.requests, cloned)
 	return f.snapshot, nil
+}
+
+func (f *fakeRunService) List() []runs.Snapshot {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]runs.Snapshot(nil), f.history...)
 }
 
 func (f *fakeRunService) Get(runID string) (runs.Snapshot, bool) {

@@ -207,6 +207,63 @@ func TestManagerShutdownCancelsActiveRuns(t *testing.T) {
 	assertRunCode(t, err, ErrClosed)
 }
 
+func TestManagerListReturnsDefensiveNewestFirstSnapshots(t *testing.T) {
+	t.Setenv(managerHelperEnv, "1")
+	registry, snapshot := managerFixture(t)
+	manager := newTestManager(t, registry, snapshot, Config{
+		MaxActive:               1,
+		MaxRetained:             3,
+		MaxOutputBytesPerStream: 1024,
+		MaxEventBytesPerRun:     4096,
+		NewRunID: fixedRunIDs(
+			strings.Repeat("6", 32),
+			strings.Repeat("7", 32),
+		),
+	})
+
+	waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	first, err := manager.Start(Request{
+		PackID: "fixture", CommandID: "inspect",
+		Values: map[string]json.RawMessage{"query": rawRunJSON(t, "first")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Wait(waitCtx, first.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := manager.Start(Request{
+		PackID: "fixture", CommandID: "inspect",
+		Values: map[string]json.RawMessage{"query": rawRunJSON(t, "second")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Wait(waitCtx, second.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	listed := manager.List()
+	if len(listed) != 2 {
+		t.Fatalf("List() length = %d, want 2", len(listed))
+	}
+	if listed[0].RunID != second.RunID || listed[1].RunID != first.RunID {
+		t.Fatalf("List() order = %q, %q; want newest first", listed[0].RunID, listed[1].RunID)
+	}
+	if len(listed[0].Events) == 0 {
+		t.Fatal("newest snapshot has no retained evidence")
+	}
+
+	listed[0].Events[0].Type = "mutated"
+	again := manager.List()
+	if again[0].Events[0].Type == "mutated" {
+		t.Fatal("List() exposed mutable authoritative event state")
+	}
+}
+
 func TestManagerEvictsCompletedRunsButNeverActiveRuns(t *testing.T) {
 	t.Setenv(managerHelperEnv, "1")
 	registry, snapshot := managerFixture(t)

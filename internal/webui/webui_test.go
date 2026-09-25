@@ -34,7 +34,7 @@ func TestProductionHandlerServesReviewedApplicationRoutes(t *testing.T) {
 		t.Fatalf("production handler: %v", err)
 	}
 
-	for _, path := range []string{"/", "/authentication", "/tasks", "/diagnostics"} {
+	for _, path := range []string{"/", "/authentication", "/tasks", "/runs", "/diagnostics"} {
 		t.Run(path, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1"+path, nil))

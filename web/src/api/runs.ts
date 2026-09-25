@@ -78,6 +78,18 @@ export interface RunSnapshot {
   events?: Array<Omit<RunEvent, 'runId'>>;
 }
 
+export interface RunSummary {
+  runId: string;
+  packId: string;
+  commandId: string;
+  toolId: string;
+  toolVersion?: string;
+  status: RunStatus;
+  startedAt?: string;
+  endedAt?: string;
+  exitCode?: number;
+}
+
 export interface CreateRunRequest {
   packId: string;
   commandId: string;
@@ -263,6 +275,41 @@ function parseSnapshot(value: unknown): RunSnapshot {
   };
 }
 
+function parseRunSummary(value: unknown): RunSummary {
+  if (!isRecord(value)) {
+    invalidResponse();
+  }
+  const allowed = new Set([
+    'runId',
+    'packId',
+    'commandId',
+    'toolId',
+    'toolVersion',
+    'status',
+    'startedAt',
+    'endedAt',
+    'exitCode',
+  ]);
+  if (Object.keys(value).some((key) => !allowed.has(key))) {
+    invalidResponse();
+  }
+  const { runId, packId, commandId, toolId, toolVersion, status, startedAt, endedAt, exitCode } = value;
+  if (
+    typeof runId !== 'string' ||
+    typeof packId !== 'string' ||
+    typeof commandId !== 'string' ||
+    typeof toolId !== 'string' ||
+    (toolVersion !== undefined && typeof toolVersion !== 'string') ||
+    !isRunStatus(status) ||
+    (startedAt !== undefined && typeof startedAt !== 'string') ||
+    (endedAt !== undefined && typeof endedAt !== 'string') ||
+    (exitCode !== undefined && typeof exitCode !== 'number')
+  ) {
+    invalidResponse();
+  }
+  return { runId, packId, commandId, toolId, toolVersion, status, startedAt, endedAt, exitCode };
+}
+
 function parseEvent(value: unknown): RunEvent {
   if (!isRecord(value)) {
     invalidResponse();
@@ -346,11 +393,32 @@ export async function cancelRun(csrfToken: string, runId: string): Promise<RunSn
   return parseSnapshot(await mutation(`/api/v1/runs/${encodeURIComponent(runId)}/cancel`, csrfToken));
 }
 
-export async function fetchRun(runId: string): Promise<RunSnapshot> {
+export async function fetchRuns(signal?: AbortSignal): Promise<RunSummary[]> {
+  const response = await fetch('/api/v1/runs', {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+  if (!response.ok) {
+    throw await errorFromResponse(response);
+  }
+  const payload: unknown = await response.json();
+  if (!isRecord(payload) || Object.keys(payload).some((key) => key !== 'runs') || !Array.isArray(payload.runs)) {
+    invalidResponse();
+  }
+  if (payload.runs.length > 256) {
+    invalidResponse();
+  }
+  return payload.runs.map(parseRunSummary);
+}
+
+export async function fetchRun(runId: string, signal?: AbortSignal): Promise<RunSnapshot> {
   const response = await fetch(`/api/v1/runs/${encodeURIComponent(runId)}`, {
     method: 'GET',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
+    signal,
   });
   if (!response.ok) {
     throw await errorFromResponse(response);

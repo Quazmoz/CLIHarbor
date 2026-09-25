@@ -35,6 +35,22 @@ type RunEventService interface {
 	WaitEvents(context.Context, string, uint64) (runs.EventBatch, error)
 }
 
+type RunListService interface {
+	List() []runs.Snapshot
+}
+
+type runSummary struct {
+	RunID       string      `json:"runId"`
+	PackID      string      `json:"packId"`
+	CommandID   string      `json:"commandId"`
+	ToolID      string      `json:"toolId"`
+	ToolVersion string      `json:"toolVersion,omitempty"`
+	Status      runs.Status `json:"status"`
+	StartedAt   *time.Time  `json:"startedAt,omitempty"`
+	EndedAt     *time.Time  `json:"endedAt,omitempty"`
+	ExitCode    *int        `json:"exitCode,omitempty"`
+}
+
 type createRunRequest struct {
 	PackID    string                     `json:"packId"`
 	CommandID string                     `json:"commandId"`
@@ -42,32 +58,72 @@ type createRunRequest struct {
 }
 
 func (s *Server) handleRuns(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		writeMethodNotAllowed(w)
-		return
-	}
-	request, err := decodeCreateRunRequest(w, r)
-	if err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			writeAPIError(w, http.StatusRequestEntityTooLarge, apperror.CodeRequestTooLarge)
+	switch r.Method {
+	case http.MethodGet:
+		s.handleRunList(w)
+	case http.MethodPost:
+		request, err := decodeCreateRunRequest(w, r)
+		if err != nil {
+			var maxErr *http.MaxBytesError
+			if errors.As(err, &maxErr) {
+				writeAPIError(w, http.StatusRequestEntityTooLarge, apperror.CodeRequestTooLarge)
+				return
+			}
+			writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
 			return
 		}
-		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
+
+		snapshot, err := s.runs.Start(runs.Request{
+			PackID:    request.PackID,
+			CommandID: request.CommandID,
+			Values:    request.Values,
+		})
+		if err != nil {
+			writeRunError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, snapshot)
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		writeMethodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleRunList(w http.ResponseWriter) {
+	lister, ok := s.runs.(RunListService)
+	if !ok {
+		writeAPIError(w, http.StatusInternalServerError, apperror.CodeInternalError)
 		return
 	}
 
-	snapshot, err := s.runs.Start(runs.Request{
-		PackID:    request.PackID,
-		CommandID: request.CommandID,
-		Values:    request.Values,
-	})
-	if err != nil {
-		writeRunError(w, err)
-		return
+	snapshots := lister.List()
+	summaries := make([]runSummary, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		summary := runSummary{
+			RunID:       snapshot.RunID,
+			PackID:      snapshot.PackID,
+			CommandID:   snapshot.CommandID,
+			ToolID:      snapshot.ToolID,
+			ToolVersion: snapshot.ToolVersion,
+			Status:      snapshot.Status,
+		}
+		if snapshot.StartedAt != nil {
+			startedAt := *snapshot.StartedAt
+			summary.StartedAt = &startedAt
+		}
+		if snapshot.EndedAt != nil {
+			endedAt := *snapshot.EndedAt
+			summary.EndedAt = &endedAt
+		}
+		if snapshot.ExitCode != nil {
+			exitCode := *snapshot.ExitCode
+			summary.ExitCode = &exitCode
+		}
+		summaries = append(summaries, summary)
 	}
-	writeJSON(w, http.StatusAccepted, snapshot)
+	writeJSON(w, http.StatusOK, struct {
+		Runs []runSummary `json:"runs"`
+	}{Runs: summaries})
 }
 
 func (s *Server) handleRunByID(w http.ResponseWriter, r *http.Request) {

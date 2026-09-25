@@ -191,18 +191,20 @@ Color alone must not convey risk.
 
 ## 12. Run history
 
-MVP history can be memory-only or minimally persisted pending policy decision.
+The browser now exposes a first-class `/runs` page backed by the existing bounded in-memory run manager.
 
-History entries contain:
+History is intentionally process-local:
 
-- task;
-- timestamp;
-- context label when non-secret;
-- status;
-- exit code/duration;
-- sanitized invocation shape.
+- retained runs are shown newest-first;
+- restarting CLIHarbor clears the history;
+- completed runs are evicted at the manager retention bound while active runs are preserved;
+- the list endpoint returns metadata only: run/task/tool identifiers, tool version, status, timestamps and exit code;
+- list responses do **not** include stdout/stderr events, structured result payloads, failure prose, task inputs, argv, executable paths or credentials;
+- selecting a run explicitly fetches that one retained snapshot through the existing single-run endpoint;
+- retained structured output and raw stdout/stderr remain inert browser text and preserve their existing output boundaries;
+- an already-evicted run produces the normal stable `run_not_found` lifecycle error rather than a stale detail view.
 
-Secret outputs and secret inputs are never included.
+No persistence or history-retention setting has been added. That remains a separate policy decision, especially before secret-bearing workflows are ever enabled.
 
 ## 13. Settings
 
