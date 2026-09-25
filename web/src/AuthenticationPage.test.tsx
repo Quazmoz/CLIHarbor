@@ -355,6 +355,51 @@ describe('AuthenticationPage', () => {
     expect(screen.getByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
   });
 
+  test('cancels an active session check without accepting stale completion', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/runs') {
+        return Promise.resolve(
+          response(202, {
+            runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            packId: 'cyberark-conjur-v9',
+            commandId: 'whoami',
+            toolId: 'conjur',
+            status: 'running',
+          }),
+        );
+      }
+      if (path === '/api/v1/runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/cancel') {
+        return Promise.resolve(
+          response(202, {
+            runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            packId: 'cyberark-conjur-v9',
+            commandId: 'whoami',
+            toolId: 'conjur',
+            status: 'cancelled',
+          }),
+        );
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderAuth();
+    fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
+    const cancel = await screen.findByRole('button', { name: 'Cancel check' });
+    fireEvent.click(cancel);
+
+    expect(await screen.findByRole('heading', { name: 'Authentication check cancelled' })).toBeInTheDocument();
+    FakeEventSource.instances[0].emit('run-complete', {
+      runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      sequence: 1,
+      status: 'exited',
+      exitCode: 0,
+    });
+    expect(screen.getByRole('heading', { name: 'Authentication check cancelled' })).toBeInTheDocument();
+  });
+
   test('contains no browser credential inputs and exposes keyboard-native actions', () => {
     vi.stubGlobal('fetch', vi.fn());
     renderAuth();

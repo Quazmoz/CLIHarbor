@@ -307,6 +307,9 @@ export function AuthenticationPage({
         try {
           evidenceFromSnapshot(snapshot, stdoutRef, stderrRef);
         } catch (error) {
+          closeStreamRef.current?.();
+          closeStreamRef.current = null;
+          activeRunRef.current = null;
           setCheck({
             kind: 'failed',
             checkedAt: new Date().toISOString(),
@@ -412,14 +415,21 @@ export function AuthenticationPage({
       return;
     }
     const runId = check.runId;
-    attemptRef.current += 1;
+    const cancellationAttempt = attemptRef.current + 1;
+    attemptRef.current = cancellationAttempt;
     closeStreamRef.current?.();
     closeStreamRef.current = null;
     activeRunRef.current = null;
     try {
       await cancelRun(status.csrfToken, runId);
+      if (attemptRef.current !== cancellationAttempt) {
+        return;
+      }
       setCheck({ kind: 'cancelled', checkedAt: new Date().toISOString() });
     } catch (error) {
+      if (attemptRef.current !== cancellationAttempt) {
+        return;
+      }
       setCheck({
         kind: 'failed',
         checkedAt: new Date().toISOString(),
