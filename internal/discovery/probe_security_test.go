@@ -43,7 +43,7 @@ func TestExecProbeRunnerUsesNeutralCWDAndMinimalEnvironment(t *testing.T) {
 	if strings.Contains(output, cwd) {
 		t.Fatalf("version probe inherited caller working directory: %q", output)
 	}
-	if !strings.Contains(output, "secret-absent") || !strings.Contains(output, "1.2.3") {
+	if !strings.Contains(output, "secret-absent") || !strings.Contains(output, "home-present") || !strings.Contains(output, "1.2.3") {
 		t.Fatalf("version probe output = %q", output)
 	}
 }
@@ -122,6 +122,11 @@ func TestVersionProbeHelperProcess(t *testing.T) {
 			fmt.Fprintln(os.Stdout, value)
 		} else {
 			fmt.Fprintln(os.Stdout, "secret-absent")
+		}
+		if home, homeErr := os.UserHomeDir(); homeErr != nil || home == "" {
+			fmt.Fprintln(os.Stdout, "home-missing")
+		} else {
+			fmt.Fprintln(os.Stdout, "home-present")
 		}
 		fmt.Fprintln(os.Stdout, "1.2.3")
 	case "oversized":

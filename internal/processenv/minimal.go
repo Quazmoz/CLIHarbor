@@ -21,3 +21,21 @@ func Minimal() []string {
 	}
 	return env
 }
+
+// NeutralHome returns the minimal inherited environment plus a caller-owned
+// synthetic home directory. Probe subprocesses need a valid user home because
+// some official CLIs resolve home-scoped defaults while constructing commands,
+// even for --version/--help. Pointing those lookups at the probe's temporary
+// directory preserves that startup contract without exposing the real user's
+// home-scoped configuration or arbitrary parent-process environment.
+func NeutralHome(home string) []string {
+	env := Minimal()
+	if home == "" {
+		return env
+	}
+	env = append(env, "HOME="+home)
+	if runtime.GOOS == "windows" {
+		env = append(env, "USERPROFILE="+home)
+	}
+	return env
+}

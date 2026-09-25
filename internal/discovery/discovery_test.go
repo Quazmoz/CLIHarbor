@@ -165,6 +165,26 @@ func TestDiscoverMarksIncompatibleVersion(t *testing.T) {
 	}
 }
 
+func TestDiscoverAcceptsVendorReleaseCommitSuffixWithinConstraint(t *testing.T) {
+	dir := t.TempDir()
+	createExecutable(t, dir, platformExecutableName("fixture"))
+	resolver := NewResolver(Config{GOOS: runtime.GOOS, PathValue: dir, ProbeRunner: &fakeProbeRunner{
+		output: "Idira™ Secrets Manager CLI version 9.3.1-7207d6a\n",
+	}})
+	snapshot, err := resolver.Discover(context.Background(), testRegistry(t, packs.Tool{
+		ExecutableNames:   []string{"fixture"},
+		VersionProbe:      &packs.VersionProbe{Parser: packs.VersionParserSemverText},
+		VersionConstraint: ">=9.3.1-0 <10.0.0-0",
+	}), nil)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+	state, _ := snapshot.Find(ToolRef{PackID: "demo", ToolID: "fixture"})
+	if state.Status != StatusReady || state.Version != "9.3.1-7207d6a" {
+		t.Fatalf("state = %#v, want ready official-release style version", state)
+	}
+}
+
 func TestDiscoverFailsClosedOnAmbiguousVersionOutput(t *testing.T) {
 	dir := t.TempDir()
 	createExecutable(t, dir, platformExecutableName("fixture"))

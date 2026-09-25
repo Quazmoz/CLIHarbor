@@ -152,7 +152,7 @@ Authoritative upstream baseline:
 repository: cyberark/conjur-cli-go
 release: v9.3.1
 commit: 7207d6a4a2005130978e10d03d7f6b55ab0216d6
-supported version constraint: >=9.3.1 <10.0.0
+supported version constraint: >=9.3.1-0 <10.0.0-0
 ```
 
 Implemented browser workflows:

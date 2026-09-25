@@ -95,7 +95,7 @@ func RunReadOnlyProbe(ctx context.Context, executablePath string, args []string,
 	cmd := exec.CommandContext(probeCtx, executablePath, args...)
 	cmd.Dir = workdir
 	cmd.Stdin = nil
-	cmd.Env = processenv.Minimal()
+	cmd.Env = processenv.NeutralHome(workdir)
 	cmd.WaitDelay = readOnlyProbeWaitDelay
 	cmd.Cancel = func() error { return controller.cancel(cmd) }
 	if err := controller.configure(cmd); err != nil {

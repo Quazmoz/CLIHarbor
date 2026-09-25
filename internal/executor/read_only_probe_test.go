@@ -65,8 +65,10 @@ func TestReadOnlyProbeDoesNotPassArbitraryParentEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunReadOnlyProbe() error = %v", err)
 	}
-	if bytes.Contains(result.Stdout, []byte("should-not-reach-child")) || !bytes.Contains(result.Stdout, []byte("secret-absent")) {
-		t.Fatalf("probe inherited test secret: %q", result.Stdout)
+	if bytes.Contains(result.Stdout, []byte("should-not-reach-child")) ||
+		!bytes.Contains(result.Stdout, []byte("secret-absent")) ||
+		!bytes.Contains(result.Stdout, []byte("home-present")) {
+		t.Fatalf("probe environment was not isolated with a usable neutral home: %q", result.Stdout)
 	}
 }
 
@@ -118,9 +120,14 @@ func TestReadOnlyProbeHelperProcess(t *testing.T) {
 		time.Sleep(2 * time.Second)
 	case "environment":
 		if value := os.Getenv("CLIHARBOR_TEST_SECRET"); value != "" {
-			fmt.Fprint(os.Stdout, value)
+			fmt.Fprintln(os.Stdout, value)
 		} else {
-			fmt.Fprint(os.Stdout, "secret-absent")
+			fmt.Fprintln(os.Stdout, "secret-absent")
+		}
+		if home, homeErr := os.UserHomeDir(); homeErr != nil || home == "" {
+			fmt.Fprint(os.Stdout, "home-missing")
+		} else {
+			fmt.Fprint(os.Stdout, "home-present")
 		}
 	case "invalid-utf8":
 		_, _ = os.Stdout.Write([]byte{0xff, 'x'})

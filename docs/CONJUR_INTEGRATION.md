@@ -19,7 +19,9 @@ The implementation is derived from the official upstream `cyberark/conjur-cli-go
 - repository: `cyberark/conjur-cli-go`
 - release: `v9.3.1`
 - upstream commit: `7207d6a4a2005130978e10d03d7f6b55ab0216d6`
-- CLIHarbor compatibility constraint: `>=9.3.1 <10.0.0`
+- CLIHarbor compatibility constraint: `>=9.3.1-0 <10.0.0-0`
+
+CyberArk release binaries render the reviewed release as `9.3.1-<commit>`. That commit suffix is syntactically a SemVer prerelease identifier even though it identifies the released binary, so the constraint uses `-0` bounds to admit those official 9.x release strings while still excluding 10.x.
 
 ## Zero-config startup
 

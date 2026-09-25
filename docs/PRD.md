@@ -143,7 +143,7 @@ Authoritative baseline:
 ```text
 CyberArk conjur-cli-go v9.3.1
 upstream commit: 7207d6a4a2005130978e10d03d7f6b55ab0216d6
-supported version: >=9.3.1 <10.0.0
+supported version: >=9.3.1-0 <10.0.0-0
 ```
 
 Current browser workflows:

@@ -110,13 +110,13 @@ func conjurPlannerFixture(t *testing.T) (*packs.Registry, discovery.Snapshot) {
 	}
 	snapshot := discovery.NewSnapshot([]discovery.ToolState{{
 		PackID:             "cyberark-conjur-v9",
-		PackVersion:        "0.1.0",
+		PackVersion:        "0.1.1",
 		ToolID:             "conjur",
 		Status:             discovery.StatusReady,
 		Path:               executable,
 		ExecutableName:     filepath.Base(executable),
 		Version:            "9.3.1",
-		VersionConstraint:  ">=9.3.1 <10.0.0",
+		VersionConstraint:  ">=9.3.1-0 <10.0.0-0",
 		ExecutableIdentity: identity,
 	}})
 	return registry, snapshot

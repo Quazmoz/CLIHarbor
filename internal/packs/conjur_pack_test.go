@@ -26,7 +26,7 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if tool.VersionProbe == nil || len(tool.VersionProbe.Args) != 1 || tool.VersionProbe.Args[0] != "--version" {
 		t.Fatalf("version probe = %#v", tool.VersionProbe)
 	}
-	if tool.VersionConstraint != ">=9.3.1 <10.0.0" {
+	if tool.VersionConstraint != ">=9.3.1-0 <10.0.0-0" {
 		t.Fatalf("version constraint = %q", tool.VersionConstraint)
 	}
 	for _, probe := range []string{"root", "list", "resource", "role", "whoami"} {

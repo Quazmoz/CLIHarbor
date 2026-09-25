@@ -54,7 +54,7 @@ func (ExecProbeRunner) Run(ctx context.Context, executablePath string, probe pac
 	cmd := exec.CommandContext(probeCtx, executablePath, probe.Args...)
 	cmd.Dir = workdir
 	cmd.Stdin = nil
-	cmd.Env = processenv.Minimal()
+	cmd.Env = processenv.NeutralHome(workdir)
 	cmd.WaitDelay = 2 * time.Second
 	cmd.Cancel = func() error { return controller.Cancel(cmd) }
 	var stdout, stderr boundedBuffer
