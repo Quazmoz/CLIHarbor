@@ -52,7 +52,9 @@ func TestRunHTTPAPIExecutesTypedFixtureThroughAuthenticatedBoundary(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := &http.Client{Jar: jar}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	client := &http.Client{Jar: jar, Transport: transport}
+	t.Cleanup(transport.CloseIdleConnections)
 	bootstrapResponse, err := client.Get(bootstrapURL)
 	if err != nil {
 		t.Fatal(err)
@@ -230,6 +232,7 @@ func TestRunHTTPAPIExecutesTypedFixtureThroughAuthenticatedBoundary(t *testing.T
 		t.Fatalf("stdout = %q, want %q", stdout, wantStdout)
 	}
 
+	transport.CloseIdleConnections()
 	cancel()
 	select {
 	case err := <-done:
