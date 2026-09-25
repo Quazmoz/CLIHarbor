@@ -288,3 +288,16 @@ The first work-laptop evaluation is intentionally terminal-led:
 Inventory output shows stable pack/tool IDs, readiness state, parsed version when available, candidate count, and sanitized remediation. Exact candidate/executable paths remain in operator-only `doctor` output. The browser continues to expose only the safe task/tool DTOs established by earlier phases.
 
 If default-browser launch fails, the terminal prints the one-time local bootstrap URL. The URL is a short-lived credential and must not be included in evidence or support transcripts.
+
+
+## 19. Task discovery preferences
+
+The `/tasks` route provides client-side search across the backend-authorized task catalog, plus distinct **Favorites**, **Recently used**, and **All tasks** sections. Search covers task name/description, pack name/ID, tool ID, and command ID only; it does not inspect run output, task values, executable paths, argv, credentials, or arbitrary filesystem content.
+
+Favorites and recently used tasks are browser-local navigation preferences. The persisted structure is versioned and contains only bounded `packId` + `commandId` identities. It does **not** persist task form values, vendor credentials/session material, stdout/stderr, structured run results, failure text, argv, or executable paths.
+
+Browser persistence is treated as untrusted input. Malformed, oversized, or unavailable storage fails closed. Persisted identities are always reconciled against the current trusted backend catalog before display; stale identities are removed and never create execution authority. Recently used tasks are deduplicated, newest-first, and bounded to eight entries.
+
+Selecting a task from Favorites, Recently used, or All tasks feeds the same existing task form and backend execution path. Auth-required catalog entries are labeled **Requires vendor session**; the task browser does not claim the vendor session is currently authenticated. The Authentication page remains authoritative for session readiness checks.
+
+The task search supports keyboard operation and a page-local `/` focus shortcut that is ignored while typing in editable controls. Favorite toggles use native buttons with `aria-pressed`, task selection uses native buttons, focus remains visible, and the compact row layout is qualified for the 1366 × 768 enterprise-laptop target and narrow windows.

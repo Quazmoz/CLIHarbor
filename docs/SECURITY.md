@@ -434,3 +434,16 @@ The repository test/CI contract covers, among other things:
 - managed Conjur download digest validation, cache reuse, corrupt-cache repair, no-activation-on-mismatch and unsupported-platform/tool no-op behavior.
 
 A successful CI run proves the repository-controlled contract under CI environments. It does not prove a private company endpoint has the expected account configuration, network reachability, permissions, application-control policy or live vendor session.
+
+
+## Browser task-preference persistence
+
+Task discovery introduces one deliberately narrow browser-local persistence surface:
+
+- storage key: `cliharbor.task-preferences.v1`;
+- favorites: bounded task identities containing only `packId` and `commandId`;
+- recent tasks: at most eight deduplicated task identities, newest first.
+
+This preference state is **untrusted navigation state, never authorization or execution state**. On every runtime catalog load, stored identities are strictly parsed, bounded, and reconciled against tasks returned by the authenticated backend. An identity absent from the current catalog is removed and cannot be selected or executed. Invalid JSON, wrong types, oversized payloads, excessive entry counts, invalid identifier lengths, and unavailable/throwing browser storage all fail closed to empty preferences.
+
+CLIHarbor does not persist task form values, credentials, authentication state, CSRF/session material, stdout/stderr, structured results, failure text, argv, or executable paths in this preference store. The browser still supplies only the selected current-catalog `packId`/`commandId` and typed task values to the existing run API; planner, policy, tool identity, exact argv, and process execution remain backend-owned.

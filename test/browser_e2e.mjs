@@ -488,9 +488,46 @@ async function main() {
     assert.equal(runsSurface.horizontalOverflow, false, 'runs route must fit the 1366px enterprise viewport horizontally');
     assert.equal(runsSurface.hasRunsLink, true, 'runs route must remain in primary navigation');
 
-    await navigate(page, baseURL + '/');
-    await waitJS(page, 'fixture task metadata after direct-route refresh',
-      "Boolean(document.querySelector('select option[value=\\\"integration/inspect\\\"]'))");
+    stage('task discovery favorites and enterprise viewport');
+    await navigate(page, baseURL + '/tasks');
+    await waitJS(page, 'tasks discovery route',
+      'location.pathname === "/tasks" && Boolean(document.querySelector("input[type=search]"))');
+    const taskDiscoverySurface = await page.evaluate('(() => ({' +
+      'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,' +
+      'hasFavorites: Array.from(document.querySelectorAll("h3")).some((heading) => heading.textContent?.trim() === "Favorites"),' +
+      'hasRecent: Array.from(document.querySelectorAll("h3")).some((heading) => heading.textContent?.trim() === "Recently used"),' +
+      'hasAll: Array.from(document.querySelectorAll("h3")).some((heading) => heading.textContent?.trim() === "All tasks")' +
+    '}))()');
+    assert.equal(taskDiscoverySurface.horizontalOverflow, false, 'tasks route must fit the 1366px enterprise viewport horizontally');
+    assert.equal(taskDiscoverySurface.hasFavorites, true);
+    assert.equal(taskDiscoverySurface.hasRecent, true);
+    assert.equal(taskDiscoverySurface.hasAll, true);
+
+    const favoriteInspect = await page.evaluate('(() => {' +
+      'const button = document.querySelector("[data-task-section=all][data-task-action=favorite][data-task-key=\\\"integration/inspect\\\"]");' +
+      'if (!button) return false; button.click(); return true;' +
+    '})()');
+    assert.equal(favoriteInspect, true, 'fixture inspect task should be favoritable');
+    await waitJS(page, 'favorite task row',
+      'Boolean(document.querySelector("[data-task-section=favorites][data-task-action=select][data-task-key=\\\"integration/inspect\\\"]"))');
+    const preferenceStorage = await page.evaluate('(() => {' +
+      'const value = localStorage.getItem("cliharbor.task-preferences.v1") ?? "";' +
+      'return { value, keys: Object.keys(localStorage) };' +
+    '})()');
+    assert.ok(preferenceStorage.keys.includes('cliharbor.task-preferences.v1'));
+    assert.match(preferenceStorage.value, /integration/);
+    assert.match(preferenceStorage.value, /inspect/);
+    for (const forbidden of ['argv', 'executable', 'stdout', 'stderr', 'values']) {
+      assert.equal(preferenceStorage.value.includes(forbidden), false, 'task preferences must stay identifier-only');
+    }
+
+    const selectFavorite = await page.evaluate('(() => {' +
+      'const button = document.querySelector("[data-task-section=favorites][data-task-action=select][data-task-key=\\\"integration/inspect\\\"]");' +
+      'if (!button || button.disabled) return false; button.click(); return true;' +
+    '})()');
+    assert.equal(selectFavorite, true, 'favorite task should feed the existing task form');
+    await waitJS(page, 'favorite-selected inspect query field',
+      'Array.from(document.querySelectorAll("input")).some((element) => element.closest("label")?.textContent?.trim().startsWith("Query"))');
 
     stage('bootstrap replay');
     const replay = await chrome.newPage();
@@ -526,8 +563,7 @@ async function main() {
     assert.equal(csrfProbe.status, 403);
     assertRequestForbidden(csrfProbe.body, 'missing CSRF rejection');
 
-    stage('typed fixture execution and inert rendering');
-    await chooseTask(page, 'integration/inspect');
+    stage('typed fixture execution from favorites and inert rendering');
     await waitJS(page, 'inspect query field',
       'Array.from(document.querySelectorAll("input")).some((element) => element.closest("label")?.textContent?.trim().startsWith("Query"))');
     const hostileOutput = '<img id="cliharbor-e2e-pwn" src=x onerror="document.body.dataset.cliharborE2EPwned=1">\u001b[31m';
@@ -564,6 +600,21 @@ async function main() {
     assert.ok(rendered.stdout.includes(hostileOutput), 'hostile markup/control-like output should remain visible as text');
     assert.equal(rendered.injectedElement, false, 'hostile output must not become DOM');
     assert.equal(rendered.handlerRan, false, 'hostile output event handlers must never execute');
+
+    await waitJS(page, 'recent task after favorite launch',
+      'Boolean(document.querySelector("[data-task-section=recent][data-task-action=select][data-task-key=\\\"integration/inspect\\\"]"))');
+    const selectRecent = await page.evaluate('(() => {' +
+      'const button = document.querySelector("[data-task-section=recent][data-task-action=select][data-task-key=\\\"integration/inspect\\\"]");' +
+      'if (!button || button.disabled) return false; button.click(); return true;' +
+    '})()');
+    assert.equal(selectRecent, true, 'recent task should feed the existing task form');
+    await setTextInput(page, 'Query', 'recent-relaunch');
+    const recentCreateRequest = page.waitEvent('Network.requestWillBeSent',
+      (params) => isRunCreateRequest(params, 'inspect'));
+    await clickButton(page, 'Run task');
+    await recentCreateRequest;
+    await waitJS(page, 'recent fixture run completion',
+      'document.querySelector(".run-panel h2")?.textContent?.trim() === "exited"');
 
     const firstSnapshot = await fetchJSON(page, '/api/v1/runs/' + firstRunID);
     assert.equal(firstSnapshot.status, 200);
@@ -653,6 +704,10 @@ async function main() {
     const hostileMutation = await hostileMutationRequest;
     assert.equal(await waitHTTPStatus(attacker, hostileMutation.requestId), 403,
       'hostile-origin mutation must be rejected');
+
+    await navigate(page, baseURL + '/');
+    await waitJS(page, 'overview selector after task discovery runs',
+      "Boolean(document.querySelector('select option[value=\\\"integration/wait\\\"]'))");
 
     stage('sse failure reconciliation and cancellation');
     const eventSourceTrackerInstalled = await page.evaluate('(() => {' +

@@ -16,6 +16,15 @@ import {
 } from './api/runs';
 import { AuthenticationPage } from './AuthenticationPage';
 import { RunsPage } from './RunsPage';
+import { TaskDiscovery } from './TaskDiscovery';
+import {
+  loadTaskPreferences,
+  recordRecentTask,
+  reconcileTaskPreferences,
+  saveTaskPreferences,
+  toggleFavoriteTask,
+  type TaskPreferences,
+} from './taskPreferences';
 
 type ViewState =
   | { kind: 'loading' }
@@ -420,6 +429,7 @@ export function App() {
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
   const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
   const [selectedTaskKey, setSelectedTaskKey] = useState('');
+  const [taskPreferences, setTaskPreferences] = useState<TaskPreferences>(() => loadTaskPreferences());
   const [formValues, setFormValues] = useState<Record<string, FormValue>>({});
   const [run, setRun] = useState<RunView | null>(null);
   const [taskFailure, setTaskFailure] = useState<AppErrorDetail | null>(null);
@@ -429,6 +439,24 @@ export function App() {
   const [streamAttempt, setStreamAttempt] = useState(0);
   const runtimeErrorRef = useRef<HTMLElement>(null);
   const taskErrorRef = useRef<HTMLDivElement>(null);
+
+  const updateTaskPreferences = useCallback((update: (current: TaskPreferences) => TaskPreferences) => {
+    setTaskPreferences((current) => {
+      const next = update(current);
+      saveTaskPreferences(next);
+      return next;
+    });
+  }, []);
+
+  const selectTaskByKey = useCallback((key: string, tasks: Task[]) => {
+    const task = tasks.find((candidate) => candidate.packId + '/' + candidate.commandId === key);
+    if (task === undefined) {
+      return;
+    }
+    setSelectedTaskKey(key);
+    setFormValues(initialValues(task));
+    setTaskFailure(null);
+  }, []);
 
   const readyToolCount = state.kind === 'ready' ? state.tools.filter((tool) => tool.status === 'ready').length : 0;
 
@@ -441,6 +469,9 @@ export function App() {
 
   const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[], tools: ToolDiagnostic[]) => {
     setState({ kind: 'ready', status, tasks, tools });
+    const reconciledPreferences = reconcileTaskPreferences(loadTaskPreferences(), tasks);
+    setTaskPreferences(reconciledPreferences);
+    saveTaskPreferences(reconciledPreferences);
     const firstTask = tasks[0];
     if (firstTask === undefined) {
       setSelectedTaskKey('');
@@ -587,6 +618,7 @@ export function App() {
       });
       setCancelRequested(false);
       setStreamAttempt(0);
+      updateTaskPreferences((current) => recordRecentTask(current, selectedTask));
     } catch (error) {
       setTaskFailure(normalizeError(error).detail);
     } finally {
@@ -766,29 +798,36 @@ export function App() {
                   </div>
                 ) : (
                   <form onSubmit={startRun}>
-                    <label className="field">
-                      <span>Available task</span>
-                      <select
-                        value={selectedTaskKey}
-                        onChange={(event) => {
-                          const key = event.target.value;
-                          setSelectedTaskKey(key);
-                          const task = state.tasks.find((candidate) => `${candidate.packId}/${candidate.commandId}` === key);
-                          setFormValues(initialValues(task));
-                          setTaskFailure(null);
-                        }}
+                    {route === 'tasks' ? (
+                      <TaskDiscovery
+                        tasks={state.tasks}
+                        selectedTaskKey={selectedTaskKey}
+                        preferences={taskPreferences}
                         disabled={run?.snapshot.status === 'running'}
-                      >
-                        {state.tasks.map((task) => {
-                          const key = `${task.packId}/${task.commandId}`;
-                          return (
-                            <option key={key} value={key}>
-                              {task.packName} — {task.name}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </label>
+                        onSelect={(key) => selectTaskByKey(key, state.tasks)}
+                        onToggleFavorite={(task) =>
+                          updateTaskPreferences((current) => toggleFavoriteTask(current, task))
+                        }
+                      />
+                    ) : (
+                      <label className="field">
+                        <span>Available task</span>
+                        <select
+                          value={selectedTaskKey}
+                          onChange={(event) => selectTaskByKey(event.target.value, state.tasks)}
+                          disabled={run?.snapshot.status === 'running'}
+                        >
+                          {state.tasks.map((task) => {
+                            const key = task.packId + '/' + task.commandId;
+                            return (
+                              <option key={key} value={key}>
+                                {task.packName} — {task.name}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </label>
+                    )}
 
                     {selectedTask !== undefined && (
                       <>
@@ -805,7 +844,7 @@ export function App() {
                           <p>Run submits only the validated values below; executable and argument authority stay on the local runtime.</p>
                           {selectedTask.requiresAuth && (
                             <div className="task-auth-callout">
-                              <span>This task uses the vendor-owned Conjur session.</span>
+                              <span>Requires a vendor-owned session. CLIHarbor does not infer that the session is currently valid.</span>
                               <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
                                 Review authentication
                               </button>

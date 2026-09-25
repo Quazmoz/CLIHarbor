@@ -184,6 +184,8 @@ The browser Authentication page at `/authentication` reports both states separat
 
 The **Runs** page at `/runs` exposes bounded process-local history. Its list API is metadata-only; raw stdout/stderr and structured result data are fetched only when an operator opens one retained run. Restarting CLIHarbor clears the history.
 
+The **Tasks** page at `/tasks` supports compact catalog search, favorites, and bounded recently used task navigation. Browser persistence contains only versioned `packId`/`commandId` identities; it never stores task values, credentials, run output, argv, or executable paths. Persisted identities are untrusted and are reconciled against the current backend-authorized catalog before they can be selected.
+
 ## Security model
 
 Core invariants:
