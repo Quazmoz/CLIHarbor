@@ -253,14 +253,15 @@ func TestManagerListReturnsDefensiveNewestFirstSnapshots(t *testing.T) {
 	if listed[0].RunID != second.RunID || listed[1].RunID != first.RunID {
 		t.Fatalf("List() order = %q, %q; want newest first", listed[0].RunID, listed[1].RunID)
 	}
-	if len(listed[0].Events) == 0 {
-		t.Fatal("newest snapshot has no retained evidence")
+	if listed[0].StartedAt == nil || listed[0].ExitCode == nil {
+		t.Fatalf("newest summary missing metadata: %#v", listed[0])
 	}
 
-	listed[0].Events[0].Type = "mutated"
+	*listed[0].StartedAt = time.Time{}
+	*listed[0].ExitCode = 99
 	again := manager.List()
-	if again[0].Events[0].Type == "mutated" {
-		t.Fatal("List() exposed mutable authoritative event state")
+	if again[0].StartedAt == nil || again[0].StartedAt.IsZero() || again[0].ExitCode == nil || *again[0].ExitCode == 99 {
+		t.Fatal("List() exposed mutable authoritative metadata state")
 	}
 }
 

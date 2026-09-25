@@ -130,15 +130,11 @@ func TestRunAPIListReturnsMetadataOnly(t *testing.T) {
 	started := time.Date(2026, 9, 25, 15, 0, 0, 0, time.UTC)
 	ended := started.Add(1500 * time.Millisecond)
 	exitCode := 0
-	const secretMarker = "MUST_NOT_APPEAR_IN_RUN_LIST"
 	service := &fakeRunService{
-		history: []runs.Snapshot{
+		history: []runs.Summary{
 			{
 				RunID: strings.Repeat("2", 32), PackID: "fixture", CommandID: "newest", ToolID: "fixture",
 				ToolVersion: "1.2.3", Status: runs.StatusExited, StartedAt: &started, EndedAt: &ended, ExitCode: &exitCode,
-				Events: []runs.Event{{Sequence: 1, Type: "stdout.chunk", DataBase64: secretMarker}},
-				Structured: &structured.Result{Status: structured.StatusInvalid, Renderer: "cards", Error: structured.ErrWrongType},
-				Failure: &apperror.Detail{Code: apperror.CodeExecutionFailed, Category: apperror.CategoryExecution, Message: secretMarker},
 			},
 			{
 				RunID: strings.Repeat("1", 32), PackID: "fixture", CommandID: "older", ToolID: "fixture",
@@ -162,7 +158,7 @@ func TestRunAPIListReturnsMetadataOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{secretMarker, "events", "structured", "failure", "dataBase64"} {
+	for _, forbidden := range []string{"events", "structured", "failure", "dataBase64", "values", "argv", "executable"} {
 		if strings.Contains(string(body), forbidden) {
 			t.Fatalf("run list leaked %q: %s", forbidden, body)
 		}
@@ -377,7 +373,7 @@ type fakeRunService struct {
 	cancelErr error
 	requests  []runs.Request
 	cancelled []string
-	history   []runs.Snapshot
+	history   []runs.Summary
 }
 
 func (f *fakeRunService) Start(request runs.Request) (runs.Snapshot, error) {
@@ -398,10 +394,10 @@ func (f *fakeRunService) Start(request runs.Request) (runs.Snapshot, error) {
 	return f.snapshot, nil
 }
 
-func (f *fakeRunService) List() []runs.Snapshot {
+func (f *fakeRunService) List() []runs.Summary {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]runs.Snapshot(nil), f.history...)
+	return append([]runs.Summary(nil), f.history...)
 }
 
 func (f *fakeRunService) Get(runID string) (runs.Snapshot, bool) {

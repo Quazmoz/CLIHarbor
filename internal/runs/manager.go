@@ -90,6 +90,20 @@ type Snapshot struct {
 	Events      []Event            `json:"events,omitempty"`
 }
 
+// Summary is intentionally metadata-only. It exists separately from Snapshot
+// so list callers cannot accidentally retain or expose process output.
+type Summary struct {
+	RunID       string
+	PackID      string
+	CommandID   string
+	ToolID      string
+	ToolVersion string
+	Status      Status
+	StartedAt   *time.Time
+	EndedAt     *time.Time
+	ExitCode    *int
+}
+
 type EventBatch struct {
 	RunID      string
 	Events     []Event
@@ -292,22 +306,22 @@ func (m *Manager) Get(runID string) (Snapshot, bool) {
 	return rec.snapshot(), true
 }
 
-// List returns retained runs newest-first. Snapshots are cloned under the
-// manager lock so callers cannot mutate authoritative retained state.
-func (m *Manager) List() []Snapshot {
+// List returns retained run metadata newest-first. Process output, structured
+// payloads and failure details never enter this list path.
+func (m *Manager) List() []Summary {
 	if m == nil {
 		return nil
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	out := make([]Snapshot, 0, len(m.order))
+	out := make([]Summary, 0, len(m.order))
 	for index := len(m.order) - 1; index >= 0; index-- {
 		rec := m.runs[m.order[index]]
 		if rec == nil {
 			continue
 		}
-		out = append(out, rec.snapshot())
+		out = append(out, rec.summary())
 	}
 	return out
 }
@@ -575,6 +589,20 @@ func (m *Manager) makeRetentionRoomLocked() error {
 func (r *record) signalChangedLocked() {
 	close(r.changed)
 	r.changed = make(chan struct{})
+}
+
+func (r *record) summary() Summary {
+	return Summary{
+		RunID:       r.runID,
+		PackID:      r.packID,
+		CommandID:   r.commandID,
+		ToolID:      r.toolID,
+		ToolVersion: r.toolVersion,
+		Status:      r.status,
+		StartedAt:   cloneTime(r.startedAt),
+		EndedAt:     cloneTime(r.endedAt),
+		ExitCode:    cloneInt(r.exitCode),
+	}
 }
 
 func (r *record) snapshot() Snapshot {

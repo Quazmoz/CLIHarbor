@@ -36,7 +36,7 @@ type RunEventService interface {
 }
 
 type RunListService interface {
-	List() []runs.Snapshot
+	List() []runs.Summary
 }
 
 type runSummary struct {
@@ -96,30 +96,20 @@ func (s *Server) handleRunList(w http.ResponseWriter) {
 		return
 	}
 
-	snapshots := lister.List()
-	summaries := make([]runSummary, 0, len(snapshots))
-	for _, snapshot := range snapshots {
-		summary := runSummary{
-			RunID:       snapshot.RunID,
-			PackID:      snapshot.PackID,
-			CommandID:   snapshot.CommandID,
-			ToolID:      snapshot.ToolID,
-			ToolVersion: snapshot.ToolVersion,
-			Status:      snapshot.Status,
-		}
-		if snapshot.StartedAt != nil {
-			startedAt := *snapshot.StartedAt
-			summary.StartedAt = &startedAt
-		}
-		if snapshot.EndedAt != nil {
-			endedAt := *snapshot.EndedAt
-			summary.EndedAt = &endedAt
-		}
-		if snapshot.ExitCode != nil {
-			exitCode := *snapshot.ExitCode
-			summary.ExitCode = &exitCode
-		}
-		summaries = append(summaries, summary)
+	retained := lister.List()
+	summaries := make([]runSummary, 0, len(retained))
+	for _, item := range retained {
+		summaries = append(summaries, runSummary{
+			RunID:       item.RunID,
+			PackID:      item.PackID,
+			CommandID:   item.CommandID,
+			ToolID:      item.ToolID,
+			ToolVersion: item.ToolVersion,
+			Status:      item.Status,
+			StartedAt:   item.StartedAt,
+			EndedAt:     item.EndedAt,
+			ExitCode:    item.ExitCode,
+		})
 	}
 	writeJSON(w, http.StatusOK, struct {
 		Runs []runSummary `json:"runs"`
