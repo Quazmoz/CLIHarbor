@@ -17,29 +17,35 @@ type RuntimeState struct {
 }
 
 func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) {
-	if options.PackDirectory != "" && len(options.PackFiles) != 0 {
-		return RuntimeState{}, fmt.Errorf("configure either --pack-dir or --pack-file, not both")
+	loader := packs.NewLoader()
+	loaded := make([]packs.LoadedPack, 0)
+	usingDefaultPacks := options.LoadDefaultPacks
+
+	if options.LoadDefaultPacks {
+		registry, err := loader.LoadBuiltins(packassets.Builtins())
+		if err != nil {
+			return RuntimeState{}, fmt.Errorf("load default packs: %w", err)
+		}
+		loaded = append(loaded, registry.Packs()...)
+	}
+	if options.PackDirectory != "" {
+		registry, err := loader.LoadDirectory(options.PackDirectory)
+		if err != nil {
+			return RuntimeState{}, fmt.Errorf("load explicit pack directory: %w", err)
+		}
+		loaded = append(loaded, registry.Packs()...)
+	}
+	if len(options.PackFiles) != 0 {
+		registry, err := loader.LoadFiles(options.PackFiles)
+		if err != nil {
+			return RuntimeState{}, fmt.Errorf("load explicit pack files: %w", err)
+		}
+		loaded = append(loaded, registry.Packs()...)
 	}
 
-	loader := packs.NewLoader()
-	var (
-		registry          *packs.Registry
-		err               error
-		usingDefaultPacks bool
-	)
-	switch {
-	case options.PackDirectory != "":
-		registry, err = loader.LoadDirectory(options.PackDirectory)
-	case len(options.PackFiles) != 0:
-		registry, err = loader.LoadFiles(options.PackFiles)
-	case options.LoadDefaultPacks:
-		registry, err = loader.LoadBuiltins(packassets.Builtins())
-		usingDefaultPacks = true
-	default:
-		registry, err = packs.NewRegistry(nil)
-	}
+	registry, err := packs.NewRegistry(loaded)
 	if err != nil {
-		return RuntimeState{}, fmt.Errorf("load configured packs: %w", err)
+		return RuntimeState{}, fmt.Errorf("combine configured packs: %w", err)
 	}
 
 	overrides := cloneToolOverrides(options.ToolOverrides)
@@ -62,10 +68,10 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 	managedConjurSelected := false
 	managedConjurInstalled := false
 	for _, tool := range snapshot.Tools() {
-		if !shouldAutoProvision(tool, options.ToolOverrides) {
+		ref := discovery.ToolRef{PackID: tool.PackID, ToolID: tool.ToolID}
+		if ref != toolbootstrap.ConjurRef || !shouldAutoProvision(tool, options.ToolOverrides) {
 			continue
 		}
-		ref := discovery.ToolRef{PackID: tool.PackID, ToolID: tool.ToolID}
 		if ref == toolbootstrap.ConjurRef && options.Out != nil {
 			if _, writeErr := fmt.Fprintf(options.Out,
 				"Setup: Conjur CLI was not found; installing verified CyberArk Conjur CLI %s for the current user...\n",
