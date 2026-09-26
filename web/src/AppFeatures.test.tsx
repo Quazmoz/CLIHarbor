@@ -90,6 +90,52 @@ describe('command preview and retry workflows', () => {
     expect(screen.queryByText('fixture.exe inspect --query "hello world"')).not.toBeInTheDocument();
   });
 
+  test('ignores a late preview after task inputs change', async () => {
+    let resolvePreview: ((value: Response) => void) | undefined;
+    const delayedPreview = new Promise<Response>((resolve) => {
+      resolvePreview = resolve;
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      const base = baseRuntimeResponse(path);
+      if (base !== undefined) {
+        return Promise.resolve(base);
+      }
+      if (path === '/api/v1/runs/preview' && init?.method === 'POST') {
+        return delayedPreview;
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    const query = await screen.findByRole('textbox', { name: 'Query' });
+    fireEvent.change(query, { target: { value: 'old value' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview invocation' }));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs/preview')).toBe(true),
+    );
+    fireEvent.change(query, { target: { value: 'new value' } });
+    expect(screen.getByRole('button', { name: 'Preview invocation' })).toBeEnabled();
+
+    resolvePreview?.(
+      response(200, {
+        packId: 'fixture',
+        commandId: 'inspect',
+        toolId: 'fixture',
+        toolVersion: '1.2.3',
+        executableName: 'fixture.exe',
+        args: ['inspect', '--query', 'old value'],
+      }),
+    );
+
+    await delayedPreview;
+    await waitFor(() =>
+      expect(screen.queryByText('fixture.exe inspect --query "old value"')).not.toBeInTheDocument(),
+    );
+  });
+
   test('retries a completed run with its original in-memory typed inputs', async () => {
     let createCount = 0;
     const createBodies: unknown[] = [];
