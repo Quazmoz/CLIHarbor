@@ -91,7 +91,7 @@ Users should receive:
 
 ### G7 — Generic architecture
 
-Conjur-specific command syntax belongs in a reviewed pack. Generic planner/executor code must remain vendor-agnostic. A second CLI should normally require another pack and, only if justified, a narrowly scoped adapter or separately reviewed bootstrapper.
+Conjur-specific command syntax belongs in a reviewed pack. Generic planner/executor code must remain vendor-agnostic. Additional explicit local packs may be loaded alongside the built-in first-party packs in one runtime; a second CLI should normally require another pack and, only if justified, a narrowly scoped adapter or separately reviewed bootstrapper.
 
 ## 5. Non-goals for the current product stage
 
@@ -161,7 +161,7 @@ Current product explicitly excludes secret retrieval, login credential handling,
 
 Normal `serve` and `doctor` shall load the compiled-in first-party Conjur pack through the same hardened built-in pack loader used for trusted pack bytes.
 
-Explicit `--pack-file` or `--pack-dir` shall replace the default-pack selection for that process.
+Explicit `--pack-file` and `--pack-dir` sources shall augment the default built-in pack set for `serve` and `doctor`. `--no-default-packs` shall provide an explicit custom-only mode. Duplicate pack IDs across all configured sources shall fail closed.
 
 ### FR-2 Tool discovery
 
@@ -194,7 +194,7 @@ It shall:
 
 ### FR-4 Enterprise opt-out and overrides
 
-`--no-auto-setup` shall disable automatic dependency network activity for `serve` while retaining the embedded pack.
+`--no-auto-setup` shall disable automatic dependency network activity for `serve` while retaining the embedded pack. `--no-default-packs` shall omit embedded first-party packs entirely for explicit custom-pack testing.
 
 An explicit `--tool-path` shall remain authoritative and must never be silently replaced by the managed fallback.
 
