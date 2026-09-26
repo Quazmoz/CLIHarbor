@@ -475,6 +475,7 @@ export function App() {
   const [streamAttempt, setStreamAttempt] = useState(0);
   const runtimeErrorRef = useRef<HTMLElement>(null);
   const taskErrorRef = useRef<HTMLDivElement>(null);
+  const previewRequestRef = useRef(0);
 
   const updateTaskPreferences = useCallback((update: (current: TaskPreferences) => TaskPreferences) => {
     setTaskPreferences((current) => {
@@ -491,7 +492,9 @@ export function App() {
     }
     setSelectedTaskKey(key);
     setFormValues(initialValues(task));
+    previewRequestRef.current += 1;
     setCommandPreview(null);
+    setPreviewing(false);
     setTaskFailure(null);
   }, []);
 
@@ -506,7 +509,9 @@ export function App() {
 
   const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[], tools: ToolDiagnostic[]) => {
     setState({ kind: 'ready', status, tasks, tools });
+    previewRequestRef.current += 1;
     setCommandPreview(null);
+    setPreviewing(false);
     const reconciledPreferences = reconcileTaskPreferences(loadTaskPreferences(), tasks);
     setTaskPreferences(reconciledPreferences);
     saveTaskPreferences(reconciledPreferences);
@@ -699,6 +704,8 @@ export function App() {
     if (state.kind !== 'ready' || selectedTask === undefined || previewing || starting) {
       return;
     }
+    const requestID = previewRequestRef.current + 1;
+    previewRequestRef.current = requestID;
     setPreviewing(true);
     setTaskFailure(null);
     try {
@@ -707,12 +714,19 @@ export function App() {
         commandId: selectedTask.commandId,
         values: requestValues(selectedTask, formValues),
       };
-      setCommandPreview(await previewRun(state.status.csrfToken, request));
+      const preview = await previewRun(state.status.csrfToken, request);
+      if (previewRequestRef.current === requestID) {
+        setCommandPreview(preview);
+      }
     } catch (error) {
-      setCommandPreview(null);
-      setTaskFailure(normalizeError(error).detail);
+      if (previewRequestRef.current === requestID) {
+        setCommandPreview(null);
+        setTaskFailure(normalizeError(error).detail);
+      }
     } finally {
-      setPreviewing(false);
+      if (previewRequestRef.current === requestID) {
+        setPreviewing(false);
+      }
     }
   };
 
@@ -734,7 +748,9 @@ export function App() {
     const formSnapshot = cloneFormValues(retry.formValues);
     setSelectedTaskKey(retry.taskKey);
     setFormValues(formSnapshot);
+    previewRequestRef.current += 1;
     setCommandPreview(null);
+    setPreviewing(false);
     setTaskFailure(null);
     await executeRun(task, formSnapshot, cloneRunRequest(retry.request), 'run');
   };
@@ -973,7 +989,9 @@ export function App() {
                               error={fieldFailureFor(input, taskFailure)}
                               onChange={(value) => {
                                 setFormValues((current) => ({ ...current, [input.id]: value }));
+                                previewRequestRef.current += 1;
                                 setCommandPreview(null);
+                                setPreviewing(false);
                                 if (taskFailure?.field === `values.${input.id}`) {
                                   setTaskFailure(null);
                                 }
