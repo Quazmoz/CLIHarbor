@@ -45,6 +45,7 @@ func TestCommandSpecificFlagsFailClosed(t *testing.T) {
 		{"serve", "--export", "phase0.json"},
 		{"inventory", "--web-dev-url", "http://127.0.0.1:5173"},
 		{"inventory", "--no-auto-setup"},
+		{"inventory", "--no-default-packs"},
 	}
 	for _, args := range cases {
 		if err := run(args); err == nil {
@@ -118,6 +119,40 @@ func TestDiagnosticsExportCommandCreatesBundle(t *testing.T) {
 	}
 	if len(bundle.Packs) != 0 || len(bundle.Tools) != 0 {
 		t.Fatalf("empty-runtime diagnostics unexpectedly contained pack/tool state: %#v", bundle)
+	}
+}
+
+func TestPackCommandShapeFailsClosed(t *testing.T) {
+	for _, args := range [][]string{
+		{"pack"},
+		{"pack", "unknown"},
+		{"pack", "init"},
+		{"pack", "validate"},
+		{"pack", "init", "--id", "demo", "--name", "Demo", "--tool", "demo", "--executable", "demo"},
+	} {
+		if err := run(args); err == nil {
+			t.Fatalf("run(%v) unexpectedly succeeded", args)
+		}
+	}
+}
+
+func TestPackInitAndValidateCommands(t *testing.T) {
+	destination := filepath.Join(t.TempDir(), "other-cli.yaml")
+	if err := run([]string{
+		"pack", "init",
+		"--id", "other-cli",
+		"--name", "Other CLI",
+		"--tool", "other",
+		"--executable", "other-cli",
+		destination,
+	}); err != nil {
+		t.Fatalf("run(pack init) error = %v", err)
+	}
+	if _, err := os.Stat(destination); err != nil {
+		t.Fatalf("generated pack missing: %v", err)
+	}
+	if err := run([]string{"pack", "validate", destination}); err != nil {
+		t.Fatalf("run(pack validate) error = %v", err)
 	}
 }
 
