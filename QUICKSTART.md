@@ -191,12 +191,24 @@ Normal product startup uses the embedded first-party pack:
 go run ./cmd/cliharbor serve
 ```
 
-Advanced/source pack testing remains available explicitly:
+Add or test another CLI through an explicit declarative pack:
 
 ```bash
-go run ./cmd/cliharbor doctor --pack-file packs/conjur/conjur-v9.yaml
-go run ./cmd/cliharbor serve --pack-file packs/conjur/conjur-v9.yaml --no-auto-setup
+go run ./cmd/cliharbor pack init --id acme-cli --name "Acme CLI" --tool acme --executable acme ./acme.yaml
+go run ./cmd/cliharbor pack validate ./acme.yaml
+# Edit only reviewed command/probe/version contracts into acme.yaml.
+go run ./cmd/cliharbor doctor --pack-file ./acme.yaml
+go run ./cmd/cliharbor serve --pack-file ./acme.yaml
 ```
+
+Explicit custom packs are additive to the embedded first-party packs. Use `--no-default-packs` for a custom-only runtime:
+
+```bash
+go run ./cmd/cliharbor doctor --no-default-packs --pack-file ./acme.yaml
+go run ./cmd/cliharbor serve --no-default-packs --pack-dir ./my-packs
+```
+
+The generated scaffold is discovery-only: it contains no executable browser commands and no guessed version/help probes.
 
 Build/qualify locally:
 

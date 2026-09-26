@@ -3,6 +3,9 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -17,9 +20,37 @@ func TestDoctorWithNoConfiguredPacksIsInformational(t *testing.T) {
 	}
 }
 
-func TestPrepareRuntimeRejectsMixedPackSources(t *testing.T) {
-	_, err := prepareRuntime(context.Background(), Options{PackDirectory: "/packs", PackFiles: []string{"pack.yaml"}})
-	if err == nil || !strings.Contains(err.Error(), "either --pack-dir or --pack-file") {
-		t.Fatalf("error = %v, want mixed-source rejection", err)
+func TestDoctorLoadsMixedExplicitPackSources(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "packs")
+	if err := os.Mkdir(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	pack := func(id, tool, executable string) []byte {
+		return []byte("apiVersion: cliharbor.dev/v1\nkind: CliPack\nmetadata:\n  id: " + id +
+			"\n  name: " + id + "\n  version: 0.1.0\nruntime:\n  platforms: [windows, linux, darwin]\n  tools:\n    " +
+			tool + ":\n      executableNames: [" + executable + "]\ncommands: {}\n")
+	}
+	if err := os.WriteFile(filepath.Join(directory, "alpha.yaml"), pack("alpha-cli", "alpha", "alpha-cli"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	beta := filepath.Join(root, "beta.yaml")
+	if err := os.WriteFile(beta, pack("beta-cli", "beta", "beta-cli"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	err := Doctor(context.Background(), Options{
+		Out:           &out,
+		Version:       "test",
+		PackDirectory: directory,
+		PackFiles:     []string{beta},
+	})
+	var doctorErr *DoctorError
+	if !errors.As(err, &doctorErr) || doctorErr.Unavailable != 2 {
+		t.Fatalf("Doctor() error = %v, want two unavailable synthetic tools", err)
+	}
+	if !strings.Contains(out.String(), "Configured packs: 2") {
+		t.Fatalf("doctor output = %q, want two mixed-source packs", out.String())
 	}
 }

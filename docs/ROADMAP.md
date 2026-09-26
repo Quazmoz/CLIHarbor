@@ -21,7 +21,7 @@ Implemented:
 Implemented:
 
 - authenticated loopback browser boundary;
-- trusted built-in and explicit local pack loading;
+- trusted built-in and explicit local pack loading, including additive multi-pack composition for `serve`/`doctor`;
 - deterministic executable discovery/version probing;
 - executable identity capture/revalidation;
 - typed request validation and deterministic argv planning;
@@ -180,10 +180,19 @@ Exit condition: two real packs operate without vendor-specific branches in the g
 
 ## Stage 10 — Pack authoring tooling
 
-Potential features:
+**Status: first safe onboarding slice implemented.**
 
-- `cliharbor pack init`;
-- schema-aware editor/validation;
+Implemented:
+
+- `cliharbor pack init` discovery-only scaffolding for arbitrary approved executable basenames;
+- `cliharbor pack validate` hardened schema/semantic/security validation without executable execution;
+- multi-source validation with duplicate-pack conflict detection;
+- additive explicit packs alongside embedded first-party packs;
+- `--no-default-packs` for explicit custom-only `serve`/`doctor` qualification.
+
+Remaining candidates:
+
+- schema-aware editor;
 - help-tree capture;
 - draft generation from authoritative help/source;
 - fixture generation;

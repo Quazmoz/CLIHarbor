@@ -46,7 +46,7 @@ React + TypeScript + Vite produces static assets embedded into the Go executable
 
 Versioned YAML is validated against the embedded Draft 2020-12 JSON Schema at `schemas/pack.v1.schema.json`, followed by deterministic semantic/security validation in `internal/packs`.
 
-The first-party Conjur pack remains reviewable at `packs/conjur/conjur-v9.yaml` and is also embedded into production/evaluation CLIHarbor binaries. Explicit local packs remain available for advanced/operator and development use.
+The first-party Conjur pack remains reviewable at `packs/conjur/conjur-v9.yaml` and is also embedded into production/evaluation CLIHarbor binaries. Explicit local packs are first-class additive runtime sources for other reviewed CLIs and can coexist with embedded packs in the same registry.
 
 ### Deployment
 
@@ -107,11 +107,23 @@ Normal `serve` lifecycle with no pack flags:
 
 `--no-auto-setup` disables step 6 while retaining the embedded pack.
 
-If `--pack-file` or `--pack-dir` is supplied, that explicit operator choice replaces the default embedded-pack selection. Automatic first-party provisioning is not implicitly applied to an explicitly supplied pack.
+If `--pack-file` or `--pack-dir` is supplied to `serve` or `doctor`, those explicit sources are added to the embedded first-party pack set. `--no-default-packs` opts into a custom-only registry. Duplicate pack IDs across sources fail closed. Automatic dependency provisioning remains identity-scoped to the reviewed embedded Conjur pack/tool and is never inherited by an unrelated custom pack.
 
 `doctor` and Phase 0 inventory/evidence remain operator surfaces and do not need to trigger the normal zero-config provisioning path.
 
-## 5. Pinned Conjur bootstrap boundary
+## 5. Generic pack onboarding boundary
+
+Pack onboarding is deliberately split from execution authority:
+
+1. `cliharbor pack init` creates a discovery-only v1 scaffold containing one declared executable basename and **no commands, version probes, or help probes**.
+2. `cliharbor pack validate` runs the hardened YAML/schema/semantic/security loader over one or more explicit files/directories and combines them into one deterministic registry solely to detect cross-pack conflicts such as duplicate IDs.
+3. Validation does not run executables, version probes, evidence probes, or tasks.
+4. A pack author must add command/probe/version contracts from reviewed documentation or evidence.
+5. `doctor` performs ordinary discovery for the resulting trusted pack; `serve` only exposes commands that pass the existing task policy.
+
+The scaffold generator therefore improves onboarding without becoming an automatic CLI scraper or a source of guessed security-sensitive argv.
+
+## 6. Pinned Conjur bootstrap boundary
 
 The only implemented automatic vendor executable bootstrap is CyberArk Conjur CLI v9.3.1 Windows amd64:
 
@@ -146,7 +158,7 @@ The bootstrapper:
 
 Bootstrap success grants no task authority by itself. The returned file still must pass the ordinary Conjur basename/version/discovery/identity contract.
 
-## 6. Fail-closed provisioning policy
+## 7. Fail-closed provisioning policy
 
 Automatic provisioning is a fallback for an absent dependency, not a repair mechanism for uncertain enterprise state.
 
@@ -162,7 +174,7 @@ CLIHarbor does **not** auto-replace:
 
 If policy/proxy/EDR/application control prevents the download or execution, CLIHarbor surfaces sanitized remediation and leaves the tool unavailable. It does not bypass controls.
 
-## 7. Browser/API authority
+## 8. Browser/API authority
 
 Implemented browser surface includes:
 
@@ -193,13 +205,13 @@ The browser cannot choose or supply:
 
 Task metadata includes only currently executable commands under backend policy. Tool metadata is sanitized and does not disclose executable/candidate paths or executable identity.
 
-## 8. Loopback/session boundary
+## 9. Loopback/session boundary
 
 The HTTP server binds to `127.0.0.1` on an ephemeral port.
 
 Controls include one-time unpredictable bootstrap material, host-only HttpOnly session cookie, exact Host validation, rejection of foreign non-empty Origin, exact same-origin plus CSRF validation for mutations, restrictive browser headers/CSP, and bounded request/stream concurrency.
 
-## 9. Pack authority and trust
+## 10. Pack authority and trust
 
 Pack loading follows:
 
@@ -217,7 +229,7 @@ Validation is **not** trust. CLIHarbor does not auto-scan cwd, load pack URLs, a
 
 Embedding the first-party Conjur pack removes a user download step; it does not create network-based pack authority.
 
-## 10. Deterministic argv model
+## 11. Deterministic argv model
 
 The v1 pack model admits only reviewed argument primitives:
 
@@ -229,7 +241,7 @@ The v1 pack model admits only reviewed argument primitives:
 
 There is no tokenization, template/interpolation language, shell interpretation, browser-selected subcommand/flag, arbitrary argv array, or user-selected executable.
 
-## 11. Tool discovery and compatibility
+## 12. Tool discovery and compatibility
 
 Discovery consumes validated registry metadata only.
 
@@ -245,7 +257,7 @@ A pack may define a fixed `semver-text` version probe and version constraint. Pr
 
 Discovery captures executable identity and revalidates it after probing. Execution revalidates identity/content evidence immediately before process creation.
 
-## 12. Planning and authentication policy
+## 13. Planning and authentication policy
 
 The planner requires a known pack/command, `risk: read`, non-secret output, a ready identity-verified tool, exact typed values, and no unknown inputs.
 
@@ -261,7 +273,7 @@ requirements:
 
 Downloading a vendor executable is independent from authenticating it.
 
-## 13. Process execution and Windows lifecycle
+## 14. Process execution and Windows lifecycle
 
 The executor starts the exact planned executable directly with `os/exec` and an argv slice. Ordinary execution never invokes CMD, PowerShell or POSIX shell command strings.
 
@@ -269,7 +281,7 @@ Each run has a server-generated ID, neutral temporary working directory, executi
 
 On Windows each run uses a Job Object. The target starts suspended, enters the Job Object before user code executes, then resumes. Cancellation/timeout tears down the contained process tree.
 
-## 14. Run state, streaming and structured output
+## 15. Run state, streaming and structured output
 
 The run manager owns bounded in-memory state; there is no persisted run database.
 
@@ -277,7 +289,7 @@ SSE observes manager state rather than owning execution. Disconnect/reconnect do
 
 Structured parsing happens only after the authoritative process exits successfully and cannot change executable selection, argv, lifecycle, run ID/status or exit code. Secret-bearing commands remain outside the current normal browser execution envelope.
 
-## 15. Real Conjur 9.x vertical slice
+## 16. Real Conjur 9.x vertical slice
 
 The first-party pack is derived from official `cyberark/conjur-cli-go` v9.3.1 at commit:
 
@@ -297,7 +309,7 @@ Secret retrieval, interactive login, password/API-key rotation, policy/issuer/ho
 
 See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md).
 
-## 16. Phase 0 evidence boundary
+## 17. Phase 0 evidence boundary
 
 The qualified Windows evaluation ZIP remains an immutable preflight/evidence bundle containing the CLIHarbor executable, discovery-only Phase 0 pack and `EVALUATION_SHA256SUMS`.
 
@@ -305,13 +317,13 @@ The real first-party Conjur pack is compiled into the executable rather than cop
 
 Phase 0 evidence remains inert and never promotes captured help/output into command authority automatically.
 
-## 17. Diagnostics and privacy
+## 18. Diagnostics and privacy
 
 Support diagnostics are allowlisted metadata rather than filesystem/environment scraping. Normal diagnostics exclude command output, argv, executable/candidate paths, PATH/environment values, browser secrets, credentials and managed-download raw errors.
 
 `doctor` is a richer local operator diagnostic and may contain exact filesystem paths; it should not be shared blindly.
 
-## 18. Build and distribution architecture
+## 19. Build and distribution architecture
 
 Production frontend assets and the first-party Conjur pack are embedded into the Go executable. The Windows evaluation artifact remains the primary user download.
 
@@ -321,7 +333,7 @@ The evaluation checksum covers the CLIHarbor executable and external Phase 0 pac
 
 Code signing, publisher verification and independent provenance/attestation remain separate release controls.
 
-## 19. State and persistence
+## 20. State and persistence
 
 Authoritative runtime state is in memory:
 
@@ -332,7 +344,7 @@ Authoritative runtime state is in memory:
 
 The only current application-managed persistent vendor content is the exact verified Conjur executable under the current-user CLIHarbor cache. It contains no CLIHarbor-owned credentials and is reverified before reuse.
 
-## 20. Failure semantics
+## 21. Failure semantics
 
 Expected failures remain explicit:
 
@@ -349,7 +361,7 @@ Expected failures remain explicit:
 - structured parser failure -> raw process evidence remains, no new authority;
 - vendor login/permission/network failure -> vendor process failure through the safe run/error boundary.
 
-## 21. Extension rule
+## 22. Extension rule
 
 New dependency bootstrappers must not become a generic package manager. Each supported automatic dependency requires an explicit reviewed tool identity, immutable version/source/digest contract, platform scope, destination policy, bounded network behavior, regression coverage, enterprise opt-out and ordinary discovery/version/identity qualification after installation.
 

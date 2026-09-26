@@ -2,7 +2,7 @@
 
 A Windows-first local browser UI for safely exposing curated workflows from official command-line tools.
 
-**Status:** active hardening. The generic runtime, trusted-pack model, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x read-only integration are implemented.
+**Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x read-only integration are implemented.
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
@@ -112,7 +112,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Area | Implemented |
 | --- | --- |
 | Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
-| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, built-in and explicit local trusted sources, deterministic registry |
+| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, and non-executing `pack validate` |
 | First-party startup | Embedded reviewed Conjur pack for zero-config `serve` and `doctor` |
 | Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
@@ -135,6 +135,45 @@ Still intentionally gated:
 - automatic execution of unreviewed generated commands;
 - generic arbitrary-package installation;
 - Windows code signing/publisher attestation.
+
+## Add another CLI without changing Go code
+
+CLIHarbor's core runtime is not Conjur-specific. A separate CLI can be added as another reviewed declarative pack and loaded in the same browser session as the embedded Conjur pack.
+
+Create a discovery-only scaffold:
+
+```bash
+go run ./cmd/cliharbor pack init \
+  --id acme-cli \
+  --name "Acme CLI" \
+  --tool acme \
+  --executable acme \
+  ./acme.yaml
+```
+
+The scaffold intentionally contains **zero commands, zero help probes, and zero version probes**. CLIHarbor does not guess vendor syntax or silently turn discovered executables into browser actions.
+
+After adding only reviewed command definitions from authoritative documentation or captured evidence, validate the pack without executing the CLI:
+
+```bash
+go run ./cmd/cliharbor pack validate ./acme.yaml
+```
+
+Then inspect discovery and run it alongside the built-in Conjur integration:
+
+```bash
+go run ./cmd/cliharbor doctor --pack-file ./acme.yaml
+go run ./cmd/cliharbor serve --pack-file ./acme.yaml
+```
+
+Explicit files and one explicit pack directory may be combined in the same process. For a custom-only runtime that omits all embedded first-party packs:
+
+```bash
+go run ./cmd/cliharbor doctor --no-default-packs --pack-file ./acme.yaml
+go run ./cmd/cliharbor serve --no-default-packs --pack-dir ./my-packs
+```
+
+Duplicate pack IDs fail closed. Adding a custom pack never grants Conjur's pinned download behavior to that tool; automatic dependency provisioning remains explicitly limited to the reviewed built-in Conjur contract.
 
 ## Real Conjur 9.x integration
 
@@ -214,14 +253,14 @@ bin\cliharbor-windows-x64-evaluation.exe doctor
 
 `doctor` does **not** auto-download Conjur. It reports the local discovery/version state so a locked-down operator can inspect the environment without causing dependency network activity.
 
-Explicit source/operator pack testing remains available:
+Explicit source/operator packs can be added to the default runtime:
 
 ```bash
-go run ./cmd/cliharbor doctor --pack-file packs/conjur/conjur-v9.yaml
-go run ./cmd/cliharbor serve --pack-file packs/conjur/conjur-v9.yaml --no-auto-setup
+go run ./cmd/cliharbor doctor --pack-file ./my-cli.yaml
+go run ./cmd/cliharbor serve --pack-file ./my-cli.yaml
 ```
 
-Explicit pack selection replaces the default-pack path and does not silently enable first-party auto-provisioning.
+Use `--no-default-packs` when intentionally testing only explicit packs. Custom packs do not inherit first-party automatic provisioning; the reviewed Conjur bootstrap remains scoped to the embedded Conjur pack/tool identity.
 
 ## Phase 0 evaluation
 

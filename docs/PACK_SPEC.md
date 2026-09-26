@@ -387,7 +387,7 @@ Supported source classes:
 1. `builtin` — bytes supplied deliberately by trusted application code;
 2. `explicit-local` — files/directories explicitly named by a trusted operator.
 
-The loader does not implicitly trust cwd/repository files, recurse arbitrary directories, follow pack symlinks, load remote URLs, auto-download packs, or execute pack code.
+The loader does not implicitly trust cwd/repository files, recurse arbitrary directories, follow pack symlinks, load remote URLs, auto-download packs, or execute pack code. For `serve` and `doctor`, explicit local sources are additive to the embedded first-party set unless the operator supplies `--no-default-packs`; duplicate pack IDs across any source fail the whole registry.
 
 ## 17. Registry immutability
 
@@ -398,7 +398,33 @@ A successful registry is deterministic and defensive:
 - returned slices/maps/pointers are cloned;
 - argument mappings, including positional metadata, cannot mutate authoritative registry state through caller aliases.
 
-## 18. Phase 0 evidence
+## 18. Pack authoring commands
+
+CLIHarbor includes a narrow onboarding surface for additional CLIs:
+
+```text
+cliharbor pack init --id <pack-id> --name <name> --tool <tool-id> --executable <basename> <output.yaml>
+cliharbor pack validate <pack.yaml-or-directory> [...]
+```
+
+`pack init` creates a valid discovery-only scaffold. It intentionally emits:
+
+- one declared executable basename;
+- explicit platform metadata;
+- metadata version `0.1.0`;
+- `commands: {}`;
+- no version constraint;
+- no version probe;
+- no help/evidence probe;
+- no authentication behavior.
+
+This is intentional: CLIHarbor does not infer command trees or security-sensitive argv from an executable name.
+
+`pack validate` runs only the hardened pack loader and cross-pack registry construction. It does **not** discover tools or execute version probes, help probes, or tasks. Multiple supplied files/directories are validated together so duplicate IDs and other registry conflicts fail closed before runtime.
+
+After validation, use `doctor --pack-file ...` or `doctor --pack-dir ...` for actual executable discovery and only add commands supported by reviewed vendor documentation/source or captured evidence.
+
+## 19. Phase 0 evidence
 
 A discovery/evidence-only pack may use:
 
@@ -412,13 +438,13 @@ The typed export schema `cliharbor.phase0/v1` is inert review data. Evidence ins
 
 Promotion from evidence/documentation into a real pack remains an explicit source change with human-reviewable provenance.
 
-## 19. Current Conjur implementation
+## 20. Current Conjur implementation
 
 `packs/conjur/conjur-v9.yaml` is the first real vendor pack derived from authoritative upstream evidence.
 
 It is version-gated to the documented Conjur CLI 9.x contract and exposes only verified read-only/non-secret workflows using `vendor-session` authentication. See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md) for provenance, included commands, and the managed-laptop qualification boundary.
 
-## 20. Extension rule
+## 21. Extension rule
 
 Future pack features must preserve the central invariant:
 
