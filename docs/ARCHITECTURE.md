@@ -46,7 +46,7 @@ React + TypeScript + Vite produces static assets embedded into the Go executable
 
 Versioned YAML is validated against the embedded Draft 2020-12 JSON Schema at `schemas/pack.v1.schema.json`, followed by deterministic semantic/security validation in `internal/packs`.
 
-The first-party Conjur pack remains reviewable at `packs/conjur/conjur-v9.yaml` and is also embedded into production/evaluation CLIHarbor binaries. Explicit local packs remain available for advanced/operator and development use.
+The first-party Conjur pack remains reviewable at `packs/conjur/conjur-v9.yaml` and is also embedded into production/evaluation CLIHarbor binaries. Explicit local packs are first-class additive runtime sources for other reviewed CLIs and can coexist with embedded packs in the same registry.
 
 ### Deployment
 
@@ -107,11 +107,23 @@ Normal `serve` lifecycle with no pack flags:
 
 `--no-auto-setup` disables step 6 while retaining the embedded pack.
 
-If `--pack-file` or `--pack-dir` is supplied, that explicit operator choice replaces the default embedded-pack selection. Automatic first-party provisioning is not implicitly applied to an explicitly supplied pack.
+If `--pack-file` or `--pack-dir` is supplied to `serve` or `doctor`, those explicit sources are added to the embedded first-party pack set. `--no-default-packs` opts into a custom-only registry. Duplicate pack IDs across sources fail closed. Automatic dependency provisioning remains identity-scoped to the reviewed embedded Conjur pack/tool and is never inherited by an unrelated custom pack.
 
 `doctor` and Phase 0 inventory/evidence remain operator surfaces and do not need to trigger the normal zero-config provisioning path.
 
-## 5. Pinned Conjur bootstrap boundary
+## 5. Generic pack onboarding boundary
+
+Pack onboarding is deliberately split from execution authority:
+
+1. `cliharbor pack init` creates a discovery-only v1 scaffold containing one declared executable basename and **no commands, version probes, or help probes**.
+2. `cliharbor pack validate` runs the hardened YAML/schema/semantic/security loader over one or more explicit files/directories and combines them into one deterministic registry solely to detect cross-pack conflicts such as duplicate IDs.
+3. Validation does not run executables, version probes, evidence probes, or tasks.
+4. A pack author must add command/probe/version contracts from reviewed documentation or evidence.
+5. `doctor` performs ordinary discovery for the resulting trusted pack; `serve` only exposes commands that pass the existing task policy.
+
+The scaffold generator therefore improves onboarding without becoming an automatic CLI scraper or a source of guessed security-sensitive argv.
+
+## 6. Pinned Conjur bootstrap boundary
 
 The only implemented automatic vendor executable bootstrap is CyberArk Conjur CLI v9.3.1 Windows amd64:
 
