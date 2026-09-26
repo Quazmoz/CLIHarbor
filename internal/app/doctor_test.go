@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,13 +40,15 @@ func TestDoctorLoadsMixedExplicitPackSources(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := Doctor(context.Background(), Options{
+	err := Doctor(context.Background(), Options{
 		Out:           &out,
 		Version:       "test",
 		PackDirectory: directory,
 		PackFiles:     []string{beta},
-	}); err != nil {
-		t.Fatalf("Doctor() error = %v", err)
+	})
+	var doctorErr *DoctorError
+	if !errors.As(err, &doctorErr) || doctorErr.Unavailable != 2 {
+		t.Fatalf("Doctor() error = %v, want two unavailable synthetic tools", err)
 	}
 	if !strings.Contains(out.String(), "Configured packs: 2") {
 		t.Fatalf("doctor output = %q, want two mixed-source packs", out.String())
