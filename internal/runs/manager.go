@@ -67,6 +67,17 @@ type Request struct {
 	Values    map[string]json.RawMessage
 }
 
+// Preview is a non-executable representation of the exact trusted plan.
+// It deliberately omits executable paths and filesystem identity.
+type Preview struct {
+	PackID         string   `json:"packId"`
+	CommandID      string   `json:"commandId"`
+	ToolID         string   `json:"toolId"`
+	ToolVersion    string   `json:"toolVersion,omitempty"`
+	ExecutableName string   `json:"executableName"`
+	Args           []string `json:"args"`
+}
+
 type Event struct {
 	Sequence   uint64    `json:"sequence"`
 	Type       string    `json:"type"`
@@ -218,6 +229,37 @@ func NewManager(parent context.Context, registry *packs.Registry, snapshot disco
 		ctx:       ctx,
 		cancel:    cancel,
 		runs:      make(map[string]*record),
+	}, nil
+}
+
+func (m *Manager) Preview(request Request) (Preview, error) {
+	if m == nil {
+		return Preview{}, &Error{Code: ErrClosed}
+	}
+
+	m.mu.Lock()
+	closed := m.closed || m.ctx.Err() != nil
+	m.mu.Unlock()
+	if closed {
+		return Preview{}, &Error{Code: ErrClosed}
+	}
+
+	plan, err := planner.Build(m.registry, m.discovery, planner.Request{
+		PackID:    request.PackID,
+		CommandID: request.CommandID,
+		Values:    cloneValues(request.Values),
+	})
+	if err != nil {
+		return Preview{}, classifyPlannerError(err)
+	}
+
+	return Preview{
+		PackID:         plan.PackID,
+		CommandID:      plan.CommandID,
+		ToolID:         plan.ToolID,
+		ToolVersion:    plan.ToolVersion,
+		ExecutableName: plan.ExecutableName,
+		Args:           append([]string(nil), plan.Args...),
 	}, nil
 }
 

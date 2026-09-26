@@ -134,6 +134,7 @@ func New(config Config) (*Server, error) {
 	mux.HandleFunc("/bootstrap/", http.NotFound)
 	mux.Handle("/api/v1/status", s.requireSession(http.HandlerFunc(s.handleStatus)))
 	if s.runs != nil {
+		mux.Handle("/api/v1/runs/preview", s.requireSession(http.HandlerFunc(s.handleRunPreview)))
 		mux.Handle("/api/v1/runs", s.requireSession(http.HandlerFunc(s.handleRuns)))
 		mux.Handle("/api/v1/runs/", s.requireSession(http.HandlerFunc(s.handleRunByID)))
 	}

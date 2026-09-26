@@ -568,6 +568,54 @@ main {
   font-size: 0.82rem;
 }
 
+.command-preview {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: #0d191e;
+}
+
+.command-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.command-preview-header strong {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--text-strong);
+}
+
+.command-preview p {
+  margin: 0;
+}
+
+.invocation-preview {
+  display: block;
+  overflow-x: auto;
+  border: 1px solid #30464e;
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  color: #dfe7ec;
+  background: var(--surface-code);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.preview-note {
+  color: var(--text-subtle) !important;
+  font-size: 0.8rem;
+}
+
+.task-actions,
 .run-actions {
   display: flex;
   flex-wrap: wrap;
@@ -895,6 +943,7 @@ footer p {
   }
 
   .task-context-header,
+  .command-preview-header,
   .tool-summary,
   .tool-diagnostics > summary {
     align-items: flex-start;

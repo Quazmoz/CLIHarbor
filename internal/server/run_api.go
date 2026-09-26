@@ -39,6 +39,10 @@ type RunListService interface {
 	List() []runs.Summary
 }
 
+type RunPreviewService interface {
+	Preview(runs.Request) (runs.Preview, error)
+}
+
 type runSummary struct {
 	RunID       string      `json:"runId"`
 	PackID      string      `json:"packId"`
@@ -55,6 +59,42 @@ type createRunRequest struct {
 	PackID    string                     `json:"packId"`
 	CommandID string                     `json:"commandId"`
 	Values    map[string]json.RawMessage `json:"values,omitempty"`
+}
+
+func (s *Server) handleRunPreview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	previewer, ok := s.runs.(RunPreviewService)
+	if !ok {
+		writeAPIError(w, http.StatusInternalServerError, apperror.CodeInternalError)
+		return
+	}
+
+	request, err := decodeCreateRunRequest(w, r)
+	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeAPIError(w, http.StatusRequestEntityTooLarge, apperror.CodeRequestTooLarge)
+			return
+		}
+		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
+		return
+	}
+
+	preview, err := previewer.Preview(runs.Request{
+		PackID:    request.PackID,
+		CommandID: request.CommandID,
+		Values:    request.Values,
+	})
+	if err != nil {
+		writeRunError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, preview)
 }
 
 func (s *Server) handleRuns(w http.ResponseWriter, r *http.Request) {

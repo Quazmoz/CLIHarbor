@@ -8,9 +8,12 @@ import {
   createRun,
   decodeBase64Text,
   fetchRun,
+  previewRun,
   subscribeRunEvents,
+  type CreateRunRequest,
   type RunComplete,
   type RunEvent,
+  type RunPreview,
   type RunSnapshot,
   type StructuredErrorCode,
 } from './api/runs';
@@ -34,6 +37,12 @@ type ViewState =
 type FormValue = string | boolean | string[];
 type StreamState = 'connecting' | 'connected' | 'stopped' | 'idle';
 
+interface RetryRun {
+  taskKey: string;
+  formValues: Record<string, FormValue>;
+  request: CreateRunRequest;
+}
+
 interface RunView {
   snapshot: RunSnapshot;
   stdout: string;
@@ -42,6 +51,7 @@ interface RunView {
   streamFailure?: AppErrorDetail;
   retained: boolean;
   lastSequence: number;
+  retry: RetryRun;
 }
 
 function isAbort(error: unknown): boolean {
@@ -106,6 +116,30 @@ function requestValues(task: Task, formValues: Record<string, FormValue>): Recor
     }
   }
   return values;
+}
+
+function cloneFormValues(values: Record<string, FormValue>): Record<string, FormValue> {
+  const cloned: Record<string, FormValue> = {};
+  for (const [key, value] of Object.entries(values)) {
+    cloned[key] = Array.isArray(value) ? [...value] : value;
+  }
+  return cloned;
+}
+
+function cloneRunRequest(request: CreateRunRequest): CreateRunRequest {
+  const values: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(request.values)) {
+    values[key] = Array.isArray(value) ? [...value] : value;
+  }
+  return { packId: request.packId, commandId: request.commandId, values };
+}
+
+function formatInvocationToken(token: string): string {
+  return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(token) ? token : JSON.stringify(token);
+}
+
+function formatInvocation(preview: RunPreview): string {
+  return [preview.executableName, ...preview.args].map(formatInvocationToken).join(' ');
 }
 
 function appendRunEvent(current: RunView, event: RunEvent): RunView {
@@ -434,11 +468,14 @@ export function App() {
   const [run, setRun] = useState<RunView | null>(null);
   const [taskFailure, setTaskFailure] = useState<AppErrorDetail | null>(null);
   const [runActionFailure, setRunActionFailure] = useState<AppErrorDetail | null>(null);
+  const [commandPreview, setCommandPreview] = useState<RunPreview | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const [starting, setStarting] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [streamAttempt, setStreamAttempt] = useState(0);
   const runtimeErrorRef = useRef<HTMLElement>(null);
   const taskErrorRef = useRef<HTMLDivElement>(null);
+  const previewRequestRef = useRef(0);
 
   const updateTaskPreferences = useCallback((update: (current: TaskPreferences) => TaskPreferences) => {
     setTaskPreferences((current) => {
@@ -455,6 +492,9 @@ export function App() {
     }
     setSelectedTaskKey(key);
     setFormValues(initialValues(task));
+    previewRequestRef.current += 1;
+    setCommandPreview(null);
+    setPreviewing(false);
     setTaskFailure(null);
   }, []);
 
@@ -469,6 +509,9 @@ export function App() {
 
   const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[], tools: ToolDiagnostic[]) => {
     setState({ kind: 'ready', status, tasks, tools });
+    previewRequestRef.current += 1;
+    setCommandPreview(null);
+    setPreviewing(false);
     const reconciledPreferences = reconcileTaskPreferences(loadTaskPreferences(), tasks);
     setTaskPreferences(reconciledPreferences);
     saveTaskPreferences(reconciledPreferences);
@@ -594,20 +637,22 @@ export function App() {
     return close;
   }, [activeRunID, streamAttempt]);
 
-  const startRun = async (event: FormEvent) => {
-    event.preventDefault();
-    if (state.kind !== 'ready' || selectedTask === undefined) {
+  const executeRun = async (
+    task: Task,
+    formSnapshot: Record<string, FormValue>,
+    request: CreateRunRequest,
+    failureTarget: 'task' | 'run',
+  ) => {
+    if (state.kind !== 'ready') {
       return;
     }
     setStarting(true);
-    setTaskFailure(null);
+    if (failureTarget === 'task') {
+      setTaskFailure(null);
+    }
     setRunActionFailure(null);
     try {
-      const snapshot = await createRun(state.status.csrfToken, {
-        packId: selectedTask.packId,
-        commandId: selectedTask.commandId,
-        values: requestValues(selectedTask, formValues),
-      });
+      const snapshot = await createRun(state.status.csrfToken, request);
       setRun({
         snapshot,
         stdout: '',
@@ -615,15 +660,99 @@ export function App() {
         streamState: snapshot.status === 'running' ? 'connecting' : 'idle',
         retained: true,
         lastSequence: 0,
+        retry: {
+          taskKey: task.packId + '/' + task.commandId,
+          formValues: cloneFormValues(formSnapshot),
+          request: cloneRunRequest(request),
+        },
       });
       setCancelRequested(false);
       setStreamAttempt(0);
-      updateTaskPreferences((current) => recordRecentTask(current, selectedTask));
+      updateTaskPreferences((current) => recordRecentTask(current, task));
     } catch (error) {
-      setTaskFailure(normalizeError(error).detail);
+      const failure = normalizeError(error).detail;
+      if (failureTarget === 'task') {
+        setTaskFailure(failure);
+      } else {
+        setRunActionFailure(failure);
+      }
     } finally {
       setStarting(false);
     }
+  };
+
+  const startRun = async (event: FormEvent) => {
+    event.preventDefault();
+    if (state.kind !== 'ready' || selectedTask === undefined) {
+      return;
+    }
+    setTaskFailure(null);
+    try {
+      const formSnapshot = cloneFormValues(formValues);
+      const request: CreateRunRequest = {
+        packId: selectedTask.packId,
+        commandId: selectedTask.commandId,
+        values: requestValues(selectedTask, formSnapshot),
+      };
+      await executeRun(selectedTask, formSnapshot, request, 'task');
+    } catch (error) {
+      setTaskFailure(normalizeError(error).detail);
+    }
+  };
+
+  const previewSelectedTask = async () => {
+    if (state.kind !== 'ready' || selectedTask === undefined || previewing || starting) {
+      return;
+    }
+    const requestID = previewRequestRef.current + 1;
+    previewRequestRef.current = requestID;
+    setPreviewing(true);
+    setTaskFailure(null);
+    try {
+      const request: CreateRunRequest = {
+        packId: selectedTask.packId,
+        commandId: selectedTask.commandId,
+        values: requestValues(selectedTask, formValues),
+      };
+      const preview = await previewRun(state.status.csrfToken, request);
+      if (previewRequestRef.current === requestID) {
+        setCommandPreview(preview);
+      }
+    } catch (error) {
+      if (previewRequestRef.current === requestID) {
+        setCommandPreview(null);
+        setTaskFailure(normalizeError(error).detail);
+      }
+    } finally {
+      if (previewRequestRef.current === requestID) {
+        setPreviewing(false);
+      }
+    }
+  };
+
+  const retryWithInputs = async () => {
+    if (
+      state.kind !== 'ready' ||
+      run === null ||
+      !run.retained ||
+      run.snapshot.status === 'running' ||
+      starting
+    ) {
+      return;
+    }
+    const retry = run.retry;
+    const task = state.tasks.find((candidate) => candidate.packId + '/' + candidate.commandId === retry.taskKey);
+    if (task === undefined) {
+      return;
+    }
+    const formSnapshot = cloneFormValues(retry.formValues);
+    setSelectedTaskKey(retry.taskKey);
+    setFormValues(formSnapshot);
+    previewRequestRef.current += 1;
+    setCommandPreview(null);
+    setPreviewing(false);
+    setTaskFailure(null);
+    await executeRun(task, formSnapshot, cloneRunRequest(retry.request), 'run');
   };
 
   const retryLiveStream = () => {
@@ -860,6 +989,9 @@ export function App() {
                               error={fieldFailureFor(input, taskFailure)}
                               onChange={(value) => {
                                 setFormValues((current) => ({ ...current, [input.id]: value }));
+                                previewRequestRef.current += 1;
+                                setCommandPreview(null);
+                                setPreviewing(false);
                                 if (taskFailure?.field === `values.${input.id}`) {
                                   setTaskFailure(null);
                                 }
@@ -867,9 +999,35 @@ export function App() {
                             />
                           ))}
                         </div>
-                        <button type="submit" disabled={starting || run?.snapshot.status === 'running'}>
-                          {starting ? 'Starting…' : 'Run task'}
-                        </button>
+                        <div className="command-preview" aria-live="polite" aria-busy={previewing}>
+                          <div className="command-preview-header">
+                            <div>
+                              <span className="status-label">Equivalent invocation</span>
+                              <strong>Validated argv preview</strong>
+                            </div>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              disabled={previewing || starting || run?.snapshot.status === 'running'}
+                              onClick={() => void previewSelectedTask()}
+                            >
+                              {previewing ? 'Previewing…' : 'Preview invocation'}
+                            </button>
+                          </div>
+                          {commandPreview === null ? (
+                            <p>Preview the runtime-owned executable name and exact validated argument boundaries before running.</p>
+                          ) : (
+                            <code className="invocation-preview">{formatInvocation(commandPreview)}</code>
+                          )}
+                          <p className="preview-note">
+                            Display only. CLIHarbor still executes the trusted executable path and argv directly; this text is never reparsed.
+                          </p>
+                        </div>
+                        <div className="task-actions">
+                          <button type="submit" disabled={starting || run?.snapshot.status === 'running'}>
+                            {starting ? 'Starting…' : 'Run task'}
+                          </button>
+                        </div>
                       </>
                     )}
                   </form>
@@ -921,6 +1079,20 @@ export function App() {
                         </div>
                       </>
                     )}
+                    {run.retained &&
+                      run.snapshot.status !== 'running' &&
+                      state.tasks.some((task) => task.packId + '/' + task.commandId === run.retry.taskKey) && (
+                        <div className="run-actions">
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            disabled={starting}
+                            onClick={() => void retryWithInputs()}
+                          >
+                            {starting ? 'Starting…' : 'Retry with inputs'}
+                          </button>
+                        </div>
+                      )}
                     {run.streamFailure && (
                       <FailureNotice title={run.retained ? 'Live updates interrupted' : 'Run unavailable'} failure={run.streamFailure} />
                     )}
