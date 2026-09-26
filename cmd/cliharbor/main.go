@@ -49,6 +49,9 @@ func run(args []string) error {
 	if len(args) > 0 && args[0] == "evaluation" {
 		return runEvaluationCommand(args[1:])
 	}
+	if len(args) > 0 && args[0] == "pack" {
+		return runPackCommand(args[1:])
+	}
 
 	command := "serve"
 	if len(args) > 0 {
@@ -65,6 +68,7 @@ func run(args []string) error {
 	packDirectory := flags.String("pack-dir", "", "explicit trusted directory containing pack YAML files")
 	exportPath := flags.String("export", "", "inventory-only sanitized Phase 0 evidence JSON destination")
 	noAutoSetup := flags.Bool("no-auto-setup", false, "serve-only: disable automatic current-user setup of missing first-party CLI dependencies")
+	noDefaultPacks := flags.Bool("no-default-packs", false, "serve/doctor-only: do not load embedded first-party packs; use only explicitly supplied packs")
 	var packFiles stringList
 	var toolPaths stringList
 	var probes stringList
@@ -82,6 +86,9 @@ func run(args []string) error {
 	}
 	if command != "serve" && *noAutoSetup {
 		return fmt.Errorf("--no-auto-setup is valid only with serve")
+	}
+	if command != "serve" && command != "doctor" && *noDefaultPacks {
+		return fmt.Errorf("--no-default-packs is valid only with serve or doctor")
 	}
 	if command != "inventory" && (*exportPath != "" || len(probes) != 0) {
 		return fmt.Errorf("--export and --probe are valid only with inventory")
@@ -105,7 +112,7 @@ func run(args []string) error {
 		PackFiles:          append([]string(nil), packFiles...),
 		PackDirectory:      *packDirectory,
 		ToolOverrides:      overrides,
-		LoadDefaultPacks:   command == "serve" || command == "doctor",
+		LoadDefaultPacks:   (command == "serve" || command == "doctor") && !*noDefaultPacks,
 		AutoProvisionTools: command == "serve" && !*noAutoSetup,
 	}
 	if command == "version" {
@@ -126,6 +133,49 @@ func run(args []string) error {
 		return app.SelfTest(ctx, options)
 	default:
 		return app.Run(ctx, options)
+	}
+}
+
+func runPackCommand(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: cliharbor pack <init|validate> ...")
+	}
+	switch args[0] {
+	case "init":
+		flags := flag.NewFlagSet("cliharbor pack init", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		id := flags.String("id", "", "pack id")
+		name := flags.String("name", "", "human-readable pack name")
+		toolID := flags.String("tool", "", "tool id")
+		executable := flags.String("executable", "", "approved executable basename")
+		var platforms stringList
+		flags.Var(&platforms, "platform", "supported platform: windows, linux, or darwin (repeatable; defaults to windows)")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() != 1 || flags.Arg(0) == "" {
+			return fmt.Errorf("usage: cliharbor pack init --id <id> --name <name> --tool <tool-id> --executable <basename> [--platform <os>] <output.yaml>")
+		}
+		return app.InitPack(app.Options{Out: os.Stdout}, app.PackInitConfig{
+			ID:             *id,
+			Name:           *name,
+			ToolID:         *toolID,
+			ExecutableName: *executable,
+			Platforms:      append([]string(nil), platforms...),
+			OutputPath:     flags.Arg(0),
+		})
+	case "validate":
+		flags := flag.NewFlagSet("cliharbor pack validate", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() == 0 {
+			return fmt.Errorf("usage: cliharbor pack validate <pack.yaml-or-directory> [...]")
+		}
+		return app.ValidatePackPaths(app.Options{Out: os.Stdout}, flags.Args())
+	default:
+		return fmt.Errorf("usage: cliharbor pack <init|validate> ...")
 	}
 }
 
