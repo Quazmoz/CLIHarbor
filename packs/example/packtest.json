@@ -19,7 +19,19 @@
       ]
     },
     {
-      "name": "reject out-of-range limit",
+      "name": "safe minimal inspection",
+      "packId": "example",
+      "commandId": "inspect",
+      "values": {
+        "mode": "safe"
+      },
+      "expectArgs": [
+        "inspect",
+        "--safe-mode"
+      ]
+    },
+    {
+      "name": "reject limit below minimum",
       "packId": "example",
       "commandId": "inspect",
       "values": {
@@ -29,6 +41,31 @@
       "expectError": {
         "code": "invalid_input",
         "path": "values.limit"
+      }
+    },
+    {
+      "name": "reject limit above maximum",
+      "packId": "example",
+      "commandId": "inspect",
+      "values": {
+        "limit": 1001,
+        "mode": "safe"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "reject unknown mode",
+      "packId": "example",
+      "commandId": "inspect",
+      "values": {
+        "mode": "unknown"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.mode"
       }
     }
   ]
