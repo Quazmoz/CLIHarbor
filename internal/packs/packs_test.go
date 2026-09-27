@@ -2,6 +2,7 @@ package packs
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -460,6 +461,22 @@ func TestLoadDirectoryIsExplicitNonRecursiveAndDeterministic(t *testing.T) {
 	if len(registry.Packs()) != 0 {
 		t.Fatalf("empty directory packs = %d, want 0", len(registry.Packs()))
 	}
+}
+
+func TestLoadDirectoryBoundsPackFanout(t *testing.T) {
+	directory := t.TempDir()
+	for index := 0; index <= maxLocalPacksPerDirectory; index++ {
+		name := filepath.Join(directory, fmt.Sprintf("%03d.yaml", index))
+		if err := os.WriteFile(name, []byte("not parsed because directory fan-out fails first\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	registry, err := NewLoader().LoadDirectory(directory)
+	if registry != nil {
+		t.Fatalf("registry = %#v, want nil", registry)
+	}
+	assertCode(t, err, ErrInputTooLarge)
 }
 
 func TestLoadFilesRejectsSymlink(t *testing.T) {

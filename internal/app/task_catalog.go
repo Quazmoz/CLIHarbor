@@ -36,10 +36,7 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 		packID := loaded.Pack.Metadata.ID
 		for _, named := range registry.Commands(packID) {
 			command := named.Command
-			if command.Risk != packs.RiskRead || command.Output.Sensitivity.ContainsSecrets {
-				continue
-			}
-			if command.Requirements.RequiresAuth && command.Requirements.AuthMode != packs.AuthModeVendorSession {
+			if !commandBrowserRunnable(command) {
 				continue
 			}
 			tool, ok := snapshot.Find(discovery.ToolRef{PackID: packID, ToolID: command.Tool})
@@ -78,6 +75,13 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 		}
 	}
 	return catalog
+}
+
+func commandBrowserRunnable(command packs.Command) bool {
+	if command.Risk != packs.RiskRead || command.Output.Sensitivity.ContainsSecrets {
+		return false
+	}
+	return !command.Requirements.RequiresAuth || command.Requirements.AuthMode == packs.AuthModeVendorSession
 }
 
 func browserToolMessage(status discovery.Status) string {

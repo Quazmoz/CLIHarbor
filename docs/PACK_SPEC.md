@@ -387,7 +387,7 @@ Supported source classes:
 1. `builtin` — bytes supplied deliberately by trusted application code;
 2. `explicit-local` — files/directories explicitly named by a trusted operator.
 
-The loader does not implicitly trust cwd/repository files, recurse arbitrary directories, follow pack symlinks, load remote URLs, auto-download packs, or execute pack code. For `serve` and `doctor`, explicit local sources are additive to the embedded first-party set unless the operator supplies `--no-default-packs`; duplicate pack IDs across any source fail the whole registry.
+The loader does not implicitly trust cwd/repository files, recurse arbitrary directories, follow pack symlinks, load remote URLs, auto-download packs, or execute pack code. Explicit directory loading is streamed in bounded batches and fails closed above 4,096 scanned entries or 256 YAML pack files. Authoring commands additionally reject more than 256 explicit source paths or more than 256 aggregate packs across those sources, preventing chained bounded inputs from becoming an unbounded resource path. For `serve` and `doctor`, explicit local sources are additive to the embedded first-party set unless the operator supplies `--no-default-packs`; duplicate pack IDs across any source fail the whole registry.
 
 ## 17. Registry immutability
 
@@ -405,6 +405,7 @@ CLIHarbor includes a narrow onboarding surface for additional CLIs:
 ```text
 cliharbor pack init --id <pack-id> --name <name> --tool <tool-id> --executable <basename> <output.yaml>
 cliharbor pack validate <pack.yaml-or-directory> [...]
+cliharbor pack lint [--cases <cases.json>] <pack.yaml-or-directory> [...]
 cliharbor pack test --cases <cases.json> <pack.yaml-or-directory>
 ```
 
@@ -422,6 +423,12 @@ cliharbor pack test --cases <cases.json> <pack.yaml-or-directory>
 This is intentional: CLIHarbor does not infer command trees or security-sensitive argv from an executable name.
 
 `pack validate` runs only the hardened pack loader and cross-pack registry construction. It does **not** discover tools or execute version probes, help probes, or tasks. Multiple supplied files/directories are validated together so duplicate IDs and other registry conflicts fail closed before runtime.
+
+`pack lint` starts from the same hardened validated registry, then applies deterministic static authoring-quality and security rules. It never executes a vendor CLI, performs executable discovery, runs version/help probes, downloads dependencies, reads authentication/session state, or uses an LLM. Diagnostics are sorted and carry a severity, stable code, quoted source basename, semantic object path, and fixed explanation. Lint errors make the command non-zero; warnings do not.
+
+Current repository-grounded rules detect terminal/control characters in trusted presentation/argv/probe text, browser-visible commands without descriptions, duplicate command display names, declared inputs never consumed by argv, one input reused across multiple argv construction steps, duplicate trusted flag/switch names, string values placed into argv without an explicit `maxLength`, auth modes declared while authentication is disabled, renderer metadata that the current runtime ignores without structured output, and command metadata that the current planner will deliberately block because of risk/auth/secret-output policy. Lint does **not** reject ordinary shell metacharacters solely because they occur in a trusted literal: the runtime launches the selected executable directly with an argv vector, so those characters do not gain shell semantics.
+
+If `--cases` is supplied explicitly, lint reuses the hardened `cliharbor.packtest/v1` reader and adds static fixture diagnostics without running the planner. It checks unintended references to unknown packs/commands/inputs and reports coverage gaps for planner-runnable commands, consumed inputs, positive boolean-switch behavior, bounded integer rejection below/above declared limits, constrained-positional leading-dash rejection, enum rejection, and each enum-to-literal map branch. Explicit contract cases whose declared purpose is to assert `unknown_pack`, `unknown_command`, or `unknown_input` planner rejection remain valid. CLIHarbor does not auto-discover nearby fixture files.
 
 `pack test` adds a deterministic planner-contract layer without granting execution authority. The cases file uses schema `cliharbor.packtest/v1`; each case supplies a pack ID, command ID, typed JSON values, and exactly one expectation:
 
@@ -454,7 +461,7 @@ Example:
 
 The cases file is bounded, strict JSON: unknown fields, duplicate keys, excessive nesting, invalid UTF-8, multiple JSON documents, symlinks, oversized files, duplicate case names, malformed pack/command/input identifiers, unsupported error codes, and ambiguous expectations fail closed. The runner loads the target pack through the normal hardened loader and invokes the real production planner against synthetic temporary discovery identity. It does **not** execute the declared CLI, version probes, help/evidence probes, or tasks. Failure output reports case metadata and mismatch class but deliberately does not echo input values or argv. Test fixtures should still never contain credentials or secrets.
 
-After validation and contract testing, use `doctor --pack-file ...` or `doctor --pack-dir ...` for actual executable discovery and only add commands supported by reviewed vendor documentation/source or captured evidence.
+`validate` establishes structural/schema/semantic/security validity; `lint` adds deterministic static authoring-quality/security diagnostics; `test` verifies planner behavior against declared contracts. None of these commands proves that a vendor CLI is installed, compatible beyond declared evidence, or semantically correct. After those authoring checks, use `doctor --pack-file ...` or `doctor --pack-dir ...` for actual executable discovery and only add commands supported by reviewed vendor documentation/source or captured evidence.
 
 ## 19. Phase 0 evidence
 

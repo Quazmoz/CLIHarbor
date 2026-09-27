@@ -23,8 +23,10 @@ func TestRunPackTestsExercisesProductionPlannerWithoutExecution(t *testing.T) {
 	text := out.String()
 	for _, want := range []string{
 		"PASS safe detailed inspection",
-		"PASS reject out-of-range limit",
-		"Passed 2 pack contract case(s)",
+		"PASS reject limit below minimum",
+		"PASS reject limit above maximum",
+		"PASS reject unknown mode",
+		"Passed 5 pack contract case(s)",
 		"no executable, version probe, help probe, or task was run",
 	} {
 		if !strings.Contains(text, want) {

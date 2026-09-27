@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,6 +145,44 @@ func TestValidatePackPathsCombinesFilesAndDirectoriesWithoutExecution(t *testing
 			t.Fatalf("validation output %q missing %q", text, want)
 		}
 	}
+}
+
+func TestLoadPackAuthoringRegistryBoundsAggregateSources(t *testing.T) {
+	t.Parallel()
+
+	t.Run("source paths", func(t *testing.T) {
+		paths := make([]string, maxPackAuthoringSourcePaths+1)
+		for index := range paths {
+			paths[index] = fmt.Sprintf("source-%03d.yaml", index)
+		}
+		if _, err := loadPackAuthoringRegistry(paths); err == nil || !strings.Contains(err.Error(), "source path limit") {
+			t.Fatalf("loadPackAuthoringRegistry() error = %v, want source path limit", err)
+		}
+	})
+
+	t.Run("pack count", func(t *testing.T) {
+		root := t.TempDir()
+		directories := []string{filepath.Join(root, "a"), filepath.Join(root, "b")}
+		for _, directory := range directories {
+			if err := os.Mkdir(directory, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+		index := 0
+		for _, directory := range directories {
+			for count := 0; count < maxPackAuthoringPacks/2+1; count++ {
+				id := fmt.Sprintf("p%03d", index)
+				data := strings.Replace(minimalPackForAuthoring, "id: first", "id: "+id, 1)
+				if err := os.WriteFile(filepath.Join(directory, id+".yaml"), []byte(data), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				index++
+			}
+		}
+		if _, err := loadPackAuthoringRegistry(directories); err == nil || !strings.Contains(err.Error(), "pack limit") {
+			t.Fatalf("loadPackAuthoringRegistry() error = %v, want pack limit", err)
+		}
+	})
 }
 
 const minimalPackForAuthoring = `apiVersion: cliharbor.dev/v1

@@ -138,7 +138,7 @@ func run(args []string) error {
 
 func runPackCommand(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: cliharbor pack <init|validate|test> ...")
+		return fmt.Errorf("usage: cliharbor pack <init|validate|lint|test> ...")
 	}
 	switch args[0] {
 	case "init":
@@ -174,6 +174,17 @@ func runPackCommand(args []string) error {
 			return fmt.Errorf("usage: cliharbor pack validate <pack.yaml-or-directory> [...]")
 		}
 		return app.ValidatePackPaths(app.Options{Out: os.Stdout}, flags.Args())
+	case "lint":
+		flags := flag.NewFlagSet("cliharbor pack lint", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		casesPath := flags.String("cases", "", "optional bounded JSON pack contract cases for coverage linting")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() == 0 {
+			return fmt.Errorf("usage: cliharbor pack lint [--cases <cases.json>] <pack.yaml-or-directory> [...]")
+		}
+		return app.LintPackPaths(app.Options{Out: os.Stdout}, flags.Args(), *casesPath)
 	case "test":
 		flags := flag.NewFlagSet("cliharbor pack test", flag.ContinueOnError)
 		flags.SetOutput(io.Discard)
@@ -186,7 +197,7 @@ func runPackCommand(args []string) error {
 		}
 		return app.RunPackTests(app.Options{Out: os.Stdout}, flags.Arg(0), *casesPath)
 	default:
-		return fmt.Errorf("usage: cliharbor pack <init|validate|test> ...")
+		return fmt.Errorf("usage: cliharbor pack <init|validate|lint|test> ...")
 	}
 }
 

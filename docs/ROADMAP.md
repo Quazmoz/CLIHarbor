@@ -180,12 +180,13 @@ Exit condition: two real packs operate without vendor-specific branches in the g
 
 ## Stage 10 — Pack authoring tooling
 
-**Status: safe onboarding and planner-contract testing implemented.**
+**Status: safe onboarding, static linting, and planner-contract testing implemented.**
 
 Implemented:
 
 - `cliharbor pack init` discovery-only scaffolding for arbitrary approved executable basenames;
 - `cliharbor pack validate` hardened schema/semantic/security validation without executable execution;
+- `cliharbor pack lint` deterministic static security/quality diagnostics, with optional explicit contract-fixture coverage analysis and no executable/probe/session access;
 - `cliharbor pack test` bounded declarative contract cases through the production planner without executable/probe execution;
 - multi-source validation with duplicate-pack conflict detection;
 - additive explicit packs alongside embedded first-party packs;
@@ -197,7 +198,6 @@ Remaining candidates:
 - help-tree capture;
 - draft generation from authoritative help/source;
 - fixture generation;
-- static security linter;
 - compatibility matrix.
 
 AI may help author **reviewable source artifacts**, but runtime execution must not depend on an LLM inventing security-sensitive commands.
