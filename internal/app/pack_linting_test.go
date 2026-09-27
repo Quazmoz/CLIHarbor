@@ -418,6 +418,67 @@ commands:
 	}
 }
 
+
+func TestLintPackPathsReportsArgvAndAuthMetadataConflicts(t *testing.T) {
+	t.Parallel()
+
+	packPath := writeLintFixture(t, "conflicts.yaml", `apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: conflicts
+  name: Conflicts
+  version: 1.0.0
+runtime:
+  platforms: [windows]
+  tools:
+    fixture:
+      executableNames: [fixture]
+commands:
+  inspect:
+    name: Inspect
+    description: Exercise static conflict diagnostics.
+    tool: fixture
+    risk: read
+    inputs:
+      - id: query
+        type: string
+        label: Query
+        required: true
+        validation:
+          maxLength: 64
+          disallowLeadingDash: true
+    argv:
+      - literal: inspect
+      - flag:
+          name: --query
+          valueFrom: query
+      - flag:
+          name: --query
+          valueFrom: query
+    output:
+      mode: raw
+    requirements:
+      authMode: vendor-session
+`)
+
+	var out bytes.Buffer
+	if err := LintPackPaths(Options{Out: &out}, []string{packPath}, ""); err != nil {
+		t.Fatalf("review-only conflicts should remain warnings: %v; output=%q", err, out.String())
+	}
+	for _, code := range []string{
+		"PACK_COMMAND_AUTH_MODE_UNUSED",
+		"PACK_FLAG_DUPLICATE",
+		"PACK_INPUT_REUSED",
+	} {
+		if !strings.Contains(out.String(), code) {
+			t.Fatalf("lint output missing %s: %q", code, out.String())
+		}
+	}
+	if !strings.Contains(out.String(), "0 error(s), 3 warning(s)") {
+		t.Fatalf("unexpected conflict warning count: %q", out.String())
+	}
+}
+
 func TestPackLintDiagnosticAmplificationIsBounded(t *testing.T) {
 	t.Parallel()
 
