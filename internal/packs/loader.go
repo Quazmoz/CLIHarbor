@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+const (
+	maxLocalPackDirectoryEntries = 4096
+	maxLocalPacksPerDirectory     = 256
+	localPackDirectoryReadBatch   = 128
+)
+
 type Loader struct {
 	maxBytes int64
 }
@@ -72,20 +78,47 @@ func (l *Loader) LoadDirectory(directory string) (*Registry, error) {
 	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 		return nil, validationError(ErrUnsupportedLocalEntry, filepath.Base(absolute), "explicit pack directory must be a real directory, not a symlink")
 	}
-	entries, err := os.ReadDir(absolute)
+	directoryFile, err := os.Open(absolute)
 	if err != nil {
-		return nil, safeLocalIOError(fmt.Sprintf("read explicit pack directory %q", filepath.Base(absolute)), err)
+		return nil, safeLocalIOError(fmt.Sprintf("open explicit pack directory %q", filepath.Base(absolute)), err)
 	}
-	paths := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		extension := strings.ToLower(filepath.Ext(entry.Name()))
-		if extension != ".yaml" && extension != ".yml" {
-			continue
+	defer directoryFile.Close()
+
+	openedInfo, err := directoryFile.Stat()
+	if err != nil {
+		return nil, safeLocalIOError(fmt.Sprintf("inspect opened pack directory %q", filepath.Base(absolute)), err)
+	}
+	if !openedInfo.IsDir() || !os.SameFile(info, openedInfo) {
+		return nil, validationError(ErrUnsupportedLocalEntry, filepath.Base(absolute), "explicit pack directory changed while opening")
+	}
+
+	paths := make([]string, 0)
+	entryCount := 0
+	for {
+		entries, readErr := directoryFile.ReadDir(localPackDirectoryReadBatch)
+		entryCount += len(entries)
+		if entryCount > maxLocalPackDirectoryEntries {
+			return nil, validationError(ErrInputTooLarge, filepath.Base(absolute), fmt.Sprintf("pack directory exceeds %d-entry scan limit", maxLocalPackDirectoryEntries))
 		}
-		if entry.Type()&os.ModeSymlink != 0 || entry.IsDir() || !entry.Type().IsRegular() {
-			return nil, validationError(ErrUnsupportedLocalEntry, entry.Name(), "pack directory may contain only regular YAML pack files")
+		for _, entry := range entries {
+			extension := strings.ToLower(filepath.Ext(entry.Name()))
+			if extension != ".yaml" && extension != ".yml" {
+				continue
+			}
+			if entry.Type()&os.ModeSymlink != 0 || entry.IsDir() || !entry.Type().IsRegular() {
+				return nil, validationError(ErrUnsupportedLocalEntry, entry.Name(), "pack directory may contain only regular YAML pack files")
+			}
+			if len(paths) >= maxLocalPacksPerDirectory {
+				return nil, validationError(ErrInputTooLarge, filepath.Base(absolute), fmt.Sprintf("pack directory exceeds %d-pack limit", maxLocalPacksPerDirectory))
+			}
+			paths = append(paths, filepath.Join(absolute, entry.Name()))
 		}
-		paths = append(paths, filepath.Join(absolute, entry.Name()))
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return nil, safeLocalIOError(fmt.Sprintf("read explicit pack directory %q", filepath.Base(absolute)), readErr)
+		}
 	}
 	sort.Strings(paths)
 	return l.LoadFiles(paths)
