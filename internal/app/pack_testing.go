@@ -308,14 +308,19 @@ func validatePackTestDocument(document packTestDocument) error {
 			return fmt.Errorf("%s.name duplicates another case name", prefix)
 		}
 		seenNames[testCase.Name] = struct{}{}
-		if testCase.PackID == "" || len(testCase.PackID) > 63 || containsControl(testCase.PackID) {
-			return fmt.Errorf("%s.packId must be 1-63 printable characters", prefix)
+		if !validPackTestIdentifier(testCase.PackID) {
+			return fmt.Errorf("%s.packId must be a valid pack identifier", prefix)
 		}
-		if testCase.CommandID == "" || len(testCase.CommandID) > 63 || containsControl(testCase.CommandID) {
-			return fmt.Errorf("%s.commandId must be 1-63 printable characters", prefix)
+		if !validPackTestIdentifier(testCase.CommandID) {
+			return fmt.Errorf("%s.commandId must be a valid command identifier", prefix)
 		}
 		if len(testCase.Values) > maxPackTestValues {
 			return fmt.Errorf("%s.values exceeds %d-entry limit", prefix, maxPackTestValues)
+		}
+		for key := range testCase.Values {
+			if !validPackTestIdentifier(key) {
+				return fmt.Errorf("%s.values contains an invalid input identifier", prefix)
+			}
 		}
 		if (testCase.ExpectArgs == nil) == (testCase.ExpectError == nil) {
 			return fmt.Errorf("%s must define exactly one of expectArgs or expectError", prefix)
@@ -419,6 +424,21 @@ func equalStrings(left, right []string) bool {
 	}
 	for index := range left {
 		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func validPackTestIdentifier(value string) bool {
+	if len(value) == 0 || len(value) > 63 || value[0] < 'a' || value[0] > 'z' {
+		return false
+	}
+	for index := 1; index < len(value); index++ {
+		current := value[index]
+		if (current < 'a' || current > 'z') &&
+			(current < '0' || current > '9') &&
+			current != '-' {
 			return false
 		}
 	}

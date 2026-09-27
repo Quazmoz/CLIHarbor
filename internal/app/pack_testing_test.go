@@ -124,3 +124,33 @@ func TestRunPackTestsRejectsExcessiveJSONNesting(t *testing.T) {
 		t.Fatalf("RunPackTests() error = %v, want nesting-depth rejection", err)
 	}
 }
+
+func TestRunPackTestsRejectsUnsafeInputIdentifiersBeforePlanning(t *testing.T) {
+	t.Parallel()
+
+	data := []byte(`{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "unsafe diagnostic key",
+      "packId": "example",
+      "commandId": "inspect",
+      "values": {"bad\nkey": "value", "mode": "safe"},
+      "expectError": {"code": "unknown_input"}
+    }
+  ]
+}`)
+	cases := filepath.Join(t.TempDir(), "cases.json")
+	if err := os.WriteFile(cases, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := RunPackTests(
+		Options{Out: &bytes.Buffer{}},
+		filepath.Join("..", "..", "packs", "example", "pack.yaml"),
+		cases,
+	)
+	if err == nil || !strings.Contains(err.Error(), "invalid input identifier") {
+		t.Fatalf("RunPackTests() error = %v, want input-identifier rejection", err)
+	}
+}
