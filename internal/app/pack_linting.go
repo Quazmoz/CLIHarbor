@@ -224,6 +224,9 @@ func lintLoadedPack(registry *packs.Registry, loaded packs.LoadedPack, collector
 		if command.Output.Sensitivity.ContainsSecrets {
 			collector.add(PackLintWarning, "PACK_COMMAND_SECRET_OUTPUT_BLOCKED", source, commandPath+".output.sensitivity", "current planner will reject secret-bearing browser output")
 		}
+		if command.Output.Renderer != "" && command.Output.Structured == nil {
+			collector.add(PackLintWarning, "PACK_OUTPUT_RENDERER_IGNORED", source, commandPath+".output.renderer", "renderer metadata has no effect without a structured output declaration")
+		}
 
 		usage := commandInputUsage(command)
 		for index, input := range command.Inputs {
