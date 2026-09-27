@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "safe detailed inspection",
+      "packId": "example",
+      "commandId": "inspect",
+      "values": {
+        "limit": 5,
+        "verbose": true,
+        "mode": "detailed"
+      },
+      "expectArgs": [
+        "inspect",
+        "--limit",
+        "5",
+        "--verbose",
+        "--detailed-mode"
+      ]
+    },
+    {
+      "name": "reject out-of-range limit",
+      "packId": "example",
+      "commandId": "inspect",
+      "values": {
+        "limit": 0,
+        "mode": "safe"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    }
+  ]
+}

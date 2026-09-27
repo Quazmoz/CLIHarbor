@@ -128,6 +128,8 @@ func TestPackCommandShapeFailsClosed(t *testing.T) {
 		{"pack", "unknown"},
 		{"pack", "init"},
 		{"pack", "validate"},
+		{"pack", "test"},
+		{"pack", "test", "--cases", "cases.json"},
 		{"pack", "init", "--id", "demo", "--name", "Demo", "--tool", "demo", "--executable", "demo"},
 	} {
 		if err := run(args); err == nil {
@@ -153,6 +155,14 @@ func TestPackInitAndValidateCommands(t *testing.T) {
 	}
 	if err := run([]string{"pack", "validate", destination}); err != nil {
 		t.Fatalf("run(pack validate) error = %v", err)
+	}
+}
+
+func TestPackTestCommand(t *testing.T) {
+	packPath := filepath.Join("..", "..", "packs", "example", "pack.yaml")
+	casesPath := filepath.Join("..", "..", "packs", "example", "packtest.json")
+	if err := run([]string{"pack", "test", "--cases", casesPath, packPath}); err != nil {
+		t.Fatalf("run(pack test) error = %v", err)
 	}
 }
 

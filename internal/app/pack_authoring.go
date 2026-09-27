@@ -164,48 +164,10 @@ func ValidatePackPaths(options Options, paths []string) error {
 	if options.Out == nil {
 		return fmt.Errorf("pack validation output writer is required")
 	}
-	if len(paths) == 0 {
-		return fmt.Errorf("at least one pack file or directory is required")
-	}
 
-	loader := packs.NewLoader()
-	loaded := make([]packs.LoadedPack, 0, len(paths))
-	for _, path := range paths {
-		if path == "" {
-			return fmt.Errorf("pack validation path cannot be empty")
-		}
-		absolute, err := filepath.Abs(path)
-		if err != nil {
-			return fmt.Errorf("resolve pack validation path: %w", err)
-		}
-		info, err := os.Lstat(absolute)
-		if err != nil {
-			return fmt.Errorf("inspect pack validation path %q: %w", filepath.Base(absolute), err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("pack validation path %q must not be a symlink", filepath.Base(absolute))
-		}
-
-		var registry *packs.Registry
-		if info.IsDir() {
-			registry, err = loader.LoadDirectory(absolute)
-		} else if info.Mode().IsRegular() {
-			registry, err = loader.LoadFiles([]string{absolute})
-		} else {
-			return fmt.Errorf("pack validation path %q must be a regular YAML file or directory", filepath.Base(absolute))
-		}
-		if err != nil {
-			return err
-		}
-		loaded = append(loaded, registry.Packs()...)
-	}
-	if len(loaded) == 0 {
-		return fmt.Errorf("no pack YAML files found")
-	}
-
-	registry, err := packs.NewRegistry(loaded)
+	registry, err := loadPackAuthoringRegistry(paths)
 	if err != nil {
-		return fmt.Errorf("combine validated packs: %w", err)
+		return err
 	}
 
 	packList := registry.Packs()
@@ -228,4 +190,51 @@ func ValidatePackPaths(options Options, paths []string) error {
 		}
 	}
 	return nil
+}
+
+func loadPackAuthoringRegistry(paths []string) (*packs.Registry, error) {
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("at least one pack file or directory is required")
+	}
+
+	loader := packs.NewLoader()
+	loaded := make([]packs.LoadedPack, 0, len(paths))
+	for _, path := range paths {
+		if path == "" {
+			return nil, fmt.Errorf("pack validation path cannot be empty")
+		}
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			return nil, fmt.Errorf("resolve pack validation path: %w", err)
+		}
+		info, err := os.Lstat(absolute)
+		if err != nil {
+			return nil, fmt.Errorf("inspect pack validation path %q: %w", filepath.Base(absolute), err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("pack validation path %q must not be a symlink", filepath.Base(absolute))
+		}
+
+		var registry *packs.Registry
+		if info.IsDir() {
+			registry, err = loader.LoadDirectory(absolute)
+		} else if info.Mode().IsRegular() {
+			registry, err = loader.LoadFiles([]string{absolute})
+		} else {
+			return nil, fmt.Errorf("pack validation path %q must be a regular YAML file or directory", filepath.Base(absolute))
+		}
+		if err != nil {
+			return nil, err
+		}
+		loaded = append(loaded, registry.Packs()...)
+	}
+	if len(loaded) == 0 {
+		return nil, fmt.Errorf("no pack YAML files found")
+	}
+
+	registry, err := packs.NewRegistry(loaded)
+	if err != nil {
+		return nil, fmt.Errorf("combine validated packs: %w", err)
+	}
+	return registry, nil
 }

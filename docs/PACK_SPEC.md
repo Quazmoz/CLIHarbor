@@ -405,6 +405,7 @@ CLIHarbor includes a narrow onboarding surface for additional CLIs:
 ```text
 cliharbor pack init --id <pack-id> --name <name> --tool <tool-id> --executable <basename> <output.yaml>
 cliharbor pack validate <pack.yaml-or-directory> [...]
+cliharbor pack test --cases <cases.json> <pack.yaml-or-directory>
 ```
 
 `pack init` creates a valid discovery-only scaffold. It intentionally emits:
@@ -422,7 +423,38 @@ This is intentional: CLIHarbor does not infer command trees or security-sensitiv
 
 `pack validate` runs only the hardened pack loader and cross-pack registry construction. It does **not** discover tools or execute version probes, help probes, or tasks. Multiple supplied files/directories are validated together so duplicate IDs and other registry conflicts fail closed before runtime.
 
-After validation, use `doctor --pack-file ...` or `doctor --pack-dir ...` for actual executable discovery and only add commands supported by reviewed vendor documentation/source or captured evidence.
+`pack test` adds a deterministic planner-contract layer without granting execution authority. The cases file uses schema `cliharbor.packtest/v1`; each case supplies a pack ID, command ID, typed JSON values, and exactly one expectation:
+
+- `expectArgs`: the exact argument vector the production planner must build; or
+- `expectError`: the planner error `code` and, optionally, exact `path`.
+
+Example:
+
+```json
+{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "safe detailed inspection",
+      "packId": "example",
+      "commandId": "inspect",
+      "values": {"limit": 5, "verbose": true, "mode": "detailed"},
+      "expectArgs": ["inspect", "--limit", "5", "--verbose", "--detailed-mode"]
+    },
+    {
+      "name": "reject out-of-range limit",
+      "packId": "example",
+      "commandId": "inspect",
+      "values": {"limit": 0, "mode": "safe"},
+      "expectError": {"code": "invalid_input", "path": "values.limit"}
+    }
+  ]
+}
+```
+
+The cases file is bounded, strict JSON: unknown fields, duplicate keys, excessive nesting, invalid UTF-8, multiple JSON documents, symlinks, oversized files, duplicate case names, malformed pack/command/input identifiers, unsupported error codes, and ambiguous expectations fail closed. The runner loads the target pack through the normal hardened loader and invokes the real production planner against synthetic temporary discovery identity. It does **not** execute the declared CLI, version probes, help/evidence probes, or tasks. Failure output reports case metadata and mismatch class but deliberately does not echo input values or argv. Test fixtures should still never contain credentials or secrets.
+
+After validation and contract testing, use `doctor --pack-file ...` or `doctor --pack-dir ...` for actual executable discovery and only add commands supported by reviewed vendor documentation/source or captured evidence.
 
 ## 19. Phase 0 evidence
 
