@@ -92,3 +92,35 @@ func TestRunPackTestsRejectsDuplicateJSONKeys(t *testing.T) {
 		t.Fatalf("RunPackTests() error = %v, want duplicate-key rejection", err)
 	}
 }
+
+func TestRunPackTestsRejectsExcessiveJSONNesting(t *testing.T) {
+	t.Parallel()
+
+	depth := maxPackTestJSONDepth + 2
+	deepValue := strings.Repeat("[", depth) + "0" + strings.Repeat("]", depth)
+	data := []byte(`{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "deep input",
+      "packId": "example",
+      "commandId": "inspect",
+      "values": {"mode": ` + deepValue + `},
+      "expectArgs": []
+    }
+  ]
+}`)
+	cases := filepath.Join(t.TempDir(), "cases.json")
+	if err := os.WriteFile(cases, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := RunPackTests(
+		Options{Out: &bytes.Buffer{}},
+		filepath.Join("..", "..", "packs", "example", "pack.yaml"),
+		cases,
+	)
+	if err == nil || !strings.Contains(err.Error(), "JSON nesting exceeds") {
+		t.Fatalf("RunPackTests() error = %v, want nesting-depth rejection", err)
+	}
+}

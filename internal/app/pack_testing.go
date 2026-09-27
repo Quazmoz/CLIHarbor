@@ -22,6 +22,7 @@ const (
 	maxPackTestValues      = 64
 	maxPackTestArgs        = 256
 	maxPackTestArgBytes    = 4096
+	maxPackTestJSONDepth   = 64
 )
 
 type packTestDocument struct {
@@ -215,8 +216,11 @@ func rejectDuplicateJSONKeys(data []byte) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 
-	var walk func() error
-	walk = func() error {
+	var walk func(int) error
+	walk = func(depth int) error {
+		if depth > maxPackTestJSONDepth {
+			return fmt.Errorf("JSON nesting exceeds %d-level limit", maxPackTestJSONDepth)
+		}
 		token, err := decoder.Token()
 		if err != nil {
 			return err
@@ -241,7 +245,7 @@ func rejectDuplicateJSONKeys(data []byte) error {
 					return fmt.Errorf("duplicate object key %q", key)
 				}
 				seen[key] = struct{}{}
-				if err := walk(); err != nil {
+				if err := walk(depth + 1); err != nil {
 					return err
 				}
 			}
@@ -254,7 +258,7 @@ func rejectDuplicateJSONKeys(data []byte) error {
 			}
 		case '[':
 			for decoder.More() {
-				if err := walk(); err != nil {
+				if err := walk(depth + 1); err != nil {
 					return err
 				}
 			}
@@ -271,7 +275,7 @@ func rejectDuplicateJSONKeys(data []byte) error {
 		return nil
 	}
 
-	if err := walk(); err != nil {
+	if err := walk(0); err != nil {
 		return fmt.Errorf("pack test cases are not valid JSON: %w", err)
 	}
 	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
