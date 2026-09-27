@@ -59,17 +59,35 @@ func LintPackPaths(options Options, paths []string, casesPath string) error {
 
 	registry, err := loadPackAuthoringRegistry(paths)
 	if err != nil {
-		return err
+		source := "-"
+		if len(paths) == 1 && paths[0] != "" {
+			source = diagnosticDisplaySource(paths[0])
+		}
+		if _, writeErr := fmt.Fprintf(
+			options.Out,
+			"error PACK_SOURCE_INVALID %s -: pack source is malformed, unsafe, or unreadable; run pack validate for structural details\n",
+			source,
+		); writeErr != nil {
+			return writeErr
+		}
+		return fmt.Errorf("pack lint source validation failed")
 	}
 
 	var cases *packTestDocument
 	if casesPath != "" {
-		document, err := readPackTestDocument(casesPath)
-		if err != nil {
-			return err
+		document, readErr := readPackTestDocument(casesPath)
+		if readErr == nil {
+			readErr = validatePackTestDocument(document)
 		}
-		if err := validatePackTestDocument(document); err != nil {
-			return err
+		if readErr != nil {
+			if _, writeErr := fmt.Fprintf(
+				options.Out,
+				"error PACK_TEST_SOURCE_INVALID %s -: contract fixture is malformed, unsafe, or unreadable; run pack test for structural details\n",
+				diagnosticDisplaySource(casesPath),
+			); writeErr != nil {
+				return writeErr
+			}
+			return fmt.Errorf("pack lint contract fixture validation failed")
 		}
 		cases = &document
 	}
@@ -84,7 +102,7 @@ func LintPackPaths(options Options, paths []string, casesPath string) error {
 			"%s %s %s %s: %s\n",
 			diagnostic.Severity,
 			diagnostic.Code,
-			strconv.QuoteToASCII(filepath.Base(diagnostic.Source)),
+			diagnosticDisplaySource(diagnostic.Source),
 			diagnostic.Path,
 			diagnostic.Message,
 		); err != nil {
@@ -135,8 +153,10 @@ func lintPackRegistry(registry *packs.Registry, cases *packTestDocument, casesSo
 	diagnostics := append([]PackLintDiagnostic(nil), collector.diagnostics...)
 	sort.Slice(diagnostics, func(i, j int) bool {
 		left, right := diagnostics[i], diagnostics[j]
-		if left.Source != right.Source {
-			return left.Source < right.Source
+		leftSource := diagnosticDisplaySource(left.Source)
+		rightSource := diagnosticDisplaySource(right.Source)
+		if leftSource != rightSource {
+			return leftSource < rightSource
 		}
 		if left.Path != right.Path {
 			return left.Path < right.Path
@@ -238,9 +258,10 @@ func lintLoadedPack(registry *packs.Registry, loaded packs.LoadedPack, collector
 }
 
 type packInputUsage struct {
-	count     int
-	stringArg bool
-	mapped    bool
+	count      int
+	stringArg  bool
+	mapped     bool
+	positional bool
 }
 
 func commandInputUsage(command packs.Command) map[string]packInputUsage {
@@ -249,6 +270,7 @@ func commandInputUsage(command packs.Command) map[string]packInputUsage {
 		var inputID string
 		var stringArg bool
 		var mapped bool
+		var positional bool
 		switch {
 		case argument.Flag != nil:
 			inputID = argument.Flag.ValueFrom
@@ -256,6 +278,7 @@ func commandInputUsage(command packs.Command) map[string]packInputUsage {
 		case argument.Positional != nil:
 			inputID = argument.Positional.ValueFrom
 			stringArg = true
+			positional = true
 		case argument.Switch != nil:
 			inputID = argument.Switch.EnabledFrom
 		case argument.Map != nil:
@@ -268,6 +291,7 @@ func commandInputUsage(command packs.Command) map[string]packInputUsage {
 		current.count++
 		current.stringArg = current.stringArg || stringArg
 		current.mapped = current.mapped || mapped
+		current.positional = current.positional || positional
 		usage[inputID] = current
 	}
 	return usage
@@ -315,21 +339,21 @@ func lintPackTestCoverage(registry *packs.Registry, document packTestDocument, c
 	integerMinCovered := make(map[packInputRef]bool)
 	integerMaxCovered := make(map[packInputRef]bool)
 	enumRejected := make(map[packInputRef]bool)
+	leadingDashRejected := make(map[packInputRef]bool)
 	mappedEnumSuccess := make(map[packInputRef]map[int]bool)
 
 	for caseIndex, testCase := range document.Cases {
-		loaded, packExists := registry.FindPack(testCase.PackID)
+		_, packExists := registry.FindPack(testCase.PackID)
 		if !packExists {
 			if !expectsPlannerError(testCase, planner.ErrUnknownPack, "packId") {
 				collector.add(PackLintError, "PACK_TEST_UNKNOWN_PACK", casesSource, fmt.Sprintf("cases[%d].packId", caseIndex), "contract case references a pack outside the lint target")
 			}
 			continue
 		}
-		source := loaded.Source.Name
 		command, commandExists := registry.FindCommand(testCase.PackID, testCase.CommandID)
 		if !commandExists {
 			if !expectsPlannerError(testCase, planner.ErrUnknownCommand, "commandId") {
-				collector.add(PackLintError, "PACK_TEST_UNKNOWN_COMMAND", source, fmt.Sprintf("cases[%d].commandId", caseIndex), "contract case references an undeclared command")
+				collector.add(PackLintError, "PACK_TEST_UNKNOWN_COMMAND", casesSource, fmt.Sprintf("cases[%d].commandId", caseIndex), "contract case references an undeclared command")
 			}
 			continue
 		}
@@ -349,7 +373,7 @@ func lintPackTestCoverage(registry *packs.Registry, document packTestDocument, c
 			firstPath := "values." + unknown[0]
 			if !expectsPlannerError(testCase, planner.ErrUnknownInput, firstPath) {
 				for _, inputID := range unknown {
-					collector.add(PackLintError, "PACK_TEST_UNKNOWN_INPUT", source, fmt.Sprintf("cases[%d].values.%s", caseIndex, inputID), "contract case references an undeclared input")
+					collector.add(PackLintError, "PACK_TEST_UNKNOWN_INPUT", casesSource, fmt.Sprintf("cases[%d].values.%s", caseIndex, inputID), "contract case references an undeclared input")
 				}
 			}
 			continue
@@ -415,10 +439,18 @@ func lintPackTestCoverage(registry *packs.Registry, document packTestDocument, c
 				if input.Validation.Max != nil && value > *input.Validation.Max {
 					integerMaxCovered[inputRef] = true
 				}
+			case packs.InputString:
+				var value string
+				if json.Unmarshal(raw, &value) == nil && strings.HasPrefix(value, "-") {
+					leadingDashRejected[inputRef] = true
+				}
 			case packs.InputEnum:
 				var value string
 				if json.Unmarshal(raw, &value) != nil {
 					continue
+				}
+				if strings.HasPrefix(value, "-") {
+					leadingDashRejected[inputRef] = true
 				}
 				if !stringInSlice(value, input.Validation.Enum) {
 					enumRejected[inputRef] = true
@@ -458,6 +490,11 @@ func lintPackTestCoverage(registry *packs.Registry, document packTestDocument, c
 						collector.add(PackLintWarning, "PACK_TEST_INTEGER_MAX_MISSING", source, inputPath+".validation.max", "bounded integer input has no above-maximum rejection contract case")
 					}
 				}
+				if usage[input.ID].positional &&
+					(input.Type == packs.InputString || input.Type == packs.InputEnum) &&
+					!leadingDashRejected[inputRef] {
+					collector.add(PackLintWarning, "PACK_TEST_POSITIONAL_DASH_MISSING", source, inputPath+".validation.disallowLeadingDash", "positional string/enum input has no leading-dash rejection contract case")
+				}
 				if input.Type == packs.InputEnum {
 					if !enumRejected[inputRef] {
 						collector.add(PackLintWarning, "PACK_TEST_ENUM_REJECTION_MISSING", source, inputPath+".validation.enum", "enum input has no out-of-set rejection contract case")
@@ -489,6 +526,13 @@ func stringInSlice(value string, values []string) bool {
 		}
 	}
 	return false
+}
+
+func diagnosticDisplaySource(source string) string {
+	if source == "" || source == "-" {
+		return strconv.Quote("-")
+	}
+	return strconv.QuoteToASCII(filepath.Base(source))
 }
 
 func sortedMapKeys[V any](values map[string]V) []string {
