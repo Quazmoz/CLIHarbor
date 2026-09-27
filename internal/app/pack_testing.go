@@ -17,12 +17,12 @@ import (
 
 const (
 	PackTestSchemaVersion = "cliharbor.packtest/v1"
-	maxPackTestBytes       = 1 << 20
-	maxPackTestCases       = 256
-	maxPackTestValues      = 64
-	maxPackTestArgs        = 256
-	maxPackTestArgBytes    = 4096
-	maxPackTestJSONDepth   = 64
+	maxPackTestBytes      = 1 << 20
+	maxPackTestCases      = 256
+	maxPackTestValues     = 64
+	maxPackTestArgs       = 256
+	maxPackTestArgBytes   = 4096
+	maxPackTestJSONDepth  = 64
 )
 
 type packTestDocument struct {
