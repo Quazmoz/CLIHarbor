@@ -387,7 +387,7 @@ Supported source classes:
 1. `builtin` — bytes supplied deliberately by trusted application code;
 2. `explicit-local` — files/directories explicitly named by a trusted operator.
 
-The loader does not implicitly trust cwd/repository files, recurse arbitrary directories, follow pack symlinks, load remote URLs, auto-download packs, or execute pack code. For `serve` and `doctor`, explicit local sources are additive to the embedded first-party set unless the operator supplies `--no-default-packs`; duplicate pack IDs across any source fail the whole registry.
+The loader does not implicitly trust cwd/repository files, recurse arbitrary directories, follow pack symlinks, load remote URLs, auto-download packs, or execute pack code. Explicit directory loading is streamed in bounded batches and fails closed above 4,096 scanned entries or 256 YAML pack files, preventing authoring/runtime directory fan-out from becoming an unbounded resource path. For `serve` and `doctor`, explicit local sources are additive to the embedded first-party set unless the operator supplies `--no-default-packs`; duplicate pack IDs across any source fail the whole registry.
 
 ## 17. Registry immutability
 
