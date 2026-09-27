@@ -218,6 +218,9 @@ func lintLoadedPack(registry *packs.Registry, loaded packs.LoadedPack, collector
 		if command.Requirements.RequiresAuth && command.Requirements.AuthMode != packs.AuthModeVendorSession {
 			collector.add(PackLintWarning, "PACK_COMMAND_AUTH_BLOCKED", source, commandPath+".requirements", "current planner will reject this authenticated command without vendor-session auth mode")
 		}
+		if !command.Requirements.RequiresAuth && command.Requirements.AuthMode != "" {
+			collector.add(PackLintWarning, "PACK_COMMAND_AUTH_MODE_UNUSED", source, commandPath+".requirements.authMode", "authMode is declared while requiresAuth is false, so the current planner ignores it")
+		}
 		if command.Output.Sensitivity.ContainsSecrets {
 			collector.add(PackLintWarning, "PACK_COMMAND_SECRET_OUTPUT_BLOCKED", source, commandPath+".output.sensitivity", "current planner will reject secret-bearing browser output")
 		}
@@ -233,8 +236,27 @@ func lintLoadedPack(registry *packs.Registry, loaded packs.LoadedPack, collector
 			if currentUsage.count == 0 {
 				collector.add(PackLintWarning, "PACK_INPUT_UNUSED", source, inputPath, "declared input is never consumed by argv")
 			}
+			if currentUsage.count > 1 {
+				collector.add(PackLintWarning, "PACK_INPUT_REUSED", source, inputPath, "declared input is consumed by more than one argv construction step")
+			}
 			if input.Type == packs.InputString && currentUsage.stringArg && input.Validation.MaxLength == nil {
 				collector.add(PackLintWarning, "PACK_INPUT_STRING_MAX_MISSING", source, inputPath+".validation.maxLength", "string input used in argv has no explicit maximum length")
+			}
+		}
+
+		flagNames := make(map[string]int)
+		for _, argument := range command.Argv {
+			if argument.Flag != nil {
+				flagNames[argument.Flag.Name]++
+			}
+			if argument.Switch != nil {
+				flagNames[argument.Switch.Name]++
+			}
+		}
+		for _, count := range flagNames {
+			if count > 1 {
+				collector.add(PackLintWarning, "PACK_FLAG_DUPLICATE", source, commandPath+".argv", "the same trusted flag/switch name can be constructed more than once")
+				break
 			}
 		}
 
