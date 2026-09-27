@@ -11,6 +11,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	maxPackAuthoringSourcePaths = 256
+	maxPackAuthoringPacks       = 256
+)
+
 type PackInitConfig struct {
 	ID             string
 	Name           string
@@ -196,6 +201,9 @@ func loadPackAuthoringRegistry(paths []string) (*packs.Registry, error) {
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("at least one pack file or directory is required")
 	}
+	if len(paths) > maxPackAuthoringSourcePaths {
+		return nil, fmt.Errorf("pack authoring input exceeds %d-source path limit", maxPackAuthoringSourcePaths)
+	}
 
 	loader := packs.NewLoader()
 	loaded := make([]packs.LoadedPack, 0, len(paths))
@@ -226,7 +234,11 @@ func loadPackAuthoringRegistry(paths []string) (*packs.Registry, error) {
 		if err != nil {
 			return nil, err
 		}
-		loaded = append(loaded, registry.Packs()...)
+		current := registry.Packs()
+		if len(current) > maxPackAuthoringPacks-len(loaded) {
+			return nil, fmt.Errorf("pack authoring input exceeds %d-pack limit", maxPackAuthoringPacks)
+		}
+		loaded = append(loaded, current...)
 	}
 	if len(loaded) == 0 {
 		return nil, fmt.Errorf("no pack YAML files found")
