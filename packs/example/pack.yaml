@@ -56,7 +56,6 @@ commands:
             detailed: --detailed-mode
     output:
       mode: json
-      renderer: table
       sensitivity:
         containsSecrets: false
         persistRawOutput: false
