@@ -418,7 +418,6 @@ commands:
 	}
 }
 
-
 func TestLintPackPathsReportsArgvAndAuthMetadataConflicts(t *testing.T) {
 	t.Parallel()
 
