@@ -62,6 +62,7 @@ commands:
           valueFrom: query
     output:
       mode: raw
+      renderer: table
   beta:
     name: Shared command
     description: Intentionally future-gated command.
@@ -94,6 +95,7 @@ commands:
 		"PACK_COMMAND_NAME_DUPLICATE",
 		"PACK_INPUT_UNUSED",
 		"PACK_INPUT_STRING_MAX_MISSING",
+		"PACK_OUTPUT_RENDERER_IGNORED",
 		"PACK_COMMAND_RISK_BLOCKED",
 		"PACK_COMMAND_AUTH_BLOCKED",
 		"PACK_COMMAND_SECRET_OUTPUT_BLOCKED",
@@ -102,7 +104,7 @@ commands:
 			t.Fatalf("lint output missing %s: %q", code, first.String())
 		}
 	}
-	if !strings.Contains(first.String(), "0 error(s), 8 warning(s)") {
+	if !strings.Contains(first.String(), "0 error(s), 9 warning(s)") {
 		t.Fatalf("unexpected warning count: %q", first.String())
 	}
 }
