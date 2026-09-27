@@ -12,8 +12,8 @@ import (
 
 const (
 	maxLocalPackDirectoryEntries = 4096
-	maxLocalPacksPerDirectory     = 256
-	localPackDirectoryReadBatch   = 128
+	maxLocalPacksPerDirectory    = 256
+	localPackDirectoryReadBatch  = 128
 )
 
 type Loader struct {
