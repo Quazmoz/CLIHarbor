@@ -194,15 +194,23 @@ func TestLintPackPathsRejectsUnsafeAndMalformedSources(t *testing.T) {
 
 	t.Run("malformed", func(t *testing.T) {
 		path := writeLintFixture(t, "bad.yaml", "apiVersion: [\n")
-		if err := LintPackPaths(Options{Out: &bytes.Buffer{}}, []string{path}, ""); err == nil {
+		var out bytes.Buffer
+		if err := LintPackPaths(Options{Out: &out}, []string{path}, ""); err == nil {
 			t.Fatal("malformed YAML unexpectedly passed lint")
+		}
+		if !strings.Contains(out.String(), "PACK_SOURCE_INVALID") {
+			t.Fatalf("malformed source output = %q", out.String())
 		}
 	})
 
 	t.Run("oversized", func(t *testing.T) {
 		path := writeLintFixture(t, "large.yaml", strings.Repeat("x", packs.MaxPackBytes+1))
-		if err := LintPackPaths(Options{Out: &bytes.Buffer{}}, []string{path}, ""); err == nil || !strings.Contains(err.Error(), "byte limit") {
-			t.Fatalf("oversized pack lint error = %v", err)
+		var out bytes.Buffer
+		if err := LintPackPaths(Options{Out: &out}, []string{path}, ""); err == nil {
+			t.Fatal("oversized pack unexpectedly passed lint")
+		}
+		if !strings.Contains(out.String(), "PACK_SOURCE_INVALID") {
+			t.Fatalf("oversized source output = %q", out.String())
 		}
 	})
 
@@ -212,8 +220,12 @@ func TestLintPackPathsRejectsUnsafeAndMalformedSources(t *testing.T) {
 		if err := os.Symlink(target, link); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
-		if err := LintPackPaths(Options{Out: &bytes.Buffer{}}, []string{link}, ""); err == nil || !strings.Contains(err.Error(), "symlink") {
-			t.Fatalf("symlinked pack lint error = %v", err)
+		var out bytes.Buffer
+		if err := LintPackPaths(Options{Out: &out}, []string{link}, ""); err == nil {
+			t.Fatal("symlinked pack unexpectedly passed lint")
+		}
+		if !strings.Contains(out.String(), "PACK_SOURCE_INVALID") {
+			t.Fatalf("symlinked pack output = %q", out.String())
 		}
 	})
 
@@ -224,10 +236,38 @@ func TestLintPackPathsRejectsUnsafeAndMalformedSources(t *testing.T) {
 		if err := os.Symlink(cases, link); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
-		if err := LintPackPaths(Options{Out: &bytes.Buffer{}}, []string{packPath}, link); err == nil || !strings.Contains(err.Error(), "symlink") {
-			t.Fatalf("symlinked cases lint error = %v", err)
+		var out bytes.Buffer
+		if err := LintPackPaths(Options{Out: &out}, []string{packPath}, link); err == nil {
+			t.Fatal("symlinked cases unexpectedly passed lint")
+		}
+		if !strings.Contains(out.String(), "PACK_TEST_SOURCE_INVALID") {
+			t.Fatalf("symlinked cases output = %q", out.String())
 		}
 	})
+}
+
+func TestLintPackPathsMalformedContractFixtureDoesNotEchoArbitraryKeys(t *testing.T) {
+	t.Parallel()
+
+	packPath := writeLintFixture(t, "pack.yaml", lintContractPack)
+	const secretKey = "DO-NOT-ECHO-CONTRACT-KEY"
+	casesPath := writeLintFixture(t, "cases.json", `{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "`+secretKey+`": "first",
+  "`+secretKey+`": "second",
+  "cases": []
+}`)
+
+	var out bytes.Buffer
+	if err := LintPackPaths(Options{Out: &out}, []string{packPath}, casesPath); err == nil {
+		t.Fatal("malformed contract fixture unexpectedly passed lint")
+	}
+	if !strings.Contains(out.String(), "PACK_TEST_SOURCE_INVALID") {
+		t.Fatalf("malformed contract source output = %q", out.String())
+	}
+	if strings.Contains(out.String(), secretKey) {
+		t.Fatalf("lint echoed an arbitrary contract key: %q", out.String())
+	}
 }
 
 func TestLintPackPathsFixtureReferenceErrorsDoNotEchoValues(t *testing.T) {
@@ -370,6 +410,7 @@ commands:
 		"PACK_TEST_INTEGER_MAX_MISSING",
 		"PACK_TEST_ENUM_REJECTION_MISSING",
 		"PACK_TEST_MAP_BRANCH_MISSING",
+		"PACK_TEST_POSITIONAL_DASH_MISSING",
 	} {
 		if !strings.Contains(out.String(), code) {
 			t.Fatalf("coverage lint output missing %s: %q", code, out.String())
