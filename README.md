@@ -2,7 +2,7 @@
 
 A Windows-first local browser UI for safely exposing curated workflows from official command-line tools.
 
-**Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation/contract-test tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x read-only integration are implemented.
+**Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation/lint/contract-test tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x read-only integration are implemented.
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
@@ -112,7 +112,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Area | Implemented |
 | --- | --- |
 | Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
-| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, non-executing `pack validate`, and planner-backed `pack test` |
+| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, non-executing `pack validate`, deterministic static `pack lint`, and planner-backed `pack test` |
 | First-party startup | Embedded reviewed Conjur pack for zero-config `serve` and `doctor` |
 | Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
@@ -159,6 +159,14 @@ After adding only reviewed command definitions from authoritative documentation 
 go run ./cmd/cliharbor pack validate ./acme.yaml
 ```
 
+Run deterministic authoring-quality/security linting over the already-valid pack:
+
+```bash
+go run ./cmd/cliharbor pack lint ./acme.yaml
+```
+
+Lint diagnostics have stable severity/code/source/object-path identities. Lint errors fail the command; warnings identify reviewable quality or coverage gaps without making valid future-gated pack metadata unusable. Lint never performs tool discovery, runs probes/tasks, reads authentication/session state, downloads dependencies, or uses an LLM. Ordinary shell metacharacters are not blanket-rejected merely for appearing inside trusted static argv because CLIHarbor executes the selected binary directly without a shell.
+
 Define bounded JSON contract cases and exercise the exact production planner without launching the declared CLI:
 
 ```bash
@@ -166,6 +174,14 @@ go run ./cmd/cliharbor pack test --cases ./acme.packtest.json ./acme.yaml
 ```
 
 A contract case either asserts the exact expected argv vector or an expected planner rejection code/path. The test runner creates only synthetic local discovery identity, never executes the CLI, and never runs version/help probes. See `packs/example/packtest.json` for the checked-in example.
+
+When a fixture already exists, lint can correlate it explicitly without discovering nearby files:
+
+```bash
+go run ./cmd/cliharbor pack lint --cases ./acme.packtest.json ./acme.yaml
+```
+
+That adds coverage diagnostics for planner-runnable commands, consumed inputs, integer bounds, enum rejection, boolean-switch activation, enum-map branches, and inconsistent fixture references. It still does not execute the planner or vendor CLI. In short: **validate** establishes structural/schema/semantic/security validity, **lint** reports deterministic static authoring-quality/security issues, and **test** verifies the production planner contract. None of the three proves the vendor CLI itself is correct.
 
 Then inspect discovery and run it alongside the built-in Conjur integration:
 
