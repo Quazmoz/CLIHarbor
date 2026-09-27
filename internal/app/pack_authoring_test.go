@@ -1,8 +1,8 @@
 package app
 
 import (
-	"fmt"
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,7 +146,6 @@ func TestValidatePackPathsCombinesFilesAndDirectoriesWithoutExecution(t *testing
 		}
 	}
 }
-
 
 func TestLoadPackAuthoringRegistryBoundsAggregateSources(t *testing.T) {
 	t.Parallel()
