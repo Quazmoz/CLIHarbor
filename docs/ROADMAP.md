@@ -180,12 +180,13 @@ Exit condition: two real packs operate without vendor-specific branches in the g
 
 ## Stage 10 — Pack authoring tooling
 
-**Status: first safe onboarding slice implemented.**
+**Status: safe onboarding and planner-contract testing implemented.**
 
 Implemented:
 
 - `cliharbor pack init` discovery-only scaffolding for arbitrary approved executable basenames;
 - `cliharbor pack validate` hardened schema/semantic/security validation without executable execution;
+- `cliharbor pack test` bounded declarative contract cases through the production planner without executable/probe execution;
 - multi-source validation with duplicate-pack conflict detection;
 - additive explicit packs alongside embedded first-party packs;
 - `--no-default-packs` for explicit custom-only `serve`/`doctor` qualification.
@@ -196,7 +197,6 @@ Remaining candidates:
 - help-tree capture;
 - draft generation from authoritative help/source;
 - fixture generation;
-- `cliharbor pack test`;
 - static security linter;
 - compatibility matrix.
 

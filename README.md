@@ -2,7 +2,7 @@
 
 A Windows-first local browser UI for safely exposing curated workflows from official command-line tools.
 
-**Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x read-only integration are implemented.
+**Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation/contract-test tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x read-only integration are implemented.
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
@@ -112,7 +112,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Area | Implemented |
 | --- | --- |
 | Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
-| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, and non-executing `pack validate` |
+| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, non-executing `pack validate`, and planner-backed `pack test` |
 | First-party startup | Embedded reviewed Conjur pack for zero-config `serve` and `doctor` |
 | Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
@@ -158,6 +158,14 @@ After adding only reviewed command definitions from authoritative documentation 
 ```bash
 go run ./cmd/cliharbor pack validate ./acme.yaml
 ```
+
+Define bounded JSON contract cases and exercise the exact production planner without launching the declared CLI:
+
+```bash
+go run ./cmd/cliharbor pack test --cases ./acme.packtest.json ./acme.yaml
+```
+
+A contract case either asserts the exact expected argv vector or an expected planner rejection code/path. The test runner creates only synthetic local discovery identity, never executes the CLI, and never runs version/help probes. See `packs/example/packtest.json` for the checked-in example.
 
 Then inspect discovery and run it alongside the built-in Conjur integration:
 
