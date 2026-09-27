@@ -181,7 +181,7 @@ When a fixture already exists, lint can correlate it explicitly without discover
 go run ./cmd/cliharbor pack lint --cases ./acme.packtest.json ./acme.yaml
 ```
 
-That adds coverage diagnostics for planner-runnable commands, consumed inputs, integer bounds, enum rejection, boolean-switch activation, enum-map branches, and inconsistent fixture references. It still does not execute the planner or vendor CLI. In short: **validate** establishes structural/schema/semantic/security validity, **lint** reports deterministic static authoring-quality/security issues, and **test** verifies the production planner contract. None of the three proves the vendor CLI itself is correct.
+That adds coverage diagnostics for planner-runnable commands, consumed inputs, integer bounds, enum rejection, boolean-switch activation, constrained-positional leading-dash rejection, enum-map branches, and inconsistent fixture references. It still does not execute the planner or vendor CLI. In short: **validate** establishes structural/schema/semantic/security validity, **lint** reports deterministic static authoring-quality/security issues, and **test** verifies the production planner contract. None of the three proves the vendor CLI itself is correct.
 
 Then inspect discovery and run it alongside the built-in Conjur integration:
 
