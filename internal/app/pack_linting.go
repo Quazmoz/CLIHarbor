@@ -432,7 +432,7 @@ func lintPackTestCoverage(registry *packs.Registry, document packTestDocument, c
 		packID := loaded.Pack.Metadata.ID
 		for _, named := range registry.Commands(packID) {
 			command := named.Command
-			if !packCommandPlannerRunnable(command) {
+			if !commandBrowserRunnable(command) {
 				continue
 			}
 			commandRef := packCommandRef{packID: packID, commandID: named.ID}
@@ -480,13 +480,6 @@ func expectsPlannerError(testCase packTestCase, code planner.ErrorCode, path str
 		return false
 	}
 	return testCase.ExpectError.Path == "" || testCase.ExpectError.Path == path
-}
-
-func packCommandPlannerRunnable(command packs.Command) bool {
-	if command.Risk != packs.RiskRead || command.Output.Sensitivity.ContainsSecrets {
-		return false
-	}
-	return !command.Requirements.RequiresAuth || command.Requirements.AuthMode == packs.AuthModeVendorSession
 }
 
 func stringInSlice(value string, values []string) bool {
