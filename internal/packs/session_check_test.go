@@ -18,7 +18,9 @@ runtime:
   tools:
     fixture:
       executableNames: [fixture]
-` + sessionCheck + `commands:
+` + sessionCheck + `    other:
+      executableNames: [other]
+commands:
 ` + commands)
 	}
 
@@ -62,7 +64,7 @@ runtime:
       requiresAuth: true
       authMode: vendor-session
 `,
-			path: "commands.status.tool",
+			path: "sessionCheck.commandId",
 		},
 		{
 			name:         "change risk",

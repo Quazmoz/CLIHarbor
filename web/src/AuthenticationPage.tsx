@@ -515,7 +515,7 @@ function VendorSessionCard({
       <div className={'auth-primary-state ' + primaryClass} role="status" aria-live="polite" aria-atomic="true">
         <span className="auth-state-symbol" aria-hidden="true">{primarySymbol}</span>
         <div>
-          <h4>{primaryHeading}</h4>
+          <h3>{primaryHeading}</h3>
           <p>{primaryDetail}</p>
         </div>
       </div>
