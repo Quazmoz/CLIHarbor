@@ -157,7 +157,6 @@ func TestRunPackTestsRejectsUnsafeInputIdentifiersBeforePlanning(t *testing.T) {
 	}
 }
 
-
 func TestDockerPackPlannerContractsAndLint(t *testing.T) {
 	t.Parallel()
 
