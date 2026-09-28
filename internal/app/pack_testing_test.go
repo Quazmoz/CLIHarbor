@@ -179,3 +179,26 @@ func TestDockerPackPlannerContractsAndLint(t *testing.T) {
 		t.Fatalf("docker pack lint output = %q", lintOut.String())
 	}
 }
+
+func TestKubectlPackPlannerContractsAndLint(t *testing.T) {
+	t.Parallel()
+
+	packPath := filepath.Join("..", "..", "packs", "kubectl", "kubectl.yaml")
+	casesPath := filepath.Join("..", "..", "packs", "kubectl", "packtest.json")
+
+	var testOut bytes.Buffer
+	if err := RunPackTests(Options{Out: &testOut}, packPath, casesPath); err != nil {
+		t.Fatalf("RunPackTests(kubectl) error = %v\n%s", err, testOut.String())
+	}
+	if !strings.Contains(testOut.String(), "Passed 6 pack contract case(s)") {
+		t.Fatalf("kubectl pack test output = %q", testOut.String())
+	}
+
+	var lintOut bytes.Buffer
+	if err := LintPackPaths(Options{Out: &lintOut}, []string{packPath}, casesPath); err != nil {
+		t.Fatalf("LintPackPaths(kubectl) error = %v\n%s", err, lintOut.String())
+	}
+	if !strings.Contains(lintOut.String(), "0 error(s), 0 warning(s)") {
+		t.Fatalf("kubectl pack lint output = %q", lintOut.String())
+	}
+}

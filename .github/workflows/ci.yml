@@ -136,14 +136,17 @@ jobs:
             throw "zero-config doctor returned unexpected exit code $doctorExit"
           }
           $doctorText = $doctorOutput -join "`n"
-          if ($doctorText -notmatch 'Configured packs: 2') {
-            throw "zero-config doctor did not load exactly two embedded first-party packs"
+          if ($doctorText -notmatch 'Configured packs: 3') {
+            throw "zero-config doctor did not load exactly three embedded first-party packs"
           }
           if ($doctorText -notmatch 'cyberark-conjur-v9/conjur:') {
             throw "zero-config doctor did not expose the embedded Conjur tool state"
           }
           if ($doctorText -notmatch 'docker-cli/docker:') {
             throw "zero-config doctor did not expose the embedded Docker tool state"
+          }
+          if ($doctorText -notmatch 'kubectl-cli/kubectl:') {
+            throw "zero-config doctor did not expose the embedded kubectl tool state"
           }
           # A missing vendor tool intentionally makes doctor exit 1. The smoke
           # assertion succeeded, so do not leak that expected native exit code

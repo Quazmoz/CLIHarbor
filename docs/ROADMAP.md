@@ -162,19 +162,17 @@ Potential deliverables:
 
 The current evaluation artifact is intentionally unsigned and portable. The pinned Conjur SHA establishes exact reviewed bytes for the application-managed fallback; it is not independent publisher attestation.
 
-## Stage 9 — Second real CLI
+## Stage 9 — Additional real CLIs
 
-**Status: initial Docker read-only pack implemented; real-host qualification pending.**
+**Status: Docker and kubectl read-only packs implemented; real-host qualification pending.**
 
-CLIHarbor now ships an embedded `docker-cli` pack alongside Conjur. It exercises the generic discovery/planner/executor path without Docker-specific backend branches and exposes only a narrow read-only inventory surface:
+CLIHarbor now ships embedded `docker-cli` and `kubectl-cli` packs alongside Conjur. Both exercise the generic discovery/planner/executor path without vendor-specific backend branches.
 
-- active Docker context name;\n- Docker client/engine version information;
-- containers without command-line, label, mount, or environment fields;
-- images;
-- networks without labels or detailed endpoint configuration;
-- volumes without labels or host mount paths.
+Docker provides active-context visibility plus narrow container/image/network/volume inventory. kubectl provides active-context visibility, client version, and metadata-only namespace/node/pod/deployment inventory using fixed custom-column projections. Neither tool is auto-provisioned.
 
-Docker is not auto-provisioned. Missing/ambiguous Docker remains unavailable until an approved local installation/path exists. Public CI validates pack loading, linting, and exact planner argv without requiring a Docker daemon; real runtime qualification remains external.
+The kubectl pack deliberately excludes kubeconfig contents, Secrets, ConfigMaps, raw object manifests, logs, exec/attach/cp, port-forward/proxy, impersonation, context mutation, and all change/destructive operations. Cluster-backed commands reuse the vendor-owned session boundary; CLIHarbor does not accept Kubernetes credentials.
+
+Public CI validates built-in loading, linting, exact planner argv, and the no-auto-provisioning boundary without requiring Docker or Kubernetes daemons/clusters. Real runtime qualification remains external.
 
 Selection criteria for future expansion remain:
 
@@ -182,11 +180,11 @@ Selection criteria for future expansion remain:
 - stable documented CLI semantics;
 - reasonable licensing/distribution;
 - useful non-secret read workflows;
-- enough difference from Conjur to validate the generic engine.
+- enough difference from existing packs to exercise generic engine behavior.
 
-A second tool does **not** inherit Conjur's bootstrap behavior. Any automatic dependency provisioning requires its own reviewed immutable version/source/digest/platform/install/opt-out contract.
+No additional tool inherits Conjur's bootstrap behavior. Any automatic dependency provisioning requires its own reviewed immutable version/source/digest/platform/install/opt-out contract.
 
-Exit condition: Docker and Conjur both execute approved read-only workflows on a real qualified host without vendor-specific branches in the generic planner/executor.
+Exit condition: Conjur, Docker, and kubectl execute approved read-only workflows on qualified hosts without vendor-specific branches in the generic planner/executor.
 
 ## Stage 10 — Pack authoring tooling
 

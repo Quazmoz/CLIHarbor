@@ -1,0 +1,137 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: kubectl-cli
+  name: Kubernetes kubectl
+  version: 0.1.0
+  description: >-
+    Narrow read-only Kubernetes inventory pack derived from the official kubectl
+    reference. It exposes context visibility and selected metadata-only get
+    operations while excluding kubeconfig contents, Secrets, ConfigMaps, logs,
+    exec/attach/cp, port-forward/proxy, impersonation, and mutations.
+runtime:
+  platforms: [windows, linux, darwin]
+  tools:
+    kubectl:
+      executableNames: [kubectl]
+      versionProbe:
+        args: [version, --client=true]
+        parser: semver-text
+        timeoutMillis: 2000
+commands:
+  context:
+    name: Show active Kubernetes context
+    description: Show the kubeconfig context name that subsequent cluster inventory commands will target.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: config
+      - literal: current-context
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  client-version:
+    name: kubectl client version
+    description: Show kubectl client version metadata without contacting the Kubernetes API server.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: version
+      - literal: --client=true
+      - literal: --output=json
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  namespaces:
+    name: List namespaces
+    description: List namespace names and phase from the active Kubernetes context without returning namespace object bodies.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: get
+      - literal: namespaces
+      - literal: --output=custom-columns=NAME:.metadata.name,STATUS:.status.phase
+      - literal: --no-headers
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  nodes:
+    name: List nodes
+    description: List node names plus kubelet and operating-system metadata without addresses, labels, annotations, or object bodies.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: get
+      - literal: nodes
+      - literal: --output=custom-columns=NAME:.metadata.name,KUBELET:.status.nodeInfo.kubeletVersion,OS:.status.nodeInfo.osImage
+      - literal: --no-headers
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  pods:
+    name: List pods
+    description: List pod namespace, name, and phase across the active context without logs, environment, command, annotations, or object bodies.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: get
+      - literal: pods
+      - literal: --all-namespaces
+      - literal: --output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,PHASE:.status.phase
+      - literal: --no-headers
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  deployments:
+    name: List deployments
+    description: List deployment namespace, name, ready replicas, and available replicas across the active context without manifests or configuration data.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: get
+      - literal: deployments
+      - literal: --all-namespaces
+      - literal: --output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas
+      - literal: --no-headers
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
