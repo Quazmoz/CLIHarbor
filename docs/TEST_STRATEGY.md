@@ -18,6 +18,10 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 
 `internal/packs` coverage verifies known-good packs plus fail-closed schema/semantic/trust/resource-bound cases including unsupported versions, duplicate IDs/keys, unresolved references, invalid input/risk/output shapes, browser-selectable execution fields, unsafe flag layouts/leading-dash values, executable paths/shell/interpreters, hostile YAML features, UTF-8/size/depth bounds, secret-output persistence policy, deterministic load order, local symlink rejection, duplicate packs, error path redaction, and registry deep-copy behavior.
 
+### Stage 9 second-real-CLI checkpoint
+
+The built-in Docker pack is covered as a real second pack without requiring a Docker daemon in public CI. Tests verify default-pack loading, exact production-planner argv from the checked-in `packtest.json`, and zero-error/zero-warning static lint coverage. Runtime acceptance against an installed Docker CLI/Engine remains an approved-environment check rather than a public-CI dependency.
+
 ### Stage 10 pack-authoring lint checkpoint
 
 `internal/app` coverage for `pack lint` verifies clean-pack success, every current lint rule, multiple diagnostics with stable ordering, malformed and oversized pack sources, bounded explicit-directory fan-out, pack/cases symlink rejection where supported, terminal/control-character rejection without arbitrary value echo, a nonexistent declared executable proving lint performs no discovery/probe/execution, intentional planner-negative fixture references, inconsistent fixture references, contract-coverage diagnostics including constrained-positional leading-dash rejection, and bounded diagnostic amplification. The checked-in example fixture is maintained as a zero-warning lint reference. Lint coverage remains separate from `pack test`: lint inspects static pack/fixture relationships, while `pack test` invokes the production planner against synthetic discovery identity.
