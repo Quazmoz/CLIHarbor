@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	"github.com/Quazmoz/CLIHarbor/internal/planner"
 )
 
 func TestGeneratePackTestsCreatesPassingZeroCoverageFixture(t *testing.T) {
@@ -108,6 +109,54 @@ func TestGeneratePackTestsDoesNotOverwriteOrEmitEmptyFixture(t *testing.T) {
 			t.Fatalf("empty fixture unexpectedly created: %v", statErr)
 		}
 	})
+}
+
+func TestGeneratePackTestsCapturesPlannerPolicyRejection(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	packPath := filepath.Join(root, "blocked.yaml")
+	destination := filepath.Join(root, "blocked.packtest.json")
+	data := []byte(`apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: blocked
+  name: Blocked
+  version: 0.1.0
+runtime:
+  platforms: [windows, linux, darwin]
+  tools:
+    blocked:
+      executableNames: [blocked-cli]
+commands:
+  mutate:
+    name: Mutate
+    description: Test-only planner policy boundary.
+    tool: blocked
+    risk: change
+    argv:
+      - literal: mutate
+    output:
+      mode: raw
+`)
+	if err := os.WriteFile(packPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := GeneratePackTests(Options{Out: &bytes.Buffer{}}, packPath, destination); err != nil {
+		t.Fatalf("GeneratePackTests(policy blocked) error = %v", err)
+	}
+
+	document, err := readPackTestDocument(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(document.Cases) != 1 || document.Cases[0].ExpectError == nil {
+		t.Fatalf("generated policy cases = %#v", document.Cases)
+	}
+	if document.Cases[0].ExpectError.Code != planner.ErrRiskPolicy ||
+		document.Cases[0].ExpectError.Path != "commandId" {
+		t.Fatalf("generated policy expectation = %#v", document.Cases[0].ExpectError)
+	}
 }
 
 func TestGeneratePackTestsFailsClosedWhenStringSampleCannotBeSynthesized(t *testing.T) {
