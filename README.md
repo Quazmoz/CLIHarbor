@@ -112,7 +112,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Area | Implemented |
 | --- | --- |
 | Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
-| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, non-executing `pack validate`, deterministic static `pack lint`, and planner-backed `pack test` |
+| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, non-executing `pack validate`, deterministic static `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
 | First-party startup | Embedded reviewed Conjur pack for zero-config `serve` and `doctor` |
 | Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
@@ -167,7 +167,15 @@ go run ./cmd/cliharbor pack lint ./acme.yaml
 
 Lint diagnostics have stable severity/code/source/object-path identities. Lint errors fail the command; warnings identify reviewable quality or coverage gaps without making valid future-gated pack metadata unusable. Lint never performs tool discovery, runs probes/tasks, reads authentication/session state, downloads dependencies, or uses an LLM. Ordinary shell metacharacters are not blanket-rejected merely for appearing inside trusted static argv because CLIHarbor executes the selected binary directly without a shell.
 
-Define bounded JSON contract cases and exercise the exact production planner without launching the declared CLI:
+Generate a deterministic starter contract fixture from a validated pack without launching the declared CLI:
+
+```bash
+go run ./cmd/cliharbor pack generate-tests --output ./acme.packtest.json ./acme.yaml
+```
+
+Generation uses synthetic local discovery identity plus the production planner to emit exact `expectArgs` success cases and targeted planner-rejection cases for supported input boundaries. It is bounded, no-clobber, does not inspect vendor sessions, and fails closed when CLIHarbor cannot synthesize a safe deterministic input value. The generated fixture is a **reviewable source artifact**, not proof that the vendor command semantics are correct: compare the emitted argv with authoritative vendor documentation/source before accepting it as a contract.
+
+Then run the bounded JSON contract cases through the exact production planner without launching the declared CLI:
 
 ```bash
 go run ./cmd/cliharbor pack test --cases ./acme.packtest.json ./acme.yaml

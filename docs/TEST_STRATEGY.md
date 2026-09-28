@@ -22,6 +22,10 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 
 `internal/app` coverage for `pack lint` verifies clean-pack success, every current lint rule, multiple diagnostics with stable ordering, malformed and oversized pack sources, bounded explicit-directory fan-out, pack/cases symlink rejection where supported, terminal/control-character rejection without arbitrary value echo, a nonexistent declared executable proving lint performs no discovery/probe/execution, intentional planner-negative fixture references, inconsistent fixture references, contract-coverage diagnostics including constrained-positional leading-dash rejection, and bounded diagnostic amplification. The checked-in example fixture is maintained as a zero-warning lint reference. Lint coverage remains separate from `pack test`: lint inspects static pack/fixture relationships, while `pack test` invokes the production planner against synthetic discovery identity.
 
+### Stage 10 pack-test generation checkpoint
+
+`internal/app` and CLI coverage for `pack generate-tests` verifies that generated `cliharbor.packtest/v1` fixtures self-verify through the production planner, close the checked-in example pack's lint coverage, and also pass against the real reviewed Conjur pack without executing a vendor binary. Coverage includes deterministic success argv, boolean-switch activation, enum-map branches, integer min/max rejection, enum rejection, positional leading-dash rejection, no-clobber output, discovery-only/no-command refusal, and fail-closed behavior when bounded deterministic string synthesis cannot satisfy a declared pattern. Generated fixtures remain authoring scaffolds and require review against authoritative vendor evidence before adoption.
+
 ### Phase 3 checkpoint
 
 `internal/discovery`, pack version-probe tests, app doctor tests, and CLI flag tests cover:

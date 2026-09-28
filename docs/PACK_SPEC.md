@@ -406,6 +406,7 @@ CLIHarbor includes a narrow onboarding surface for additional CLIs:
 cliharbor pack init --id <pack-id> --name <name> --tool <tool-id> --executable <basename> <output.yaml>
 cliharbor pack validate <pack.yaml-or-directory> [...]
 cliharbor pack lint [--cases <cases.json>] <pack.yaml-or-directory> [...]
+cliharbor pack generate-tests --output <cases.json> <pack.yaml-or-directory>
 cliharbor pack test --cases <cases.json> <pack.yaml-or-directory>
 ```
 
@@ -430,7 +431,7 @@ Current repository-grounded rules detect terminal/control characters in trusted 
 
 If `--cases` is supplied explicitly, lint reuses the hardened `cliharbor.packtest/v1` reader and adds static fixture diagnostics without running the planner. It checks unintended references to unknown packs/commands/inputs and reports coverage gaps for planner-runnable commands, consumed inputs, positive boolean-switch behavior, bounded integer rejection below/above declared limits, constrained-positional leading-dash rejection, enum rejection, and each enum-to-literal map branch. Explicit contract cases whose declared purpose is to assert `unknown_pack`, `unknown_command`, or `unknown_input` planner rejection remain valid. CLIHarbor does not auto-discover nearby fixture files.
 
-`pack test` adds a deterministic planner-contract layer without granting execution authority. The cases file uses schema `cliharbor.packtest/v1`; each case supplies a pack ID, command ID, typed JSON values, and exactly one expectation:
+`pack generate-tests` creates a deterministic, no-clobber starter `cliharbor.packtest/v1` fixture from the validated pack model. It uses only synthetic local executable identity and the production planner; it does not perform executable discovery, run version/help probes, execute tasks, download dependencies, or inspect authentication/session state. For planner-runnable commands it emits a success case with exact planner-produced argv, positive boolean-switch coverage, enum-map branches, bounded-integer rejection cases, enum rejection cases, and constrained-positional leading-dash rejection where those contracts apply. Commands already blocked by the current risk/auth/output policy receive the corresponding planner-rejection case instead. The generator self-verifies every case through the production planner before writing, refuses to overwrite an existing output file, observes the existing 256-case fixture bound, and fails closed rather than inventing a value when a declared string constraint cannot be satisfied by its bounded deterministic sample set. Generated argv remains a reviewable scaffold: authors must compare it with authoritative vendor documentation/source before treating it as a semantic contract.\n\n`pack test` adds a deterministic planner-contract layer without granting execution authority. The cases file uses schema `cliharbor.packtest/v1`; each case supplies a pack ID, command ID, typed JSON values, and exactly one expectation:
 
 - `expectArgs`: the exact argument vector the production planner must build; or
 - `expectError`: the planner error `code` and, optionally, exact `path`.
@@ -461,7 +462,7 @@ Example:
 
 The cases file is bounded, strict JSON: unknown fields, duplicate keys, excessive nesting, invalid UTF-8, multiple JSON documents, symlinks, oversized files, duplicate case names, malformed pack/command/input identifiers, unsupported error codes, and ambiguous expectations fail closed. The runner loads the target pack through the normal hardened loader and invokes the real production planner against synthetic temporary discovery identity. It does **not** execute the declared CLI, version probes, help/evidence probes, or tasks. Failure output reports case metadata and mismatch class but deliberately does not echo input values or argv. Test fixtures should still never contain credentials or secrets.
 
-`validate` establishes structural/schema/semantic/security validity; `lint` adds deterministic static authoring-quality/security diagnostics; `test` verifies planner behavior against declared contracts. None of these commands proves that a vendor CLI is installed, compatible beyond declared evidence, or semantically correct. After those authoring checks, use `doctor --pack-file ...` or `doctor --pack-dir ...` for actual executable discovery and only add commands supported by reviewed vendor documentation/source or captured evidence.
+`validate` establishes structural/schema/semantic/security validity; `lint` adds deterministic static authoring-quality/security diagnostics; `generate-tests` scaffolds reviewable planner contracts; `test` verifies planner behavior against declared contracts. None of these commands proves that a vendor CLI is installed, compatible beyond declared evidence, or semantically correct. After those authoring checks, use `doctor --pack-file ...` or `doctor --pack-dir ...` for actual executable discovery and only add commands supported by reviewed vendor documentation/source or captured evidence.
 
 ## 19. Phase 0 evidence
 
