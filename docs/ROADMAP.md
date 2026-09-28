@@ -180,14 +180,14 @@ Exit condition: two real packs operate without vendor-specific branches in the g
 
 ## Stage 10 — Pack authoring tooling
 
-**Status: safe onboarding, static linting, and planner-contract testing implemented.**
+**Status: safe onboarding, static linting, planner-contract testing, and deterministic fixture generation implemented.**
 
 Implemented:
 
 - `cliharbor pack init` discovery-only scaffolding for arbitrary approved executable basenames;
 - `cliharbor pack validate` hardened schema/semantic/security validation without executable execution;
 - `cliharbor pack lint` deterministic static security/quality diagnostics, with optional explicit contract-fixture coverage analysis and no executable/probe/session access;
-- `cliharbor pack test` bounded declarative contract cases through the production planner without executable/probe execution;
+- `cliharbor pack test` bounded declarative contract cases through the production planner without executable/probe execution;\n- `cliharbor pack generate-tests` bounded, no-clobber planner-contract fixture scaffolding with production-planner self-verification and no executable/probe/session access;
 - multi-source validation with duplicate-pack conflict detection;
 - additive explicit packs alongside embedded first-party packs;
 - `--no-default-packs` for explicit custom-only `serve`/`doctor` qualification.
