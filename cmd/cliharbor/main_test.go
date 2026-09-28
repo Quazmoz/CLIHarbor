@@ -131,6 +131,8 @@ func TestPackCommandShapeFailsClosed(t *testing.T) {
 		{"pack", "lint"},
 		{"pack", "test"},
 		{"pack", "test", "--cases", "cases.json"},
+		{"pack", "generate-tests"},
+		{"pack", "generate-tests", "--output", "cases.json"},
 		{"pack", "init", "--id", "demo", "--name", "Demo", "--tool", "demo", "--executable", "demo"},
 	} {
 		if err := run(args); err == nil {
@@ -164,6 +166,17 @@ func TestPackTestCommand(t *testing.T) {
 	casesPath := filepath.Join("..", "..", "packs", "example", "packtest.json")
 	if err := run([]string{"pack", "test", "--cases", casesPath, packPath}); err != nil {
 		t.Fatalf("run(pack test) error = %v", err)
+	}
+}
+
+func TestPackGenerateTestsCommand(t *testing.T) {
+	packPath := filepath.Join("..", "..", "packs", "example", "pack.yaml")
+	casesPath := filepath.Join(t.TempDir(), "generated.packtest.json")
+	if err := run([]string{"pack", "generate-tests", "--output", casesPath, packPath}); err != nil {
+		t.Fatalf("run(pack generate-tests) error = %v", err)
+	}
+	if err := run([]string{"pack", "test", "--cases", casesPath, packPath}); err != nil {
+		t.Fatalf("run(pack test generated fixture) error = %v", err)
 	}
 }
 
