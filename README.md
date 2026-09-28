@@ -113,7 +113,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | --- | --- |
 | Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
 | Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, non-executing `pack validate`, deterministic static `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
-| First-party startup | Embedded reviewed Conjur pack for zero-config `serve` and `doctor` |
+| First-party startup | Embedded reviewed Conjur and Docker read-only packs for zero-config `serve` and `doctor` |
 | Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
 | Planning | Typed inputs, trusted literals/flags/switches/enum mappings, constrained positional values, deterministic argv |
@@ -206,6 +206,14 @@ go run ./cmd/cliharbor serve --no-default-packs --pack-dir ./my-packs
 ```
 
 Duplicate pack IDs fail closed. Adding a custom pack never grants Conjur's pinned download behavior to that tool; automatic dependency provisioning remains explicitly limited to the reviewed built-in Conjur contract.
+
+## Docker read-only integration
+
+CLIHarbor also ships a small embedded `docker-cli` pack. It adds read-only workflows for the active Docker context, Docker version information, containers, images, networks, and volumes. `Show active Docker context` makes the selected Docker target visible without exposing endpoint configuration. The output templates intentionally omit container command lines, labels, environment/config inspection, network endpoint detail, and volume mount paths.
+
+Docker is never downloaded or installed by CLIHarbor; normal executable discovery is used, and a missing Docker CLI simply leaves these tasks unavailable.
+
+See [Docker CLI Integration](docs/DOCKER_INTEGRATION.md).
 
 ## Real Conjur 9.x integration
 

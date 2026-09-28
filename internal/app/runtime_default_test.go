@@ -9,7 +9,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 )
 
-func TestPrepareRuntimeLoadsEmbeddedConjurPackWhenDefaultsEnabled(t *testing.T) {
+func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testing.T) {
 	t.Parallel()
 
 	state, err := prepareRuntime(context.Background(), Options{LoadDefaultPacks: true})
@@ -25,6 +25,16 @@ func TestPrepareRuntimeLoadsEmbeddedConjurPackWhenDefaultsEnabled(t *testing.T) 
 	}
 	if len(state.Registry.Commands("cyberark-conjur-v9")) == 0 {
 		t.Fatal("embedded Conjur pack exposed no commands")
+	}
+	docker, ok := state.Registry.FindPack("docker-cli")
+	if !ok {
+		t.Fatal("embedded Docker pack was not loaded")
+	}
+	if docker.Pack.Metadata.Name == "" {
+		t.Fatal("embedded Docker pack metadata was empty")
+	}
+	if len(state.Registry.Commands("docker-cli")) != 6 {
+		t.Fatalf("embedded Docker commands = %d, want 6", len(state.Registry.Commands("docker-cli")))
 	}
 }
 
@@ -62,8 +72,8 @@ commands: {}
 	if _, ok := state.Registry.FindPack("other-cli"); !ok {
 		t.Fatal("explicit non-Conjur pack was not added")
 	}
-	if got := len(state.Registry.Packs()); got != 2 {
-		t.Fatalf("configured packs = %d, want 2", got)
+	if got := len(state.Registry.Packs()); got != 3 {
+		t.Fatalf("configured packs = %d, want 3", got)
 	}
 }
 
@@ -153,6 +163,25 @@ commands: {}
 	for _, ref := range provisioner.refs {
 		if ref.PackID == "other-cli" {
 			t.Fatalf("custom tool unexpectedly reached automatic provisioner: %s", ref.String())
+		}
+	}
+}
+
+func TestPrepareRuntimeNeverAutoProvisionsDocker(t *testing.T) {
+	t.Parallel()
+
+	provisioner := &recordingProvisioner{}
+	_, err := prepareRuntime(context.Background(), Options{
+		LoadDefaultPacks:   true,
+		AutoProvisionTools: true,
+		ToolProvisioner:    provisioner,
+	})
+	if err != nil {
+		t.Fatalf("prepareRuntime: %v", err)
+	}
+	for _, ref := range provisioner.refs {
+		if ref.PackID == "docker-cli" || ref.ToolID == "docker" {
+			t.Fatalf("Docker unexpectedly reached automatic provisioner: %s", ref.String())
 		}
 	}
 }

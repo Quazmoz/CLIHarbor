@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "show active docker context",
+      "packId": "docker-cli",
+      "commandId": "context",
+      "expectArgs": [
+        "context",
+        "show"
+      ]
+    },
+    {
+      "name": "docker version",
+      "packId": "docker-cli",
+      "commandId": "version",
+      "expectArgs": [
+        "version",
+        "--format",
+        "json"
+      ]
+    },
+    {
+      "name": "list containers safely",
+      "packId": "docker-cli",
+      "commandId": "containers",
+      "expectArgs": [
+        "container",
+        "ls",
+        "--all",
+        "--format",
+        "table {{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.State}}\\t{{.Status}}\\t{{.Ports}}"
+      ]
+    },
+    {
+      "name": "list images safely",
+      "packId": "docker-cli",
+      "commandId": "images",
+      "expectArgs": [
+        "image",
+        "ls",
+        "--all",
+        "--format",
+        "table {{.ID}}\\t{{.Repository}}\\t{{.Tag}}\\t{{.Size}}"
+      ]
+    },
+    {
+      "name": "list networks safely",
+      "packId": "docker-cli",
+      "commandId": "networks",
+      "expectArgs": [
+        "network",
+        "ls",
+        "--format",
+        "table {{.ID}}\\t{{.Name}}\\t{{.Driver}}\\t{{.Scope}}\\t{{.IPv6}}\\t{{.Internal}}"
+      ]
+    },
+    {
+      "name": "list volumes safely",
+      "packId": "docker-cli",
+      "commandId": "volumes",
+      "expectArgs": [
+        "volume",
+        "ls",
+        "--format",
+        "table {{.Name}}\\t{{.Driver}}\\t{{.Scope}}"
+      ]
+    }
+  ]
+}

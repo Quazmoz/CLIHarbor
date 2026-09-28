@@ -1,0 +1,133 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: docker-cli
+  name: Docker CLI
+  version: 0.1.0
+  description: >-
+    Small read-only Docker inventory pack derived from the official Docker CLI
+    reference. It intentionally excludes container command lines, labels,
+    environment/config inspection, logs, exec, mutations, and secret-bearing
+    Swarm resources.
+runtime:
+  platforms: [windows, linux, darwin]
+  tools:
+    docker:
+      executableNames: [docker]
+      versionProbe:
+        args: [--version]
+        parser: semver-text
+        timeoutMillis: 2000
+commands:
+  context:
+    name: Show active Docker context
+    description: Show the Docker context name that subsequent inventory commands will target; the active context may resolve to a remote daemon.
+    tool: docker
+    risk: read
+    argv:
+      - literal: context
+      - literal: show
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  version:
+    name: Docker version
+    description: Show Docker client and engine version information for the active Docker context in Docker's JSON format.
+    tool: docker
+    risk: read
+    argv:
+      - literal: version
+      - literal: --format
+      - literal: json
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  containers:
+    name: List containers
+    description: List running and stopped containers in the active Docker context without exposing command lines, labels, mounts, or environment data.
+    tool: docker
+    risk: read
+    argv:
+      - literal: container
+      - literal: ls
+      - literal: --all
+      - literal: --format
+      - literal: 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.Ports}}'
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  images:
+    name: List images
+    description: List images in the active Docker context using only ID, repository, tag, and size fields.
+    tool: docker
+    risk: read
+    argv:
+      - literal: image
+      - literal: ls
+      - literal: --all
+      - literal: --format
+      - literal: 'table {{.ID}}\t{{.Repository}}\t{{.Tag}}\t{{.Size}}'
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  networks:
+    name: List networks
+    description: List network identity and driver metadata in the active Docker context without labels or detailed endpoint configuration.
+    tool: docker
+    risk: read
+    argv:
+      - literal: network
+      - literal: ls
+      - literal: --format
+      - literal: 'table {{.ID}}\t{{.Name}}\t{{.Driver}}\t{{.Scope}}\t{{.IPv6}}\t{{.Internal}}'
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  volumes:
+    name: List volumes
+    description: List volume names, drivers, and scopes in the active Docker context without labels or host mount paths.
+    tool: docker
+    risk: read
+    argv:
+      - literal: volume
+      - literal: ls
+      - literal: --format
+      - literal: 'table {{.Name}}\t{{.Driver}}\t{{.Scope}}'
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
