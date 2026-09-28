@@ -68,16 +68,11 @@ const whoamiTask: Task = {
 const readyTool: ToolDiagnostic = {
   packId: 'cyberark-conjur-v9',
   packName: 'CyberArk / Idira Secrets Manager CLI 9.x',
-  packVersion: '0.1.2',
+  packVersion: '0.1.1',
   toolId: 'conjur',
   status: 'ready',
   version: '9.3.1',
   versionConstraint: '>=9.3.1-0 <10.0.0-0',
-  requiresVendorSession: true,
-  sessionCheck: {
-    commandId: 'whoami',
-    unauthenticatedStderrContains: 'please login again',
-  },
 };
 
 function renderAuth(tasks: Task[] = [whoamiTask], tools: ToolDiagnostic[] = [readyTool]) {
@@ -403,74 +398,6 @@ describe('AuthenticationPage', () => {
       exitCode: 0,
     });
     expect(screen.getByRole('heading', { name: 'Authentication check cancelled' })).toBeInTheDocument();
-  });
-
-  test('uses the pack-declared session check instead of hard-coded Conjur identifiers', async () => {
-    const task: Task = {
-      packId: 'custom-auth',
-      packName: 'Custom Auth CLI',
-      commandId: 'session-status',
-      name: 'Session status',
-      toolId: 'custom',
-      toolVersion: '2.0.0',
-      requiresAuth: true,
-      inputs: [],
-    };
-    const tool: ToolDiagnostic = {
-      packId: 'custom-auth',
-      packName: 'Custom Auth CLI',
-      packVersion: '1.0.0',
-      toolId: 'custom',
-      status: 'ready',
-      version: '2.0.0',
-      requiresVendorSession: true,
-      sessionCheck: { commandId: 'session-status', unauthenticatedStderrContains: 'sign in required' },
-    };
-    let submitted: unknown;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-        if (requestPath(input) === '/api/v1/runs') {
-          submitted = JSON.parse(String(init?.body));
-          return Promise.resolve(
-            response(202, {
-              runId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-              packId: 'custom-auth',
-              commandId: 'session-status',
-              toolId: 'custom',
-              status: 'exited',
-              exitCode: 0,
-            }),
-          );
-        }
-        return Promise.resolve(response(404, {}));
-      }),
-    );
-
-    renderAuth([task], [tool]);
-    fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
-
-    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
-    expect(submitted).toEqual({ packId: 'custom-auth', commandId: 'session-status', values: {} });
-  });
-
-  test('does not guess session state for a vendor-session tool without a reviewed check', () => {
-    vi.stubGlobal('fetch', vi.fn());
-    const kubectl: ToolDiagnostic = {
-      packId: 'kubectl-cli',
-      packName: 'Kubernetes kubectl',
-      packVersion: '0.1.0',
-      toolId: 'kubectl',
-      status: 'ready',
-      version: '1.34.0',
-      requiresVendorSession: true,
-    };
-
-    renderAuth([], [kubectl]);
-
-    expect(screen.getByRole('heading', { name: 'Session check not configured' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Check session' })).not.toBeInTheDocument();
-    expect(screen.getByText(/will not guess from arbitrary vendor commands or errors/i)).toBeInTheDocument();
   });
 
   test('contains no browser credential inputs and exposes keyboard-native actions', () => {

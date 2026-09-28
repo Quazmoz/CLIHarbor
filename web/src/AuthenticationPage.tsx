@@ -14,7 +14,11 @@ import {
   type RunSnapshot,
 } from './api/runs';
 
+const conjurPackID = 'cyberark-conjur-v9';
+const conjurToolID = 'conjur';
+const whoamiCommandID = 'whoami';
 const maxAuthEvidenceChars = 64 * 1024;
+const signedOutEvidence = 'please login again';
 
 interface SafeIdentity {
   account?: string;
@@ -48,14 +52,6 @@ interface ToolReadinessView {
   detail: string;
   statusText: string;
   ready: boolean;
-}
-
-interface VendorSessionCardProps {
-  status: RuntimeStatus;
-  tasks: Task[];
-  tool: ToolDiagnostic;
-  onOpenTasks: () => void;
-  onOpenDiagnostics: () => void;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,83 +101,87 @@ function appendBounded(current: string, next: string): string {
   return current + next.slice(0, maxAuthEvidenceChars - current.length);
 }
 
-function describeTool(tool: ToolDiagnostic): ToolReadinessView {
-  const label = tool.packName || tool.toolId;
-  const detected = tool.version ? ' — ' + tool.version : '';
+function describeTool(tool: ToolDiagnostic | undefined): ToolReadinessView {
+  if (tool === undefined) {
+    return {
+      heading: 'Conjur CLI is not configured',
+      detail: 'This runtime does not expose the reviewed Conjur tool. Load the trusted Conjur pack or inspect local diagnostics.',
+      statusText: 'CLI unavailable',
+      ready: false,
+    };
+  }
+
+  const detected = tool.version ? ' — Conjur ' + tool.version : '';
   const views: Record<ToolStatus, Omit<ToolReadinessView, 'ready'>> = {
     ready: {
-      heading: label + ' ready',
-      detail: 'The reviewed executable and version probe passed. Vendor authentication is checked separately when the pack declares a safe session check.',
+      heading: 'Conjur CLI ready',
+      detail: 'The reviewed executable and version probe passed. Vendor authentication is checked separately.',
       statusText: 'Ready' + detected,
     },
     missing: {
-      heading: label + ' unavailable',
-      detail: tool.message || 'CLIHarbor could not find the reviewed executable.',
+      heading: 'Conjur CLI unavailable',
+      detail: tool.message || 'CLIHarbor could not find the reviewed Conjur executable.',
       statusText: 'CLI unavailable',
     },
     ambiguous: {
-      heading: label + ' selection is ambiguous',
-      detail: tool.message || 'Multiple matching executables were found.',
+      heading: 'Conjur CLI selection is ambiguous',
+      detail: tool.message || 'Multiple matching Conjur executables were found.',
       statusText: 'Tool unavailable',
     },
     incompatible: {
-      heading: label + ' version is incompatible',
-      detail: tool.message || 'The detected version does not satisfy the trusted pack requirement.',
+      heading: 'Conjur CLI version is incompatible',
+      detail: tool.message || 'The detected Conjur version does not satisfy the trusted pack requirement.',
       statusText: 'Version incompatible',
     },
     'probe-failed': {
-      heading: label + ' probe failed',
-      detail: tool.message || 'CLIHarbor could not verify the tool version.',
+      heading: 'Conjur CLI probe failed',
+      detail: tool.message || 'CLIHarbor could not verify the Conjur version.',
       statusText: 'Probe failed',
     },
     'invalid-override': {
-      heading: label + ' override is invalid',
+      heading: 'Conjur CLI override is invalid',
       detail: tool.message || 'The configured backend tool override is not usable.',
       statusText: 'Tool unavailable',
     },
     'identity-failed': {
-      heading: label + ' identity verification failed',
+      heading: 'Conjur CLI identity verification failed',
       detail: tool.message || 'CLIHarbor could not verify the resolved executable identity.',
       statusText: 'Tool unavailable',
     },
     'unsupported-platform': {
-      heading: label + ' is unsupported here',
-      detail: tool.message || 'The trusted pack does not support this platform.',
+      heading: 'Conjur CLI is unsupported here',
+      detail: tool.message || 'The trusted Conjur pack does not support this platform.',
       statusText: 'Tool unavailable',
     },
   };
   return { ...views[tool.status], ready: tool.status === 'ready' };
 }
 
-function failureFromRun(
-  status: RunSnapshot['status'],
-  label: string,
-  failure?: AppErrorDetail,
-): AuthCheckFailure | AppErrorDetail {
+function failureFromRun(status: RunSnapshot['status'], failure?: AppErrorDetail): AuthCheckFailure | AppErrorDetail {
   if (failure !== undefined) {
     return failure;
   }
   switch (status) {
     case 'timed-out':
       return {
-        message: label + ' session check timed out.',
+        message: 'The Conjur session check timed out.',
         remediation: 'Retry the check. If it continues to time out, open Diagnostics and verify the local vendor/runtime path.',
       };
     case 'cancelled':
       return {
-        message: label + ' session check was cancelled.',
+        message: 'The Conjur session check was cancelled.',
         remediation: 'Select Re-check session when you are ready to verify the vendor session.',
       };
     case 'failed':
       return {
-        message: 'CLIHarbor could not complete the ' + label + ' session check.',
+        message: 'CLIHarbor could not complete the Conjur session check.',
         remediation: 'Open Diagnostics for sanitized local readiness information, then retry.',
       };
     default:
       return {
-        message: label + ' did not confirm an authenticated session.',
+        message: 'Conjur did not confirm an authenticated session.',
         remediation:
-          'Authenticate using your organization’s approved vendor-owned CLI process, then return here and re-check the session. If you are already signed in, open Diagnostics.',
+          'Authenticate using your organization’s approved Conjur / Secrets Manager CLI process, then return here and re-check the session. If you are already signed in, open Diagnostics.',
       };
   }
 }
@@ -204,13 +204,13 @@ function evidenceFromSnapshot(
   }
 }
 
-function VendorSessionCard({
+export function AuthenticationPage({
   status,
   tasks,
-  tool,
+  tools,
   onOpenTasks,
   onOpenDiagnostics,
-}: VendorSessionCardProps) {
+}: AuthenticationPageProps) {
   const [check, setCheck] = useState<AuthenticationCheck>({ kind: 'unchecked' });
   const attemptRef = useRef(0);
   const activeRunRef = useRef<string | null>(null);
@@ -218,23 +218,23 @@ function VendorSessionCard({
   const stdoutRef = useRef('');
   const stderrRef = useRef('');
 
-  const sessionTask = useMemo(() => {
-    if (tool.sessionCheck === undefined) {
-      return undefined;
-    }
-    return tasks.find(
-      (task) =>
-        task.packId === tool.packId &&
-        task.toolId === tool.toolId &&
-        task.commandId === tool.sessionCheck?.commandId &&
-        task.requiresAuth === true,
-    );
-  }, [tasks, tool]);
-
-  const toolView = describeTool(tool);
-  const canCheck = toolView.ready && tool.sessionCheck !== undefined && sessionTask !== undefined;
-  const label = tool.packName || tool.toolId;
-  const headingID = 'vendor-session-' + tool.packId + '-' + tool.toolId;
+  const whoamiTask = useMemo(
+    () =>
+      tasks.find(
+        (task) =>
+          task.packId === conjurPackID &&
+          task.commandId === whoamiCommandID &&
+          task.toolId === conjurToolID &&
+          task.requiresAuth === true,
+      ),
+    [tasks],
+  );
+  const conjurTool = useMemo(
+    () => tools.find((tool) => tool.packId === conjurPackID && tool.toolId === conjurToolID),
+    [tools],
+  );
+  const toolView = describeTool(conjurTool);
+  const canCheck = toolView.ready && whoamiTask !== undefined;
 
   useEffect(
     () => () => {
@@ -269,12 +269,7 @@ function VendorSessionCard({
       return;
     }
 
-    const signedOutEvidence = tool.sessionCheck?.unauthenticatedStderrContains;
-    if (
-      runStatus === 'exited' &&
-      signedOutEvidence !== undefined &&
-      stderrRef.current.toLowerCase().includes(signedOutEvidence.toLowerCase())
-    ) {
+    if (runStatus === 'exited' && stderrRef.current.toLowerCase().includes(signedOutEvidence)) {
       setCheck({ kind: 'required', checkedAt });
       return;
     }
@@ -287,7 +282,7 @@ function VendorSessionCard({
     setCheck({
       kind: 'failed',
       checkedAt,
-      failure: failureFromRun(runStatus, label, failure),
+      failure: failureFromRun(runStatus, failure),
     });
   };
 
@@ -335,7 +330,7 @@ function VendorSessionCard({
           kind: 'failed',
           checkedAt: new Date().toISOString(),
           failure: {
-            message: 'Live updates ended before CLIHarbor could verify the ' + label + ' session.',
+            message: 'Live updates ended before CLIHarbor could verify the Conjur session.',
             remediation: streamFailure.remediation || 'Retry the session check from this page.',
           },
         });
@@ -355,7 +350,7 @@ function VendorSessionCard({
   };
 
   const startCheck = async () => {
-    if (!canCheck || check.kind === 'checking' || sessionTask === undefined) {
+    if (!canCheck || check.kind === 'checking' || whoamiTask === undefined) {
       return;
     }
 
@@ -370,8 +365,8 @@ function VendorSessionCard({
 
     try {
       const snapshot = await createRun(status.csrfToken, {
-        packId: sessionTask.packId,
-        commandId: sessionTask.commandId,
+        packId: whoamiTask.packId,
+        commandId: whoamiTask.commandId,
         values: {},
       });
       if (attempt !== attemptRef.current) {
@@ -445,42 +440,34 @@ function VendorSessionCard({
 
   let primaryHeading = 'Authentication not verified';
   let primaryDetail =
-    label + ' is ready, but CLIHarbor has not yet checked whether the vendor-owned session is authenticated.';
+    'Conjur is ready, but CLIHarbor has not yet checked whether the vendor-owned session is authenticated.';
   let primaryClass = 'auth-state--neutral';
   let primarySymbol = '?';
 
   if (!toolView.ready) {
     primaryHeading = 'Tool unavailable';
-    primaryDetail = 'CLIHarbor cannot check this vendor session until the reviewed CLI is ready.';
+    primaryDetail = 'CLIHarbor cannot check the Conjur session until the reviewed CLI is ready.';
     primaryClass = 'auth-state--attention';
     primarySymbol = '!';
-  } else if (tool.sessionCheck === undefined) {
-    primaryHeading = 'Session check not configured';
-    primaryDetail =
-      'This trusted pack uses vendor-session workflows but does not declare a reviewed non-secret session check. CLIHarbor will not guess from arbitrary vendor commands or errors.';
-    primaryClass = 'auth-state--neutral';
-    primarySymbol = '–';
-  } else if (sessionTask === undefined) {
+  } else if (whoamiTask === undefined) {
     primaryHeading = 'Authentication check unavailable';
-    primaryDetail =
-      'The trusted runtime did not expose the pack-declared session-check command. Open Diagnostics before continuing.';
+    primaryDetail = 'The trusted runtime did not expose the reviewed Conjur whoami task. Open Diagnostics before continuing.';
     primaryClass = 'auth-state--attention';
     primarySymbol = '!';
   } else if (check.kind === 'checking') {
     primaryHeading = 'Checking session';
-    primaryDetail =
-      'CLIHarbor is running the pack-declared read-only session check through the normal trusted execution path.';
+    primaryDetail = 'CLIHarbor is running the reviewed read-only Conjur whoami workflow through the normal trusted execution path.';
     primaryClass = 'auth-state--checking';
     primarySymbol = '…';
   } else if (check.kind === 'authenticated') {
     primaryHeading = 'Authenticated';
-    primaryDetail = 'The reviewed session-check workflow completed successfully using the vendor-owned session.';
+    primaryDetail = 'The reviewed Conjur whoami workflow completed successfully using the vendor-owned session.';
     primaryClass = 'auth-state--authenticated';
     primarySymbol = '✓';
   } else if (check.kind === 'required') {
     primaryHeading = 'Authentication required';
     primaryDetail =
-      'The reviewed session check returned the pack-declared signed-out evidence. Authenticate externally, then re-check the session.';
+      'The pinned Conjur 9.3.1 workflow returned its reviewed signed-out evidence. Authenticate externally, then re-check the session.';
     primaryClass = 'auth-state--attention';
     primarySymbol = '!';
   } else if (check.kind === 'cancelled') {
@@ -500,147 +487,111 @@ function VendorSessionCard({
     (check.identity.account !== undefined || check.identity.username !== undefined || check.identity.user !== undefined);
 
   return (
-    <article className="panel auth-status-card" aria-labelledby={headingID}>
-      <p className="status-label">{label} session</p>
-      <div className="auth-tool-heading">
-        <div>
-          <h3 id={headingID}>{toolView.heading}</h3>
-          <p>{toolView.detail}</p>
-        </div>
-        <span className={'tool-status ' + (toolView.ready ? 'tool-status--ready' : 'tool-status--attention')}>
-          {toolView.statusText}
-        </span>
-      </div>
-
-      <div className={'auth-primary-state ' + primaryClass} role="status" aria-live="polite" aria-atomic="true">
-        <span className="auth-state-symbol" aria-hidden="true">{primarySymbol}</span>
-        <div>
-          <h3>{primaryHeading}</h3>
-          <p>{primaryDetail}</p>
-        </div>
-      </div>
-
-      {check.kind === 'failed' && check.failure.remediation && (
-        <p className="auth-remediation">{check.failure.remediation}</p>
-      )}
-
-      {check.kind === 'authenticated' && (
-        <div className="auth-evidence">
-          <p className="auth-evidence-title">Verified session evidence</p>
-          <dl>
-            {hasIdentity && check.identity.account !== undefined && (
-              <div>
-                <dt>Account</dt>
-                <dd>{check.identity.account}</dd>
-              </div>
-            )}
-            {hasIdentity && check.identity.username !== undefined && (
-              <div>
-                <dt>Username</dt>
-                <dd>{check.identity.username}</dd>
-              </div>
-            )}
-            {hasIdentity && check.identity.user !== undefined && (
-              <div>
-                <dt>User</dt>
-                <dd>{check.identity.user}</dd>
-              </div>
-            )}
-            <div>
-              <dt>Evidence</dt>
-              <dd>{sessionTask?.name ?? tool.sessionCheck?.commandId ?? 'Session check'} exited successfully</dd>
-            </div>
-          </dl>
-        </div>
-      )}
-
-      <div className="auth-actions">
-        {tool.sessionCheck !== undefined && (
-          <button type="button" disabled={!canCheck || check.kind === 'checking'} onClick={() => void startCheck()}>
-            {check.kind === 'checking'
-              ? 'Checking session…'
-              : check.kind === 'unchecked'
-                ? 'Check session'
-                : 'Re-check session'}
-          </button>
-        )}
-        {check.kind === 'checking' && check.runId !== undefined && (
-          <button type="button" className="secondary-button" onClick={() => void cancelCheck()}>
-            Cancel check
-          </button>
-        )}
-        {check.kind === 'authenticated' && (
-          <button type="button" className="secondary-button" onClick={onOpenTasks}>
-            Continue to tasks
-          </button>
-        )}
-        {(!canCheck || check.kind === 'failed') && (
-          <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>
-            Open diagnostics
-          </button>
-        )}
-      </div>
-
-      {tool.versionConstraint && (
-        <p className="auth-tool-meta">Trusted version requirement: {tool.versionConstraint}</p>
-      )}
-      <p className="auth-boundary-note">
-        CLI readiness and vendor authentication are separate. A discovered executable does not prove that a vendor session is signed in.
-      </p>
-    </article>
-  );
-}
-
-export function AuthenticationPage({
-  status,
-  tasks,
-  tools,
-  onOpenTasks,
-  onOpenDiagnostics,
-}: AuthenticationPageProps) {
-  const vendorSessionTools = useMemo(
-    () => tools.filter((tool) => tool.requiresVendorSession === true || tool.sessionCheck !== undefined),
-    [tools],
-  );
-
-  return (
     <section className="auth-page" aria-labelledby="authentication-heading">
       <div className="route-heading">
-        <p className="status-label">Vendor sessions</p>
+        <p className="status-label">Vendor session</p>
         <h2 id="authentication-heading">Authentication</h2>
         <p>
-          Verify reviewed vendor-owned CLI sessions without giving CLIHarbor a password, MFA value, API key, token,
-          certificate, or other credential.
+          Verify the vendor-owned Conjur / Secrets Manager session without giving CLIHarbor a password, MFA value, API key,
+          token, certificate, or other credential.
         </p>
       </div>
 
       <div className="auth-layout">
-        {vendorSessionTools.length === 0 ? (
-          <article className="panel auth-status-card">
-            <p className="status-label">Vendor sessions</p>
-            <h3>No vendor-session workflows configured</h3>
-            <p>The currently loaded trusted packs do not expose browser tasks that depend on vendor-owned authentication.</p>
-          </article>
-        ) : (
-          vendorSessionTools.map((tool) => (
-            <VendorSessionCard
-              key={
-                tool.packId +
-                '/' +
-                tool.toolId +
-                '/' +
-                tool.packVersion +
-                '/' +
-                (tool.sessionCheck?.commandId ?? 'no-check')
-              }
-              status={status}
-              tasks={tasks}
-              tool={tool}
-              onOpenTasks={onOpenTasks}
-              onOpenDiagnostics={onOpenDiagnostics}
-            />
-          ))
-        )}
+        <article className="panel auth-status-card" aria-labelledby="conjur-session-heading">
+          <p className="status-label">Conjur session</p>
+          <div className={'auth-primary-state ' + primaryClass} role="status" aria-live="polite" aria-atomic="true">
+            <span className="auth-state-symbol" aria-hidden="true">{primarySymbol}</span>
+            <div>
+              <h3 id="conjur-session-heading">{primaryHeading}</h3>
+              <p>{primaryDetail}</p>
+            </div>
+          </div>
+
+          {check.kind === 'failed' && check.failure.remediation && (
+            <p className="auth-remediation">{check.failure.remediation}</p>
+          )}
+
+          {check.kind === 'authenticated' && (
+            <div className="auth-evidence">
+              <p className="auth-evidence-title">Verified session evidence</p>
+              <dl>
+                {hasIdentity && check.identity.account !== undefined && (
+                  <div>
+                    <dt>Account</dt>
+                    <dd>{check.identity.account}</dd>
+                  </div>
+                )}
+                {hasIdentity && check.identity.username !== undefined && (
+                  <div>
+                    <dt>Username</dt>
+                    <dd>{check.identity.username}</dd>
+                  </div>
+                )}
+                {hasIdentity && check.identity.user !== undefined && (
+                  <div>
+                    <dt>User</dt>
+                    <dd>{check.identity.user}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt>Evidence</dt>
+                  <dd>Conjur whoami exited successfully</dd>
+                </div>
+              </dl>
+            </div>
+          )}
+
+          <div className="auth-actions">
+            <button type="button" disabled={!canCheck || check.kind === 'checking'} onClick={() => void startCheck()}>
+              {check.kind === 'checking'
+                ? 'Checking session…'
+                : check.kind === 'unchecked'
+                  ? 'Check session'
+                  : 'Re-check session'}
+            </button>
+            {check.kind === 'checking' && check.runId !== undefined && (
+              <button type="button" className="secondary-button" onClick={() => void cancelCheck()}>
+                Cancel check
+              </button>
+            )}
+            {check.kind === 'authenticated' && (
+              <button type="button" className="secondary-button" onClick={onOpenTasks}>
+                Continue to tasks
+              </button>
+            )}
+            {!canCheck && (
+              <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>
+                Open diagnostics
+              </button>
+            )}
+            {check.kind === 'failed' && (
+              <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>
+                Open diagnostics
+              </button>
+            )}
+          </div>
+        </article>
+
+        <article className="panel auth-tool-card" aria-labelledby="conjur-tool-heading">
+          <p className="status-label">Tool readiness</p>
+          <div className="auth-tool-heading">
+            <div>
+              <h3 id="conjur-tool-heading">{toolView.heading}</h3>
+              <p>{toolView.detail}</p>
+            </div>
+            <span className={'tool-status ' + (toolView.ready ? 'tool-status--ready' : 'tool-status--attention')}>
+              {toolView.statusText}
+            </span>
+          </div>
+          {conjurTool?.versionConstraint && (
+            <p className="auth-tool-meta">Trusted version requirement: {conjurTool.versionConstraint}</p>
+          )}
+          <p className="auth-boundary-note">
+            CLI readiness and Conjur authentication are separate. A discovered executable does not prove that a vendor session
+            is signed in.
+          </p>
+        </article>
       </div>
 
       <article className="panel auth-guidance" aria-labelledby="authentication-guidance-heading">
@@ -648,15 +599,15 @@ export function AuthenticationPage({
         <h3 id="authentication-guidance-heading">Authenticate outside CLIHarbor</h3>
         <p>
           CLIHarbor does not collect or store your vendor password. Authentication remains owned by your organization’s
-          approved vendor CLI or identity process.
+          approved Conjur / Secrets Manager process.
         </p>
         <p className="auth-guidance-step">
-          Authenticate using the approved vendor-owned process, then return here and run a session check when the trusted pack
-          declares one.
+          Authenticate using your organization’s approved Conjur / Secrets Manager CLI process, then return here and check the
+          session again.
         </p>
         <p>
-          CLIHarbor’s local browser session is a separate trust boundary from vendor sessions. This page reports readiness
-          evidence only; it is not an authorization boundary and it does not bypass backend task policy.
+          CLIHarbor’s local browser session is a separate trust boundary from the Conjur vendor session. This page reports
+          session readiness; it is not an authorization boundary and it does not bypass backend task policy.
         </p>
       </article>
     </section>
