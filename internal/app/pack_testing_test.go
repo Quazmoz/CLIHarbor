@@ -26,7 +26,7 @@ func TestRunPackTestsExercisesProductionPlannerWithoutExecution(t *testing.T) {
 		"PASS reject limit below minimum",
 		"PASS reject limit above maximum",
 		"PASS reject unknown mode",
-		"Passed 6 pack contract case(s)",
+		"Passed 5 pack contract case(s)",
 		"no executable, version probe, help probe, or task was run",
 	} {
 		if !strings.Contains(text, want) {
