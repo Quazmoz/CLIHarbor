@@ -168,7 +168,7 @@ The current evaluation artifact is intentionally unsigned and portable. The pinn
 
 CLIHarbor now ships an embedded `docker-cli` pack alongside Conjur. It exercises the generic discovery/planner/executor path without Docker-specific backend branches and exposes only a narrow read-only inventory surface:
 
-- Docker client/engine version information;
+- active Docker context name;\n- Docker client/engine version information;
 - containers without command-line, label, mount, or environment fields;
 - images;
 - networks without labels or detailed endpoint configuration;
