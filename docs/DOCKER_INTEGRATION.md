@@ -12,7 +12,7 @@ The pack is embedded for normal `serve` and `doctor` startup alongside the Conju
 
 The initial pack is derived from Docker's official CLI reference for:
 
-- `docker version --format json`
+- `docker context show`\n- `docker version --format json`
 - `docker container ls --all --format <template>`
 - `docker image ls --all --format <template>`
 - `docker network ls --format <template>`
@@ -20,7 +20,7 @@ The initial pack is derived from Docker's official CLI reference for:
 
 Official references:
 
-- https://docs.docker.com/reference/cli/docker/version/
+- https://docs.docker.com/reference/cli/docker/context/show/\n- https://docs.docker.com/reference/cli/docker/version/
 - https://docs.docker.com/reference/cli/docker/container/ls/
 - https://docs.docker.com/reference/cli/docker/image/ls/
 - https://docs.docker.com/reference/cli/docker/network/ls/
@@ -42,7 +42,7 @@ The first pack is intentionally inventory-only. It excludes:
 - Swarm secrets/config contents;
 - create/start/stop/restart/remove/prune/pull/push/build operations.
 
-The container-list format includes only ID, name, image, state/status, and published ports. Network output excludes labels and endpoint detail. Volume output excludes labels and host mount paths.
+`docker context show` exposes only the active context name so the operator can see which Docker target the inventory commands will use. Docker can target a remote daemon through context/environment configuration, so the pack does not describe these results as necessarily local.\n\nThe container-list format includes only ID, name, image, state/status, and published ports. Network output excludes labels and endpoint detail. Volume output excludes labels and host mount paths.
 
 All tasks remain `risk: read`, use deterministic trusted argv, and do not persist raw output.
 
