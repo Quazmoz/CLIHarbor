@@ -167,6 +167,25 @@ commands: {}
 	}
 }
 
+func TestPrepareRuntimeNeverAutoProvisionsDocker(t *testing.T) {
+	t.Parallel()
+
+	provisioner := &recordingProvisioner{}
+	_, err := prepareRuntime(context.Background(), Options{
+		LoadDefaultPacks:   true,
+		AutoProvisionTools: true,
+		ToolProvisioner:    provisioner,
+	})
+	if err != nil {
+		t.Fatalf("prepareRuntime: %v", err)
+	}
+	for _, ref := range provisioner.refs {
+		if ref.PackID == "docker-cli" || ref.ToolID == "docker" {
+			t.Fatalf("Docker unexpectedly reached automatic provisioner: %s", ref.String())
+		}
+	}
+}
+
 func TestPrepareRuntimeRejectsDuplicatePackIDAcrossSources(t *testing.T) {
 	packPath := filepath.Join(t.TempDir(), "duplicate.yaml")
 	data := []byte(`apiVersion: cliharbor.dev/v1
