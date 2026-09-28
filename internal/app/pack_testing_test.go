@@ -168,7 +168,7 @@ func TestDockerPackPlannerContractsAndLint(t *testing.T) {
 	if err := RunPackTests(Options{Out: &testOut}, packPath, casesPath); err != nil {
 		t.Fatalf("RunPackTests(docker) error = %v\n%s", err, testOut.String())
 	}
-	if !strings.Contains(testOut.String(), "Passed 5 pack contract case(s)") {
+	if !strings.Contains(testOut.String(), "Passed 6 pack contract case(s)") {
 		t.Fatalf("docker pack test output = %q", testOut.String())
 	}
 
