@@ -138,7 +138,7 @@ func run(args []string) error {
 
 func runPackCommand(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: cliharbor pack <init|validate|lint|test> ...")
+		return fmt.Errorf("usage: cliharbor pack <init|validate|lint|test|generate-tests> ...")
 	}
 	switch args[0] {
 	case "init":
@@ -196,8 +196,19 @@ func runPackCommand(args []string) error {
 			return fmt.Errorf("usage: cliharbor pack test --cases <cases.json> <pack.yaml-or-directory>")
 		}
 		return app.RunPackTests(app.Options{Out: os.Stdout}, flags.Arg(0), *casesPath)
+	case "generate-tests":
+		flags := flag.NewFlagSet("cliharbor pack generate-tests", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		outputPath := flags.String("output", "", "new JSON pack contract fixture path")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *outputPath == "" || flags.NArg() != 1 || flags.Arg(0) == "" {
+			return fmt.Errorf("usage: cliharbor pack generate-tests --output <cases.json> <pack.yaml-or-directory>")
+		}
+		return app.GeneratePackTests(app.Options{Out: os.Stdout}, flags.Arg(0), *outputPath)
 	default:
-		return fmt.Errorf("usage: cliharbor pack <init|validate|lint|test> ...")
+		return fmt.Errorf("usage: cliharbor pack <init|validate|lint|test|generate-tests> ...")
 	}
 }
 
