@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Quazmoz/CLIHarbor/internal/packs"
 )
 
 func TestGeneratePackTestsCreatesPassingZeroCoverageFixture(t *testing.T) {
