@@ -118,7 +118,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
 | Planning | Typed inputs, trusted literals/flags/switches/enum mappings, constrained positional values, deterministic argv |
 | Execution | Direct executable launch, no ordinary shell, executable identity revalidation, bounded timeout/output/cancellation |
-| Vendor sessions | Explicit `vendor-session` mode plus a first-class Authentication readiness page that verifies the reviewed `whoami` workflow without CLIHarbor credentials |
+| Vendor sessions | Explicit `vendor-session` mode plus validated pack-declared, zero-input non-secret session-check metadata; the current Conjur readiness page remains credential-free while generic multi-tool UI consumption is the next step |
 | Windows lifecycle | Suspended launch, Job Object assignment before resume, descendant containment and teardown |
 | Browser runs | Authenticated run APIs, planner-backed sanitized invocation preview, bounded SSE streaming/replay, reconnect reconciliation, cancellation, in-memory retry-with-inputs, bounded retention and metadata-only Recent Runs history |
 | Structured results | Strict bounded scalar JSON parsing, inert React rendering and raw-output fallback |
@@ -267,7 +267,7 @@ CLIHarbor supplies no password, token, API key, MFA response, or interactive cre
 
 Installing the vendor executable and authenticating to the vendor are separate operations.
 
-The browser Authentication page at `/authentication` reports both states separately. It never presents credential inputs or a fake login button. **Check session** runs the reviewed `whoami` task through CLIHarbor's existing trusted execution path; successful execution is session evidence, while unknown/non-reviewed vendor failures remain unknown rather than being mislabeled as signed out.
+The pack contract now supports one validated zero-input, read-only, non-secret `sessionCheck` per tool and the backend tool API exposes whether a tool has browser-runnable `vendor-session` work plus any reviewed check metadata. The current browser Authentication page at `/authentication` still verifies the Conjur `whoami` workflow through the trusted execution path and never presents credential inputs or a fake login button. Migrating that page to consume the generic metadata is tracked as the next Authentication UX step; kubectl intentionally declares no generic session check.
 
 The **Runs** page at `/runs` exposes bounded process-local history. Its list API is metadata-only; raw stdout/stderr and structured result data are fetched only when an operator opens one retained run. Restarting CLIHarbor clears the history.
 

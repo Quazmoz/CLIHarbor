@@ -321,7 +321,8 @@ func validationErrorPath(validation *jsonschema.ValidationError) string {
 }
 
 func validateSemantics(pack Pack) error {
-	for toolID, tool := range pack.Runtime.Tools {
+	for _, toolID := range sortedKeys(pack.Runtime.Tools) {
+		tool := pack.Runtime.Tools[toolID]
 		for i, executable := range tool.ExecutableNames {
 			if isForbiddenExecutable(executable) {
 				return validationError(ErrUnsafeExecutable, fmt.Sprintf("runtime.tools.%s.executableNames[%d]", toolID, i), "shells and general-purpose interpreters are not allowed as v1 tools")
@@ -383,6 +384,50 @@ func validateSemantics(pack Pack) error {
 				if field.Sensitive {
 					return validationError(ErrSemantic, fieldPath+".sensitive", "sensitive structured fields are not supported in this phase")
 				}
+			}
+		}
+	}
+
+	for _, toolID := range sortedKeys(pack.Runtime.Tools) {
+		tool := pack.Runtime.Tools[toolID]
+		if tool.SessionCheck == nil {
+			continue
+		}
+		if err := validateSessionCheck(pack, toolID, *tool.SessionCheck); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSessionCheck(pack Pack, toolID string, check SessionCheck) error {
+	path := "runtime.tools." + toolID + ".sessionCheck"
+	command, ok := pack.Commands[check.CommandID]
+	if !ok {
+		return validationError(ErrSemantic, path+".commandId", "session check references an undeclared command")
+	}
+	if command.Tool != toolID {
+		return validationError(ErrSemantic, path+".commandId", "session check command must use the declaring tool")
+	}
+	if command.Risk != RiskRead {
+		return validationError(ErrSemantic, path+".commandId", "session check command must be read-only")
+	}
+	if len(command.Inputs) != 0 {
+		return validationError(ErrSemantic, path+".commandId", "session check command must not require browser inputs")
+	}
+	if command.Output.Sensitivity.ContainsSecrets {
+		return validationError(ErrSemantic, path+".commandId", "session check command must not return secret-bearing output")
+	}
+	if !command.Requirements.RequiresAuth || command.Requirements.AuthMode != AuthModeVendorSession {
+		return validationError(ErrSemantic, path+".commandId", "session check command must require vendor-session authentication")
+	}
+	if marker := check.UnauthenticatedStderrContains; marker != "" {
+		if strings.TrimSpace(marker) != marker {
+			return validationError(ErrSemantic, path+".unauthenticatedStderrContains", "session check evidence must not have leading or trailing whitespace")
+		}
+		for _, character := range marker {
+			if character <= 0x1f || character == 0x7f {
+				return validationError(ErrSemantic, path+".unauthenticatedStderrContains", "session check evidence must not contain control characters")
 			}
 		}
 	}

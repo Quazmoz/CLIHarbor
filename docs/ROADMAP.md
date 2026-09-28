@@ -94,11 +94,23 @@ Online source/release evidence establishes the generic command and fallback-byte
 
 ## Stage 4 — Authentication UX
 
-**Current state:** read-only `vendor-session` execution is implemented; CLIHarbor-owned login orchestration is not.
+**Current state:** read-only `vendor-session` execution and declarative safe session-readiness checks are implemented; CLIHarbor-owned login orchestration is not.
+
+Implemented:
+
+- pack-declared, zero-input read-only/non-secret session checks validated against the declaring tool;
+- browser-safe metadata identifying which tools require vendor sessions and any reviewed session check;
+- Conjur declares its existing reviewed `whoami` check and signed-out evidence without adding credential authority.
+
+Next bounded UX milestone:
+
+- migrate the Authentication page from Conjur-specific identifiers to the generic tool/session-check metadata;
+- render vendor-session tools with no reviewed check (for example kubectl) as check-unavailable rather than guessing state;
+- preserve the existing bounded-output, cancellation/reconciliation, and safe identity-rendering behavior.
 
 Potential deliverables, only when justified by real operator needs:
 
-- safe auth-state detection;
+- broader vendor-specific auth-state detection where authoritative evidence exists;
 - vendor-owned login launch;
 - session refresh/status display;
 - documented vendor logout;

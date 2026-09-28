@@ -67,6 +67,15 @@ type Tool struct {
 	VersionProbe      *VersionProbe        `json:"versionProbe,omitempty"`
 	HelpProbes        map[string]HelpProbe `json:"helpProbes,omitempty"`
 	VersionConstraint string               `json:"versionConstraint,omitempty"`
+	SessionCheck      *SessionCheck        `json:"sessionCheck,omitempty"`
+}
+
+// SessionCheck declares one reviewed, non-secret, zero-input read command that
+// can provide presentation-only evidence about a vendor-owned session. It does
+// not become an authorization boundary and does not grant credential authority.
+type SessionCheck struct {
+	CommandID                     string `json:"commandId"`
+	UnauthenticatedStderrContains string `json:"unauthenticatedStderrContains,omitempty"`
 }
 
 type VersionProbe struct {
