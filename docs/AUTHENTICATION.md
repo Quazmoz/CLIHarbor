@@ -66,26 +66,43 @@ See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md).
 
 The browser exposes a first-class `/authentication` page. It is a session-readiness view, not a credential-entry surface.
 
-The page keeps two trust boundaries explicit:
+The page is now driven by trusted pack metadata rather than hard-coded vendor identifiers. A tool that has browser-runnable `vendor-session` commands is reported as requiring a vendor session. A pack may additionally declare one reviewed check:
+
+```yaml
+runtime:
+  tools:
+    conjur:
+      sessionCheck:
+        commandId: whoami
+        unauthenticatedStderrContains: "please login again"
+```
+
+The declared command must belong to the same tool, be read-only, have no browser inputs, return no secret-bearing output, and require `authMode: vendor-session`. Invalid declarations fail pack loading. The optional stderr marker is bounded trusted metadata used only to distinguish one reviewed signed-out condition from otherwise unknown vendor failures.
+
+This keeps two trust boundaries explicit:
 
 - **CLIHarbor local session** — the HttpOnly loopback browser session established by CLIHarbor bootstrap;
-- **Conjur / Secrets Manager session** — the vendor-owned authentication state used by the official CLI.
+- **vendor CLI session** — authentication state owned by the official CLI, its configuration, and its OS/vendor credential facilities.
 
-Session verification reuses the trusted `cyberark-conjur-v9/whoami` task through the normal run planner/executor and browser run API. The browser does not choose executable paths, argv, flags, or alternate commands.
+Session verification reuses the declared task through the normal planner/executor and browser run API. The browser does not choose executable paths, argv, flags, or alternate commands.
 
 State is conservative:
 
-- a healthy Conjur executable is only **tool readiness**, never proof of authentication;
-- `whoami` exit code `0` is authenticated-session evidence;
-- the pinned Conjur CLI 9.3.1 integration suite verifies that `whoami` after logout fails with `Please login again`; CLIHarbor recognizes only that reviewed phrase as signed-out/authentication-required evidence;
-- every other non-zero `whoami` result remains **authentication check failed** unless a future reviewed vendor contract adds a deterministic distinction;
-- timeout, cancellation, malformed response, stream failure, tool unavailability, and runtime failure remain separate states.
+- a healthy executable is only **tool readiness**, never proof of authentication;
+- a declared session-check exit code `0` is authenticated-session evidence;
+- a non-zero result is **authentication required** only when stderr contains the exact pack-reviewed marker, compared case-insensitively;
+- every other non-zero result remains **authentication check failed**;
+- timeout, cancellation, malformed response, stream failure, tool unavailability, and runtime failure remain separate states;
+- if a vendor-session tool has no declared safe check, the page says so and does not guess by running another command.
 
-The page never renders raw vendor stderr as UI guidance. It retains bounded output only for this check, matches the reviewed signed-out evidence, and renders only the allowlisted non-secret `account`, `username`, and `user` scalar fields from successful `whoami` JSON. All values are ordinary escaped React text.
+The current Conjur pack declares `whoami` as its check. The pinned Conjur CLI 9.3.1 integration evidence establishes `Please login again` as the reviewed signed-out marker. kubectl deliberately has no generic check because kubeconfig presence, current-context visibility, API reachability, and authorization are different states; CLIHarbor does not flatten them into a fabricated signed-in/signed-out result.
 
-A failed or unknown check does not change authorization. Frontend state is presentation only; backend pack, risk, tool, and auth policy remain authoritative.
+The page never renders raw vendor stderr as UI guidance. It retains bounded output only while evaluating a check and renders only the allowlisted non-secret `account`, `username`, and `user` scalar fields when successful JSON happens to provide them. All values are ordinary escaped React text.
+
+A failed, successful, or unavailable check does not change authorization. Frontend state is presentation only; backend pack, risk, tool, and execution policy remain authoritative.
 
 Direct refresh/navigation is supported for `/authentication`, `/tasks`, and `/diagnostics` through an explicit server-side application-route allowlist. Unknown paths still fail closed.
+
 ## Why CLIHarbor does not start with a browser username/password form
 
 A browser credential form would materially expand the trust boundary:

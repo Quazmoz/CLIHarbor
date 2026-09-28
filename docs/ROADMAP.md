@@ -94,11 +94,19 @@ Online source/release evidence establishes the generic command and fallback-byte
 
 ## Stage 4 — Authentication UX
 
-**Current state:** read-only `vendor-session` execution is implemented; CLIHarbor-owned login orchestration is not.
+**Current state:** read-only `vendor-session` execution and declarative safe session-readiness checks are implemented; CLIHarbor-owned login orchestration is not.
+
+Implemented:
+
+- pack-declared, zero-input read-only/non-secret session checks validated against the declaring tool;
+- browser-safe metadata identifying which tools require vendor sessions;
+- a multi-tool Authentication page that runs only reviewed checks through the normal planner/executor;
+- conservative signed-out classification only from optional reviewed pack evidence;
+- explicit no-guess behavior for vendor-session tools such as kubectl that do not have a reliable generic auth probe.
 
 Potential deliverables, only when justified by real operator needs:
 
-- safe auth-state detection;
+- broader vendor-specific auth-state detection where authoritative evidence exists;
 - vendor-owned login launch;
 - session refresh/status display;
 - documented vendor logout;

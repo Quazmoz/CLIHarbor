@@ -10,6 +10,11 @@ export type ToolStatus =
   | 'identity-failed'
   | 'unsupported-platform';
 
+export interface VendorSessionCheck {
+  commandId: string;
+  unauthenticatedStderrContains?: string;
+}
+
 export interface ToolDiagnostic {
   packId: string;
   packName: string;
@@ -19,6 +24,8 @@ export interface ToolDiagnostic {
   version?: string;
   versionConstraint?: string;
   message?: string;
+  requiresVendorSession?: boolean;
+  sessionCheck?: VendorSessionCheck;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -38,11 +45,36 @@ function isToolStatus(value: unknown): value is ToolStatus {
   );
 }
 
+function parseSessionCheck(value: unknown): VendorSessionCheck {
+  if (!isRecord(value)) {
+    throw clientError('invalid_response');
+  }
+  const { commandId, unauthenticatedStderrContains } = value;
+  if (
+    typeof commandId !== 'string' ||
+    (unauthenticatedStderrContains !== undefined && typeof unauthenticatedStderrContains !== 'string')
+  ) {
+    throw clientError('invalid_response');
+  }
+  return { commandId, unauthenticatedStderrContains };
+}
+
 function parseTool(value: unknown): ToolDiagnostic {
   if (!isRecord(value)) {
     throw clientError('invalid_response');
   }
-  const { packId, packName, packVersion, toolId, status, version, versionConstraint, message } = value;
+  const {
+    packId,
+    packName,
+    packVersion,
+    toolId,
+    status,
+    version,
+    versionConstraint,
+    message,
+    requiresVendorSession,
+    sessionCheck,
+  } = value;
   if (
     typeof packId !== 'string' ||
     typeof packName !== 'string' ||
@@ -51,11 +83,23 @@ function parseTool(value: unknown): ToolDiagnostic {
     !isToolStatus(status) ||
     (version !== undefined && typeof version !== 'string') ||
     (versionConstraint !== undefined && typeof versionConstraint !== 'string') ||
-    (message !== undefined && typeof message !== 'string')
+    (message !== undefined && typeof message !== 'string') ||
+    (requiresVendorSession !== undefined && typeof requiresVendorSession !== 'boolean')
   ) {
     throw clientError('invalid_response');
   }
-  return { packId, packName, packVersion, toolId, status, version, versionConstraint, message };
+  return {
+    packId,
+    packName,
+    packVersion,
+    toolId,
+    status,
+    version,
+    versionConstraint,
+    message,
+    requiresVendorSession: requiresVendorSession === true,
+    sessionCheck: sessionCheck === undefined ? undefined : parseSessionCheck(sessionCheck),
+  };
 }
 
 export async function fetchTools(signal?: AbortSignal): Promise<ToolDiagnostic[]> {

@@ -464,7 +464,35 @@ The cases file is bounded, strict JSON: unknown fields, duplicate keys, excessiv
 
 `validate` establishes structural/schema/semantic/security validity; `lint` adds deterministic static authoring-quality/security diagnostics; `generate-tests` scaffolds reviewable planner contracts; `test` verifies planner behavior against declared contracts. None of these commands proves that a vendor CLI is installed, compatible beyond declared evidence, or semantically correct. After those authoring checks, use `doctor --pack-file ...` or `doctor --pack-dir ...` for actual executable discovery and only add commands supported by reviewed vendor documentation/source or captured evidence.
 
-## 19. Phase 0 evidence
+## 19. Vendor-session readiness metadata
+
+A tool may declare one reviewed presentation-only session check:
+
+```yaml
+runtime:
+  tools:
+    example:
+      executableNames: [example]
+      sessionCheck:
+        commandId: session-status
+        unauthenticatedStderrContains: "sign in required"
+```
+
+The referenced command must:
+
+- belong to the same tool;
+- use risk `read`;
+- declare no browser inputs;
+- return no secret-bearing output;
+- require `authMode: vendor-session`.
+
+The optional `unauthenticatedStderrContains` marker is bounded trusted pack metadata. It may classify one reviewed vendor error as authentication-required in the browser, but it is not an authorization signal. Leading/trailing whitespace and control characters are rejected. If no marker is declared, non-zero execution remains an unknown/failed check rather than being guessed as signed out.
+
+Tools may use `vendor-session` tasks without declaring a `sessionCheck`. In that case the Authentication page reports that no reviewed check exists and does not invent one from help text, exit codes, kubeconfig files, or arbitrary commands.
+
+The session check uses the same planner/executor and executable-identity protections as every other browser task. It grants no credential input, shell, executable-selection, or extra command authority.
+
+## 20. Phase 0 evidence
 
 A discovery/evidence-only pack may use:
 
@@ -478,13 +506,13 @@ The typed export schema `cliharbor.phase0/v1` is inert review data. Evidence ins
 
 Promotion from evidence/documentation into a real pack remains an explicit source change with human-reviewable provenance.
 
-## 20. Current Conjur implementation
+## 21. Current Conjur implementation
 
 `packs/conjur/conjur-v9.yaml` is the first real vendor pack derived from authoritative upstream evidence.
 
 It is version-gated to the documented Conjur CLI 9.x contract and exposes only verified read-only/non-secret workflows using `vendor-session` authentication. See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md) for provenance, included commands, and the managed-laptop qualification boundary.
 
-## 21. Extension rule
+## 22. Extension rule
 
 Future pack features must preserve the central invariant:
 
