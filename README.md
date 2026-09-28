@@ -209,7 +209,7 @@ Duplicate pack IDs fail closed. Adding a custom pack never grants Conjur's pinne
 
 ## Docker read-only integration
 
-CLIHarbor also ships a small embedded `docker-cli` pack. It adds read-only inventory workflows for Docker version information plus containers, images, networks, and volumes. The output templates intentionally omit container command lines, labels, environment/config inspection, network endpoint detail, and volume mount paths.
+CLIHarbor also ships a small embedded `docker-cli` pack. It adds read-only workflows for the active Docker context, Docker version information, containers, images, networks, and volumes. `Show active Docker context` makes the selected Docker target visible without exposing endpoint configuration. The output templates intentionally omit container command lines, labels, environment/config inspection, network endpoint detail, and volume mount paths.
 
 Docker is never downloaded or installed by CLIHarbor; normal executable discovery is used, and a missing Docker CLI simply leaves these tasks unavailable.
 
