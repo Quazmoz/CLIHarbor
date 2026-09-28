@@ -2,10 +2,23 @@
   "schemaVersion": "cliharbor.packtest/v1",
   "cases": [
     {
+      "name": "show active docker context",
+      "packId": "docker-cli",
+      "commandId": "context",
+      "expectArgs": [
+        "context",
+        "show"
+      ]
+    },
+    {
       "name": "docker version",
       "packId": "docker-cli",
       "commandId": "version",
-      "expectArgs": ["version", "--format", "json"]
+      "expectArgs": [
+        "version",
+        "--format",
+        "json"
+      ]
     },
     {
       "name": "list containers safely",
