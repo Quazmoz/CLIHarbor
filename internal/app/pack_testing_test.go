@@ -156,3 +156,27 @@ func TestRunPackTestsRejectsUnsafeInputIdentifiersBeforePlanning(t *testing.T) {
 		t.Fatalf("RunPackTests() error = %v, want input-identifier rejection", err)
 	}
 }
+
+
+func TestDockerPackPlannerContractsAndLint(t *testing.T) {
+	t.Parallel()
+
+	packPath := filepath.Join("..", "..", "packs", "docker", "docker.yaml")
+	casesPath := filepath.Join("..", "..", "packs", "docker", "packtest.json")
+
+	var testOut bytes.Buffer
+	if err := RunPackTests(Options{Out: &testOut}, packPath, casesPath); err != nil {
+		t.Fatalf("RunPackTests(docker) error = %v\n%s", err, testOut.String())
+	}
+	if !strings.Contains(testOut.String(), "Passed 5 pack contract case(s)") {
+		t.Fatalf("docker pack test output = %q", testOut.String())
+	}
+
+	var lintOut bytes.Buffer
+	if err := LintPackPaths(Options{Out: &lintOut}, []string{packPath}, casesPath); err != nil {
+		t.Fatalf("LintPackPaths(docker) error = %v\n%s", err, lintOut.String())
+	}
+	if !strings.Contains(lintOut.String(), "0 error(s), 0 warning(s)") {
+		t.Fatalf("docker pack lint output = %q", lintOut.String())
+	}
+}
