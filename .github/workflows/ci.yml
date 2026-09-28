@@ -180,13 +180,16 @@ jobs:
           }
 
           $toolOverride = "cyberark-conjur-v9/conjur=$conjur"
-          $doctorOutput = & .\bin\cliharbor-windows-x64-evaluation.exe doctor --tool-path $toolOverride 2>&1
+          $doctorOutput = & .\bin\cliharbor-windows-x64-evaluation.exe doctor --no-default-packs --pack-file ".\packs\conjur\conjur-v9.yaml" --tool-path $toolOverride 2>&1
           $doctorExit = $LASTEXITCODE
           $doctorOutput | ForEach-Object { Write-Host $_ }
           if ($doctorExit -ne 0) {
             throw "pinned Conjur doctor qualification failed with exit code $doctorExit"
           }
           $doctorText = $doctorOutput -join "`n"
+          if ($doctorText -notmatch 'Configured packs: 1') {
+            throw "pinned Conjur qualification was not isolated to exactly one pack"
+          }
           if ($doctorText -notmatch 'cyberark-conjur-v9/conjur:\s+ready') {
             throw "pinned Conjur runtime was not marked ready"
           }
