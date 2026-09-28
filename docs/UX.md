@@ -107,19 +107,21 @@ Authentication is a first-class operator page at `/authentication`, not a generi
 
 Current behavior:
 
-- show Conjur tool readiness independently from vendor-session readiness;
-- use the existing reviewed read-only `whoami` task for **Check session** / **Re-check session**;
-- show `Authenticated` only after successful `whoami` execution;
-- show `Authentication required` only for the pinned upstream signed-out evidence already verified for Conjur CLI 9.3.1;
-- keep other vendor failures unknown rather than guessing that a permission/network/runtime failure means signed out;
-- show safe allowlisted identity context from successful `whoami` JSON only;
-- when the Conjur tool is unavailable, prioritize diagnostics/remediation instead of asking the operator to authenticate;
+- discover every browser-visible vendor-session tool from sanitized backend metadata;
+- show tool readiness independently from vendor-session readiness;
+- run **Check session** / **Re-check session** only when the trusted pack declares a reviewed zero-input non-secret `sessionCheck`;
+- show `Authenticated` only after that declared check exits successfully;
+- show `Authentication required` only when a reviewed pack marker matches the bounded stderr evidence;
+- keep every other vendor failure unknown/failed rather than guessing that permission, network, configuration, or runtime failure means signed out;
+- show safe allowlisted identity context from successful JSON only when the reviewed result provides it;
+- show **Session check unavailable** for vendor-session tools such as kubectl that deliberately declare no reliable generic check;
+- keep unavailable tools actionable through Diagnostics and allow ready no-check tools to continue to Tasks without inventing an auth verdict;
 - guide non-zero auth-required task runs back to Authentication without asserting that authentication caused the failure;
 - support direct browser refresh on `/authentication`, `/tasks`, and `/diagnostics`.
 
-CLIHarbor does not expose a **Sign in** button because no reviewed vendor login-orchestration flow currently exists. The approved instruction is to authenticate using the organization’s Conjur / Secrets Manager process outside CLIHarbor, return, and select **Check session**.
+CLIHarbor does not expose a **Sign in** button because no reviewed vendor login-orchestration flow currently exists. The approved instruction is to authenticate using the organization’s vendor-owned process outside CLIHarbor, return, and select **Check session** when that pack exposes a reviewed check.
 
-No username, password, MFA, token, API-key, certificate, or other credential input exists in the browser. CLIHarbor local browser-session state and Conjur vendor-session state remain explicitly separate.
+No username, password, MFA, token, API-key, certificate, or other credential input exists in the browser. CLIHarbor local browser-session state and vendor-owned CLI session state remain explicitly separate.
 
 ## 8. Run view
 
