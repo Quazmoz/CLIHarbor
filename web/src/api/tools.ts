@@ -45,6 +45,16 @@ function isToolStatus(value: unknown): value is ToolStatus {
   );
 }
 
+function hasControlCharacters(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x1f || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function parseSessionCheck(value: unknown): VendorSessionCheck {
   if (!isRecord(value)) {
     throw clientError('invalid_response');
@@ -58,7 +68,7 @@ function parseSessionCheck(value: unknown): VendorSessionCheck {
         unauthenticatedStderrContains.length === 0 ||
         unauthenticatedStderrContains.length > 256 ||
         unauthenticatedStderrContains.trim() !== unauthenticatedStderrContains ||
-        /[\u0000-\u001f\u007f]/.test(unauthenticatedStderrContains)))
+        hasControlCharacters(unauthenticatedStderrContains)))
   ) {
     throw clientError('invalid_response');
   }
