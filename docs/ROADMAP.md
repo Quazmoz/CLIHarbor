@@ -164,9 +164,19 @@ The current evaluation artifact is intentionally unsigned and portable. The pinn
 
 ## Stage 9 — Second real CLI
 
-Add a materially different second tool only after real demand demonstrates value.
+**Status: initial Docker read-only pack implemented; real-host qualification pending.**
 
-Selection criteria:
+CLIHarbor now ships an embedded `docker-cli` pack alongside Conjur. It exercises the generic discovery/planner/executor path without Docker-specific backend branches and exposes only a narrow read-only inventory surface:
+
+- Docker client/engine version information;
+- containers without command-line, label, mount, or environment fields;
+- images;
+- networks without labels or detailed endpoint configuration;
+- volumes without labels or host mount paths.
+
+Docker is not auto-provisioned. Missing/ambiguous Docker remains unavailable until an approved local installation/path exists. Public CI validates pack loading, linting, and exact planner argv without requiring a Docker daemon; real runtime qualification remains external.
+
+Selection criteria for future expansion remain:
 
 - recurring operator pain;
 - stable documented CLI semantics;
@@ -174,9 +184,9 @@ Selection criteria:
 - useful non-secret read workflows;
 - enough difference from Conjur to validate the generic engine.
 
-A second tool does **not** automatically inherit Conjur's bootstrap behavior. Any automatic dependency provisioning requires its own reviewed immutable version/source/digest/platform/install/opt-out contract.
+A second tool does **not** inherit Conjur's bootstrap behavior. Any automatic dependency provisioning requires its own reviewed immutable version/source/digest/platform/install/opt-out contract.
 
-Exit condition: two real packs operate without vendor-specific branches in the generic planner/executor.
+Exit condition: Docker and Conjur both execute approved read-only workflows on a real qualified host without vendor-specific branches in the generic planner/executor.
 
 ## Stage 10 — Pack authoring tooling
 
@@ -187,7 +197,8 @@ Implemented:
 - `cliharbor pack init` discovery-only scaffolding for arbitrary approved executable basenames;
 - `cliharbor pack validate` hardened schema/semantic/security validation without executable execution;
 - `cliharbor pack lint` deterministic static security/quality diagnostics, with optional explicit contract-fixture coverage analysis and no executable/probe/session access;
-- `cliharbor pack test` bounded declarative contract cases through the production planner without executable/probe execution;\n- `cliharbor pack generate-tests` bounded, no-clobber planner-contract fixture scaffolding with production-planner self-verification and no executable/probe/session access;
+- `cliharbor pack test` bounded declarative contract cases through the production planner without executable/probe execution;
+- `cliharbor pack generate-tests` bounded, no-clobber planner-contract fixture scaffolding with production-planner self-verification and no executable/probe/session access;
 - multi-source validation with duplicate-pack conflict detection;
 - additive explicit packs alongside embedded first-party packs;
 - `--no-default-packs` for explicit custom-only `serve`/`doctor` qualification.
@@ -197,7 +208,6 @@ Remaining candidates:
 - schema-aware editor;
 - help-tree capture;
 - draft generation from authoritative help/source;
-- fixture generation;
 - compatibility matrix.
 
 AI may help author **reviewable source artifacts**, but runtime execution must not depend on an LLM inventing security-sensitive commands.
