@@ -13,6 +13,7 @@ var conjurV9 []byte
 // dockerCLI is the first-party read-only Docker inventory pack. Docker itself
 // remains externally installed and authoritative; CLIHarbor does not provision
 // or modify Docker.
+//
 //go:embed docker/docker.yaml
 var dockerCLI []byte
 
