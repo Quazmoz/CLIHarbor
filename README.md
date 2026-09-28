@@ -113,7 +113,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | --- | --- |
 | Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
 | Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, non-executing `pack validate`, deterministic static `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
-| First-party startup | Embedded reviewed Conjur and Docker read-only packs for zero-config `serve` and `doctor` |
+| First-party startup | Embedded reviewed Conjur, Docker, and kubectl read-only packs for zero-config `serve` and `doctor` |
 | Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
 | Planning | Typed inputs, trusted literals/flags/switches/enum mappings, constrained positional values, deterministic argv |
@@ -214,6 +214,14 @@ CLIHarbor also ships a small embedded `docker-cli` pack. It adds read-only workf
 Docker is never downloaded or installed by CLIHarbor; normal executable discovery is used, and a missing Docker CLI simply leaves these tasks unavailable.
 
 See [Docker CLI Integration](docs/DOCKER_INTEGRATION.md).
+
+## kubectl read-only integration
+
+CLIHarbor also ships an embedded `kubectl-cli` pack for active-context visibility plus metadata-only namespace, node, pod, and deployment inventory. Fixed custom-column projections avoid raw Kubernetes object bodies, and cluster-backed tasks reuse kubectl-owned authentication through the existing `vendor-session` contract.
+
+CLIHarbor never downloads kubectl, changes kubeconfig/context, accepts Kubernetes credentials, or exposes Secrets, ConfigMaps, logs, exec/cp/attach, port-forward/proxy, impersonation, or mutation workflows.
+
+See [kubectl Integration](docs/KUBECTL_INTEGRATION.md).
 
 ## Real Conjur 9.x integration
 

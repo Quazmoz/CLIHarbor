@@ -36,6 +36,16 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if len(state.Registry.Commands("docker-cli")) != 6 {
 		t.Fatalf("embedded Docker commands = %d, want 6", len(state.Registry.Commands("docker-cli")))
 	}
+	kubectl, ok := state.Registry.FindPack("kubectl-cli")
+	if !ok {
+		t.Fatal("embedded kubectl pack was not loaded")
+	}
+	if kubectl.Pack.Metadata.Name == "" {
+		t.Fatal("embedded kubectl pack metadata was empty")
+	}
+	if len(state.Registry.Commands("kubectl-cli")) != 6 {
+		t.Fatalf("embedded kubectl commands = %d, want 6", len(state.Registry.Commands("kubectl-cli")))
+	}
 }
 
 func TestPrepareRuntimeCombinesDefaultAndExplicitPacks(t *testing.T) {
@@ -72,8 +82,8 @@ commands: {}
 	if _, ok := state.Registry.FindPack("other-cli"); !ok {
 		t.Fatal("explicit non-Conjur pack was not added")
 	}
-	if got := len(state.Registry.Packs()); got != 3 {
-		t.Fatalf("configured packs = %d, want 3", got)
+	if got := len(state.Registry.Packs()); got != 4 {
+		t.Fatalf("configured packs = %d, want 4", got)
 	}
 }
 
@@ -182,6 +192,25 @@ func TestPrepareRuntimeNeverAutoProvisionsDocker(t *testing.T) {
 	for _, ref := range provisioner.refs {
 		if ref.PackID == "docker-cli" || ref.ToolID == "docker" {
 			t.Fatalf("Docker unexpectedly reached automatic provisioner: %s", ref.String())
+		}
+	}
+}
+
+func TestPrepareRuntimeNeverAutoProvisionsKubectl(t *testing.T) {
+	t.Parallel()
+
+	provisioner := &recordingProvisioner{}
+	_, err := prepareRuntime(context.Background(), Options{
+		LoadDefaultPacks:   true,
+		AutoProvisionTools: true,
+		ToolProvisioner:    provisioner,
+	})
+	if err != nil {
+		t.Fatalf("prepareRuntime: %v", err)
+	}
+	for _, ref := range provisioner.refs {
+		if ref.PackID == "kubectl-cli" || ref.ToolID == "kubectl" {
+			t.Fatalf("kubectl unexpectedly reached automatic provisioner: %s", ref.String())
 		}
 	}
 }

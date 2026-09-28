@@ -17,11 +17,19 @@ var conjurV9 []byte
 //go:embed docker/docker.yaml
 var dockerCLI []byte
 
+// kubectlCLI is the first-party read-only Kubernetes inventory pack. kubectl
+// remains externally installed and authoritative; CLIHarbor does not provision
+// it, modify kubeconfig, or accept Kubernetes credentials.
+//
+//go:embed kubectl/kubectl.yaml
+var kubectlCLI []byte
+
 // Builtins returns defensive copies of the first-party pack bytes that are safe
 // to hand to the hardened pack loader.
 func Builtins() map[string][]byte {
 	return map[string][]byte{
 		"conjur/conjur-v9.yaml": append([]byte(nil), conjurV9...),
 		"docker/docker.yaml":    append([]byte(nil), dockerCLI...),
+		"kubectl/kubectl.yaml":  append([]byte(nil), kubectlCLI...),
 	}
 }

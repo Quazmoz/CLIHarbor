@@ -18,9 +18,9 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 
 `internal/packs` coverage verifies known-good packs plus fail-closed schema/semantic/trust/resource-bound cases including unsupported versions, duplicate IDs/keys, unresolved references, invalid input/risk/output shapes, browser-selectable execution fields, unsafe flag layouts/leading-dash values, executable paths/shell/interpreters, hostile YAML features, UTF-8/size/depth bounds, secret-output persistence policy, deterministic load order, local symlink rejection, duplicate packs, error path redaction, and registry deep-copy behavior.
 
-### Stage 9 second-real-CLI checkpoint
+### Stage 9 additional-real-CLI checkpoint
 
-The built-in Docker pack is covered as a real second pack without requiring a Docker daemon in public CI. Tests verify default-pack loading, exact production-planner argv from the checked-in `packtest.json`, and zero-error/zero-warning static lint coverage. Runtime acceptance against an installed Docker CLI/Engine remains an approved-environment check rather than a public-CI dependency.
+The built-in Docker and kubectl packs are covered without requiring Docker Engine or a Kubernetes cluster in public CI. Tests verify default-pack loading, exact production-planner argv from each checked-in `packtest.json`, zero-error/zero-warning static lint coverage, and that neither Docker nor kubectl can enter Conjur's automatic provisioning path. Windows evaluation CI also requires zero-config `doctor` to expose all embedded tool states. Real runtime acceptance remains an approved-environment check.
 
 ### Stage 10 pack-authoring lint checkpoint
 

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "show active kubernetes context",
+      "packId": "kubectl-cli",
+      "commandId": "context",
+      "expectArgs": [
+        "config",
+        "current-context"
+      ]
+    },
+    {
+      "name": "kubectl client version",
+      "packId": "kubectl-cli",
+      "commandId": "client-version",
+      "expectArgs": [
+        "version",
+        "--client=true",
+        "--output=json"
+      ]
+    },
+    {
+      "name": "list namespaces safely",
+      "packId": "kubectl-cli",
+      "commandId": "namespaces",
+      "expectArgs": [
+        "get",
+        "namespaces",
+        "--output=custom-columns=NAME:.metadata.name,STATUS:.status.phase",
+        "--no-headers"
+      ]
+    },
+    {
+      "name": "list nodes safely",
+      "packId": "kubectl-cli",
+      "commandId": "nodes",
+      "expectArgs": [
+        "get",
+        "nodes",
+        "--output=custom-columns=NAME:.metadata.name,KUBELET:.status.nodeInfo.kubeletVersion,OS:.status.nodeInfo.osImage",
+        "--no-headers"
+      ]
+    },
+    {
+      "name": "list pods safely",
+      "packId": "kubectl-cli",
+      "commandId": "pods",
+      "expectArgs": [
+        "get",
+        "pods",
+        "--all-namespaces",
+        "--output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,PHASE:.status.phase",
+        "--no-headers"
+      ]
+    },
+    {
+      "name": "list deployments safely",
+      "packId": "kubectl-cli",
+      "commandId": "deployments",
+      "expectArgs": [
+        "get",
+        "deployments",
+        "--all-namespaces",
+        "--output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas",
+        "--no-headers"
+      ]
+    }
+  ]
+}

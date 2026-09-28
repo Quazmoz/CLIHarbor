@@ -136,14 +136,17 @@ jobs:
             throw "zero-config doctor returned unexpected exit code $doctorExit"
           }
           $doctorText = $doctorOutput -join "`n"
-          if ($doctorText -notmatch 'Configured packs: 2') {
-            throw "zero-config doctor did not load exactly two embedded first-party packs"
+          if ($doctorText -notmatch 'Configured packs: 3') {
+            throw "zero-config doctor did not load exactly three embedded first-party packs"
           }
           if ($doctorText -notmatch 'cyberark-conjur-v9/conjur:') {
             throw "zero-config doctor did not expose the embedded Conjur tool state"
           }
           if ($doctorText -notmatch 'docker-cli/docker:') {
             throw "zero-config doctor did not expose the embedded Docker tool state"
+          }
+          if ($doctorText -notmatch 'kubectl-cli/kubectl:') {
+            throw "zero-config doctor did not expose the embedded kubectl tool state"
           }
           # A missing vendor tool intentionally makes doctor exit 1. The smoke
           # assertion succeeded, so do not leak that expected native exit code
@@ -177,13 +180,16 @@ jobs:
           }
 
           $toolOverride = "cyberark-conjur-v9/conjur=$conjur"
-          $doctorOutput = & .\bin\cliharbor-windows-x64-evaluation.exe doctor --tool-path $toolOverride 2>&1
+          $doctorOutput = & .\bin\cliharbor-windows-x64-evaluation.exe doctor --no-default-packs --pack-file ".\packs\conjur\conjur-v9.yaml" --tool-path $toolOverride 2>&1
           $doctorExit = $LASTEXITCODE
           $doctorOutput | ForEach-Object { Write-Host $_ }
           if ($doctorExit -ne 0) {
             throw "pinned Conjur doctor qualification failed with exit code $doctorExit"
           }
           $doctorText = $doctorOutput -join "`n"
+          if ($doctorText -notmatch 'Configured packs: 1') {
+            throw "pinned Conjur qualification was not isolated to exactly one pack"
+          }
           if ($doctorText -notmatch 'cyberark-conjur-v9/conjur:\s+ready') {
             throw "pinned Conjur runtime was not marked ready"
           }
