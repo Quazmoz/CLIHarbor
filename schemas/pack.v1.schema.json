@@ -139,6 +139,9 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 128
+        },
+        "sessionCheck": {
+          "$ref": "#/$defs/sessionCheck"
         }
       }
     },
@@ -572,6 +575,23 @@
         },
         "sensitive": {
           "type": "boolean"
+        }
+      }
+    },
+    "sessionCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commandId"
+      ],
+      "properties": {
+        "commandId": {
+          "$ref": "#/$defs/id"
+        },
+        "unauthenticatedStderrContains": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
         }
       }
     }

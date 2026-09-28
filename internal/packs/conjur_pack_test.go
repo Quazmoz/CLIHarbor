@@ -19,6 +19,9 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if pack.Metadata.ID != "cyberark-conjur-v9" {
 		t.Fatalf("pack id = %q", pack.Metadata.ID)
 	}
+	if pack.Metadata.Version != "0.1.2" {
+		t.Fatalf("pack version = %q", pack.Metadata.Version)
+	}
 	tool, ok := pack.Runtime.Tools["conjur"]
 	if !ok {
 		t.Fatal("conjur tool missing")
@@ -28,6 +31,9 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	}
 	if tool.VersionConstraint != ">=9.3.1-0 <10.0.0-0" {
 		t.Fatalf("version constraint = %q", tool.VersionConstraint)
+	}
+	if tool.SessionCheck == nil || tool.SessionCheck.CommandID != "whoami" || tool.SessionCheck.UnauthenticatedStderrContains != "please login again" {
+		t.Fatalf("session check = %#v", tool.SessionCheck)
 	}
 	for _, probe := range []string{"root", "list", "resource", "role", "whoami"} {
 		if _, ok := tool.HelpProbes[probe]; !ok {

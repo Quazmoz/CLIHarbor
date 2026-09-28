@@ -16,21 +16,40 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 	if registry == nil {
 		return catalog
 	}
+
+	vendorSessionTools := make(map[discovery.ToolRef]bool)
+	for _, loaded := range registry.Packs() {
+		for _, named := range registry.Commands(loaded.Pack.Metadata.ID) {
+			command := named.Command
+			if commandBrowserRunnable(command) && command.Requirements.RequiresAuth && command.Requirements.AuthMode == packs.AuthModeVendorSession {
+				vendorSessionTools[discovery.ToolRef{PackID: loaded.Pack.Metadata.ID, ToolID: command.Tool}] = true
+			}
+		}
+	}
+
 	for _, state := range snapshot.Tools() {
 		loaded, ok := registry.FindPack(state.PackID)
 		if !ok {
 			continue
 		}
-		catalog.tools = append(catalog.tools, server.ToolDiagnostic{
-			PackID:            state.PackID,
-			PackName:          loaded.Pack.Metadata.Name,
-			PackVersion:       state.PackVersion,
-			ToolID:            state.ToolID,
-			Status:            string(state.Status),
-			Version:           state.Version,
-			VersionConstraint: state.VersionConstraint,
-			Message:           browserToolMessage(state.Status),
-		})
+		diagnostic := server.ToolDiagnostic{
+			PackID:                state.PackID,
+			PackName:              loaded.Pack.Metadata.Name,
+			PackVersion:           state.PackVersion,
+			ToolID:                state.ToolID,
+			Status:                string(state.Status),
+			Version:               state.Version,
+			VersionConstraint:     state.VersionConstraint,
+			Message:               browserToolMessage(state.Status),
+			RequiresVendorSession: vendorSessionTools[discovery.ToolRef{PackID: state.PackID, ToolID: state.ToolID}],
+		}
+		if declared, exists := loaded.Pack.Runtime.Tools[state.ToolID]; exists && declared.SessionCheck != nil {
+			diagnostic.SessionCheck = &server.VendorSessionCheck{
+				CommandID:                     declared.SessionCheck.CommandID,
+				UnauthenticatedStderrContains: declared.SessionCheck.UnauthenticatedStderrContains,
+			}
+		}
+		catalog.tools = append(catalog.tools, diagnostic)
 	}
 	for _, loaded := range registry.Packs() {
 		packID := loaded.Pack.Metadata.ID
@@ -131,7 +150,15 @@ func (c *taskCatalog) ListTools() []server.ToolDiagnostic {
 	if c == nil {
 		return nil
 	}
-	return append([]server.ToolDiagnostic(nil), c.tools...)
+	out := make([]server.ToolDiagnostic, len(c.tools))
+	for i, tool := range c.tools {
+		out[i] = tool
+		if tool.SessionCheck != nil {
+			check := *tool.SessionCheck
+			out[i].SessionCheck = &check
+		}
+	}
+	return out
 }
 
 func cloneInt64Pointer(value *int64) *int64 {

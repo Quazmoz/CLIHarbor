@@ -5,6 +5,7 @@ import (
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	"github.com/Quazmoz/CLIHarbor/internal/server"
 )
 
 func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
@@ -13,7 +14,7 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 		Pack: packs.Pack{
 			Metadata: packs.Metadata{ID: "fixture", Name: "Fixture Pack", Version: "1.0.0"},
 			Runtime: packs.Runtime{Tools: map[string]packs.Tool{
-				"ready":   {},
+				"ready":   {SessionCheck: &packs.SessionCheck{CommandID: "session", UnauthenticatedStderrContains: "sign in"}},
 				"missing": {},
 			}},
 			Commands: map[string]packs.Command{
@@ -32,6 +33,11 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 				"auth": {
 					Name: "Auth", Tool: "ready", Risk: packs.RiskRead,
 					Requirements: packs.Requirements{RequiresAuth: true},
+					Output:       packs.Output{Mode: packs.OutputRaw},
+				},
+				"session": {
+					Name: "Session status", Tool: "ready", Risk: packs.RiskRead,
+					Requirements: packs.Requirements{RequiresAuth: true, AuthMode: packs.AuthModeVendorSession},
 					Output:       packs.Output{Mode: packs.OutputRaw},
 				},
 				"secret": {
@@ -65,13 +71,22 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	if tools[1].ToolID != "ready" || tools[1].Status != string(discovery.StatusReady) || tools[1].Version != "1.2.3" || tools[1].VersionConstraint != ">=1.0.0" {
 		t.Fatalf("ready tool diagnostic = %#v", tools[1])
 	}
+	if !tools[1].RequiresVendorSession || tools[1].SessionCheck == nil || tools[1].SessionCheck.CommandID != "session" || tools[1].SessionCheck.UnauthenticatedStderrContains != "sign in" {
+		t.Fatalf("ready vendor-session metadata = %#v", tools[1])
+	}
 
 	tasks := catalog.ListTasks()
-	if len(tasks) != 1 {
-		t.Fatalf("task count = %d, want 1: %#v", len(tasks), tasks)
+	if len(tasks) != 2 {
+		t.Fatalf("task count = %d, want 2: %#v", len(tasks), tasks)
 	}
-	task := tasks[0]
-	if task.PackID != "fixture" || task.CommandID != "safe" || task.ToolID != "ready" || task.ToolVersion != "1.2.3" {
+	var task server.Task
+	for _, candidate := range tasks {
+		if candidate.CommandID == "safe" {
+			task = candidate
+			break
+		}
+	}
+	if task.CommandID == "" || task.PackID != "fixture" || task.ToolID != "ready" || task.ToolVersion != "1.2.3" {
 		t.Fatalf("safe task metadata = %#v", task)
 	}
 	if len(task.Inputs) != 1 || task.Inputs[0].Validation.MaxLength == nil || *task.Inputs[0].Validation.MaxLength != 64 {
@@ -80,8 +95,21 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 
 	task.Inputs[0].Validation.Enum = append(task.Inputs[0].Validation.Enum, "mutated")
 	*task.Inputs[0].Validation.MaxLength = 1
+	tools[1].SessionCheck.CommandID = "mutated"
+
 	second := catalog.ListTasks()
-	if len(second[0].Inputs[0].Validation.Enum) != 0 || second[0].Inputs[0].Validation.MaxLength == nil || *second[0].Inputs[0].Validation.MaxLength != 64 {
+	var secondSafe server.Task
+	for _, candidate := range second {
+		if candidate.CommandID == "safe" {
+			secondSafe = candidate
+			break
+		}
+	}
+	if secondSafe.CommandID == "" || len(secondSafe.Inputs[0].Validation.Enum) != 0 || secondSafe.Inputs[0].Validation.MaxLength == nil || *secondSafe.Inputs[0].Validation.MaxLength != 64 {
 		t.Fatal("task metadata returned shared validation state")
+	}
+	secondTools := catalog.ListTools()
+	if secondTools[1].SessionCheck == nil || secondTools[1].SessionCheck.CommandID != "session" {
+		t.Fatal("tool metadata returned shared session-check state")
 	}
 }

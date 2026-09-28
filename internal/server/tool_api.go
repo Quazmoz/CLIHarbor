@@ -2,15 +2,22 @@ package server
 
 import "net/http"
 
+type VendorSessionCheck struct {
+	CommandID                     string `json:"commandId"`
+	UnauthenticatedStderrContains string `json:"unauthenticatedStderrContains,omitempty"`
+}
+
 type ToolDiagnostic struct {
-	PackID            string `json:"packId"`
-	PackName          string `json:"packName"`
-	PackVersion       string `json:"packVersion"`
-	ToolID            string `json:"toolId"`
-	Status            string `json:"status"`
-	Version           string `json:"version,omitempty"`
-	VersionConstraint string `json:"versionConstraint,omitempty"`
-	Message           string `json:"message,omitempty"`
+	PackID                string              `json:"packId"`
+	PackName              string              `json:"packName"`
+	PackVersion           string              `json:"packVersion"`
+	ToolID                string              `json:"toolId"`
+	Status                string              `json:"status"`
+	Version               string              `json:"version,omitempty"`
+	VersionConstraint     string              `json:"versionConstraint,omitempty"`
+	Message               string              `json:"message,omitempty"`
+	RequiresVendorSession bool                `json:"requiresVendorSession,omitempty"`
+	SessionCheck          *VendorSessionCheck `json:"sessionCheck,omitempty"`
 }
 
 type ToolService interface {
