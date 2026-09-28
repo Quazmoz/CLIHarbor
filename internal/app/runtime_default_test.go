@@ -33,8 +33,8 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if docker.Pack.Metadata.Name == "" {
 		t.Fatal("embedded Docker pack metadata was empty")
 	}
-	if len(state.Registry.Commands("docker-cli")) != 5 {
-		t.Fatalf("embedded Docker commands = %d, want 5", len(state.Registry.Commands("docker-cli")))
+	if len(state.Registry.Commands("docker-cli")) != 6 {
+		t.Fatalf("embedded Docker commands = %d, want 6", len(state.Registry.Commands("docker-cli")))
 	}
 }
 
