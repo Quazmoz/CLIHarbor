@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/Quazmoz/CLIHarbor/internal/apperror"
 )
 
 type fakeCredentialLoginService struct {
