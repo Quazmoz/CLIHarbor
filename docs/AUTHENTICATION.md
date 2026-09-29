@@ -110,6 +110,7 @@ The browser exposes the form only when:
 - the qualified `cyberark-conjur-v9/conjur` tool is healthy;
 - local Conjur configuration can be loaded;
 - the configured authentication type is password-style `authn` or LDAP;
+- the configured Conjur appliance URL is HTTPS and the environment is not SaaS;
 - Conjur credential storage is enabled for writes.
 
 The request path is fixed at `POST /api/v1/auth/login`. It inherits the same loopback Host/Origin, HttpOnly session-cookie and CSRF boundary as other mutating APIs, uses `Cache-Control: no-store`, accepts a small strict JSON schema, rejects duplicate/unknown fields and oversized bodies, and returns only reviewed sanitized errors.
