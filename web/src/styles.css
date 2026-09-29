@@ -1655,3 +1655,28 @@ footer p {
 .tool-install-result p {
   margin: 0.25rem 0;
 }
+
+
+.tool-install-controls {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.tool-install-location {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 48rem;
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.tool-install-location input {
+  width: 100%;
+}
+
+.tool-install-location small {
+  color: var(--text-muted);
+  font-weight: 400;
+  line-height: 1.45;
+}
