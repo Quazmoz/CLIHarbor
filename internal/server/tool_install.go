@@ -17,8 +17,8 @@ import (
 const maxToolInstallRequestBytes = 4 << 10
 
 type ToolInstallCapability struct {
-	Version             string `json:"version"`
-	CustomLocation      bool   `json:"customLocation"`
+	Version        string `json:"version"`
+	CustomLocation bool   `json:"customLocation"`
 }
 
 type ToolInstallRequest struct {
