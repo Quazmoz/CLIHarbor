@@ -22,45 +22,45 @@ func TestStage5FirstPartyReadOnlyArgv(t *testing.T) {
 		want      []string
 	}{
 		{
-			name: "docker disk usage",
+			name:     "docker disk usage",
 			packPath: filepath.Join("..", "..", "packs", "docker", "docker.yaml"),
-			packID: "docker-cli", toolID: "docker", version: "29.0.0", commandID: "disk-usage",
+			packID:   "docker-cli", toolID: "docker", version: "29.0.0", commandID: "disk-usage",
 			want: []string{"system", "df"},
 		},
 		{
-			name: "docker one-shot stats",
+			name:     "docker one-shot stats",
 			packPath: filepath.Join("..", "..", "packs", "docker", "docker.yaml"),
-			packID: "docker-cli", toolID: "docker", version: "29.0.0", commandID: "container-stats",
+			packID:   "docker-cli", toolID: "docker", version: "29.0.0", commandID: "container-stats",
 			want: []string{"container", "stats", "--no-stream", "--format", "table {{.ID}}\t{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}"},
 		},
 		{
-			name: "kubectl statefulsets",
+			name:     "kubectl statefulsets",
 			packPath: filepath.Join("..", "..", "packs", "kubectl", "kubectl.yaml"),
-			packID: "kubectl-cli", toolID: "kubectl", version: "1.36.0", commandID: "statefulsets",
+			packID:   "kubectl-cli", toolID: "kubectl", version: "1.36.0", commandID: "statefulsets",
 			want: []string{"get", "statefulsets", "--all-namespaces", "--output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,READY:.status.readyReplicas,CURRENT:.status.currentReplicas,UPDATED:.status.updatedReplicas", "--no-headers"},
 		},
 		{
-			name: "kubectl daemonsets",
+			name:     "kubectl daemonsets",
 			packPath: filepath.Join("..", "..", "packs", "kubectl", "kubectl.yaml"),
-			packID: "kubectl-cli", toolID: "kubectl", version: "1.36.0", commandID: "daemonsets",
+			packID:   "kubectl-cli", toolID: "kubectl", version: "1.36.0", commandID: "daemonsets",
 			want: []string{"get", "daemonsets", "--all-namespaces", "--output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,DESIRED:.status.desiredNumberScheduled,READY:.status.numberReady,AVAILABLE:.status.numberAvailable", "--no-headers"},
 		},
 		{
-			name: "kubectl jobs",
+			name:     "kubectl jobs",
 			packPath: filepath.Join("..", "..", "packs", "kubectl", "kubectl.yaml"),
-			packID: "kubectl-cli", toolID: "kubectl", version: "1.36.0", commandID: "jobs",
+			packID:   "kubectl-cli", toolID: "kubectl", version: "1.36.0", commandID: "jobs",
 			want: []string{"get", "jobs", "--all-namespaces", "--output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,SUCCEEDED:.status.succeeded,ACTIVE:.status.active,FAILED:.status.failed", "--no-headers"},
 		},
 		{
-			name: "kubectl node usage",
+			name:     "kubectl node usage",
 			packPath: filepath.Join("..", "..", "packs", "kubectl", "kubectl.yaml"),
-			packID: "kubectl-cli", toolID: "kubectl", version: "1.36.0", commandID: "node-usage",
+			packID:   "kubectl-cli", toolID: "kubectl", version: "1.36.0", commandID: "node-usage",
 			want: []string{"top", "node"},
 		},
 		{
-			name: "kubectl pod usage",
+			name:     "kubectl pod usage",
 			packPath: filepath.Join("..", "..", "packs", "kubectl", "kubectl.yaml"),
-			packID: "kubectl-cli", toolID: "kubectl", version: "1.36.0", commandID: "pod-usage",
+			packID:   "kubectl-cli", toolID: "kubectl", version: "1.36.0", commandID: "pod-usage",
 			want: []string{"top", "pod", "--all-namespaces"},
 		},
 	}
@@ -107,13 +107,13 @@ func stage5PlannerFixture(t *testing.T, packPath, packID, toolID, version string
 		t.Fatalf("capture executable identity: %v", err)
 	}
 	snapshot := discovery.NewSnapshot([]discovery.ToolState{{
-		PackID: packID,
-		PackVersion: pack.Metadata.Version,
-		ToolID: toolID,
-		Status: discovery.StatusReady,
-		Path: executable,
-		ExecutableName: filepath.Base(executable),
-		Version: version,
+		PackID:             packID,
+		PackVersion:        pack.Metadata.Version,
+		ToolID:             toolID,
+		Status:             discovery.StatusReady,
+		Path:               executable,
+		ExecutableName:     filepath.Base(executable),
+		Version:            version,
 		ExecutableIdentity: identity,
 	}})
 	return registry, snapshot
