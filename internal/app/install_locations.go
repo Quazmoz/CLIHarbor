@@ -206,5 +206,42 @@ func validateManagedInstallRoot(value, homeDir string) (string, bool) {
 	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", false
 	}
+
+	resolvedHome := home
+	if resolved, resolveErr := filepath.EvalSymlinks(home); resolveErr == nil {
+		resolvedHome = filepath.Clean(resolved)
+	}
+	ancestor := root
+	for {
+		info, statErr := os.Lstat(ancestor)
+		if statErr == nil {
+			if info.Mode()&os.ModeSymlink != 0 {
+				resolved, resolveErr := filepath.EvalSymlinks(ancestor)
+				if resolveErr != nil {
+					return "", false
+				}
+				ancestor = filepath.Clean(resolved)
+			} else if !info.IsDir() {
+				return "", false
+			}
+			break
+		}
+		if !os.IsNotExist(statErr) {
+			return "", false
+		}
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			return "", false
+		}
+		ancestor = parent
+	}
+	resolvedAncestor, resolveErr := filepath.EvalSymlinks(ancestor)
+	if resolveErr != nil {
+		return "", false
+	}
+	relResolved, err := filepath.Rel(resolvedHome, filepath.Clean(resolvedAncestor))
+	if err != nil || relResolved == ".." || strings.HasPrefix(relResolved, ".."+string(filepath.Separator)) {
+		return "", false
+	}
 	return root, true
 }
