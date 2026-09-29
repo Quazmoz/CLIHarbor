@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { normalizeError, invalidInputError, type AppErrorDetail } from './api/errors';
 import { fetchRuntimeStatus, type RuntimeStatus } from './api/status';
 import { fetchTasks, type Task, type TaskInput } from './api/tasks';
-import { fetchTools, type ToolDiagnostic } from './api/tools';
+import { fetchTools, installTool, type ToolDiagnostic } from './api/tools';
 import {
   cancelRun,
   createRun,
@@ -473,6 +473,8 @@ export function App() {
   const [starting, setStarting] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [streamAttempt, setStreamAttempt] = useState(0);
+  const [installingToolKey, setInstallingToolKey] = useState<string | null>(null);
+  const [toolInstallNotice, setToolInstallNotice] = useState<{ key: string; message: string; failure?: AppErrorDetail } | null>(null);
   const runtimeErrorRef = useRef<HTMLElement>(null);
   const taskErrorRef = useRef<HTMLDivElement>(null);
   const previewRequestRef = useRef(0);
@@ -528,6 +530,24 @@ export function App() {
   const loadFailure = useCallback((error: unknown) => {
     setState({ kind: 'error', failure: normalizeError(error).detail });
   }, []);
+
+  const installManagedCLI = async (tool: ToolDiagnostic) => {
+    if (state.kind !== 'ready' || tool.status !== 'missing' || tool.install === undefined || installingToolKey !== null) {
+      return;
+    }
+    const key = tool.packId + '/' + tool.toolId;
+    setInstallingToolKey(key);
+    setToolInstallNotice(null);
+    try {
+      const result = await installTool(state.status.csrfToken, tool.packId, tool.toolId);
+      setToolInstallNotice({ key, message: result.message });
+    } catch (error) {
+      const failure = normalizeError(error).detail;
+      setToolInstallNotice({ key, message: failure.message, failure });
+    } finally {
+      setInstallingToolKey(null);
+    }
+  };
 
   const retryStatus = () => {
     setState({ kind: 'loading' });
@@ -1188,6 +1208,30 @@ export function App() {
                           {tool.versionConstraint ? ' · Required ' + tool.versionConstraint : ''}
                         </p>
                         {tool.message && <p>{tool.message}</p>}
+                        {tool.status === 'missing' && tool.install !== undefined && (
+                          <div className="tool-install-actions">
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              disabled={installingToolKey !== null}
+                              onClick={() => void installManagedCLI(tool)}
+                            >
+                              {installingToolKey === tool.packId + '/' + tool.toolId
+                                ? 'Installing…'
+                                : 'Install verified CLI ' + tool.install.version}
+                            </button>
+                            <span>Current-user install · no admin credentials · restart required to activate</span>
+                          </div>
+                        )}
+                        {toolInstallNotice?.key === tool.packId + '/' + tool.toolId && (
+                          <div
+                            className={toolInstallNotice.failure ? 'tool-install-result tool-install-result--error' : 'tool-install-result'}
+                            role={toolInstallNotice.failure ? 'alert' : 'status'}
+                          >
+                            <p>{toolInstallNotice.message}</p>
+                            {toolInstallNotice.failure?.remediation && <p>{toolInstallNotice.failure.remediation}</p>}
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>
