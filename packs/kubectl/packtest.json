@@ -65,6 +65,61 @@
         "--output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas",
         "--no-headers"
       ]
+    },
+    {
+      "name": "list statefulsets safely",
+      "packId": "kubectl-cli",
+      "commandId": "statefulsets",
+      "expectArgs": [
+        "get",
+        "statefulsets",
+        "--all-namespaces",
+        "--output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,READY:.status.readyReplicas,CURRENT:.status.currentReplicas,UPDATED:.status.updatedReplicas",
+        "--no-headers"
+      ]
+    },
+    {
+      "name": "list daemonsets safely",
+      "packId": "kubectl-cli",
+      "commandId": "daemonsets",
+      "expectArgs": [
+        "get",
+        "daemonsets",
+        "--all-namespaces",
+        "--output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,DESIRED:.status.desiredNumberScheduled,READY:.status.numberReady,AVAILABLE:.status.numberAvailable",
+        "--no-headers"
+      ]
+    },
+    {
+      "name": "list jobs safely",
+      "packId": "kubectl-cli",
+      "commandId": "jobs",
+      "expectArgs": [
+        "get",
+        "jobs",
+        "--all-namespaces",
+        "--output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,SUCCEEDED:.status.succeeded,ACTIVE:.status.active,FAILED:.status.failed",
+        "--no-headers"
+      ]
+    },
+    {
+      "name": "show node resource usage",
+      "packId": "kubectl-cli",
+      "commandId": "node-usage",
+      "expectArgs": [
+        "top",
+        "node"
+      ]
+    },
+    {
+      "name": "show pod resource usage",
+      "packId": "kubectl-cli",
+      "commandId": "pod-usage",
+      "expectArgs": [
+        "top",
+        "pod",
+        "--all-namespaces"
+      ]
     }
   ]
 }

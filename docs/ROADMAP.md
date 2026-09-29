@@ -118,16 +118,25 @@ The preferred architecture remains vendor-owned credentials/session storage. Bro
 
 ## Stage 5 — Additional useful read-only workflows
 
-Expand from verified operator demand and authoritative CLI evidence.
+**Status: implemented for the current first-party packs; real Docker/Kubernetes host qualification remains external.**
 
-Candidates include:
+Implemented:
 
-- additional non-secret Conjur inventory/search operations;
-- other Idira CLI read-only operations;
-- deployment-mode-specific read commands when environment detection can be deterministic;
-- richer non-secret result renderers.
+- Conjur resource inventory now includes bounded relationship filters for `--members-of`, `--permitted-roles`, and `--privilege`, in addition to the existing kind/search/pagination/role filters;
+- Windows evaluation CI qualifies those Conjur flags against the exact pinned CyberArk Conjur CLI v9.3.1 `list --help` surface before the evaluation artifact can pass;
+- Docker adds non-verbose `system df` summary output and a one-shot `container stats --no-stream` resource snapshot with a fixed cross-platform field projection;
+- kubectl adds metadata-only StatefulSet, DaemonSet, and Job status inventory using fixed custom columns;
+- kubectl adds one-shot node and cross-namespace pod CPU/memory usage through `kubectl top`, with Metrics API availability treated as an external runtime dependency;
+- exact production-planner regression cases bind every new workflow to its reviewed argv and assert the read-only/non-secret execution envelope;
+- first-party pack versions were advanced for the expanded contracts.
 
-Do not expose commands merely because upstream source contains them. Every browser task must have a justified user workflow and safe execution/output classification.
+Still deliberately excluded:
+
+- Docker `inspect`, `info`, event streams, logs, environment/config output, verbose disk-usage object detail, and mutation commands;
+- Kubernetes Secrets, ConfigMaps, raw manifests/object bodies, describe/event text, logs, exec/attach/cp/debug, forwarding/proxy, impersonation, context mutation, and all change/destructive operations;
+- additional Conjur commands that are secret-bearing, mutating, interactive, deprecated, or deployment-conditional without deterministic environment detection.
+
+Future read-only expansion remains demand-driven and requires authoritative command/output evidence plus an explicit non-secret output review.
 
 ## Stage 6 — Change/destructive workflows
 
@@ -178,7 +187,7 @@ The current evaluation artifact is intentionally unsigned and portable. The pinn
 
 CLIHarbor now ships embedded `docker-cli` and `kubectl-cli` packs alongside Conjur. Both exercise the generic discovery/planner/executor path without vendor-specific backend branches.
 
-Docker provides active-context visibility plus narrow container/image/network/volume inventory. kubectl provides active-context visibility, client version, and metadata-only namespace/node/pod/deployment inventory using fixed custom-column projections. Neither tool is auto-provisioned.
+Docker provides active-context visibility, narrow container/image/network/volume inventory, summary disk usage, and one-shot container resource statistics. kubectl provides active-context visibility, client version, metadata-only namespace/node/pod/deployment/StatefulSet/DaemonSet/Job inventory, and optional Metrics API CPU/memory snapshots. Neither tool is auto-provisioned.
 
 The kubectl pack deliberately excludes kubeconfig contents, Secrets, ConfigMaps, raw object manifests, logs, exec/attach/cp, port-forward/proxy, impersonation, context mutation, and all change/destructive operations. Cluster-backed commands reuse the vendor-owned session boundary; CLIHarbor does not accept Kubernetes credentials.
 

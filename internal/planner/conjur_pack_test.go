@@ -18,19 +18,22 @@ func TestConjurPackBuildsDocumentedArgv(t *testing.T) {
 		PackID:    "cyberark-conjur-v9",
 		CommandID: "list-resources",
 		Values: map[string]json.RawMessage{
-			"kind":    rawJSON(t, "user"),
-			"search":  rawJSON(t, "prod"),
-			"limit":   rawJSON(t, int64(5)),
-			"offset":  rawJSON(t, int64(10)),
-			"role":    rawJSON(t, "account:group:ops"),
-			"inspect": rawJSON(t, true),
-			"count":   rawJSON(t, false),
+			"kind":            rawJSON(t, "user"),
+			"search":          rawJSON(t, "prod"),
+			"limit":           rawJSON(t, int64(5)),
+			"offset":          rawJSON(t, int64(10)),
+			"role":            rawJSON(t, "account:group:ops"),
+			"members-of":      rawJSON(t, "account:layer:apps"),
+			"permitted-roles": rawJSON(t, "account:variable:apps/prod/password"),
+			"privilege":       rawJSON(t, "read"),
+			"inspect":         rawJSON(t, true),
+			"count":           rawJSON(t, false),
 		},
 	})
 	if err != nil {
 		t.Fatalf("Build(list-resources) error = %v", err)
 	}
-	want := []string{"list", "--kind", "user", "--search", "prod", "--limit", "5", "--offset", "10", "--role", "account:group:ops", "--inspect", "--output", "json"}
+	want := []string{"list", "--kind", "user", "--search", "prod", "--limit", "5", "--offset", "10", "--role", "account:group:ops", "--members-of", "account:layer:apps", "--permitted-roles", "account:variable:apps/prod/password", "--privilege", "read", "--inspect", "--output", "json"}
 	if !reflect.DeepEqual(plan.Args, want) {
 		t.Fatalf("list args = %#v, want %#v", plan.Args, want)
 	}

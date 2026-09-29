@@ -125,7 +125,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, SHA-256 and strict inspection |
 | Diagnostics | Allowlisted non-secret support export; no command output, argv, paths, environment values, browser secrets or credentials |
 | Windows qualification | Exact toolchain, deterministic rebuild checks, `EVALUATION_SHA256SUMS`, self-test/evidence smoke and extracted-bundle preflight |
-| Conjur integration | Version-gated Conjur CLI 9.x read-only workflows derived from official CyberArk source/release evidence |
+| Conjur integration | Version-gated Conjur CLI 9.x read-only identity, resource, relationship, and role workflows derived from official CyberArk source/release evidence |
 
 Still intentionally gated:
 
@@ -209,7 +209,7 @@ Duplicate pack IDs fail closed. Adding a custom pack never grants Conjur's pinne
 
 ## Docker read-only integration
 
-CLIHarbor also ships a small embedded `docker-cli` pack. It adds read-only workflows for the active Docker context, Docker version information, containers, images, networks, and volumes. `Show active Docker context` makes the selected Docker target visible without exposing endpoint configuration. The output templates intentionally omit container command lines, labels, environment/config inspection, network endpoint detail, and volume mount paths.
+CLIHarbor also ships a small embedded `docker-cli` pack. It adds read-only workflows for the active Docker context, Docker version information, containers, images, networks, volumes, summary disk usage, and a one-shot running-container resource snapshot. `Show active Docker context` makes the selected Docker target visible without exposing endpoint configuration. The output templates intentionally omit container command lines, labels, environment/config inspection, network endpoint detail, volume mount paths, and verbose disk-usage object detail.
 
 Docker is never downloaded or installed by CLIHarbor; normal executable discovery is used, and a missing Docker CLI simply leaves these tasks unavailable.
 
@@ -217,7 +217,7 @@ See [Docker CLI Integration](docs/DOCKER_INTEGRATION.md).
 
 ## kubectl read-only integration
 
-CLIHarbor also ships an embedded `kubectl-cli` pack for active-context visibility plus metadata-only namespace, node, pod, and deployment inventory. Fixed custom-column projections avoid raw Kubernetes object bodies, and cluster-backed tasks reuse kubectl-owned authentication through the existing `vendor-session` contract.
+CLIHarbor also ships an embedded `kubectl-cli` pack for active-context visibility plus metadata-only namespace, node, pod, deployment, StatefulSet, DaemonSet, and Job inventory. It also exposes node and cross-namespace pod CPU/memory snapshots through `kubectl top` when Metrics Server is available. Fixed custom-column projections avoid raw Kubernetes object bodies, and cluster-backed tasks reuse kubectl-owned authentication through the existing `vendor-session` contract.
 
 CLIHarbor never downloads kubectl, changes kubeconfig/context, accepts Kubernetes credentials, or exposes Secrets, ConfigMaps, logs, exec/cp/attach, port-forward/proxy, impersonation, or mutation workflows.
 
@@ -245,7 +245,7 @@ supported version constraint: >=9.3.1-0 <10.0.0-0
 Implemented browser workflows:
 
 - `whoami`
-- list resources with approved filters
+- list resources with approved filters, including members-of/permitted-role relationship queries
 - resource exists / show / permitted roles
 - role exists / show / members / memberships
 

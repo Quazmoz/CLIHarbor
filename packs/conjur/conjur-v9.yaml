@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: cyberark-conjur-v9
   name: CyberArk / Idira Secrets Manager CLI 9.x
-  version: 0.1.2
+  version: 0.2.0
   description: >-
     Read-only Conjur CLI workflows verified from the official cyberark/conjur-cli-go
     v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
@@ -91,6 +91,24 @@ commands:
         validation:
           maxLength: 2048
           disallowLeadingDash: true
+      - id: members-of
+        type: string
+        label: Members of role ID
+        validation:
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: permitted-roles
+        type: string
+        label: Permitted roles for resource ID
+        validation:
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: privilege
+        type: string
+        label: Privilege
+        validation:
+          maxLength: 64
+          disallowLeadingDash: true
       - id: inspect
         type: boolean
         label: Include resource metadata
@@ -118,6 +136,18 @@ commands:
       - flag:
           name: --role
           valueFrom: role
+          omitWhenEmpty: true
+      - flag:
+          name: --members-of
+          valueFrom: members-of
+          omitWhenEmpty: true
+      - flag:
+          name: --permitted-roles
+          valueFrom: permitted-roles
+          omitWhenEmpty: true
+      - flag:
+          name: --privilege
+          valueFrom: privilege
           omitWhenEmpty: true
       - switch:
           name: --inspect
