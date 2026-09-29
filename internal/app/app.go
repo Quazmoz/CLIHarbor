@@ -65,7 +65,8 @@ func Run(ctx context.Context, options Options) error {
 		return err
 	}
 	credentialLogin := newConjurCredentialLoginService(runtimeState.Discovery)
-	toolInstaller := newManagedToolInstaller(runtimeState.Registry, toolbootstrap.NewPortableProvisioner())
+	installLocations, _ := newManagedInstallLocationStore()
+	toolInstaller := newManagedToolInstaller(runtimeState.Registry, toolbootstrap.NewPortableProvisioner(), installLocations)
 	catalog := newTaskCatalog(runtimeState.Registry, runtimeState.Discovery)
 	if packID, toolID, capability, ok := credentialLogin.Capability(); ok {
 		catalog.enableCredentialLogin(packID, toolID, capability)

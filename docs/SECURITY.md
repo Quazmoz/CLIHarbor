@@ -87,7 +87,10 @@ It cannot supply:
 - arbitrary argv array;
 - environment-variable name;
 - working directory;
-- download URL, expected hash or managed-tool destination.
+- download URL or expected hash;
+- arbitrary executable/task path selection.
+
+For a pack-declared portable install only, the browser may optionally provide an install **base directory**. That directory must be an absolute path under the current user's home, must not escape through an existing symlink, and does not determine the executable name or relative managed path. CLIHarbor appends its own `tools/<pack>/<tool>/<version>/<executable>` layout and verifies the exact pack-pinned bytes before the path can become execution authority.
 
 Backend-only `--tool-path` overrides must reference an already declared pack/tool and an approved matching executable basename.
 
@@ -457,7 +460,7 @@ CLIHarbor does not persist task form values, credentials, authentication state, 
 
 ## Browser-managed portable CLI installation
 
-The local UI may request installation only for a tool whose already-trusted pack declares a validated immutable artifact contract. The request carries only pack/tool IDs. It cannot provide or override a URL, digest, size, archive member, executable name, destination path, redirect host, command line, package-manager instruction, or elevation behavior.
+The local UI may request installation only for a tool whose already-trusted pack declares a validated immutable artifact contract. The request carries pack/tool IDs and may carry one optional constrained install base directory. It cannot provide or override a URL, digest, size, archive member, executable name, redirect host, command line, package-manager instruction, or elevation behavior. A custom base directory must remain beneath the current user's home and cannot escape that boundary through an existing symlink.
 
 The portable provisioner:
 

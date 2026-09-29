@@ -2,9 +2,9 @@
 
 CLIHarbor can install a CLI from the local browser UI **only when the loaded trusted pack declares an immutable portable artifact contract** for the current OS/architecture.
 
-The browser supplies only the pack/tool identity. Download URL, SHA-256, expected size, archive member, executable filename, approved redirect hosts, version, and current-user cache location remain backend/pack controlled. CLIHarbor never turns this into a generic package manager: it does not execute MSI/PKG installers, package-manager commands, shell scripts, registry edits, services, or machine-wide PATH changes.
+The browser supplies the pack/tool identity and may optionally choose an absolute install base directory inside the current user's home directory. Download URL, SHA-256, expected size, archive member, executable filename, approved redirect hosts, and version remain backend/pack controlled. CLIHarbor never turns this into a generic package manager: it does not execute MSI/PKG installers, package-manager commands, shell scripts, registry edits, services, or machine-wide PATH changes.
 
-When a missing tool has a supported install contract, open **Diagnostics → Tool readiness → Install verified CLI**. CLIHarbor downloads and byte-verifies the declared artifact into the current user's CLIHarbor cache. Restart CLIHarbor once; the next startup re-verifies that managed copy without network access and selects it as a backend-only tool override before normal discovery.
+When a missing tool has a supported install contract, open **Diagnostics → Tool readiness → Install verified CLI**. Leave **Install base directory** blank for CLIHarbor's default current-user cache, or enter an absolute directory under your user home. CLIHarbor downloads and byte-verifies the declared artifact, persists only the selected managed base directory, and requires one restart. On the next startup it re-verifies the managed copy without network access before selecting it as a backend-only tool override.
 
 This path is designed for locked-down work laptops where user-context portable executables are permitted. It does not bypass application control or organizational policy. If the device blocks the artifact or the pack has no reviewed artifact for that platform, CLIHarbor fails closed and leaves the normal explicit `--tool-path` / vendor installation path available.
 
@@ -48,6 +48,18 @@ bin\cliharbor-windows-x64-evaluation.exe
 No separate Conjur pack download and no `--pack-file` are required for the normal path.
 
 For supported Conjur `authn`/LDAP configurations, the **Authentication** page can accept an identity and password for a single sign-in attempt. The password is posted only to the authenticated loopback runtime, never placed in process argv or run history, and is not persisted by CLIHarbor. The pinned CyberArk Go API performs the login and stores the resulting vendor credential using Conjur's configured credential storage. OIDC/JWT/certificate/MFA-style flows remain vendor-owned.
+
+### Discovery order
+
+CLIHarbor discovery is deterministic and intentionally tiered:
+
+1. explicit backend `--tool-path` override;
+2. exact verified CLIHarbor-managed copy in the default user cache;
+3. exact verified CLIHarbor-managed copy in the persisted custom user-home location;
+4. exact pack-declared executable names on absolute `PATH` entries;
+5. only when `PATH` has no match, common user-level CLI locations such as `~/.local/bin`, `~/bin`, Windows WinGet links, and Scoop shims.
+
+Fallback locations never override a valid `PATH` match and are not recursively scanned. Multiple candidates within the active discovery tier still fail closed as ambiguous.
 
 ### What automatic setup does
 
@@ -117,7 +129,7 @@ exact executable + argv[]
 official installed or exact verified managed CLI
 ```
 
-The vendor CLI remains the operational authority. The browser never chooses an executable, executable path, subcommand, flag name, shell string, raw argv, dependency URL, expected hash, or installation destination.
+The vendor CLI remains the operational authority. The browser never chooses an executable file, executable path used for task execution, subcommand, flag name, shell string, raw argv, dependency URL, or expected hash. For pack-declared portable installs only, the browser may choose a constrained base directory beneath the current user's home; CLIHarbor still derives the final executable path and verifies the exact reviewed bytes.
 
 ## Current capabilities
 

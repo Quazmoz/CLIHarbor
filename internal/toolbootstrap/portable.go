@@ -29,7 +29,7 @@ const (
 // Browser requests choose only a pack/tool reference; source URLs, hashes,
 // extraction paths, and executable names remain backend-owned pack authority.
 type ManagedProvisioner interface {
-	Ensure(context.Context, discovery.ToolRef, packs.Tool) (path string, installed bool, err error)
+	EnsureAt(context.Context, discovery.ToolRef, packs.Tool, string) (path string, installed bool, err error)
 }
 
 // PortableProvisioner places verified portable CLI artifacts in CLIHarbor's
@@ -63,6 +63,10 @@ func NewPortableProvisioner() *PortableProvisioner {
 // ResolveInstalled returns a previously installed verified portable artifact without
 // performing network I/O. A missing or invalid managed copy is reported as not found.
 func (p *PortableProvisioner) ResolveInstalled(ref discovery.ToolRef, tool packs.Tool) (string, bool, error) {
+	return p.ResolveInstalledAt(ref, tool, "")
+}
+
+func (p *PortableProvisioner) ResolveInstalledAt(ref discovery.ToolRef, tool packs.Tool, installRoot string) (string, bool, error) {
 	if p == nil || tool.Install == nil {
 		return "", false, nil
 	}
@@ -76,7 +80,7 @@ func (p *PortableProvisioner) ResolveInstalled(ref discovery.ToolRef, tool packs
 	if filepath.Base(artifact.ExecutableName) != artifact.ExecutableName || strings.ContainsAny(artifact.ExecutableName, `/\\`) {
 		return "", false, fmt.Errorf("portable install executable name is not a basename")
 	}
-	target, err := p.targetPath(ref, tool.Install.Version, artifact.ExecutableName)
+	target, err := p.targetPathAt(ref, tool.Install.Version, artifact.ExecutableName, installRoot)
 	if err != nil {
 		return "", false, err
 	}
@@ -98,10 +102,14 @@ func (p *PortableProvisioner) ResolveInstalled(ref discovery.ToolRef, tool packs
 }
 
 func (p *PortableProvisioner) Ensure(ctx context.Context, ref discovery.ToolRef, tool packs.Tool) (string, bool, error) {
+	return p.EnsureAt(ctx, ref, tool, "")
+}
+
+func (p *PortableProvisioner) EnsureAt(ctx context.Context, ref discovery.ToolRef, tool packs.Tool, installRoot string) (string, bool, error) {
 	if p == nil || ctx == nil || tool.Install == nil {
 		return "", false, nil
 	}
-	if path, found, err := p.ResolveInstalled(ref, tool); err != nil {
+	if path, found, err := p.ResolveInstalledAt(ref, tool, installRoot); err != nil {
 		return "", false, err
 	} else if found {
 		return path, false, nil
@@ -121,7 +129,7 @@ func (p *PortableProvisioner) Ensure(ctx context.Context, ref discovery.ToolRef,
 		return "", false, fmt.Errorf("portable install executable name is not a basename")
 	}
 
-	target, err := p.targetPath(ref, tool.Install.Version, artifact.ExecutableName)
+	target, err := p.targetPathAt(ref, tool.Install.Version, artifact.ExecutableName, installRoot)
 	if err != nil {
 		return "", false, err
 	}
@@ -189,7 +197,14 @@ func (p *PortableProvisioner) Ensure(ctx context.Context, ref discovery.ToolRef,
 }
 
 func (p *PortableProvisioner) targetPath(ref discovery.ToolRef, version, executableName string) (string, error) {
-	root := p.rootDir
+	return p.targetPathAt(ref, version, executableName, "")
+}
+
+func (p *PortableProvisioner) targetPathAt(ref discovery.ToolRef, version, executableName, installRoot string) (string, error) {
+	root := installRoot
+	if root == "" {
+		root = p.rootDir
+	}
 	if root == "" {
 		cache, err := os.UserCacheDir()
 		if err != nil {
@@ -197,7 +212,10 @@ func (p *PortableProvisioner) targetPath(ref discovery.ToolRef, version, executa
 		}
 		root = filepath.Join(cache, "CLIHarbor")
 	}
-	return filepath.Join(root, "tools", ref.PackID, ref.ToolID, version, executableName), nil
+	if !filepath.IsAbs(root) {
+		return "", fmt.Errorf("managed install root must be absolute")
+	}
+	return filepath.Join(filepath.Clean(root), "tools", ref.PackID, ref.ToolID, version, executableName), nil
 }
 
 func (p *PortableProvisioner) download(ctx context.Context, directory string, artifact packs.InstallArtifact) (string, error) {

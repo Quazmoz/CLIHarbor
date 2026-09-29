@@ -179,3 +179,68 @@ describe('command preview and retry workflows', () => {
     expect(query).toHaveValue('original');
   });
 });
+
+
+describe('managed CLI installation workflow', () => {
+  test('submits a user-selected install base directory for a missing managed CLI', async () => {
+    window.history.replaceState({}, '', '/diagnostics');
+    let submitted: unknown;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(response(200, {
+          name: 'CLIHarbor',
+          version: 'dev',
+          session: 'active',
+          csrfToken: 'csrf-install',
+        }));
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(response(200, { tasks: [] }));
+      }
+      if (path === '/api/v1/tools' && init?.method !== 'POST') {
+        return Promise.resolve(response(200, {
+          tools: [
+            {
+              packId: 'fixture-pack',
+              packName: 'Fixture CLI',
+              packVersion: '1.0.0',
+              toolId: 'fixture',
+              status: 'missing',
+              message: 'Tool was not found.',
+              install: {
+                version: '1.2.3',
+                customLocation: true,
+              },
+            },
+          ],
+        }));
+      }
+      if (path === '/api/v1/tools/install' && init?.method === 'POST') {
+        submitted = JSON.parse(String(init.body));
+        return Promise.resolve(response(200, {
+          installed: true,
+          version: '1.2.3',
+          restartRequired: true,
+          message: 'Verified CLI installed for the current user. Restart CLIHarbor to activate it.',
+        }));
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    const location = await screen.findByRole('textbox', { name: /Install base directory/i });
+    fireEvent.change(location, { target: { value: '/home/alice/cli-tools' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Install verified CLI 1.2.3' }));
+
+    await waitFor(() =>
+      expect(submitted).toEqual({
+        packId: 'fixture-pack',
+        toolId: 'fixture',
+        installRoot: '/home/alice/cli-tools',
+      }),
+    );
+    expect(await screen.findByText(/Restart CLIHarbor to activate it/i)).toBeInTheDocument();
+  });
+});
