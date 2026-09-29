@@ -103,14 +103,23 @@ On Windows, an extensionless approved basename may resolve to the exact basename
 
 Discovery runs only for explicitly trusted packs.
 
-PATH discovery:
+Discovery uses ordered tiers rather than one broad filesystem scan:
 
-- considers absolute PATH directory entries only;
-- ignores empty/relative/current-directory entries;
-- resolves candidates to absolute paths;
-- de-duplicates candidates deterministically;
-- fails closed when multiple candidates match;
-- captures executable identity for later revalidation.
+1. explicit backend tool override;
+2. verified CLIHarbor-managed installations selected by the application;
+3. absolute PATH entries;
+4. only when PATH has no match, a small OS-specific set of current-user CLI directories.
+
+PATH and fallback discovery:
+
+- consider absolute directories only;
+- ignore empty/relative/current-directory entries;
+- resolve candidates to absolute paths;
+- de-duplicate directories and resolved executable candidates deterministically;
+- never recursively scan the user's filesystem;
+- never let a fallback candidate override a PATH candidate;
+- fail closed when multiple candidates exist within the active tier;
+- capture executable identity for later revalidation.
 
 A trusted backend operator may provide:
 
@@ -537,6 +546,15 @@ Install metadata grants only this narrow authority:
 It does **not** grant shell, package-manager, arbitrary URL, arbitrary archive extraction, installer execution, PATH mutation, registry/service, elevation, or machine-wide filesystem authority. The browser request contains only `packId` and `toolId`; artifact details are never browser-controlled.
 
 A successful browser install deliberately requires a CLIHarbor restart before execution. Runtime discovery and execution authority stay immutable for the lifetime of the current server/run-manager instance.
+
+The browser may optionally request a custom install base directory. This is not arbitrary executable-path authority:
+
+- the base directory must be absolute and beneath the current user's home;
+- existing symlink ancestors are resolved and must remain beneath that home boundary;
+- CLIHarbor appends the managed `tools/<pack>/<tool>/<version>/<executable>` hierarchy;
+- the selected base directory is persisted in bounded current-user configuration;
+- startup treats the persisted location only as a place to look for the exact pack-pinned bytes;
+- if the file is missing, stale, wrong-sized, or hash-mismatched, it is not adopted and normal discovery continues.
 
 ## 22. Current Conjur implementation
 
