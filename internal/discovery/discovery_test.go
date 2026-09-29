@@ -362,8 +362,8 @@ func TestDiscoverPATHCandidateTakesPriorityOverFallbackDirectory(t *testing.T) {
 
 	registry := testRegistry(t, packs.Tool{ExecutableNames: []string{"fallback-cli"}})
 	resolver := NewResolver(Config{
-		GOOS: runtime.GOOS,
-		PathValue: pathDir,
+		GOOS:         runtime.GOOS,
+		PathValue:    pathDir,
 		FallbackDirs: []string{fallbackDir},
 	})
 	snapshot, err := resolver.Discover(context.Background(), registry, nil)
