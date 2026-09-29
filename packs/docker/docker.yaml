@@ -3,12 +3,13 @@ kind: CliPack
 metadata:
   id: docker-cli
   name: Docker CLI
-  version: 0.1.0
+  version: 0.2.0
   description: >-
     Small read-only Docker inventory pack derived from the official Docker CLI
     reference. It intentionally excludes container command lines, labels,
     environment/config inspection, logs, exec, mutations, and secret-bearing
-    Swarm resources.
+    Swarm resources. Stage 5 adds summary-only disk usage and one-shot container
+    resource statistics without detailed inspect/config data.
 runtime:
   platforms: [windows, linux, darwin]
   tools:
@@ -123,6 +124,43 @@ commands:
       - literal: ls
       - literal: --format
       - literal: 'table {{.Name}}\t{{.Driver}}\t{{.Scope}}'
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  disk-usage:
+    name: Docker disk usage
+    description: Show summary disk usage for images, containers, and local volumes in the active Docker context without verbose per-object details.
+    tool: docker
+    risk: read
+    argv:
+      - literal: system
+      - literal: df
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  container-stats:
+    name: Container resource snapshot
+    description: Show one non-streaming resource-usage snapshot for running containers using fields available on both Linux and Windows daemons.
+    tool: docker
+    risk: read
+    argv:
+      - literal: container
+      - literal: stats
+      - literal: --no-stream
+      - literal: --format
+      - literal: 'table {{.ID}}\t{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}'
     output:
       mode: raw
       sensitivity:
