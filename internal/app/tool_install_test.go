@@ -28,10 +28,10 @@ func TestManagedToolInstallerUsesOnlyRegistryDeclaredInstallContract(t *testing.
 	tool := packs.Tool{Install: &packs.ToolInstall{Version: "1.2.3", Artifacts: map[string]packs.InstallArtifact{}}}
 	registry, err := packs.NewRegistry([]packs.LoadedPack{{Pack: packs.Pack{
 		APIVersion: packs.SupportedAPIVersion,
-		Kind: packs.PackKind,
-		Metadata: packs.Metadata{ID: "fixture", Name: "Fixture", Version: "1.0.0"},
-		Runtime: packs.Runtime{Platforms: []string{"windows"}, Tools: map[string]packs.Tool{"fixture": tool}},
-		Commands: map[string]packs.Command{},
+		Kind:       packs.PackKind,
+		Metadata:   packs.Metadata{ID: "fixture", Name: "Fixture", Version: "1.0.0"},
+		Runtime:    packs.Runtime{Platforms: []string{"windows"}, Tools: map[string]packs.Tool{"fixture": tool}},
+		Commands:   map[string]packs.Command{},
 	}}})
 	if err != nil {
 		t.Fatal(err)
@@ -56,10 +56,10 @@ func TestManagedToolInstallerUsesOnlyRegistryDeclaredInstallContract(t *testing.
 func TestManagedToolInstallerFailsClosedWithoutInstallContract(t *testing.T) {
 	registry, err := packs.NewRegistry([]packs.LoadedPack{{Pack: packs.Pack{
 		APIVersion: packs.SupportedAPIVersion,
-		Kind: packs.PackKind,
-		Metadata: packs.Metadata{ID: "fixture", Name: "Fixture", Version: "1.0.0"},
-		Runtime: packs.Runtime{Platforms: []string{"windows"}, Tools: map[string]packs.Tool{"fixture": {}}},
-		Commands: map[string]packs.Command{},
+		Kind:       packs.PackKind,
+		Metadata:   packs.Metadata{ID: "fixture", Name: "Fixture", Version: "1.0.0"},
+		Runtime:    packs.Runtime{Platforms: []string{"windows"}, Tools: map[string]packs.Tool{"fixture": {}}},
+		Commands:   map[string]packs.Command{},
 	}}})
 	if err != nil {
 		t.Fatal(err)
