@@ -17,6 +17,8 @@ The initial pack is derived from Docker's official CLI reference for:
 - `docker image ls --all --format <template>`
 - `docker network ls --format <template>`
 - `docker volume ls --format <template>`
+- `docker system df` summary mode
+- `docker container stats --no-stream --format <template>`
 
 Official references:
 
@@ -25,6 +27,8 @@ Official references:
 - https://docs.docker.com/reference/cli/docker/image/ls/
 - https://docs.docker.com/reference/cli/docker/network/ls/
 - https://docs.docker.com/reference/cli/docker/volume/ls/
+- https://docs.docker.com/reference/cli/docker/system/df/
+- https://docs.docker.com/reference/cli/docker/container/stats/
 
 ## Safety scope
 
@@ -42,7 +46,7 @@ The first pack is intentionally inventory-only. It excludes:
 - Swarm secrets/config contents;
 - create/start/stop/restart/remove/prune/pull/push/build operations.
 
-`docker context show` exposes only the active context name so the operator can see which Docker target the inventory commands will use. Docker can target a remote daemon through context/environment configuration, so the pack does not describe these results as necessarily local.\n\nThe container-list format includes only ID, name, image, state/status, and published ports. Network output excludes labels and endpoint detail. Volume output excludes labels and host mount paths.
+`docker context show` exposes only the active context name so the operator can see which Docker target the inventory commands will use. Docker can target a remote daemon through context/environment configuration, so the pack does not describe these results as necessarily local.\n\nThe container-list format includes only ID, name, image, state/status, and published ports. Network output excludes labels and endpoint detail. Volume output excludes labels and host mount paths. Stage 5 disk usage deliberately uses only Docker's non-verbose summary, avoiding the per-container command/name detail emitted by `system df --verbose`. Container statistics use `--no-stream` and only ID, name, CPU percentage, memory usage, network I/O, and block I/O; fields unavailable on Windows such as memory percentage and PIDs are omitted for cross-platform consistency.
 
 All tasks remain `risk: read`, use deterministic trusted argv, and do not persist raw output.
 
