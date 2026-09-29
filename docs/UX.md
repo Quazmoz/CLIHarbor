@@ -161,6 +161,14 @@ Useful features later:
 
 Do not add export to secret-bearing results without explicit classification and review.
 
+## Managed CLI installation
+
+Diagnostics exposes **Install verified CLI** only when the trusted pack declares a portable install contract for the current platform.
+
+The install card includes an optional **Install base directory** field. Blank means CLIHarbor's default current-user cache. A custom value must be an absolute path beneath the current user's home. The UI states that this is a current-user install, requires no administrator credentials, and requires one restart before activation.
+
+The browser never chooses the downloaded artifact, executable filename, hash, archive member, redirect host, or task execution path. Invalid custom locations return a field-specific validation error instead of a generic policy failure.
+
 ## 10. Error UX
 
 The implemented local browser contract separates task-start failures, run failures, live-stream failures, cancellation, timeout, and retained-run eviction. Browser API errors carry a stable code, category, reviewed safe message, optional remediation, retryability, and an optional validated task-field association. The frontend branches on the typed code; it does not parse backend prose.
