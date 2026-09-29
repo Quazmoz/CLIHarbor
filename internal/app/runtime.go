@@ -77,7 +77,7 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 			}
 		}
 	}
-	resolver := discovery.NewResolver(discovery.Config{})
+	resolver := discovery.NewResolver(discovery.Config{FallbackDirs: discovery.DefaultUserSearchDirectories("")})
 	snapshot, err := resolver.Discover(ctx, registry, overrides)
 	if err != nil {
 		return RuntimeState{}, err
