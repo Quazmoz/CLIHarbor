@@ -83,7 +83,6 @@ func TestToolInstallAPIRejectsUnknownAuthorityFields(t *testing.T) {
 	}
 }
 
-
 func TestToolInstallAPIRejectsControlCharactersInInstallRoot(t *testing.T) {
 	service := &fakeToolInstallService{}
 	s := newTestServer(t, Config{ToolInstaller: service})
