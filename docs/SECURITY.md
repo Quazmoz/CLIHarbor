@@ -137,7 +137,7 @@ authMode: vendor-session
 
 This allows a **read-only, non-secret** command to use authentication already supplied by the vendor configuration/credential store. Task execution never receives credential stdin or credential argv.
 
-The qualified Conjur integration additionally has one narrow in-process credential bridge. The browser may submit identity/password only to the authenticated, CSRF-protected loopback endpoint `POST /api/v1/auth/login`; that request is not a task/run and never becomes command argv, invocation preview, retained run input, stdout/stderr or diagnostics. The adapter is fixed to the qualified `cyberark-conjur-v9/conjur` identity, supports only password-style `authn`/LDAP configuration, admits one sign-in attempt at a time, bounds request/network duration, and returns only closed-set errors.
+The qualified Conjur integration additionally has one narrow in-process credential bridge. The browser may submit identity/password only to the authenticated, CSRF-protected loopback endpoint `POST /api/v1/auth/login`; that request is not a task/run and never becomes command argv, invocation preview, retained run input, stdout/stderr or diagnostics. The adapter is fixed to the qualified `cyberark-conjur-v9/conjur` identity, supports only password-style `authn`/LDAP configuration against an HTTPS appliance URL in a non-SaaS environment, admits one sign-in attempt at a time, bounds request/network duration, and returns only closed-set errors.
 
 The adapter calls pinned `conjur-api-go v0.15.4` directly. The vendor library performs credential validation/exchange and writes the resulting API key using Conjur's configured credential-storage backend. CLIHarbor never persists the submitted password and clears the returned API-key byte buffer after the vendor library stores it. OIDC/JWT/certificate/IAM/Azure/MFA/challenge flows remain vendor-owned and are not coerced into this form.
 
@@ -291,7 +291,7 @@ Before `change`/`destructive` execution is enabled, backend confirmation must be
 - `vendor-session` must be explicitly declared in a trusted pack;
 - the credential endpoint accepts only bounded identity/password JSON under the existing local session + exact Origin + CSRF boundary;
 - the backend adapter is hard-bound to the qualified Conjur pack/tool identity rather than browser-supplied executable/argv;
-- unsupported OIDC/JWT/certificate/IAM/Azure modes and disabled/read-only credential storage fail closed;
+- unsupported OIDC/JWT/certificate/IAM/Azure modes, SaaS, plaintext appliance URLs, and disabled/read-only credential storage fail closed;
 - only one credential handoff runs concurrently;
 - submitted credentials never become process argv, task values, run history, diagnostics or logs;
 - raw vendor authentication errors are collapsed to reviewed browser-safe codes;
