@@ -31,7 +31,7 @@ func TestStage5FirstPartyReadOnlyArgv(t *testing.T) {
 			name:     "docker one-shot stats",
 			packPath: filepath.Join("..", "..", "packs", "docker", "docker.yaml"),
 			packID:   "docker-cli", toolID: "docker", version: "29.0.0", commandID: "container-stats",
-			want: []string{"container", "stats", "--no-stream", "--format", "table {{.ID}}\t{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}"},
+			want: []string{"container", "stats", "--no-stream", "--format", "table {{.ID}}\\t{{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}\\t{{.NetIO}}\\t{{.BlockIO}}"},
 		},
 		{
 			name:     "kubectl statefulsets",
