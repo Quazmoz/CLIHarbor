@@ -19,6 +19,16 @@ runtime:
         parser: semver-text
         timeoutMillis: 3000
       versionConstraint: ">=9.3.1-0 <10.0.0-0"
+      install:
+        version: 9.3.1
+        artifacts:
+          windows-amd64:
+            url: https://github.com/cyberark/conjur-cli-go/releases/download/v9.3.1/conjur_windows_amd64.exe
+            sha256: da2b31ca00b8faaefb8e1fe891563b5cc07c39460e776fb42e7f89b05d3ee4f6
+            sizeBytes: 21950000
+            format: executable
+            executableName: conjur.exe
+            redirectHosts: [release-assets.githubusercontent.com]
       sessionCheck:
         commandId: whoami
         unauthenticatedStderrContains: "please login again"
