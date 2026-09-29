@@ -313,3 +313,73 @@ func createExecutable(t *testing.T, directory, name string) string {
 	}
 	return absolute
 }
+
+
+func TestDiscoverUsesFallbackDirectoryOnlyWhenPATHMisses(t *testing.T) {
+	pathDir := t.TempDir()
+	fallbackDir := t.TempDir()
+	executable := filepath.Join(fallbackDir, "fallback-cli")
+	if runtime.GOOS == "windows" {
+		executable += ".exe"
+	}
+	if err := os.WriteFile(executable, []byte("fixture"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	registry := testRegistry(t, "fallback-cli")
+	runner := &fakeProbeRunner{output: "fallback-cli 1.2.3"}
+	resolver := NewResolver(Config{
+		GOOS: runtime.GOOS,
+		PathValue: pathDir,
+		FallbackDirs: []string{fallbackDir},
+		ProbeRunner: runner,
+	})
+	snapshot, err := resolver.Discover(context.Background(), registry, nil)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	state, ok := snapshot.Find(ToolRef{PackID: "fixture", ToolID: "fixture"})
+	if !ok {
+		t.Fatal("tool state missing")
+	}
+	if state.Status != StatusReady || state.Path != executable {
+		t.Fatalf("state = %#v, want ready fallback executable %q", state, executable)
+	}
+}
+
+func TestDiscoverPATHCandidateTakesPriorityOverFallbackDirectory(t *testing.T) {
+	pathDir := t.TempDir()
+	fallbackDir := t.TempDir()
+	pathExecutable := filepath.Join(pathDir, "fallback-cli")
+	fallbackExecutable := filepath.Join(fallbackDir, "fallback-cli")
+	if runtime.GOOS == "windows" {
+		pathExecutable += ".exe"
+		fallbackExecutable += ".exe"
+	}
+	if err := os.WriteFile(pathExecutable, []byte("path"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fallbackExecutable, []byte("fallback"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	registry := testRegistry(t, "fallback-cli")
+	runner := &fakeProbeRunner{output: "fallback-cli 1.2.3"}
+	resolver := NewResolver(Config{
+		GOOS: runtime.GOOS,
+		PathValue: pathDir,
+		FallbackDirs: []string{fallbackDir},
+		ProbeRunner: runner,
+	})
+	snapshot, err := resolver.Discover(context.Background(), registry, nil)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	state, _ := snapshot.Find(ToolRef{PackID: "fixture", ToolID: "fixture"})
+	if state.Status != StatusReady || state.Path != pathExecutable {
+		t.Fatalf("state = %#v, want PATH executable %q", state, pathExecutable)
+	}
+	if len(state.Candidates) != 1 {
+		t.Fatalf("candidates = %#v, want only PATH tier", state.Candidates)
+	}
+}
