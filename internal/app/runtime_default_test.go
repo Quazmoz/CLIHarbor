@@ -33,8 +33,8 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if docker.Pack.Metadata.Name == "" {
 		t.Fatal("embedded Docker pack metadata was empty")
 	}
-	if len(state.Registry.Commands("docker-cli")) != 6 {
-		t.Fatalf("embedded Docker commands = %d, want 6", len(state.Registry.Commands("docker-cli")))
+	if len(state.Registry.Commands("docker-cli")) != 8 {
+		t.Fatalf("embedded Docker commands = %d, want 8", len(state.Registry.Commands("docker-cli")))
 	}
 	kubectl, ok := state.Registry.FindPack("kubectl-cli")
 	if !ok {
@@ -43,8 +43,8 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if kubectl.Pack.Metadata.Name == "" {
 		t.Fatal("embedded kubectl pack metadata was empty")
 	}
-	if len(state.Registry.Commands("kubectl-cli")) != 6 {
-		t.Fatalf("embedded kubectl commands = %d, want 6", len(state.Registry.Commands("kubectl-cli")))
+	if len(state.Registry.Commands("kubectl-cli")) != 11 {
+		t.Fatalf("embedded kubectl commands = %d, want 11", len(state.Registry.Commands("kubectl-cli")))
 	}
 }
 
