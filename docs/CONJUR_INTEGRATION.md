@@ -128,9 +128,7 @@ All user-controlled positional identifiers are represented by CLIHarbor's constr
 
 ## Authentication model
 
-These commands require a Conjur session, but CLIHarbor does **not** collect Conjur credentials.
-
-The pack declares:
+All exposed read commands continue to use:
 
 ```yaml
 requirements:
@@ -138,14 +136,27 @@ requirements:
   authMode: vendor-session
 ```
 
-`vendor-session` means:
+`vendor-session` means task execution uses the vendor CLI's existing configuration/session/credential-storage behavior. CLIHarbor never puts a password, token, API key or MFA response into task argv or interactive stdin.
 
-- execution may use the vendor CLI's existing config/session/keystore behavior;
-- CLIHarbor supplies no password, token, API key, MFA response, or interactive stdin;
-- if the vendor CLI cannot use an existing session, the command fails and the operator authenticates through the approved vendor-owned flow;
-- generic `requiresAuth: true` commands without this explicit mode remain blocked and are not surfaced in the browser.
+### Secure password handoff
 
-Downloading the Conjur executable does not configure a Conjur appliance/account, authenticate a user, or create vendor credentials.
+For qualified Conjur configurations that use password-style `authn` or LDAP, the Authentication page now offers an explicit sign-in form. This is implemented as a **vendor adapter**, not as a pack command and not as a generic secret input type.
+
+The backend uses pinned:
+
+```text
+github.com/cyberark/conjur-api-go v0.15.4
+```
+
+This is the same API library line used by the reviewed Conjur CLI 9.3.1 source. `Client.Login(identity, password)` performs the vendor login exchange and writes the resulting API key through Conjur's configured credential-storage provider. CLIHarbor does not persist the supplied password; the request exists only for the browser-to-loopback-to-vendor call lifetime, never enters argv/run history/logs, and the returned API-key byte slice is cleared after vendor storage completes.
+
+The form is exposed only when the Conjur tool is healthy and the loaded Conjur configuration supports this bounded flow with writable credential storage. OIDC, JWT, certificate, IAM/Azure, MFA/challenge and other interactive modes remain vendor-owned.
+
+The login endpoint itself is protected by the existing loopback session, exact Host/Origin and CSRF controls, strict bounded JSON, no-store response policy and sanitized closed-set errors. Only one login attempt is admitted concurrently.
+
+After a successful credential exchange the browser immediately runs the existing reviewed `conjur whoami --output json` session check. That check remains the browser-visible evidence that the stored vendor session is usable.
+
+Downloading the Conjur executable still does not configure a Conjur appliance/account, authenticate a user, or create vendor credentials.
 
 ## Commands intentionally not exposed
 
@@ -157,7 +168,7 @@ Variable/secret retrieval and authentication commands that can return credential
 
 ### Interactive authentication
 
-`login`, interactive authentication, MFA/password prompts, and similar flows remain vendor-owned. CLIHarbor does not synthesize keystrokes or pass credentials through argv.
+The pack still does not expose `login` or `authenticate` commands. The separate reviewed adapter supports only password-style authn/LDAP handoff. OIDC, MFA/challenge, certificate and similar interactive flows remain vendor-owned; CLIHarbor does not synthesize keystrokes or pass credentials through argv.
 
 ### Mutating/destructive
 
@@ -195,6 +206,7 @@ For a managed laptop:
 3. if a compatible corporate `conjur.exe` exists, require unambiguous discovery/version qualification;
 4. if no Conjur exists and policy permits the pinned GitHub release, allow the verified current-user fallback;
 5. if automatic download is blocked by policy, do not bypass it—use the approved corporate install or `--no-auto-setup`;
-6. execute a non-secret read workflow using an approved vendor-owned session.
+6. establish a vendor session either through the reviewed Authentication-page password bridge (when the configured Conjur mode supports it) or through the organization's approved vendor-owned flow;
+7. run the reviewed session check, then execute a non-secret read workflow.
 
 A corporate CLI/version/help mismatch is evidence to revise or version the pack, not a reason to loosen discovery, version, argument, or supply-chain validation.
