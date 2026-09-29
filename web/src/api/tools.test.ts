@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { fetchTools } from './tools';
+import { fetchTools, installTool } from './tools';
 
 function response(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -35,6 +35,10 @@ describe('fetchTools', () => {
                 credentialLogin: {
                   method: 'conjur-password',
                 },
+                install: {
+                  version: '9.3.1',
+                  customLocation: true,
+                },
               },
               {
                 packId: 'kubectl-cli',
@@ -57,6 +61,7 @@ describe('fetchTools', () => {
       unauthenticatedStderrContains: 'please login again',
     });
     expect(diagnostics[0].credentialLogin).toEqual({ method: 'conjur-password' });
+    expect(diagnostics[0].install).toEqual({ version: '9.3.1', customLocation: true });
     expect(diagnostics[1].requiresVendorSession).toBe(true);
     expect(diagnostics[1].sessionCheck).toBeUndefined();
   });
@@ -108,5 +113,56 @@ describe('fetchTools', () => {
     );
 
     await expect(fetchTools()).rejects.toBeDefined();
+  });
+});
+
+
+describe('installTool', () => {
+  test('submits a trimmed custom install root without widening artifact authority', async () => {
+    let submitted: unknown;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        submitted = JSON.parse(String(init?.body));
+        return Promise.resolve(
+          response(200, {
+            installed: true,
+            version: '1.2.3',
+            restartRequired: true,
+            message: 'Verified CLI installed for the current user. Restart CLIHarbor to activate it.',
+          }),
+        );
+      }),
+    );
+
+    await installTool('csrf-token', 'fixture', 'fixture', '  C:\\Users\\alice\\Tools  ');
+    expect(submitted).toEqual({
+      packId: 'fixture',
+      toolId: 'fixture',
+      installRoot: 'C:\\Users\\alice\\Tools',
+    });
+    expect(JSON.stringify(submitted)).not.toContain('sha256');
+    expect(JSON.stringify(submitted)).not.toContain('url');
+  });
+
+  test('omits installRoot when the default location is selected', async () => {
+    let submitted: unknown;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        submitted = JSON.parse(String(init?.body));
+        return Promise.resolve(
+          response(200, {
+            installed: false,
+            version: '1.2.3',
+            restartRequired: true,
+            message: 'Verified CLI is already installed for the current user. Restart CLIHarbor to activate it.',
+          }),
+        );
+      }),
+    );
+
+    await installTool('csrf-token', 'fixture', 'fixture', '   ');
+    expect(submitted).toEqual({ packId: 'fixture', toolId: 'fixture' });
   });
 });
