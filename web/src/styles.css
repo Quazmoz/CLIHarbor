@@ -1626,3 +1626,32 @@ footer p {
     border-left: 0;
   }
 }
+
+
+.tool-install-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin-top: var(--space-3);
+}
+
+.tool-install-actions > span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.tool-install-result {
+  margin-top: var(--space-3);
+  border-left: 3px solid var(--border-strong);
+  padding-left: var(--space-3);
+  color: var(--text-muted);
+}
+
+.tool-install-result--error {
+  border-left-color: var(--danger);
+}
+
+.tool-install-result p {
+  margin: 0.25rem 0;
+}
