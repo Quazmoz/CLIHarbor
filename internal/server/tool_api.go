@@ -17,7 +17,8 @@ type ToolDiagnostic struct {
 	VersionConstraint     string              `json:"versionConstraint,omitempty"`
 	Message               string              `json:"message,omitempty"`
 	RequiresVendorSession bool                `json:"requiresVendorSession,omitempty"`
-	SessionCheck          *VendorSessionCheck `json:"sessionCheck,omitempty"`
+	SessionCheck          *VendorSessionCheck       `json:"sessionCheck,omitempty"`
+	CredentialLogin       *CredentialLoginCapability `json:"credentialLogin,omitempty"`
 }
 
 type ToolService interface {
