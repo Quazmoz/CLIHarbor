@@ -77,7 +77,7 @@ func Run(ctx context.Context, options Options) error {
 		Tasks:           catalog,
 		Tools:           catalog,
 		CredentialLogin: credentialLogin,
-		ToolInstaller:    toolInstaller,
+		ToolInstaller:   toolInstaller,
 	})
 	if err != nil {
 		_ = shutdownRuns()
