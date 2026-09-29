@@ -314,7 +314,6 @@ func createExecutable(t *testing.T, directory, name string) string {
 	return absolute
 }
 
-
 func TestDiscoverUsesFallbackDirectoryOnlyWhenPATHMisses(t *testing.T) {
 	pathDir := t.TempDir()
 	fallbackDir := t.TempDir()
@@ -328,8 +327,8 @@ func TestDiscoverUsesFallbackDirectoryOnlyWhenPATHMisses(t *testing.T) {
 
 	registry := testRegistry(t, packs.Tool{ExecutableNames: []string{"fallback-cli"}})
 	resolver := NewResolver(Config{
-		GOOS: runtime.GOOS,
-		PathValue: pathDir,
+		GOOS:         runtime.GOOS,
+		PathValue:    pathDir,
 		FallbackDirs: []string{fallbackDir},
 	})
 	snapshot, err := resolver.Discover(context.Background(), registry, nil)
