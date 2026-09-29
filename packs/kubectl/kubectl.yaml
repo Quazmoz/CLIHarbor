@@ -3,12 +3,13 @@ kind: CliPack
 metadata:
   id: kubectl-cli
   name: Kubernetes kubectl
-  version: 0.1.0
+  version: 0.2.0
   description: >-
     Narrow read-only Kubernetes inventory pack derived from the official kubectl
     reference. It exposes context visibility and selected metadata-only get
     operations while excluding kubeconfig contents, Secrets, ConfigMaps, logs,
-    exec/attach/cp, port-forward/proxy, impersonation, and mutations.
+    exec/attach/cp, port-forward/proxy, impersonation, and mutations. Stage 5
+    adds workload-status and resource-utilization views using fixed projections.
 runtime:
   platforms: [windows, linux, darwin]
   tools:
@@ -126,6 +127,106 @@ commands:
       - literal: --all-namespaces
       - literal: --output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas
       - literal: --no-headers
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  statefulsets:
+    name: List StatefulSets
+    description: List StatefulSet namespace, name, ready replicas, current replicas, and updated replicas across the active context without manifests or pod templates.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: get
+      - literal: statefulsets
+      - literal: --all-namespaces
+      - literal: --output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,READY:.status.readyReplicas,CURRENT:.status.currentReplicas,UPDATED:.status.updatedReplicas
+      - literal: --no-headers
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  daemonsets:
+    name: List DaemonSets
+    description: List DaemonSet namespace, name, desired scheduling count, ready count, and available count across the active context without manifests or pod templates.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: get
+      - literal: daemonsets
+      - literal: --all-namespaces
+      - literal: --output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,DESIRED:.status.desiredNumberScheduled,READY:.status.numberReady,AVAILABLE:.status.numberAvailable
+      - literal: --no-headers
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  jobs:
+    name: List Jobs
+    description: List Job namespace, name, succeeded count, active count, and failed count across the active context without manifests, commands, or environment data.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: get
+      - literal: jobs
+      - literal: --all-namespaces
+      - literal: --output=custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,SUCCEEDED:.status.succeeded,ACTIVE:.status.active,FAILED:.status.failed
+      - literal: --no-headers
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  node-usage:
+    name: Node resource usage
+    description: Show the current CPU and memory usage reported by the Kubernetes Metrics API for nodes; requires Metrics Server availability.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: top
+      - literal: node
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  pod-usage:
+    name: Pod resource usage
+    description: Show current pod CPU and memory usage across namespaces from the Kubernetes Metrics API; requires Metrics Server availability.
+    tool: kubectl
+    risk: read
+    argv:
+      - literal: top
+      - literal: pod
+      - literal: --all-namespaces
     output:
       mode: raw
       sensitivity:
