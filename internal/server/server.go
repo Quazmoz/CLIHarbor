@@ -40,7 +40,7 @@ type Config struct {
 	Tasks           TaskService
 	Tools           ToolService
 	CredentialLogin CredentialLoginService
-	ToolInstaller    ToolInstallService
+	ToolInstaller   ToolInstallService
 	MaxEventStreams int
 }
 
