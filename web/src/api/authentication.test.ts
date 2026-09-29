@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { AppError } from './errors';
 import { loginWithCredentials } from './authentication';
 
 afterEach(() => {
@@ -65,7 +64,7 @@ describe('loginWithCredentials', () => {
         identity: 'alice',
         secret: 'super-secret',
       }),
-    ).rejects.toMatchObject<AppError>({
+    ).rejects.toMatchObject({
       detail: {
         code: 'authentication_failed',
         category: 'security',
