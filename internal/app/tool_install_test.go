@@ -13,10 +13,10 @@ import (
 )
 
 type fakeManagedProvisioner struct {
-	ref       discovery.ToolRef
-	tool      packs.Tool
-	path      string
-	installed bool
+	ref         discovery.ToolRef
+	tool        packs.Tool
+	path        string
+	installed   bool
 	err         error
 	installRoot string
 }
