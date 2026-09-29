@@ -118,7 +118,7 @@ The browser server binds to IPv4 loopback. CLIHarbor is not a remote multi-user 
 
 ### SI-5 — Credentials remain vendor-owned
 
-CLIHarbor has no secret input type and does not persist vendor passwords, MFA values, API keys or access/refresh tokens.
+CLIHarbor has no generic secret input type and does not persist vendor passwords, MFA values, API keys or access/refresh tokens.
 
 Generic:
 
@@ -128,16 +128,18 @@ requiresAuth: true
 
 does not grant browser execution authority by itself.
 
-The only implemented auth execution mode is:
+The task execution auth mode remains:
 
 ```yaml
 requiresAuth: true
 authMode: vendor-session
 ```
 
-This allows a **read-only, non-secret** command to use authentication already supplied by the vendor CLI/environment/OS credential storage. CLIHarbor does not provide credential stdin or credential argv.
+This allows a **read-only, non-secret** command to use authentication already supplied by the vendor configuration/credential store. Task execution never receives credential stdin or credential argv.
 
-For the qualified Conjur 9.3.1 contract, the pinned upstream `conjur-api-go v0.15.4` path loads environment/stored credentials and returns an error when no valid credentials are present. CLIHarbor therefore does not need to start a password/MFA flow merely to execute one of these read tasks.
+The qualified Conjur integration additionally has one narrow in-process credential bridge. The browser may submit identity/password only to the authenticated, CSRF-protected loopback endpoint `POST /api/v1/auth/login`; that request is not a task/run and never becomes command argv, invocation preview, retained run input, stdout/stderr or diagnostics. The adapter is fixed to the qualified `cyberark-conjur-v9/conjur` identity, supports only password-style `authn`/LDAP configuration, admits one sign-in attempt at a time, bounds request/network duration, and returns only closed-set errors.
+
+The adapter calls pinned `conjur-api-go v0.15.4` directly. The vendor library performs credential validation/exchange and writes the resulting API key using Conjur's configured credential-storage backend. CLIHarbor never persists the submitted password and clears the returned API-key byte buffer after the vendor library stores it. OIDC/JWT/certificate/IAM/Azure/MFA/challenge flows remain vendor-owned and are not coerced into this form.
 
 Installing the pinned Conjur executable does not configure a Conjur account or create/authenticate vendor credentials.
 
@@ -243,9 +245,9 @@ CLI output is untrusted data. Production UI uses React escaping and a restrictiv
 
 The current browser executor rejects secret-bearing plans. Future secret workflows require a separate reveal/copy/redaction/persistence design.
 
-### T6 — Secret leakage through argv
+### T6 — Secret leakage through argv or retained browser state
 
-There is no secret input primitive. Credentials should remain in vendor-owned session mechanisms rather than process-list-visible argv.
+There is no pack-level secret input primitive. Credential login is a separate fixed API path, never planner/executor input. Conjur passwords are never placed in process-list-visible argv, invocation preview, run history, retry state or CLIHarbor persistence. The browser clears password state after each attempt.
 
 ### T7 — PATH hijacking / ambiguity
 
@@ -281,16 +283,19 @@ Before `change`/`destructive` execution is enabled, backend confirmation must be
 
 ### T11 — Authentication confused deputy
 
-**Threat:** clicking a read workflow causes CLIHarbor to solicit or expose credentials, or executes under an unintended authentication context.
+**Threat:** a browser action solicits credentials for an unintended tool/mode, leaks them into another execution surface, or treats login transport success as authorization.
 
 **Controls:**
 
 - generic auth-required tasks remain blocked;
 - `vendor-session` must be explicitly declared in a trusted pack;
-- CLIHarbor supplies no interactive credential stdin;
-- CLIHarbor supplies no credential argv;
-- current Conjur pack is version-gated to the upstream contract used for authentication analysis;
-- missing/expired stored credentials produce vendor failure/remediation rather than becoming CLIHarbor credential input;
+- the credential endpoint accepts only bounded identity/password JSON under the existing local session + exact Origin + CSRF boundary;
+- the backend adapter is hard-bound to the qualified Conjur pack/tool identity rather than browser-supplied executable/argv;
+- unsupported OIDC/JWT/certificate/IAM/Azure modes and disabled/read-only credential storage fail closed;
+- only one credential handoff runs concurrently;
+- submitted credentials never become process argv, task values, run history, diagnostics or logs;
+- raw vendor authentication errors are collapsed to reviewed browser-safe codes;
+- a successful handoff is followed by the existing trusted `whoami` session check; login response alone is not authorization evidence;
 - future mutations must make profile/account/tenant context explicit before execution.
 
 ### T12 — Long-running/noisy process denial of service
@@ -404,7 +409,8 @@ Relevant controls include:
 - authoritative `EVALUATION_SHA256SUMS` for the immutable Phase 0 evaluation bundle;
 - re-verification before upload;
 - embedded first-party Conjur pack bytes compiled into the qualified executable;
-- exact CyberArk Conjur v9.3.1 Windows x64 URL, size and SHA-256 pin for the optional managed fallback.
+- exact CyberArk Conjur v9.3.1 Windows x64 URL, size and SHA-256 pin for the optional managed fallback;
+- pinned `github.com/cyberark/conjur-api-go v0.15.4` for the reviewed in-process credential bridge, matching the qualified Conjur CLI dependency line.
 
 The Conjur integration records its upstream source/release commit and compatibility boundary. The pinned binary digest strengthens exact-byte identity for the managed fallback; it is not Windows publisher attestation.
 
@@ -425,6 +431,7 @@ The repository test/CI contract covers, among other things:
 - direct process execution, timeouts, cancellation and output exhaustion;
 - Windows descendant cleanup;
 - browser Host/Origin/session/CSRF/request validation;
+- credential-login request bounds, duplicate/unknown-field rejection, secret non-echo, unsupported-auth/storage fail-closed behavior and post-login session verification;
 - bounded run/SSE/replay state;
 - inert CLI-output rendering;
 - structured-output parser bounds;
