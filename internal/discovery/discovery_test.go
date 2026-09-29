@@ -314,6 +314,20 @@ func createExecutable(t *testing.T, directory, name string) string {
 	return absolute
 }
 
+
+func resolvedTestPath(t *testing.T, path string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	absolute, err := filepath.Abs(resolved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Clean(absolute)
+}
+
 func TestDiscoverUsesFallbackDirectoryOnlyWhenPATHMisses(t *testing.T) {
 	pathDir := t.TempDir()
 	fallbackDir := t.TempDir()
@@ -324,6 +338,7 @@ func TestDiscoverUsesFallbackDirectoryOnlyWhenPATHMisses(t *testing.T) {
 	if err := os.WriteFile(executable, []byte("fixture"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	executable = resolvedTestPath(t, executable)
 
 	registry := testRegistry(t, packs.Tool{ExecutableNames: []string{"fallback-cli"}})
 	resolver := NewResolver(Config{
@@ -359,6 +374,7 @@ func TestDiscoverPATHCandidateTakesPriorityOverFallbackDirectory(t *testing.T) {
 	if err := os.WriteFile(fallbackExecutable, []byte("fallback"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	pathExecutable = resolvedTestPath(t, pathExecutable)
 
 	registry := testRegistry(t, packs.Tool{ExecutableNames: []string{"fallback-cli"}})
 	resolver := NewResolver(Config{
