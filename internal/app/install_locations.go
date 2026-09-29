@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -50,6 +51,10 @@ func (s *managedInstallLocationStore) Load() map[discovery.ToolRef]string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	info, statErr := os.Lstat(s.path)
+	if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil
+	}
 	data, err := os.ReadFile(s.path)
 	if err != nil || len(data) == 0 || len(data) > 64<<10 {
 		return nil
@@ -58,6 +63,9 @@ func (s *managedInstallLocationStore) Load() map[discovery.ToolRef]string {
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&file); err != nil || file.Version != managedInstallLocationSchemaVersion {
+		return nil
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return nil
 	}
 	result := make(map[discovery.ToolRef]string)
