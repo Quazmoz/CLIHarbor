@@ -65,23 +65,10 @@ func TestStage5FirstPartyReadOnlyArgv(t *testing.T) {
 		},
 	}
 
-	fixtures := map[string]struct {
-		registry *packs.Registry
-		snapshot discovery.Snapshot
-	}{}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fixture, ok := fixtures[test.packID]
-			if !ok {
-				registry, snapshot := stage5PlannerFixture(t, test.packPath, test.packID, test.toolID, test.version)
-				fixture = struct {
-					registry *packs.Registry
-					snapshot discovery.Snapshot
-				}{registry: registry, snapshot: snapshot}
-				fixtures[test.packID] = fixture
-			}
-			plan, err := Build(fixture.registry, fixture.snapshot, Request{
+			registry, snapshot := stage5PlannerFixture(t, test.packPath, test.packID, test.toolID, test.version)
+			plan, err := Build(registry, snapshot, Request{
 				PackID: test.packID, CommandID: test.commandID, Values: map[string]json.RawMessage{},
 			})
 			if err != nil {
