@@ -21,6 +21,7 @@ export interface CredentialLoginCapability {
 
 export interface ToolInstallCapability {
   version: string;
+  customLocation: boolean;
 }
 
 export interface ToolInstallResult {
@@ -93,10 +94,17 @@ function parseSessionCheck(value: unknown): VendorSessionCheck {
 }
 
 function parseInstall(value: unknown): ToolInstallCapability {
-  if (!isRecord(value) || Object.keys(value).length !== 1 || typeof value.version !== 'string' || value.version.length === 0 || value.version.length > 128) {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 2 ||
+    typeof value.version !== 'string' ||
+    value.version.length === 0 ||
+    value.version.length > 128 ||
+    typeof value.customLocation !== 'boolean'
+  ) {
     throw clientError('invalid_response');
   }
-  return { version: value.version };
+  return { version: value.version, customLocation: value.customLocation };
 }
 
 function parseCredentialLogin(value: unknown): CredentialLoginCapability {
@@ -186,6 +194,7 @@ export async function installTool(
   csrfToken: string,
   packId: string,
   toolId: string,
+  installRoot?: string,
   signal?: AbortSignal,
 ): Promise<ToolInstallResult> {
   const response = await fetch('/api/v1/tools/install', {
@@ -196,7 +205,11 @@ export async function installTool(
       'Content-Type': 'application/json',
       'X-CLIHarbor-CSRF': csrfToken,
     },
-    body: JSON.stringify({ packId, toolId }),
+    body: JSON.stringify({
+      packId,
+      toolId,
+      ...(installRoot && installRoot.trim().length > 0 ? { installRoot: installRoot.trim() } : {}),
+    }),
     signal,
   });
   if (!response.ok) {
