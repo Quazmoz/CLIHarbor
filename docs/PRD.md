@@ -72,9 +72,11 @@ For ordinary tasks, CLIHarbor launches the exact target executable with an expli
 
 ### G5 — Secure vendor-owned authentication
 
-CLIHarbor must not persist or own vendor passwords, MFA values, API keys, or access/refresh tokens.
+CLIHarbor must not persist vendor passwords, MFA values, API keys, or access/refresh tokens.
 
-Supported authenticated read workflows use explicit `vendor-session` semantics and reuse the vendor CLI's approved session/configuration mechanisms.
+Supported authenticated read workflows use explicit `vendor-session` semantics and reuse the vendor CLI's approved session/configuration mechanisms. A narrowly reviewed vendor adapter may accept an ephemeral credential through the authenticated loopback UI only when the secret is kept out of argv, logs, run history and CLIHarbor persistence and durable session material remains owned by the vendor credential store.
+
+The current Conjur adapter supports only password-style `authn`/LDAP login through pinned `conjur-api-go v0.15.4`. OIDC, JWT, certificate, MFA/challenge and other interactive modes remain vendor-owned.
 
 ### G6 — Better UX than raw CLI
 
