@@ -45,7 +45,7 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 		}
 		if declared, exists := loaded.Pack.Runtime.Tools[state.ToolID]; exists {
 			if declared.Install != nil {
-				diagnostic.Install = &server.ToolInstallCapability{Version: declared.Install.Version}
+				diagnostic.Install = &server.ToolInstallCapability{Version: declared.Install.Version, CustomLocation: true}
 			}
 			if declared.SessionCheck != nil {
 				diagnostic.SessionCheck = &server.VendorSessionCheck{
