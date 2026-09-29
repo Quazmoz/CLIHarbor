@@ -37,6 +37,8 @@ bin\cliharbor-windows-x64-evaluation.exe
 
 No separate Conjur pack download and no `--pack-file` are required for the normal path.
 
+For supported Conjur `authn`/LDAP configurations, the **Authentication** page can accept an identity and password for a single sign-in attempt. The password is posted only to the authenticated loopback runtime, never placed in process argv or run history, and is not persisted by CLIHarbor. The pinned CyberArk Go API performs the login and stores the resulting vendor credential using Conjur's configured credential storage. OIDC/JWT/certificate/MFA-style flows remain vendor-owned.
+
 ### What automatic setup does
 
 On default `serve`, CLIHarbor:
@@ -118,7 +120,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
 | Planning | Typed inputs, trusted literals/flags/switches/enum mappings, constrained positional values, deterministic argv |
 | Execution | Direct executable launch, no ordinary shell, executable identity revalidation, bounded timeout/output/cancellation |
-| Vendor sessions | Explicit `vendor-session` mode plus validated pack-declared, zero-input non-secret session checks and a generic multi-tool Authentication page that runs only reviewed checks |
+| Vendor sessions | Explicit `vendor-session` mode, reviewed zero-input session checks, and a Conjur-only ephemeral password bridge that keeps credentials out of argv/run history/logs and leaves durable session material in Conjur's configured credential storage |
 | Windows lifecycle | Suspended launch, Job Object assignment before resume, descendant containment and teardown |
 | Browser runs | Authenticated run APIs, planner-backed sanitized invocation preview, bounded SSE streaming/replay, reconnect reconciliation, cancellation, in-memory retry-with-inputs, bounded retention and metadata-only Recent Runs history |
 | Structured results | Strict bounded scalar JSON parsing, inert React rendering and raw-output fallback |
@@ -129,7 +131,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 
 Still intentionally gated:
 
-- CLIHarbor-owned username/password/MFA forms or token persistence;
+- generic credential forms, MFA/challenge handling, or CLIHarbor-owned token persistence beyond the reviewed Conjur password bridge;
 - secret-returning workflows;
 - change/destructive browser execution;
 - automatic execution of unreviewed generated commands;
