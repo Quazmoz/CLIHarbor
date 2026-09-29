@@ -37,8 +37,9 @@ type ToolInstallResult struct {
 type ToolInstallErrorCode string
 
 const (
-	ToolInstallUnsupported ToolInstallErrorCode = "unsupported"
-	ToolInstallUnavailable ToolInstallErrorCode = "unavailable"
+	ToolInstallUnsupported     ToolInstallErrorCode = "unsupported"
+	ToolInstallUnavailable     ToolInstallErrorCode = "unavailable"
+	ToolInstallInvalidLocation ToolInstallErrorCode = "invalid-location"
 )
 
 type ToolInstallError struct {
@@ -136,6 +137,8 @@ func writeToolInstallError(w http.ResponseWriter, err error) {
 		writeAPIError(w, http.StatusConflict, apperror.CodeCommandBlocked)
 	case ToolInstallUnavailable:
 		writeAPIError(w, http.StatusServiceUnavailable, apperror.CodeToolUnavailable)
+	case ToolInstallInvalidLocation:
+		writeAPIFieldError(w, http.StatusUnprocessableEntity, apperror.CodeInvalidInput, "installRoot")
 	default:
 		writeAPIError(w, http.StatusInternalServerError, apperror.CodeInternalError)
 	}
