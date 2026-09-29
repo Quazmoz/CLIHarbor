@@ -150,7 +150,7 @@ github.com/cyberark/conjur-api-go v0.15.4
 
 This is the same API library line used by the reviewed Conjur CLI 9.3.1 source. `Client.Login(identity, password)` performs the vendor login exchange and writes the resulting API key through Conjur's configured credential-storage provider. CLIHarbor does not persist the supplied password; the request exists only for the browser-to-loopback-to-vendor call lifetime, never enters argv/run history/logs, and the returned API-key byte slice is cleared after vendor storage completes.
 
-The form is exposed only when the Conjur tool is healthy and the loaded Conjur configuration supports this bounded flow with writable credential storage. OIDC, JWT, certificate, IAM/Azure, MFA/challenge and other interactive modes remain vendor-owned.
+The form is exposed only when the Conjur tool is healthy and the loaded Conjur configuration supports this bounded flow with an HTTPS appliance URL, a non-SaaS environment, and writable credential storage. OIDC, JWT, certificate, IAM/Azure, MFA/challenge and other interactive modes remain vendor-owned.
 
 The login endpoint itself is protected by the existing loopback session, exact Host/Origin and CSRF controls, strict bounded JSON, no-store response policy and sanitized closed-set errors. Only one login attempt is admitted concurrently.
 
