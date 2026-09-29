@@ -43,7 +43,7 @@ func (i *managedToolInstaller) InstallTool(ctx context.Context, request server.T
 		}
 		validated, ok := validateManagedInstallRoot(request.InstallRoot, i.locations.homeDir)
 		if !ok {
-			return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallUnsupported}
+			return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallInvalidLocation}
 		}
 		installRoot = validated
 	}
