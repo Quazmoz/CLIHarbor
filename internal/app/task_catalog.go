@@ -49,7 +49,7 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 			}
 			if declared.SessionCheck != nil {
 				diagnostic.SessionCheck = &server.VendorSessionCheck{
-				CommandID:                     declared.SessionCheck.CommandID,
+					CommandID:                     declared.SessionCheck.CommandID,
 					UnauthenticatedStderrContains: declared.SessionCheck.UnauthenticatedStderrContains,
 				}
 			}
