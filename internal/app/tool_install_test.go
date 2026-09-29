@@ -71,7 +71,7 @@ func TestManagedToolInstallerFailsClosedWithoutInstallContract(t *testing.T) {
 	installer := newManagedToolInstaller(registry, &fakeManagedProvisioner{}, nil)
 	_, err = installer.InstallTool(context.Background(), server.ToolInstallRequest{PackID: "fixture", ToolID: "fixture"})
 	var installErr *server.ToolInstallError
-	if !errors.As(err, &installErr) || installErr.Code != server.ToolInstallUnsupported {
+	if !errors.As(err, &installErr) || installErr.Code != server.ToolInstallInvalidLocation {
 		t.Fatalf("error = %v", err)
 	}
 }
