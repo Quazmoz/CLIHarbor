@@ -544,7 +544,7 @@ A successful browser install deliberately requires a CLIHarbor restart before ex
 
 It is version-gated to the documented Conjur CLI 9.x contract and exposes only verified read-only/non-secret workflows using `vendor-session` authentication. See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md) for provenance, included commands, and the managed-laptop qualification boundary.
 
-## 22. Extension rule
+## 23. Extension rule
 
 Future pack features must preserve the central invariant:
 
