@@ -1073,6 +1073,62 @@ footer p {
   color: #c9d6d9 !important;
 }
 
+.credential-login-form {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--surface-3);
+}
+
+.credential-login-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.credential-login-heading h4 {
+  margin: 0.3rem 0 0;
+  color: var(--text-strong);
+  font-size: 1rem;
+}
+
+.credential-login-help {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.credential-login-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.credential-login-error {
+  display: grid;
+  gap: 0.35rem;
+  border-left: 3px solid var(--danger);
+  padding: 0.7rem 0.85rem;
+  color: var(--text);
+  background: var(--danger-surface);
+}
+
+.credential-login-error span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.credential-login-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
 .auth-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1181,6 +1237,10 @@ footer p {
   }
 
   .auth-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .credential-login-fields {
     grid-template-columns: 1fr;
   }
 }
