@@ -142,6 +142,9 @@
         },
         "sessionCheck": {
           "$ref": "#/$defs/sessionCheck"
+        },
+        "install": {
+          "$ref": "#/$defs/toolInstall"
         }
       }
     },
@@ -592,6 +595,96 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 256
+        }
+      }
+    },
+    "toolInstall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "artifacts"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "artifacts": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 6,
+          "propertyNames": {
+            "pattern": "^(windows|linux|darwin)-(amd64|arm64)$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/installArtifact"
+          }
+        }
+      }
+    },
+    "installArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "sha256",
+        "sizeBytes",
+        "format",
+        "executableName"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 9,
+          "maxLength": 2048
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 536870912
+        },
+        "format": {
+          "enum": [
+            "executable",
+            "zip"
+          ]
+        },
+        "executableName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "archivePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "executableSha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        },
+        "executableSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 536870912
+        },
+        "redirectHosts": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[A-Za-z0-9.-]+$"
+          }
         }
       }
     }

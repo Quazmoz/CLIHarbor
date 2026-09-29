@@ -151,6 +151,20 @@ func cloneTool(tool Tool) Tool {
 			tool.HelpProbes[id] = probe
 		}
 	}
+	if tool.SessionCheck != nil {
+		check := *tool.SessionCheck
+		tool.SessionCheck = &check
+	}
+	if tool.Install != nil {
+		install := *tool.Install
+		install.Artifacts = make(map[string]InstallArtifact, len(tool.Install.Artifacts))
+		for platform, source := range tool.Install.Artifacts {
+			artifact := source
+			artifact.RedirectHosts = append([]string(nil), source.RedirectHosts...)
+			install.Artifacts[platform] = artifact
+		}
+		tool.Install = &install
+	}
 	return tool
 }
 

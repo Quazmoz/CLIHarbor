@@ -43,10 +43,15 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 			Message:               browserToolMessage(state.Status),
 			RequiresVendorSession: vendorSessionTools[discovery.ToolRef{PackID: state.PackID, ToolID: state.ToolID}],
 		}
-		if declared, exists := loaded.Pack.Runtime.Tools[state.ToolID]; exists && declared.SessionCheck != nil {
-			diagnostic.SessionCheck = &server.VendorSessionCheck{
-				CommandID:                     declared.SessionCheck.CommandID,
-				UnauthenticatedStderrContains: declared.SessionCheck.UnauthenticatedStderrContains,
+		if declared, exists := loaded.Pack.Runtime.Tools[state.ToolID]; exists {
+			if declared.Install != nil {
+				diagnostic.Install = &server.ToolInstallCapability{Version: declared.Install.Version}
+			}
+			if declared.SessionCheck != nil {
+				diagnostic.SessionCheck = &server.VendorSessionCheck{
+					CommandID:                     declared.SessionCheck.CommandID,
+					UnauthenticatedStderrContains: declared.SessionCheck.UnauthenticatedStderrContains,
+				}
 			}
 		}
 		catalog.tools = append(catalog.tools, diagnostic)
@@ -174,6 +179,10 @@ func (c *taskCatalog) ListTools() []server.ToolDiagnostic {
 		if tool.CredentialLogin != nil {
 			capability := *tool.CredentialLogin
 			out[i].CredentialLogin = &capability
+		}
+		if tool.Install != nil {
+			install := *tool.Install
+			out[i].Install = &install
 		}
 	}
 	return out

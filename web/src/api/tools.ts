@@ -19,6 +19,17 @@ export interface CredentialLoginCapability {
   method: 'conjur-password';
 }
 
+export interface ToolInstallCapability {
+  version: string;
+}
+
+export interface ToolInstallResult {
+  installed: boolean;
+  version: string;
+  restartRequired: boolean;
+  message: string;
+}
+
 export interface ToolDiagnostic {
   packId: string;
   packName: string;
@@ -31,6 +42,7 @@ export interface ToolDiagnostic {
   requiresVendorSession?: boolean;
   sessionCheck?: VendorSessionCheck;
   credentialLogin?: CredentialLoginCapability;
+  install?: ToolInstallCapability;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -80,6 +92,13 @@ function parseSessionCheck(value: unknown): VendorSessionCheck {
   return { commandId, unauthenticatedStderrContains };
 }
 
+function parseInstall(value: unknown): ToolInstallCapability {
+  if (!isRecord(value) || Object.keys(value).length !== 1 || typeof value.version !== 'string' || value.version.length === 0 || value.version.length > 128) {
+    throw clientError('invalid_response');
+  }
+  return { version: value.version };
+}
+
 function parseCredentialLogin(value: unknown): CredentialLoginCapability {
   if (!isRecord(value) || Object.keys(value).length !== 1 || value.method !== 'conjur-password') {
     throw clientError('invalid_response');
@@ -103,6 +122,7 @@ function parseTool(value: unknown): ToolDiagnostic {
     requiresVendorSession,
     sessionCheck,
     credentialLogin,
+    install,
   } = value;
   if (
     typeof packId !== 'string' ||
@@ -120,6 +140,7 @@ function parseTool(value: unknown): ToolDiagnostic {
   const parsedSessionCheck = sessionCheck === undefined ? undefined : parseSessionCheck(sessionCheck);
   const parsedCredentialLogin =
     credentialLogin === undefined ? undefined : parseCredentialLogin(credentialLogin);
+  const parsedInstall = install === undefined ? undefined : parseInstall(install);
   if (
     (parsedSessionCheck !== undefined || parsedCredentialLogin !== undefined) &&
     requiresVendorSession !== true
@@ -139,6 +160,7 @@ function parseTool(value: unknown): ToolDiagnostic {
     requiresVendorSession: requiresVendorSession === true,
     sessionCheck: parsedSessionCheck,
     credentialLogin: parsedCredentialLogin,
+    install: parsedInstall,
   };
 }
 
@@ -157,4 +179,47 @@ export async function fetchTools(signal?: AbortSignal): Promise<ToolDiagnostic[]
     throw clientError('invalid_response');
   }
   return payload.tools.map(parseTool);
+}
+
+
+export async function installTool(
+  csrfToken: string,
+  packId: string,
+  toolId: string,
+  signal?: AbortSignal,
+): Promise<ToolInstallResult> {
+  const response = await fetch('/api/v1/tools/install', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-CLIHarbor-CSRF': csrfToken,
+    },
+    body: JSON.stringify({ packId, toolId }),
+    signal,
+  });
+  if (!response.ok) {
+    throw await errorFromResponse(response);
+  }
+  const payload: unknown = await response.json();
+  if (
+    !isRecord(payload) ||
+    typeof payload.installed !== 'boolean' ||
+    typeof payload.version !== 'string' ||
+    typeof payload.restartRequired !== 'boolean' ||
+    typeof payload.message !== 'string' ||
+    payload.version.length === 0 ||
+    payload.version.length > 128 ||
+    payload.message.length === 0 ||
+    payload.message.length > 512
+  ) {
+    throw clientError('invalid_response');
+  }
+  return {
+    installed: payload.installed,
+    version: payload.version,
+    restartRequired: payload.restartRequired,
+    message: payload.message,
+  };
 }

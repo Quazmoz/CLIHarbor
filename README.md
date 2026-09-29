@@ -1,3 +1,13 @@
+## Browser-managed CLI installation
+
+CLIHarbor can install a CLI from the local browser UI **only when the loaded trusted pack declares an immutable portable artifact contract** for the current OS/architecture.
+
+The browser supplies only the pack/tool identity. Download URL, SHA-256, expected size, archive member, executable filename, approved redirect hosts, version, and current-user cache location remain backend/pack controlled. CLIHarbor never turns this into a generic package manager: it does not execute MSI/PKG installers, package-manager commands, shell scripts, registry edits, services, or machine-wide PATH changes.
+
+When a missing tool has a supported install contract, open **Diagnostics → Tool readiness → Install verified CLI**. CLIHarbor downloads and byte-verifies the declared artifact into the current user's CLIHarbor cache. Restart CLIHarbor once; the next startup re-verifies that managed copy without network access and selects it as a backend-only tool override before normal discovery.
+
+This path is designed for locked-down work laptops where user-context portable executables are permitted. It does not bypass application control or organizational policy. If the device blocks the artifact or the pack has no reviewed artifact for that platform, CLIHarbor fails closed and leaves the normal explicit `--tool-path` / vendor installation path available.
+
 # CLIHarbor
 
 A Windows-first local browser UI for safely exposing curated workflows from official command-line tools.

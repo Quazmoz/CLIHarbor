@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
+	pathpkg "path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -19,9 +22,10 @@ import (
 )
 
 const (
-	MaxPackBytes = 256 << 10
-	maxYAMLDepth = 64
-	maxYAMLNodes = 10000
+	MaxPackBytes            = 256 << 10
+	maxYAMLDepth            = 64
+	maxYAMLNodes            = 10000
+	maxInstallArtifactBytes = 512 << 20
 )
 
 type ErrorCode string
@@ -398,6 +402,143 @@ func validateSemantics(pack Pack) error {
 		}
 	}
 	return nil
+}
+
+func validateToolInstall(pack Pack, toolID string, tool Tool) error {
+	if tool.Install == nil {
+		return nil
+	}
+
+	path := "runtime.tools." + toolID + ".install"
+	platforms := make(map[string]struct{}, len(pack.Runtime.Platforms))
+	for _, platform := range pack.Runtime.Platforms {
+		platforms[platform] = struct{}{}
+	}
+
+	for _, platformArch := range sortedKeys(tool.Install.Artifacts) {
+		artifact := tool.Install.Artifacts[platformArch]
+		artifactPath := path + ".artifacts." + platformArch
+		parts := strings.Split(platformArch, "-")
+		if len(parts) != 2 {
+			return validationError(ErrSemantic, artifactPath, "install artifact key must be platform-architecture")
+		}
+		platform := parts[0]
+		if _, ok := platforms[platform]; !ok {
+			return validationError(ErrSemantic, artifactPath, "install artifact platform is not declared by runtime.platforms")
+		}
+		if artifact.SizeBytes <= 0 || artifact.SizeBytes > maxInstallArtifactBytes {
+			return validationError(ErrSemantic, artifactPath+".sizeBytes", "install artifact size is outside the portable-install limit")
+		}
+		if !validInstallDigest(artifact.SHA256) {
+			return validationError(ErrSemantic, artifactPath+".sha256", "install artifact SHA-256 must be exactly 64 hexadecimal characters")
+		}
+
+		source, err := url.Parse(artifact.URL)
+		if err != nil || !strings.EqualFold(source.Scheme, "https") || source.Host == "" || source.User != nil || source.Fragment != "" || source.Port() != "" || !validInstallHost(source.Hostname()) {
+			return validationError(ErrSemantic, artifactPath+".url", "install artifact URL must be an HTTPS public-host URL without credentials, fragments, or a custom port")
+		}
+		if !matchesInstallExecutable(artifact.ExecutableName, tool.ExecutableNames, platform) {
+			return validationError(ErrSemantic, artifactPath+".executableName", "install artifact executable does not match a declared tool executable")
+		}
+
+		seenHosts := make(map[string]struct{}, len(artifact.RedirectHosts))
+		for index, host := range artifact.RedirectHosts {
+			hostPath := fmt.Sprintf("%s.redirectHosts[%d]", artifactPath, index)
+			normalized := strings.ToLower(host)
+			if host != normalized || !validInstallHost(host) {
+				return validationError(ErrSemantic, hostPath, "redirect hosts must be lowercase public hostnames")
+			}
+			if _, exists := seenHosts[normalized]; exists {
+				return validationError(ErrSemantic, hostPath, "duplicate redirect host")
+			}
+			seenHosts[normalized] = struct{}{}
+		}
+
+		switch artifact.Format {
+		case InstallFormatExecutable:
+			if artifact.ArchivePath != "" || artifact.ExecutableSHA256 != "" || artifact.ExecutableSizeBytes != 0 {
+				return validationError(ErrSemantic, artifactPath, "direct executable installs cannot declare archive-only fields")
+			}
+		case InstallFormatZIP:
+			if !validArchiveExecutablePath(artifact.ArchivePath) {
+				return validationError(ErrSemantic, artifactPath+".archivePath", "ZIP executable path must be a clean relative slash-separated path")
+			}
+			if pathpkg.Base(artifact.ArchivePath) != artifact.ExecutableName {
+				return validationError(ErrSemantic, artifactPath+".archivePath", "ZIP executable path basename must match executableName")
+			}
+			if !validInstallDigest(artifact.ExecutableSHA256) {
+				return validationError(ErrSemantic, artifactPath+".executableSha256", "ZIP executable SHA-256 must be exactly 64 hexadecimal characters")
+			}
+			if artifact.ExecutableSizeBytes <= 0 || artifact.ExecutableSizeBytes > maxInstallArtifactBytes {
+				return validationError(ErrSemantic, artifactPath+".executableSizeBytes", "ZIP executable size is outside the portable-install limit")
+			}
+		default:
+			return validationError(ErrSemantic, artifactPath+".format", "unsupported portable install format")
+		}
+	}
+	return nil
+}
+
+func validInstallDigest(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for _, character := range value {
+		if (character < '0' || character > '9') &&
+			(character < 'a' || character > 'f') &&
+			(character < 'A' || character > 'F') {
+			return false
+		}
+	}
+	return true
+}
+
+func validInstallHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	if host == "" || host == "localhost" || strings.HasSuffix(host, ".local") || net.ParseIP(host) != nil {
+		return false
+	}
+	if strings.ContainsAny(host, "/\\:@") {
+		return false
+	}
+	labels := strings.Split(host, ".")
+	if len(labels) < 2 {
+		return false
+	}
+	for _, label := range labels {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, character := range label {
+			if (character < 'a' || character > 'z') && (character < '0' || character > '9') && character != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func matchesInstallExecutable(actual string, declared []string, platform string) bool {
+	if filepath.Base(actual) != actual || strings.ContainsAny(actual, `/\`) {
+		return false
+	}
+	for _, name := range declared {
+		if strings.EqualFold(actual, name) {
+			return true
+		}
+		if platform == "windows" && filepath.Ext(name) == "" && strings.EqualFold(actual, name+".exe") {
+			return true
+		}
+	}
+	return false
+}
+
+func validArchiveExecutablePath(value string) bool {
+	if value == "" || strings.Contains(value, "\\") || strings.HasPrefix(value, "/") {
+		return false
+	}
+	cleaned := pathpkg.Clean(value)
+	return cleaned == value && cleaned != "." && cleaned != ".." && !strings.HasPrefix(cleaned, "../")
 }
 
 func validateSessionCheck(pack Pack, toolID string, check SessionCheck) error {

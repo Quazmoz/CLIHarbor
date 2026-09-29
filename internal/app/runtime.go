@@ -49,6 +49,22 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 	}
 
 	overrides := cloneToolOverrides(options.ToolOverrides)
+	portable := toolbootstrap.NewPortableProvisioner()
+	for _, loaded := range registry.Packs() {
+		for _, named := range registry.Tools(loaded.Pack.Metadata.ID) {
+			ref := discovery.ToolRef{PackID: loaded.Pack.Metadata.ID, ToolID: named.ID}
+			if _, explicit := overrides[ref]; explicit || named.Tool.Install == nil {
+				continue
+			}
+			path, found, resolveErr := portable.ResolveInstalled(ref, named.Tool)
+			if resolveErr != nil {
+				return RuntimeState{}, fmt.Errorf("resolve managed tool %s: %w", ref.String(), resolveErr)
+			}
+			if found {
+				overrides[ref] = path
+			}
+		}
+	}
 	resolver := discovery.NewResolver(discovery.Config{})
 	snapshot, err := resolver.Discover(ctx, registry, overrides)
 	if err != nil {
