@@ -106,6 +106,8 @@ The pack was derived from these official upstream surfaces:
 
 The trusted pack records fixed `--help` evidence probes for the root, `list`, `resource`, `role`, and `whoami` surfaces so an operator can capture exact deployed help text without granting arbitrary probe argv.
 
+Windows evaluation CI also runs the exact pinned v9.3.1 binary through the `list` help probe and requires the Stage 5 `--members-of`, `--permitted-roles`, and `--privilege` flags to remain present. This checks the reviewed release directly rather than relying only on historical documentation.
+
 ## Implemented browser workflows
 
 The current pack exposes only commands that are both documented and inside CLIHarbor's current read-only/non-secret execution envelope:
@@ -113,7 +115,7 @@ The current pack exposes only commands that are both documented and inside CLIHa
 | CLIHarbor command | Conjur argv shape | Notes |
 | --- | --- | --- |
 | `whoami` | `conjur whoami --output json` | Current authenticated identity |
-| `list-resources` | `conjur list [approved flags] --output json` | Kind/search/limit/offset/role/inspect/count filters |
+| `list-resources` | `conjur list [approved flags] --output json` | Kind/search/pagination plus role, members-of, permitted-roles, privilege, inspect, and count filters |
 | `resource-exists` | `conjur resource exists <resource-id> --output json` | Structured boolean card |
 | `resource-show` | `conjur resource show <resource-id> --output json` | Resource metadata |
 | `resource-permitted-roles` | `conjur resource permitted-roles <resource-id> <privilege> --output json` | Permission relationship query |
