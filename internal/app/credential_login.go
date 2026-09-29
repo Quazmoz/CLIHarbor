@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
@@ -96,6 +97,14 @@ func (s *conjurCredentialLoginService) Login(ctx context.Context, request server
 }
 
 func supportsConjurPasswordLogin(config conjurapi.Config) bool {
+	if config.IsSaaS() {
+		return false
+	}
+	applianceURL, err := url.Parse(config.ApplianceURL)
+	if err != nil || !strings.EqualFold(applianceURL.Scheme, "https") || applianceURL.Host == "" {
+		return false
+	}
+
 	authnType := strings.ToLower(strings.TrimSpace(config.AuthnType))
 	switch authnType {
 	case "", "authn", "ldap":
