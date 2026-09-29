@@ -454,3 +454,23 @@ Task discovery introduces one deliberately narrow browser-local persistence surf
 This preference state is **untrusted navigation state, never authorization or execution state**. On every runtime catalog load, stored identities are strictly parsed, bounded, and reconciled against tasks returned by the authenticated backend. An identity absent from the current catalog is removed and cannot be selected or executed. Invalid JSON, wrong types, oversized payloads, excessive entry counts, invalid identifier lengths, and unavailable/throwing browser storage all fail closed to empty preferences.
 
 CLIHarbor does not persist task form values, credentials, authentication state, CSRF/session material, stdout/stderr, structured results, failure text, argv, or executable paths in this preference store. The browser still supplies only the selected current-catalog `packId`/`commandId` and typed task values to the existing run API; planner, policy, tool identity, exact argv, and process execution remain backend-owned.
+
+## Browser-managed portable CLI installation
+
+The local UI may request installation only for a tool whose already-trusted pack declares a validated immutable artifact contract. The request carries only pack/tool IDs. It cannot provide or override a URL, digest, size, archive member, executable name, destination path, redirect host, command line, package-manager instruction, or elevation behavior.
+
+The portable provisioner:
+
+- uses HTTPS except in isolated tests;
+- bounds redirects, response size, ZIP entry count, and extracted executable size;
+- validates expected SHA-256 and exact byte count before activation;
+- rejects symlink/non-regular managed targets and unsafe cache path segments;
+- extracts only one exact declared archive member;
+- writes beneath the current user's CLIHarbor cache;
+- never executes downloaded installers/scripts during installation;
+- never modifies machine PATH, registry, services, Program Files, or privileged locations;
+- re-verifies managed bytes before a later startup adopts the executable.
+
+Installation does not mutate the current runtime's discovery/execution authority. The UI reports that a restart is required. On restart, CLIHarbor may select only a still-byte-identical managed artifact as a backend-owned override, after which ordinary version probes, compatibility checks, executable identity capture, planner policy, and executor protections still apply.
+
+This is a convenience path, not an application-control bypass. Endpoint protection, allowlisting, vendor policy, or OS execution restrictions may still refuse the managed binary, in which case CLIHarbor fails closed.
