@@ -32,6 +32,9 @@ describe('fetchTools', () => {
                   commandId: 'whoami',
                   unauthenticatedStderrContains: 'please login again',
                 },
+                credentialLogin: {
+                  method: 'conjur-password',
+                },
               },
               {
                 packId: 'kubectl-cli',
@@ -53,6 +56,7 @@ describe('fetchTools', () => {
       commandId: 'whoami',
       unauthenticatedStderrContains: 'please login again',
     });
+    expect(diagnostics[0].credentialLogin).toEqual({ method: 'conjur-password' });
     expect(diagnostics[1].requiresVendorSession).toBe(true);
     expect(diagnostics[1].sessionCheck).toBeUndefined();
   });
@@ -73,6 +77,14 @@ describe('fetchTools', () => {
     {
       requiresVendorSession: true,
       sessionCheck: { commandId: 'whoami', unauthenticatedStderrContains: 'signed\nout' },
+    },
+    {
+      requiresVendorSession: false,
+      credentialLogin: { method: 'conjur-password' },
+    },
+    {
+      requiresVendorSession: true,
+      credentialLogin: { method: 'unsupported-method' },
     },
   ])('rejects malformed or inconsistent session metadata: %j', async (metadata) => {
     vi.stubGlobal(
