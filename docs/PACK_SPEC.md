@@ -506,7 +506,39 @@ The typed export schema `cliharbor.phase0/v1` is inert review data. Evidence ins
 
 Promotion from evidence/documentation into a real pack remains an explicit source change with human-reviewable provenance.
 
-## 21. Current Conjur implementation
+## 21. Portable current-user install metadata
+
+A tool may optionally declare an immutable portable artifact contract:
+
+```yaml
+install:
+  version: 1.2.3
+  artifacts:
+    windows-amd64:
+      url: https://vendor.example/releases/tool.exe
+      sha256: <64 lowercase hex characters>
+      sizeBytes: 12345678
+      format: executable
+      executableName: tool.exe
+```
+
+ZIP artifacts additionally declare one exact `archivePath`, the extracted executable SHA-256, and extracted executable size. Redirect hosts must be explicitly declared when the authoritative release endpoint redirects to another download origin.
+
+Install metadata grants only this narrow authority:
+
+- download one HTTPS artifact declared by a trusted pack;
+- enforce bounded size and redirect count;
+- verify exact bytes before activation;
+- extract at most one exact reviewed ZIP member when applicable;
+- write only beneath CLIHarbor's current-user managed-tool cache;
+- mark the managed file executable for that user;
+- re-verify a previously installed managed copy before selecting it on a later startup.
+
+It does **not** grant shell, package-manager, arbitrary URL, arbitrary archive extraction, installer execution, PATH mutation, registry/service, elevation, or machine-wide filesystem authority. The browser request contains only `packId` and `toolId`; artifact details are never browser-controlled.
+
+A successful browser install deliberately requires a CLIHarbor restart before execution. Runtime discovery and execution authority stay immutable for the lifetime of the current server/run-manager instance.
+
+## 22. Current Conjur implementation
 
 `packs/conjur/conjur-v9.yaml` is the first real vendor pack derived from authoritative upstream evidence.
 
