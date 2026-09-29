@@ -60,9 +60,51 @@ func NewPortableProvisioner() *PortableProvisioner {
 	}
 }
 
+// ResolveInstalled returns a previously installed verified portable artifact without
+// performing network I/O. A missing or invalid managed copy is reported as not found.
+func (p *PortableProvisioner) ResolveInstalled(ref discovery.ToolRef, tool packs.Tool) (string, bool, error) {
+	if p == nil || tool.Install == nil {
+		return "", false, nil
+	}
+	if !safeManagedSegment(ref.PackID) || !safeManagedSegment(ref.ToolID) || !safeManagedVersion(tool.Install.Version) {
+		return "", false, fmt.Errorf("portable install metadata contains an unsafe cache path segment")
+	}
+	artifact, ok := tool.Install.Artifacts[p.goos+"-"+p.goarch]
+	if !ok {
+		return "", false, nil
+	}
+	if filepath.Base(artifact.ExecutableName) != artifact.ExecutableName || strings.ContainsAny(artifact.ExecutableName, `/\\`) {
+		return "", false, fmt.Errorf("portable install executable name is not a basename")
+	}
+	target, err := p.targetPath(ref, tool.Install.Version, artifact.ExecutableName)
+	if err != nil {
+		return "", false, err
+	}
+	finalSHA, finalSize, err := finalExecutableIdentity(artifact)
+	if err != nil {
+		return "", false, err
+	}
+	valid, err := verifyManagedFile(target, finalSize, finalSHA)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	if !valid {
+		return "", false, nil
+	}
+	return target, true, nil
+}
+
 func (p *PortableProvisioner) Ensure(ctx context.Context, ref discovery.ToolRef, tool packs.Tool) (string, bool, error) {
 	if p == nil || ctx == nil || tool.Install == nil {
 		return "", false, nil
+	}
+	if path, found, err := p.ResolveInstalled(ref, tool); err != nil {
+		return "", false, err
+	} else if found {
+		return path, false, nil
 	}
 	if !safeManagedSegment(ref.PackID) || !safeManagedSegment(ref.ToolID) || !safeManagedVersion(tool.Install.Version) {
 		return "", false, fmt.Errorf("portable install metadata contains an unsafe cache path segment")
