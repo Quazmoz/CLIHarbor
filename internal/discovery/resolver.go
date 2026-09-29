@@ -15,10 +15,10 @@ import (
 )
 
 type Config struct {
-	GOOS        string
-	PathValue   string
+	GOOS         string
+	PathValue    string
 	FallbackDirs []string
-	ProbeRunner ProbeRunner
+	ProbeRunner  ProbeRunner
 }
 
 type Resolver struct {
@@ -39,10 +39,10 @@ func NewResolver(config Config) *Resolver {
 		config.ProbeRunner = ExecProbeRunner{}
 	}
 	return &Resolver{
-		goos: config.GOOS,
-		pathValue: config.PathValue,
+		goos:         config.GOOS,
+		pathValue:    config.PathValue,
 		fallbackDirs: append([]string(nil), config.FallbackDirs...),
-		probeRunner: config.ProbeRunner,
+		probeRunner:  config.ProbeRunner,
 	}
 }
 
