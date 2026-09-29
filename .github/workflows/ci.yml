@@ -206,6 +206,22 @@ jobs:
           if (($inventoryOutput -join "`n") -notmatch 'probe root:\s+exited \(exit=0, truncated=false\)') {
             throw "pinned Conjur root help probe did not complete cleanly"
           }
+
+          $listHelpOutput = & .\bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file ".\packs\conjur\conjur-v9.yaml" --tool-path $toolOverride --probe "cyberark-conjur-v9/conjur/list" 2>&1
+          $listHelpExit = $LASTEXITCODE
+          $listHelpOutput | ForEach-Object { Write-Host $_ }
+          if ($listHelpExit -ne 0) {
+            throw "pinned Conjur list help probe failed with exit code $listHelpExit"
+          }
+          $listHelpText = $listHelpOutput -join "`n"
+          if ($listHelpText -notmatch 'probe list:\s+exited \(exit=0, truncated=false\)') {
+            throw "pinned Conjur list help probe did not complete cleanly"
+          }
+          foreach ($flag in @('--members-of', '--permitted-roles', '--privilege')) {
+            if ($listHelpText -notmatch [regex]::Escape($flag)) {
+              throw "pinned Conjur list help does not expose required Stage 5 flag $flag"
+            }
+          }
       - name: Run extracted-bundle evaluation preflight
         shell: pwsh
         run: |
