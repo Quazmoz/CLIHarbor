@@ -555,3 +555,65 @@ Unit/regression tests cover manifest and privileged-file corruption, authority e
 - the Phase 0 pack intentionally gains approved probe authority;
 - the target architecture or supported Windows profile changes.
 
+
+
+## ADR-025 — Allow ephemeral Conjur password handoff without making CLIHarbor a credential store
+
+**Date:** 2026-09-29  
+**Status:** Accepted.
+
+### Context
+
+The original MVP delegated login entirely to external vendor flows because a browser password form would otherwise risk process-list exposure, logging/run-history leakage, duplicated vendor protocol logic and unclear MFA semantics. Real work-laptop use now requires a usable UI path for ordinary Conjur username/password authentication. The qualified Conjur CLI 9.3.1 source also establishes that its `-p/--password` flag is argv-visible, while its masked prompt requires an interactive terminal, so neither subprocess mechanism is acceptable for browser-supplied secrets.
+
+The same qualified upstream CLI depends on `conjur-api-go v0.15.4`. Its `Client.Login` path performs the password exchange in-process and stores the resulting API key through Conjur's configured credential-storage provider.
+
+### Decision
+
+Add one narrow Conjur-specific credential adapter and dedicated authenticated loopback endpoint.
+
+- UI credential entry is advertised only for healthy `cyberark-conjur-v9/conjur` plus supported password-style `authn`/LDAP configuration with writable vendor credential storage.
+- The endpoint accepts only bounded `packId`, `toolId`, identity and password JSON under the existing HttpOnly session, exact Host/Origin and CSRF boundary.
+- The password is passed directly to pinned `conjur-api-go v0.15.4`; it never enters planner/executor argv, run state, invocation preview, logs, diagnostics or CLIHarbor persistence.
+- The vendor library remains authoritative for credential validation/exchange and durable credential storage.
+- OIDC/JWT/certificate/IAM/Azure/MFA/challenge modes remain vendor-owned.
+- A successful login call is immediately followed by the existing trusted `whoami` session check; transport success is not treated as authorization evidence.
+
+### Alternatives considered
+
+1. Continue requiring external terminal login for every Conjur deployment.
+2. Invoke `conjur login -p <password>`, which exposes the password in argv.
+3. Pipe the password to `conjur login`, which the pinned CLI rejects because its masked prompt requires an interactive terminal.
+4. Add a generic secret-input type to trusted packs.
+5. Reimplement Conjur authentication/storage directly over HTTP.
+
+### Rationale
+
+The vendor API provides the narrowest reviewed boundary that solves UI usability without broadening normal task execution or inventing a second credential store. It reuses the same authentication/storage implementation family as the qualified CLI while avoiding argv leakage.
+
+### Security / reliability implications
+
+- credential input expands frontend/backend memory sensitivity for the duration of one request;
+- strict request bounds, duplicate/unknown-field rejection, CSRF/session/origin checks and closed-set errors are mandatory;
+- the browser clears password state after each attempt;
+- returned API-key bytes are cleared after the vendor library persists them;
+- one concurrent login is allowed to prevent duplicate credential exchanges;
+- network duration is bounded by the vendor client timeout;
+- vendor credential-storage configuration remains authoritative, including enterprise policy;
+- privileged local malware/current-user compromise remains outside what a loopback UI can defend against.
+
+### Verification
+
+Backend tests cover request-boundary enforcement, malformed/oversized payloads, secret non-echo, adapter target/mode/storage fail-closed behavior, vendor-error sanitization and API-key-buffer clearing. Frontend tests cover exact endpoint/CSRF use, password clearing, absence from run requests, capability validation and automatic trusted session verification. Repository CI must pass frontend type/lint/tests/build, Go vet/tests/race, vulnerability scans, embedded frontend synchronization and Windows evaluation qualification.
+
+### Revisit when
+
+- another vendor needs credential entry;
+- Conjur changes the `Login` or credential-storage contract;
+- MFA/challenge/OIDC must be integrated;
+- remote/multi-user operation is proposed;
+- stronger memory-zeroization or OS-native secret UI becomes practical.
+
+### Supersedes / superseded by
+
+- Refines ADR-004 and ADR-005: durable authentication remains vendor-owned, but a reviewed ephemeral browser-to-vendor credential bridge is now allowed.

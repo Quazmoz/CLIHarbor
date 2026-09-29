@@ -64,8 +64,19 @@ func Run(ctx context.Context, options Options) error {
 		_ = shutdownRuns()
 		return err
 	}
+	credentialLogin := newConjurCredentialLoginService(runtimeState.Discovery)
 	catalog := newTaskCatalog(runtimeState.Registry, runtimeState.Discovery)
-	s, err := server.New(server.Config{Version: options.Version, Frontend: frontend, Runs: runManager, Tasks: catalog, Tools: catalog})
+	if packID, toolID, capability, ok := credentialLogin.Capability(); ok {
+		catalog.enableCredentialLogin(packID, toolID, capability)
+	}
+	s, err := server.New(server.Config{
+		Version:         options.Version,
+		Frontend:        frontend,
+		Runs:            runManager,
+		Tasks:           catalog,
+		Tools:           catalog,
+		CredentialLogin: credentialLogin,
+	})
 	if err != nil {
 		_ = shutdownRuns()
 		return err

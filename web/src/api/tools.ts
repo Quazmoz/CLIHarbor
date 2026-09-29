@@ -15,6 +15,10 @@ export interface VendorSessionCheck {
   unauthenticatedStderrContains?: string;
 }
 
+export interface CredentialLoginCapability {
+  method: 'conjur-password';
+}
+
 export interface ToolDiagnostic {
   packId: string;
   packName: string;
@@ -26,6 +30,7 @@ export interface ToolDiagnostic {
   message?: string;
   requiresVendorSession?: boolean;
   sessionCheck?: VendorSessionCheck;
+  credentialLogin?: CredentialLoginCapability;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -75,6 +80,13 @@ function parseSessionCheck(value: unknown): VendorSessionCheck {
   return { commandId, unauthenticatedStderrContains };
 }
 
+function parseCredentialLogin(value: unknown): CredentialLoginCapability {
+  if (!isRecord(value) || Object.keys(value).length !== 1 || value.method !== 'conjur-password') {
+    throw clientError('invalid_response');
+  }
+  return { method: 'conjur-password' };
+}
+
 function parseTool(value: unknown): ToolDiagnostic {
   if (!isRecord(value)) {
     throw clientError('invalid_response');
@@ -90,6 +102,7 @@ function parseTool(value: unknown): ToolDiagnostic {
     message,
     requiresVendorSession,
     sessionCheck,
+    credentialLogin,
   } = value;
   if (
     typeof packId !== 'string' ||
@@ -105,7 +118,12 @@ function parseTool(value: unknown): ToolDiagnostic {
     throw clientError('invalid_response');
   }
   const parsedSessionCheck = sessionCheck === undefined ? undefined : parseSessionCheck(sessionCheck);
-  if (parsedSessionCheck !== undefined && requiresVendorSession !== true) {
+  const parsedCredentialLogin =
+    credentialLogin === undefined ? undefined : parseCredentialLogin(credentialLogin);
+  if (
+    (parsedSessionCheck !== undefined || parsedCredentialLogin !== undefined) &&
+    requiresVendorSession !== true
+  ) {
     throw clientError('invalid_response');
   }
 
@@ -120,6 +138,7 @@ function parseTool(value: unknown): ToolDiagnostic {
     message,
     requiresVendorSession: requiresVendorSession === true,
     sessionCheck: parsedSessionCheck,
+    credentialLogin: parsedCredentialLogin,
   };
 }
 

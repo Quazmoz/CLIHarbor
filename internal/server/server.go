@@ -39,6 +39,7 @@ type Config struct {
 	Runs            RunService
 	Tasks           TaskService
 	Tools           ToolService
+	CredentialLogin CredentialLoginService
 	MaxEventStreams int
 }
 
@@ -61,6 +62,7 @@ type Server struct {
 	runs              RunService
 	tasks             TaskService
 	tools             ToolService
+	credentialLogin   CredentialLoginService
 	runStreamSlots    chan struct{}
 	streamCtx         context.Context
 	streamCancel      context.CancelFunc
@@ -124,6 +126,7 @@ func New(config Config) (*Server, error) {
 		runs:             config.Runs,
 		tasks:            config.Tasks,
 		tools:            config.Tools,
+		credentialLogin:  config.CredentialLogin,
 		runStreamSlots:   make(chan struct{}, maxEventStreams),
 		streamCtx:        streamCtx,
 		streamCancel:     streamCancel,
@@ -143,6 +146,9 @@ func New(config Config) (*Server, error) {
 	}
 	if s.tools != nil {
 		mux.Handle("/api/v1/tools", s.requireSession(http.HandlerFunc(s.handleTools)))
+	}
+	if s.credentialLogin != nil {
+		mux.Handle("/api/v1/auth/login", s.requireSession(http.HandlerFunc(s.handleCredentialLogin)))
 	}
 	mux.Handle("/api/", s.requireSession(http.HandlerFunc(s.handleAPINotFound)))
 	mux.Handle("/", s.requireSession(config.Frontend))

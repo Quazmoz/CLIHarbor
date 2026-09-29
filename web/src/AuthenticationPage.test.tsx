@@ -78,6 +78,9 @@ const readyTool: ToolDiagnostic = {
     commandId: 'whoami',
     unauthenticatedStderrContains: 'please login again',
   },
+  credentialLogin: {
+    method: 'conjur-password',
+  },
 };
 
 function renderAuth(tasks: Task[] = [whoamiTask], tools: ToolDiagnostic[] = [readyTool]) {
@@ -517,13 +520,68 @@ describe('AuthenticationPage', () => {
     expect(screen.getByRole('button', { name: 'Open diagnostics' })).toBeInTheDocument();
   });
 
-  test('contains no browser credential inputs and exposes keyboard-native actions', () => {
-    vi.stubGlobal('fetch', vi.fn());
+  test('submits credentials only to the dedicated login endpoint, clears the password, then verifies the session', async () => {
+    let loginRequest: unknown;
+    let runRequest: unknown;
+    let loginHeaders: HeadersInit | undefined;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(input);
+        if (path === '/api/v1/auth/login') {
+          loginRequest = JSON.parse(String(init?.body));
+          loginHeaders = init?.headers;
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+        if (path === '/api/v1/runs') {
+          runRequest = JSON.parse(String(init?.body));
+          return Promise.resolve(
+            response(202, {
+              runId: 'cccccccccccccccccccccccccccccccc',
+              packId: 'cyberark-conjur-v9',
+              commandId: 'whoami',
+              toolId: 'conjur',
+              status: 'exited',
+              exitCode: 0,
+            }),
+          );
+        }
+        return Promise.resolve(response(404, {}));
+      }),
+    );
+
     renderAuth();
+    const identity = screen.getByRole('textbox', { name: 'Identity' });
+    const password = document.querySelector('input[type="password"]') as HTMLInputElement | null;
+    expect(password).not.toBeNull();
+
+    fireEvent.change(identity, { target: { value: 'alice' } });
+    fireEvent.change(password!, { target: { value: 'super-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in and verify' }));
+
+    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+    expect(loginRequest).toEqual({
+      packId: 'cyberark-conjur-v9',
+      toolId: 'conjur',
+      identity: 'alice',
+      secret: 'super-secret',
+    });
+    expect(loginHeaders).toMatchObject({ 'X-CLIHarbor-CSRF': status.csrfToken });
+    expect(JSON.stringify(runRequest)).not.toContain('super-secret');
+    expect(password).toHaveValue('');
+  });
+
+  test('does not render a credential form for vendor-session tools without a reviewed credential adapter', () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const tool: ToolDiagnostic = {
+      ...readyTool,
+      credentialLogin: undefined,
+    };
+
+    renderAuth([whoamiTask], [tool]);
 
     expect(document.querySelector('input[type="password"]')).toBeNull();
-    expect(document.querySelector('input')).toBeNull();
     expect(screen.getByRole('button', { name: 'Check session' })).toBeEnabled();
-    expect(screen.getByText(/does not collect or store your vendor password/i)).toBeInTheDocument();
   });
 });

@@ -16,6 +16,10 @@ export type ServerErrorCode =
   | 'method_not_allowed'
   | 'request_forbidden'
   | 'session_unavailable'
+  | 'authentication_unsupported'
+  | 'authentication_failed'
+  | 'authentication_unavailable'
+  | 'authentication_busy'
   | 'resource_not_found'
   | 'command_blocked'
   | 'tool_unavailable'
@@ -60,6 +64,10 @@ const serverCodeCategories: Record<ServerErrorCode, AppErrorCategory> = {
   method_not_allowed: 'validation',
   request_forbidden: 'security',
   session_unavailable: 'security',
+  authentication_unsupported: 'policy',
+  authentication_failed: 'security',
+  authentication_unavailable: 'lifecycle',
+  authentication_busy: 'capacity',
   resource_not_found: 'lifecycle',
   command_blocked: 'policy',
   tool_unavailable: 'discovery',

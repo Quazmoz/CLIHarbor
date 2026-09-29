@@ -4,7 +4,7 @@
 
 CLIHarbor should orchestrate authenticated CLI workflows without becoming an authentication system or credential store.
 
-The wrapped vendor CLI owns passwords, MFA challenges, API keys/tokens, token exchange, session persistence, profile/context, and OS-keystore behavior. CLIHarbor owns only the local workflow/orchestration boundary.
+The vendor authentication stack owns credential validation, token/API-key exchange, durable session persistence, profile/context, and credential-storage behavior. CLIHarbor owns only the local workflow/orchestration boundary. A reviewed adapter may transiently carry a credential from the authenticated loopback browser to that vendor stack, but CLIHarbor must not persist it or reinterpret the vendor protocol.
 
 ## Current authentication capabilities
 
@@ -33,17 +33,15 @@ This mode is implemented.
 
 It means CLIHarbor may launch the verified read-only vendor command and let that command use its existing vendor configuration/session/OS-keystore behavior.
 
-CLIHarbor does not:
+For ordinary `vendor-session` task execution, CLIHarbor does not:
 
-- ask the browser for vendor passwords;
-- accept MFA values;
 - pass access tokens/API keys/passwords in argv;
 - synthesize terminal keystrokes;
 - read a vendor token merely to execute a task;
-- provide interactive stdin to the task process;
+- provide interactive credential stdin to the task process;
 - persist vendor credentials.
 
-If no usable vendor session exists, the command is expected to fail. The operator then authenticates through the approved vendor-owned flow outside the read-only browser task.
+If no usable vendor session exists, the command fails or the Authentication page can use a separately reviewed vendor credential adapter when one is advertised.
 
 ## Conjur 9.x implementation
 
@@ -58,7 +56,7 @@ conjur resource show <resource-id> --output json
 conjur role members <role-id> --output json
 ```
 
-The Conjur pack does not expose `login`, `authenticate`, secret retrieval, password changes, API-key rotation, or other credential-sensitive operations as browser tasks.
+The Conjur pack still does not expose `login`, `authenticate`, secret retrieval, password changes, API-key rotation, or other credential-sensitive operations as browser tasks. Credential handoff is implemented only through the narrow backend adapter described below, never as a pack command.
 
 See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md).
 
@@ -103,48 +101,38 @@ A failed or unknown check does not change authorization. Frontend state is prese
 
 Direct refresh/navigation is supported for `/authentication`, `/tasks`, and `/diagnostics` through an explicit server-side application-route allowlist. Unknown paths still fail closed.
 
-## Why CLIHarbor does not start with a browser username/password form
+## Reviewed Conjur password bridge
 
-A browser credential form would materially expand the trust boundary:
+CLIHarbor now implements one explicit credential adapter for the qualified Conjur integration. It is **not** a generic secret input type and it is not pack-authored command authority.
 
-- password/MFA data would enter frontend memory;
-- frontend/backend transport and logging would become credential-sensitive;
-- argv passing can leak secrets through process inspection;
-- vendor authentication methods/MFA challenges vary;
-- CLIHarbor would risk duplicating a vendor protocol already implemented by the official CLI.
+The browser exposes the form only when:
 
-Therefore direct credential input is not part of the current product contract.
+- the qualified `cyberark-conjur-v9/conjur` tool is healthy;
+- local Conjur configuration can be loaded;
+- the configured authentication type is password-style `authn` or LDAP;
+- the configured Conjur appliance URL is HTTPS and the environment is not SaaS;
+- Conjur credential storage is enabled for writes.
 
-## Future explicit login adapter
+The request path is fixed at `POST /api/v1/auth/login`. It inherits the same loopback Host/Origin, HttpOnly session-cookie and CSRF boundary as other mutating APIs, uses `Cache-Control: no-store`, accepts a small strict JSON schema, rejects duplicate/unknown fields and oversized bodies, and returns only reviewed sanitized errors.
 
-A future integration may add vendor-owned login orchestration if real usage requires it. A reviewed adapter would need an explicit interface such as:
+The credential is never converted into command argv. CLIHarbor calls pinned `conjur-api-go v0.15.4` in-process. The vendor library exchanges the password for a Conjur API key and stores that resulting credential using Conjur's configured storage backend. CLIHarbor does not retain the returned API-key buffer; it clears the returned byte slice after the vendor library has stored it.
 
-```text
-Detect() -> capability metadata
-Status(ctx) -> AuthState
-Login(ctx, approvedMode) -> LoginHandle
-Logout(ctx) -> result
-```
+The browser clears password state after every attempt. Login requests are not represented as runs, so the secret cannot enter run history, stdout/stderr capture, invocation preview or retry-with-inputs state.
 
-Possible non-secret auth states:
+After a successful handoff, the UI immediately executes the existing reviewed `whoami` session check. That check, not the optimistic login response, remains the browser-visible evidence that the vendor session is usable.
 
-```text
-unknown
-signed_out
-signing_in
-signed_in
-expired
-error
-```
+The adapter deliberately rejects or does not advertise OIDC, JWT, certificate, IAM/Azure and read-only/disabled credential-storage configurations. MFA/challenge flows and other interactive modes remain vendor-owned.
 
-Any such change must preserve these invariants:
+### Credential bridge invariants
 
-- the vendor owns credential validation/token storage;
-- credentials are never written to normal logs/run history/URLs;
-- secret values are not process-list-visible argv;
-- cancellation and challenge/MFA behavior are explicit;
-- status detection is based on documented vendor behavior;
-- browser UI does not become the authorization boundary.
+- vendor code owns credential validation and durable session storage;
+- secrets never enter normal logs, diagnostics, run history, URLs, command preview or process-list-visible argv;
+- only the exact reviewed Conjur tool identity can use this endpoint;
+- only one login attempt is admitted at a time;
+- vendor error bodies/messages are not copied into browser responses;
+- network duration is bounded through the vendor client HTTP timeout;
+- backend policy and the normal session check remain authoritative after sign-in;
+- a browser form is presentation, not authorization.
 
 ## External-terminal login
 

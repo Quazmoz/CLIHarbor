@@ -146,6 +146,20 @@ func (c *taskCatalog) ListTasks() []server.Task {
 	return out
 }
 
+func (c *taskCatalog) enableCredentialLogin(packID, toolID string, capability server.CredentialLoginCapability) {
+	if c == nil {
+		return
+	}
+	for i := range c.tools {
+		tool := &c.tools[i]
+		if tool.PackID != packID || tool.ToolID != toolID || tool.Status != string(discovery.StatusReady) || !tool.RequiresVendorSession {
+			continue
+		}
+		cloned := capability
+		tool.CredentialLogin = &cloned
+	}
+}
+
 func (c *taskCatalog) ListTools() []server.ToolDiagnostic {
 	if c == nil {
 		return nil
@@ -156,6 +170,10 @@ func (c *taskCatalog) ListTools() []server.ToolDiagnostic {
 		if tool.SessionCheck != nil {
 			check := *tool.SessionCheck
 			out[i].SessionCheck = &check
+		}
+		if tool.CredentialLogin != nil {
+			capability := *tool.CredentialLogin
+			out[i].CredentialLogin = &capability
 		}
 	}
 	return out

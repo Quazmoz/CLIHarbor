@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { loginWithCredentials } from './api/authentication';
 import { normalizeError, type AppErrorDetail } from './api/errors';
 import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
@@ -217,6 +218,10 @@ function VendorSessionCard({
   const closeStreamRef = useRef<(() => void) | null>(null);
   const stdoutRef = useRef('');
   const stderrRef = useRef('');
+  const [credentialIdentity, setCredentialIdentity] = useState('');
+  const [credentialSecret, setCredentialSecret] = useState('');
+  const [credentialSubmitting, setCredentialSubmitting] = useState(false);
+  const [credentialFailure, setCredentialFailure] = useState<AppErrorDetail | null>(null);
 
   const sessionTask = useMemo(() => {
     if (tool.sessionCheck === undefined) {
@@ -420,6 +425,41 @@ function VendorSessionCard({
     }
   };
 
+  const submitCredentialLogin = async () => {
+    if (
+      tool.credentialLogin?.method !== 'conjur-password' ||
+      !toolView.ready ||
+      credentialSubmitting ||
+      check.kind === 'checking'
+    ) {
+      return;
+    }
+
+    const identity = credentialIdentity.trim();
+    const secret = credentialSecret;
+    if (identity.length === 0 || secret.length === 0) {
+      return;
+    }
+
+    setCredentialSubmitting(true);
+    setCredentialFailure(null);
+    try {
+      await loginWithCredentials(status.csrfToken, {
+        packId: tool.packId,
+        toolId: tool.toolId,
+        identity,
+        secret,
+      });
+      setCredentialSecret('');
+      await startCheck();
+    } catch (error) {
+      setCredentialFailure(normalizeError(error).detail);
+    } finally {
+      setCredentialSecret('');
+      setCredentialSubmitting(false);
+    }
+  };
+
   const cancelCheck = async () => {
     if (check.kind !== 'checking' || check.runId === undefined || activeRunRef.current !== check.runId) {
       return;
@@ -559,6 +599,86 @@ function VendorSessionCard({
         </div>
       )}
 
+      {tool.credentialLogin?.method === 'conjur-password' && toolView.ready && (
+        <form
+          className="credential-login-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitCredentialLogin();
+          }}
+        >
+          <div className="credential-login-heading">
+            <div>
+              <p className="status-label">Secure sign-in</p>
+              <h4>Sign in through the local Conjur bridge</h4>
+            </div>
+            <span className="safety-chip">No credential argv</span>
+          </div>
+          <p id={headingID + '-credential-help'} className="credential-login-help">
+            Your identity and password are sent only to this authenticated loopback runtime for the current sign-in attempt.
+            CLIHarbor does not add them to run history, command arguments, logs, or its own storage. The pinned Conjur API
+            exchanges the password and writes the resulting vendor credential through Conjur's configured credential storage.
+          </p>
+          <div className="credential-login-fields">
+            <label className="field">
+              <span>Identity</span>
+              <input
+                type="text"
+                name="vendor-identity"
+                value={credentialIdentity}
+                maxLength={256}
+                autoComplete="off"
+                spellCheck={false}
+                aria-describedby={headingID + '-credential-help'}
+                disabled={credentialSubmitting || check.kind === 'checking'}
+                onChange={(event) => {
+                  setCredentialIdentity(event.target.value);
+                  setCredentialFailure(null);
+                }}
+                required
+              />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <input
+                type="password"
+                name="vendor-secret"
+                value={credentialSecret}
+                maxLength={4096}
+                autoComplete="off"
+                spellCheck={false}
+                aria-describedby={headingID + '-credential-help'}
+                disabled={credentialSubmitting || check.kind === 'checking'}
+                onChange={(event) => {
+                  setCredentialSecret(event.target.value);
+                  setCredentialFailure(null);
+                }}
+                required
+              />
+            </label>
+          </div>
+          {credentialFailure !== null && (
+            <div className="credential-login-error" role="alert">
+              <strong>{credentialFailure.message}</strong>
+              {credentialFailure.remediation && <span>{credentialFailure.remediation}</span>}
+            </div>
+          )}
+          <div className="credential-login-actions">
+            <button
+              type="submit"
+              disabled={
+                credentialSubmitting ||
+                check.kind === 'checking' ||
+                credentialIdentity.trim().length === 0 ||
+                credentialSecret.length === 0
+              }
+            >
+              {credentialSubmitting ? 'Signing in…' : 'Sign in and verify'}
+            </button>
+          </div>
+        </form>
+      )}
+
       <div className="auth-actions">
         {tool.sessionCheck !== undefined && (
           <button type="button" disabled={!canCheck || check.kind === 'checking'} onClick={() => void startCheck()}>
@@ -614,8 +734,8 @@ export function AuthenticationPage({
         <p className="status-label">Vendor sessions</p>
         <h2 id="authentication-heading">Authentication</h2>
         <p>
-          Verify reviewed vendor-owned CLI sessions without giving CLIHarbor a password, MFA value, API key, token,
-          certificate, or other credential.
+          Verify reviewed vendor-owned CLI sessions and, where a reviewed adapter is available, hand off a password through
+          the authenticated local runtime without exposing it in process arguments, run history, or logs.
         </p>
       </div>
 
@@ -650,18 +770,19 @@ export function AuthenticationPage({
 
       <article className="panel auth-guidance" aria-labelledby="authentication-guidance-heading">
         <p className="status-label">Approved flow</p>
-        <h3 id="authentication-guidance-heading">Authenticate outside CLIHarbor</h3>
+        <h3 id="authentication-guidance-heading">Use the reviewed bridge or your vendor flow</h3>
         <p>
-          CLIHarbor does not collect or store your vendor password. Authentication remains owned by your organization’s
-          approved vendor CLI or identity process.
+          CLIHarbor never persists the password you enter. For supported Conjur password authentication, the browser submits it
+          only to the authenticated loopback backend, which hands it directly to the pinned vendor API. The resulting vendor
+          credential remains owned by Conjur's configured credential storage.
         </p>
         <p className="auth-guidance-step">
-          Authenticate using the approved vendor-owned process, then return here and run a session check when the trusted pack
-          declares one.
+          OIDC, JWT, MFA, certificate, and other interactive or non-password modes remain vendor-owned. Use your organization's
+          approved vendor authentication process for those modes, then return here and run the reviewed session check.
         </p>
         <p>
-          CLIHarbor’s local browser session is a separate trust boundary from vendor sessions. This page reports readiness
-          evidence only; it is not an authorization boundary and it does not bypass backend task policy.
+          CLIHarbor’s local browser session is a separate trust boundary from vendor sessions. A successful sign-in still does
+          not bypass backend task policy, and the session check remains the authoritative browser-visible evidence.
         </p>
       </article>
     </section>
