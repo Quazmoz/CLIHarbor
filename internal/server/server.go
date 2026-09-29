@@ -126,6 +126,7 @@ func New(config Config) (*Server, error) {
 		runs:             config.Runs,
 		tasks:            config.Tasks,
 		tools:            config.Tools,
+		credentialLogin:  config.CredentialLogin,
 		runStreamSlots:   make(chan struct{}, maxEventStreams),
 		streamCtx:        streamCtx,
 		streamCancel:     streamCancel,
