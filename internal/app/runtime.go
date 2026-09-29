@@ -50,6 +50,10 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 
 	overrides := cloneToolOverrides(options.ToolOverrides)
 	portable := toolbootstrap.NewPortableProvisioner()
+	managedLocations := map[discovery.ToolRef]string{}
+	if locationStore, locationErr := newManagedInstallLocationStore(); locationErr == nil {
+		managedLocations = locationStore.Load()
+	}
 	for _, loaded := range registry.Packs() {
 		for _, named := range registry.Tools(loaded.Pack.Metadata.ID) {
 			ref := discovery.ToolRef{PackID: loaded.Pack.Metadata.ID, ToolID: named.ID}
@@ -59,6 +63,14 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 			path, found, resolveErr := portable.ResolveInstalled(ref, named.Tool)
 			if resolveErr != nil {
 				return RuntimeState{}, fmt.Errorf("resolve managed tool %s: %w", ref.String(), resolveErr)
+			}
+			if !found {
+				if customRoot := managedLocations[ref]; customRoot != "" {
+					path, found, resolveErr = portable.ResolveInstalledAt(ref, named.Tool, customRoot)
+					if resolveErr != nil {
+						return RuntimeState{}, fmt.Errorf("resolve custom managed tool %s: %w", ref.String(), resolveErr)
+					}
+				}
 			}
 			if found {
 				overrides[ref] = path
