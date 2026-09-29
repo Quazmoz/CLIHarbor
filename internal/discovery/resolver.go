@@ -17,13 +17,15 @@ import (
 type Config struct {
 	GOOS        string
 	PathValue   string
+	FallbackDirs []string
 	ProbeRunner ProbeRunner
 }
 
 type Resolver struct {
-	goos        string
-	pathValue   string
-	probeRunner ProbeRunner
+	goos         string
+	pathValue    string
+	fallbackDirs []string
+	probeRunner  ProbeRunner
 }
 
 func NewResolver(config Config) *Resolver {
@@ -36,7 +38,12 @@ func NewResolver(config Config) *Resolver {
 	if config.ProbeRunner == nil {
 		config.ProbeRunner = ExecProbeRunner{}
 	}
-	return &Resolver{goos: config.GOOS, pathValue: config.PathValue, probeRunner: config.ProbeRunner}
+	return &Resolver{
+		goos: config.GOOS,
+		pathValue: config.PathValue,
+		fallbackDirs: append([]string(nil), config.FallbackDirs...),
+		probeRunner: config.ProbeRunner,
+	}
 }
 
 func (r *Resolver) Discover(ctx context.Context, registry *packs.Registry, overrides map[ToolRef]string) (Snapshot, error) {
@@ -95,6 +102,9 @@ func (r *Resolver) resolveTool(ctx context.Context, state ToolState, tool packs.
 		candidates = []Candidate{candidate}
 	} else {
 		candidates = r.pathCandidates(tool.ExecutableNames)
+		if len(candidates) == 0 {
+			candidates = r.directoryCandidates(tool.ExecutableNames, r.fallbackDirs)
+		}
 	}
 	state.Candidates = candidates
 
@@ -170,16 +180,30 @@ func (r *Resolver) explicitCandidate(path string, declared []string) (Candidate,
 }
 
 func (r *Resolver) pathCandidates(declared []string) []Candidate {
-	seen := make(map[string]struct{})
+	return r.directoryCandidates(declared, filepath.SplitList(r.pathValue))
+}
+
+func (r *Resolver) directoryCandidates(declared []string, directories []string) []Candidate {
+	seenDirectories := make(map[string]struct{})
+	seenCandidates := make(map[string]struct{})
 	var candidates []Candidate
-	for _, directory := range filepath.SplitList(r.pathValue) {
-		if directory == "" || !filepath.IsAbs(directory) {
+	for _, directory := range directories {
+		directory = normalizeDiscoveryDirectory(directory, r.goos)
+		if directory == "" {
 			continue
 		}
-		directory = filepath.Clean(directory)
+		directoryKey := directory
+		if r.goos == "windows" {
+			directoryKey = strings.ToLower(directoryKey)
+		}
+		if _, exists := seenDirectories[directoryKey]; exists {
+			continue
+		}
+		seenDirectories[directoryKey] = struct{}{}
 		for _, executable := range declared {
 			for _, name := range executableVariants(executable, r.goos) {
-				resolved, ok := r.inspectExecutable(filepath.Join(directory, name))
+				requested := filepath.Join(directory, name)
+				resolved, ok := r.inspectExecutable(requested)
 				if !ok || !matchesDeclaredExecutable(filepath.Base(resolved), declared, r.goos) {
 					continue
 				}
@@ -187,16 +211,49 @@ func (r *Resolver) pathCandidates(declared []string) []Candidate {
 				if r.goos == "windows" {
 					key = strings.ToLower(key)
 				}
-				if _, exists := seen[key]; exists {
+				if _, exists := seenCandidates[key]; exists {
 					continue
 				}
-				seen[key] = struct{}{}
+				seenCandidates[key] = struct{}{}
 				candidates = append(candidates, Candidate{Path: resolved, ExecutableName: filepath.Base(resolved)})
 			}
 		}
 	}
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Path < candidates[j].Path })
 	return candidates
+}
+
+func normalizeDiscoveryDirectory(directory, goos string) string {
+	if goos == "windows" && len(directory) >= 2 && directory[0] == '"' && directory[len(directory)-1] == '"' {
+		directory = directory[1 : len(directory)-1]
+	}
+	if directory == "" || !filepath.IsAbs(directory) {
+		return ""
+	}
+	return filepath.Clean(directory)
+}
+
+func DefaultUserSearchDirectories(goos string) []string {
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" || !filepath.IsAbs(home) {
+		return nil
+	}
+	home = filepath.Clean(home)
+	if goos == "windows" {
+		return []string{
+			filepath.Join(home, "AppData", "Local", "Microsoft", "WinGet", "Links"),
+			filepath.Join(home, "scoop", "shims"),
+			filepath.Join(home, ".local", "bin"),
+			filepath.Join(home, "bin"),
+		}
+	}
+	return []string{
+		filepath.Join(home, ".local", "bin"),
+		filepath.Join(home, "bin"),
+	}
 }
 
 func (r *Resolver) inspectExecutable(path string) (string, bool) {
