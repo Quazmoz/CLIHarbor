@@ -68,6 +68,34 @@ type Tool struct {
 	HelpProbes        map[string]HelpProbe `json:"helpProbes,omitempty"`
 	VersionConstraint string               `json:"versionConstraint,omitempty"`
 	SessionCheck      *SessionCheck        `json:"sessionCheck,omitempty"`
+	Install           *ToolInstall         `json:"install,omitempty"`
+}
+
+type InstallFormat string
+
+const (
+	InstallFormatExecutable InstallFormat = "executable"
+	InstallFormatZIP        InstallFormat = "zip"
+)
+
+// ToolInstall declares immutable portable artifacts that CLIHarbor may place
+// in its current-user tool cache. It never grants shell, package-manager,
+// installer, PATH, registry, service, or machine-wide mutation authority.
+type ToolInstall struct {
+	Version   string                     `json:"version"`
+	Artifacts map[string]InstallArtifact `json:"artifacts"`
+}
+
+type InstallArtifact struct {
+	URL                 string        `json:"url"`
+	SHA256              string        `json:"sha256"`
+	SizeBytes           int64         `json:"sizeBytes"`
+	Format              InstallFormat `json:"format"`
+	ExecutableName      string        `json:"executableName"`
+	ArchivePath         string        `json:"archivePath,omitempty"`
+	ExecutableSHA256    string        `json:"executableSha256,omitempty"`
+	ExecutableSizeBytes int64         `json:"executableSizeBytes,omitempty"`
+	RedirectHosts       []string      `json:"redirectHosts,omitempty"`
 }
 
 // SessionCheck declares one reviewed, non-secret, zero-input read command that
