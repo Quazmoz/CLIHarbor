@@ -19,6 +19,7 @@ type ToolDiagnostic struct {
 	RequiresVendorSession bool                       `json:"requiresVendorSession,omitempty"`
 	SessionCheck          *VendorSessionCheck        `json:"sessionCheck,omitempty"`
 	CredentialLogin       *CredentialLoginCapability `json:"credentialLogin,omitempty"`
+	Install               *ToolInstallCapability      `json:"install,omitempty"`
 }
 
 type ToolService interface {
