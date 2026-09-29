@@ -18,12 +18,20 @@ The initial pack is derived from the current official Kubernetes kubectl referen
 - `kubectl get nodes` with fixed custom-column output
 - `kubectl get pods --all-namespaces` with fixed custom-column output
 - `kubectl get deployments --all-namespaces` with fixed custom-column output
+- `kubectl get statefulsets --all-namespaces` with fixed custom-column output
+- `kubectl get daemonsets --all-namespaces` with fixed custom-column output
+- `kubectl get jobs --all-namespaces` with fixed custom-column output
+- `kubectl top node`
+- `kubectl top pod --all-namespaces`
 
 Official references:
 
 - https://kubernetes.io/docs/reference/kubectl/generated/kubectl_config/kubectl_config_current-context/
 - https://kubernetes.io/docs/reference/kubectl/generated/kubectl_version/
 - https://kubernetes.io/docs/reference/kubectl/generated/kubectl_get/
+- https://kubernetes.io/docs/reference/kubectl/generated/kubectl_top/
+- https://kubernetes.io/docs/reference/kubectl/generated/kubectl_top/kubectl_top_node/
+- https://kubernetes.io/docs/reference/kubectl/generated/kubectl_top/kubectl_top_pod/
 
 ## Safety scope
 
@@ -40,7 +48,7 @@ The first pack is intentionally metadata-only. It excludes:
 
 `Show active Kubernetes context` exposes only the current context name so the operator can see which target the cluster inventory tasks will use. The pack never changes that context. Cluster-backed tasks use `vendor-session`, meaning kubectl remains responsible for kubeconfig/session/credential handling; CLIHarbor accepts no Kubernetes credentials.
 
-Inventory commands use fixed custom-column projections to avoid returning complete Kubernetes objects. Raw output is not persisted by the pack.
+Inventory commands use fixed custom-column projections to avoid returning complete Kubernetes objects. Stage 5 workload views expose only namespace/name and selected status counters; they do not return pod templates, commands, environment data, labels, annotations, manifests, or event text. `kubectl top` commands are one-shot CPU/memory snapshots and may fail normally when the Metrics API / Metrics Server is unavailable. Raw output is not persisted by the pack.
 
 ## Runtime qualification
 
