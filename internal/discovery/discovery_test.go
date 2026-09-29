@@ -326,19 +326,17 @@ func TestDiscoverUsesFallbackDirectoryOnlyWhenPATHMisses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	registry := testRegistry(t, "fallback-cli")
-	runner := &fakeProbeRunner{output: "fallback-cli 1.2.3"}
+	registry := testRegistry(t, packs.Tool{ExecutableNames: []string{"fallback-cli"}})
 	resolver := NewResolver(Config{
 		GOOS: runtime.GOOS,
 		PathValue: pathDir,
 		FallbackDirs: []string{fallbackDir},
-		ProbeRunner: runner,
 	})
 	snapshot, err := resolver.Discover(context.Background(), registry, nil)
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
-	state, ok := snapshot.Find(ToolRef{PackID: "fixture", ToolID: "fixture"})
+	state, ok := snapshot.Find(ToolRef{PackID: "demo", ToolID: "fixture"})
 	if !ok {
 		t.Fatal("tool state missing")
 	}
