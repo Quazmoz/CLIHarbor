@@ -26,8 +26,12 @@ const (
 	CodeRequestTooLarge    Code = "request_too_large"
 	CodeMethodNotAllowed   Code = "method_not_allowed"
 	CodeRequestForbidden   Code = "request_forbidden"
-	CodeSessionUnavailable Code = "session_unavailable"
-	CodeResourceNotFound   Code = "resource_not_found"
+	CodeSessionUnavailable       Code = "session_unavailable"
+	CodeAuthenticationUnsupported Code = "authentication_unsupported"
+	CodeAuthenticationFailed      Code = "authentication_failed"
+	CodeAuthenticationUnavailable Code = "authentication_unavailable"
+	CodeAuthenticationBusy        Code = "authentication_busy"
+	CodeResourceNotFound           Code = "resource_not_found"
 	CodeCommandBlocked     Code = "command_blocked"
 	CodeToolUnavailable    Code = "tool_unavailable"
 	CodeToolChanged        Code = "tool_changed"
@@ -69,6 +73,14 @@ func DetailFor(code Code) Detail {
 		return Detail{Code: code, Category: CategorySecurity, Message: "The local request was rejected by CLIHarbor's browser security boundary.", Remediation: "Reload CLIHarbor from its launcher and retry."}
 	case CodeSessionUnavailable:
 		return Detail{Code: code, Category: CategorySecurity, Message: "The local browser session is not active.", Remediation: "Relaunch CLIHarbor to establish a new secure session."}
+	case CodeAuthenticationUnsupported:
+		return Detail{Code: code, Category: CategoryPolicy, Message: "Credential sign-in is not supported for this vendor session.", Remediation: "Use the vendor-owned authentication flow approved for this configured authentication mode."}
+	case CodeAuthenticationFailed:
+		return Detail{Code: code, Category: CategorySecurity, Message: "Vendor authentication was not accepted.", Remediation: "Re-enter the credential or use your organization's approved vendor authentication flow."}
+	case CodeAuthenticationUnavailable:
+		return Detail{Code: code, Category: CategoryLifecycle, Message: "Vendor authentication is not currently available.", Remediation: "Verify the vendor configuration and credential-storage policy, then retry.", Retryable: true}
+	case CodeAuthenticationBusy:
+		return Detail{Code: code, Category: CategoryCapacity, Message: "A vendor sign-in attempt is already in progress.", Remediation: "Wait for the current sign-in attempt to finish, then retry.", Retryable: true}
 	case CodeResourceNotFound:
 		return Detail{Code: code, Category: CategoryLifecycle, Message: "The requested local resource is unavailable.", Remediation: "Reload CLIHarbor and retry from the current task list."}
 	case CodeCommandBlocked:
