@@ -74,6 +74,11 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	if !tools[1].RequiresVendorSession || tools[1].SessionCheck == nil || tools[1].SessionCheck.CommandID != "session" || tools[1].SessionCheck.UnauthenticatedStderrContains != "sign in" {
 		t.Fatalf("ready vendor-session metadata = %#v", tools[1])
 	}
+	catalog.enableCredentialLogin("fixture", "ready", server.CredentialLoginCapability{Method: server.CredentialLoginMethodConjurPassword})
+	tools = catalog.ListTools()
+	if tools[1].CredentialLogin == nil || tools[1].CredentialLogin.Method != server.CredentialLoginMethodConjurPassword {
+		t.Fatalf("credential login capability = %#v", tools[1].CredentialLogin)
+	}
 
 	tasks := catalog.ListTasks()
 	if len(tasks) != 2 {
@@ -96,6 +101,7 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	task.Inputs[0].Validation.Enum = append(task.Inputs[0].Validation.Enum, "mutated")
 	*task.Inputs[0].Validation.MaxLength = 1
 	tools[1].SessionCheck.CommandID = "mutated"
+	tools[1].CredentialLogin.Method = "mutated"
 
 	second := catalog.ListTasks()
 	var secondSafe server.Task
@@ -111,5 +117,8 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	secondTools := catalog.ListTools()
 	if secondTools[1].SessionCheck == nil || secondTools[1].SessionCheck.CommandID != "session" {
 		t.Fatal("tool metadata returned shared session-check state")
+	}
+	if secondTools[1].CredentialLogin == nil || secondTools[1].CredentialLogin.Method != server.CredentialLoginMethodConjurPassword {
+		t.Fatal("tool metadata returned shared credential-login state")
 	}
 }
