@@ -124,7 +124,7 @@ func WithField(detail Detail, field string) Detail {
 }
 
 func validField(field string) bool {
-	if field == "packId" || field == "commandId" {
+	if field == "packId" || field == "commandId" || field == "installRoot" {
 		return true
 	}
 	if !strings.HasPrefix(field, "values.") {
