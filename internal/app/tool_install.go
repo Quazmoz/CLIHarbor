@@ -51,9 +51,9 @@ func (i *managedToolInstaller) InstallTool(ctx context.Context, request server.T
 		message = "Verified CLI installed for the current user. Restart CLIHarbor to activate it."
 	}
 	return server.ToolInstallResult{
-		Installed: installed,
-		Version: tool.Install.Version,
+		Installed:       installed,
+		Version:         tool.Install.Version,
 		RestartRequired: true,
-		Message: message,
+		Message:         message,
 	}, nil
 }
