@@ -314,7 +314,6 @@ func createExecutable(t *testing.T, directory, name string) string {
 	return absolute
 }
 
-
 func resolvedTestPath(t *testing.T, path string) string {
 	t.Helper()
 	resolved, err := filepath.EvalSymlinks(path)
