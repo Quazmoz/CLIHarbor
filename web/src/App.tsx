@@ -475,6 +475,7 @@ export function App() {
   const [streamAttempt, setStreamAttempt] = useState(0);
   const [installingToolKey, setInstallingToolKey] = useState<string | null>(null);
   const [toolInstallNotice, setToolInstallNotice] = useState<{ key: string; message: string; failure?: AppErrorDetail } | null>(null);
+  const [toolInstallRoots, setToolInstallRoots] = useState<Record<string, string>>({});
   const runtimeErrorRef = useRef<HTMLElement>(null);
   const taskErrorRef = useRef<HTMLDivElement>(null);
   const previewRequestRef = useRef(0);
@@ -539,7 +540,12 @@ export function App() {
     setInstallingToolKey(key);
     setToolInstallNotice(null);
     try {
-      const result = await installTool(state.status.csrfToken, tool.packId, tool.toolId);
+      const result = await installTool(
+        state.status.csrfToken,
+        tool.packId,
+        tool.toolId,
+        toolInstallRoots[key] ?? '',
+      );
       setToolInstallNotice({ key, message: result.message });
     } catch (error) {
       const failure = normalizeError(error).detail;
@@ -1209,18 +1215,38 @@ export function App() {
                         </p>
                         {tool.message && <p>{tool.message}</p>}
                         {tool.status === 'missing' && tool.install !== undefined && (
-                          <div className="tool-install-actions">
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              disabled={installingToolKey !== null}
-                              onClick={() => void installManagedCLI(tool)}
-                            >
-                              {installingToolKey === tool.packId + '/' + tool.toolId
-                                ? 'Installing…'
-                                : 'Install verified CLI ' + tool.install.version}
-                            </button>
-                            <span>Current-user install · no admin credentials · restart required to activate</span>
+                          <div className="tool-install-controls">
+                            {tool.install.customLocation && (
+                              <label className="tool-install-location">
+                                <span>Install base directory <span className="field-requirement">Optional</span></span>
+                                <input
+                                  type="text"
+                                  value={toolInstallRoots[tool.packId + '/' + tool.toolId] ?? ''}
+                                  disabled={installingToolKey !== null}
+                                  placeholder="Leave blank for CLIHarbor's default user cache"
+                                  autoComplete="off"
+                                  spellCheck={false}
+                                  onChange={(event) => {
+                                    const key = tool.packId + '/' + tool.toolId;
+                                    setToolInstallRoots((current) => ({ ...current, [key]: event.target.value }));
+                                  }}
+                                />
+                                <small>Custom locations must be absolute paths inside your user home directory.</small>
+                              </label>
+                            )}
+                            <div className="tool-install-actions">
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                disabled={installingToolKey !== null}
+                                onClick={() => void installManagedCLI(tool)}
+                              >
+                                {installingToolKey === tool.packId + '/' + tool.toolId
+                                  ? 'Installing…'
+                                  : 'Install verified CLI ' + tool.install.version}
+                              </button>
+                              <span>Current-user install · no admin credentials · restart required to activate</span>
+                            </div>
                           </div>
                         )}
                         {toolInstallNotice?.key === tool.packId + '/' + tool.toolId && (
