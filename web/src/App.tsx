@@ -21,6 +21,7 @@ import { AuthenticationPage } from './AuthenticationPage';
 import { RunsPage } from './RunsPage';
 import { OverviewPage } from './OverviewPage';
 import { TaskDiscovery } from './TaskDiscovery';
+import { describeToolReadiness, inputGuidance, runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
   loadTaskPreferences,
   recordRecentTask,
@@ -234,9 +235,12 @@ function FailureNotice({ title, failure }: { title: string; failure: AppErrorDet
       <strong>{title}</strong>
       <p>{failure.message}</p>
       {failure.remediation && <p className="remediation">{failure.remediation}</p>}
-      <p className="error-code">
-        Error code: <code>{failure.code}</code>
-      </p>
+      <details className="technical-details">
+        <summary>Technical details</summary>
+        <p className="error-code">
+          Error code: <code>{failure.code}</code> · Category: <code>{failure.category}</code>
+        </p>
+      </details>
     </div>
   );
 }
@@ -274,7 +278,11 @@ function InputControl({
   const validation = input.validation ?? {};
   const domID = taskInputDOMID(input.id);
   const errorID = `${domID}-error`;
-  const describedBy = error === undefined ? undefined : errorID;
+  const helpID = `${domID}-help`;
+  const guidance = inputGuidance(input);
+  const describedBy = [guidance === undefined ? undefined : helpID, error === undefined ? undefined : errorID]
+    .filter((id): id is string => id !== undefined)
+    .join(' ') || undefined;
 
   if (input.type === 'boolean') {
     return (
@@ -290,6 +298,7 @@ function InputControl({
           />
           <FieldLabel input={input} />
         </label>
+        {guidance && <p id={helpID} className="field-help">{guidance}</p>}
         {error && <FieldFailure id={errorID} failure={error} />}
       </div>
     );
@@ -316,6 +325,7 @@ function InputControl({
             ))}
           </select>
         </label>
+        {guidance && <p id={helpID} className="field-help">{guidance}</p>}
         {error && <FieldFailure id={errorID} failure={error} />}
       </div>
     );
@@ -343,6 +353,7 @@ function InputControl({
             ))}
           </select>
         </label>
+        {guidance && <p id={helpID} className="field-help">{guidance}</p>}
         {error && <FieldFailure id={errorID} failure={error} />}
       </div>
     );
@@ -368,7 +379,8 @@ function InputControl({
           onChange={(event) => onChange(event.target.value)}
         />
       </label>
-      {error && <FieldFailure id={errorID} failure={error} />}
+      {guidance && <p id={helpID} className="field-help">{guidance}</p>}
+        {error && <FieldFailure id={errorID} failure={error} />}
     </div>
   );
 }
@@ -1007,14 +1019,18 @@ export function App() {
                             <span className="safety-chip">Read-only safe task</span>
                           </div>
                           {selectedTask.description && <p>{selectedTask.description}</p>}
-                          <p className="task-tool">
-                            Tool: {selectedTask.toolId}
-                            {selectedTask.toolVersion ? ' ' + selectedTask.toolVersion : ''}
-                          </p>
-                          <p>Run submits only the validated values below; executable and argument authority stay on the local runtime.</p>
+                          <p>Enter only the values this task asks for. CLIHarbor validates them before the local runtime builds the command.</p>
+                          <details className="technical-details task-technical-details">
+                            <summary>Technical task details</summary>
+                            <p>
+                              Pack: {selectedTask.packName} ({selectedTask.packId}) · Tool: {selectedTask.toolId}
+                              {selectedTask.toolVersion ? ' ' + selectedTask.toolVersion : ''} · Command: {selectedTask.commandId}
+                            </p>
+                            <p>Executable and argument authority stay on the authenticated local runtime.</p>
+                          </details>
                           {selectedTask.requiresAuth && (
                             <div className="task-auth-callout">
-                              <span>Requires a vendor-owned session. CLIHarbor does not infer that the session is currently valid.</span>
+                              <span>This task requires sign-in. CLIHarbor will not assume an installed tool is already authenticated.</span>
                               <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
                                 Review authentication
                               </button>
@@ -1043,8 +1059,8 @@ export function App() {
                         <div className="command-preview" aria-live="polite" aria-busy={previewing}>
                           <div className="command-preview-header">
                             <div>
-                              <span className="status-label">Equivalent invocation</span>
-                              <strong>Validated argv preview</strong>
+                              <span className="status-label">Before you run</span>
+                              <strong>See what CLIHarbor will run</strong>
                             </div>
                             <button
                               type="button"
@@ -1052,17 +1068,23 @@ export function App() {
                               disabled={previewing || starting || run?.snapshot.status === 'running'}
                               onClick={() => void previewSelectedTask()}
                             >
-                              {previewing ? 'Previewing…' : 'Preview invocation'}
+                              {previewing ? 'Checking…' : 'Preview command'}
                             </button>
                           </div>
                           {commandPreview === null ? (
-                            <p>Preview the runtime-owned executable name and exact validated argument boundaries before running.</p>
+                            <p>Preview the validated command before running when you want an extra confirmation.</p>
                           ) : (
-                            <code className="invocation-preview">{formatInvocation(commandPreview)}</code>
+                            <>
+                              <p className="preview-confirmation">The local runtime validated the task inputs and command boundary.</p>
+                              <details className="technical-details command-technical-details">
+                                <summary>Show exact command</summary>
+                                <code className="invocation-preview">{formatInvocation(commandPreview)}</code>
+                                <p className="preview-note">
+                                  Display only. CLIHarbor executes the trusted executable path and argv directly; this text is never reparsed.
+                                </p>
+                              </details>
+                            </>
                           )}
-                          <p className="preview-note">
-                            Display only. CLIHarbor still executes the trusted executable path and argv directly; this text is never reparsed.
-                          </p>
                         </div>
                         <div className="task-actions">
                           <button type="submit" disabled={starting || run?.snapshot.status === 'running'}>
@@ -1082,22 +1104,29 @@ export function App() {
 
               <article className={"panel run-panel" + (run !== null ? " run-panel--engaged" : "")} aria-labelledby="run-heading">
                 <p className="status-label">Run</p>
-                <div className={"run-state run-state--" + (run === null ? "idle" : run.retained ? run.snapshot.status : "unavailable")} role="status" aria-live="polite" aria-atomic="true">
-                  <h2 id="run-heading">{run === null ? 'No active run' : run.retained ? run.snapshot.status : 'run no longer retained'}</h2>
+                <div className={"run-state run-state--" + (run === null ? "idle" : run.retained ? runOutcomeTone(run.snapshot.status, run.snapshot.exitCode) : "unavailable")} role="status" aria-live="polite" aria-atomic="true">
+                  <h2 id="run-heading">{run === null ? 'No active run' : run.retained ? runOutcomeHeading(run.snapshot.status, run.snapshot.exitCode) : 'Run no longer retained'}</h2>
                   <p>{run === null ? 'Start a safe task to stream its output here.' : runStatusDescription(run, cancelRequested)}</p>
                 </div>
                 {run !== null && (
                   <>
-                    <dl className="run-meta">
-                      <div>
-                        <dt>Run ID</dt>
-                        <dd>{run.snapshot.runId}</dd>
-                      </div>
-                      <div>
-                        <dt>Exit code</dt>
-                        <dd>{run.snapshot.exitCode ?? '—'}</dd>
-                      </div>
-                    </dl>
+                    <details className="technical-details run-technical-details">
+                      <summary>Run technical details</summary>
+                      <dl className="run-meta">
+                        <div>
+                          <dt>Run ID</dt>
+                          <dd>{run.snapshot.runId}</dd>
+                        </div>
+                        <div>
+                          <dt>Runtime status</dt>
+                          <dd>{run.snapshot.status}</dd>
+                        </div>
+                        <div>
+                          <dt>Exit code</dt>
+                          <dd>{run.snapshot.exitCode ?? '—'}</dd>
+                        </div>
+                      </dl>
+                    </details>
                     {run.retained && run.snapshot.status === 'running' && (
                       <>
                         <p className="stream-state" role="status" aria-live="polite" aria-atomic="true">
@@ -1145,7 +1174,7 @@ export function App() {
                       run.snapshot.exitCode !== undefined &&
                       run.snapshot.exitCode !== 0 && (
                         <div className="task-auth-callout task-auth-callout--run">
-                          <span>A vendor-session task exited non-zero. Re-check Authentication before assuming the cause.</span>
+                          <span>This signed-in task failed. Re-check Authentication before assuming the tool is still signed in.</span>
                           <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
                             Review authentication
                           </button>
@@ -1211,70 +1240,87 @@ export function App() {
                 {state.tools.length === 0 ? (
                   <div className="empty-state">
                     <strong>No tools are configured.</strong>
-                    <p>Load an explicitly trusted pack to inspect sanitized tool readiness.</p>
+                    <p>No approved CLI tools are currently available to the browser. Check startup configuration and trusted packs.</p>
                   </div>
                 ) : (
                   <ul className="tool-list">
-                    {state.tools.map((tool) => (
-                      <li key={tool.packId + '/' + tool.toolId}>
-                        <div className="tool-summary">
-                          <strong>{tool.packName} — {tool.toolId}</strong>
-                          <span className={"tool-status " + (tool.status === 'ready' ? 'tool-status--ready' : 'tool-status--attention')}>
-                            {tool.status}
-                          </span>
-                        </div>
-                        <p>
-                          Pack {tool.packVersion}
-                          {tool.version ? ' · Detected ' + tool.version : ''}
-                          {tool.versionConstraint ? ' · Required ' + tool.versionConstraint : ''}
-                        </p>
-                        {tool.message && <p>{tool.message}</p>}
-                        {tool.status === 'missing' && tool.install !== undefined && (
-                          <div className="tool-install-controls">
-                            {tool.install.customLocation && (
-                              <label className="tool-install-location">
-                                <span>Install base directory <span className="field-requirement">Optional</span></span>
-                                <input
-                                  type="text"
-                                  value={toolInstallRoots[tool.packId + '/' + tool.toolId] ?? ''}
-                                  disabled={installingToolKey !== null}
-                                  placeholder="Leave blank for CLIHarbor's default user cache"
-                                  autoComplete="off"
-                                  spellCheck={false}
-                                  onChange={(event) => {
-                                    const key = tool.packId + '/' + tool.toolId;
-                                    setToolInstallRoots((current) => ({ ...current, [key]: event.target.value }));
-                                  }}
-                                />
-                                <small>Custom locations must be absolute paths inside your user home directory.</small>
-                              </label>
-                            )}
+                    {state.tools.map((tool) => {
+                      const toolView = describeToolReadiness(tool);
+                      return (
+                        <li key={tool.packId + '/' + tool.toolId}>
+                          <div className="tool-summary">
+                            <strong>{toolView.heading}</strong>
+                            <span className={"tool-status " + (toolView.ready ? 'tool-status--ready' : 'tool-status--attention')}>
+                              {toolView.statusText}
+                            </span>
+                          </div>
+                          <p>{toolView.summary}</p>
+                          <p className="tool-next-step"><strong>Next:</strong> {toolView.nextStep}</p>
+                          {tool.status === 'ready' && tool.requiresVendorSession && (
                             <div className="tool-install-actions">
-                              <button
-                                type="button"
-                                className="secondary-button"
-                                disabled={installingToolKey !== null}
-                                onClick={() => void installManagedCLI(tool)}
-                              >
-                                {installingToolKey === tool.packId + '/' + tool.toolId
-                                  ? 'Installing…'
-                                  : 'Install verified CLI ' + tool.install.version}
+                              <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
+                                Check sign-in status
                               </button>
-                              <span>Current-user install · no admin credentials · restart required to activate</span>
                             </div>
-                          </div>
-                        )}
-                        {toolInstallNotice?.key === tool.packId + '/' + tool.toolId && (
-                          <div
-                            className={toolInstallNotice.failure ? 'tool-install-result tool-install-result--error' : 'tool-install-result'}
-                            role={toolInstallNotice.failure ? 'alert' : 'status'}
-                          >
-                            <p>{toolInstallNotice.message}</p>
-                            {toolInstallNotice.failure?.remediation && <p>{toolInstallNotice.failure.remediation}</p>}
-                          </div>
-                        )}
-                      </li>
-                    ))}
+                          )}
+                          {tool.status === 'missing' && tool.install !== undefined && (
+                            <div className="tool-install-controls">
+                              {tool.install.customLocation && (
+                                <label className="tool-install-location">
+                                  <span>Install base directory <span className="field-requirement">Optional</span></span>
+                                  <input
+                                    type="text"
+                                    value={toolInstallRoots[tool.packId + '/' + tool.toolId] ?? ''}
+                                    disabled={installingToolKey !== null}
+                                    placeholder="Leave blank for CLIHarbor's default user cache"
+                                    autoComplete="off"
+                                    spellCheck={false}
+                                    onChange={(event) => {
+                                      const key = tool.packId + '/' + tool.toolId;
+                                      setToolInstallRoots((current) => ({ ...current, [key]: event.target.value }));
+                                    }}
+                                  />
+                                  <small>Custom locations must be absolute paths inside your user home directory.</small>
+                                </label>
+                              )}
+                              <div className="tool-install-actions">
+                                <button
+                                  type="button"
+                                  disabled={installingToolKey !== null}
+                                  onClick={() => void installManagedCLI(tool)}
+                                >
+                                  {installingToolKey === tool.packId + '/' + tool.toolId
+                                    ? 'Installing…'
+                                    : 'Install ' + tool.packName}
+                                </button>
+                                <span>Verified current-user install · no admin credentials · restart required to activate</span>
+                              </div>
+                            </div>
+                          )}
+                          {toolInstallNotice?.key === tool.packId + '/' + tool.toolId && (
+                            <div
+                              className={toolInstallNotice.failure ? 'tool-install-result tool-install-result--error' : 'tool-install-result'}
+                              role={toolInstallNotice.failure ? 'alert' : 'status'}
+                            >
+                              <p>{toolInstallNotice.message}</p>
+                              {toolInstallNotice.failure?.remediation && <p>{toolInstallNotice.failure.remediation}</p>}
+                            </div>
+                          )}
+                          <details className="technical-details tool-technical-details">
+                            <summary>Technical details</summary>
+                            <p>
+                              Pack: {tool.packName} ({tool.packId}) · Pack version: {tool.packVersion} · Tool ID: {tool.toolId}
+                            </p>
+                            <p>
+                              Runtime status: {tool.status}
+                              {tool.version ? ' · Detected version: ' + tool.version : ''}
+                              {tool.versionConstraint ? ' · Required version: ' + tool.versionConstraint : ''}
+                            </p>
+                            {tool.message && <p>Runtime detail: {tool.message}</p>}
+                          </details>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
