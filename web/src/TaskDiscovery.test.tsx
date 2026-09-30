@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 import type { Task } from './api/tasks';
 import { TaskDiscovery } from './TaskDiscovery';
@@ -131,7 +131,9 @@ describe('TaskDiscovery', () => {
 
     const all = screen.getByRole('heading', { name: 'All tasks' }).closest('section');
     expect(all).not.toBeNull();
-    expect(within(all!).getByText('Alpha Pack')).toBeInTheDocument();
-    expect(within(all!).getByText('Beta Pack')).toBeInTheDocument();
+    const alphaInspect = all!.querySelector('[data-task-action="select"][data-task-key="alpha/inspect"]');
+    const betaInspect = all!.querySelector('[data-task-action="select"][data-task-key="beta/inspect"]');
+    expect(alphaInspect).toHaveTextContent('Alpha Pack');
+    expect(betaInspect).toHaveTextContent('Beta Pack');
   });
 });
