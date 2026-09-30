@@ -77,11 +77,9 @@ function TaskSection({
                   onClick={() => onSelect(key)}
                 >
                   <span className="task-row-title">{task.name}</span>
-                  <span className="task-row-meta">
-                    {task.packName} · {task.toolId} · {task.commandId}
-                  </span>
+                  <span className="task-row-meta">{task.packName}</span>
                   {task.description && <span className="task-row-description">{task.description}</span>}
-                  {task.requiresAuth && <span className="task-auth-badge">Requires vendor session</span>}
+                  {task.requiresAuth && <span className="task-auth-badge">Sign-in required</span>}
                 </button>
                 <button
                   type="button"
@@ -165,7 +163,7 @@ export function TaskDiscovery({
             id="task-search-input"
             type="search"
             value={query}
-            placeholder="Name, description, pack, tool, or command"
+            placeholder="Task name or description"
             aria-describedby="task-search-help"
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -178,13 +176,13 @@ export function TaskDiscovery({
             Clear
           </button>
         </span>
-        <small id="task-search-help">Press / from this page to focus search.</small>
+        <small id="task-search-help">Search also matches technical pack, tool, and command identifiers. Press / to focus search.</small>
       </div>
 
       {filteredTasks.length === 0 && normalizedQuery.length > 0 ? (
         <div className="task-search-empty" role="status">
           <strong>No tasks match “{query.trim()}”.</strong>
-          <p>Try a task name, description, pack, tool ID, or command ID.</p>
+          <p>Try a task name or description. Technical identifiers are also searchable.</p>
         </div>
       ) : (
         <div className="task-discovery-sections">

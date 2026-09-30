@@ -512,6 +512,28 @@ async function main() {
     assert.equal(taskDiscoverySurface.hasRecent, true);
     assert.equal(taskDiscoverySurface.hasAll, true);
 
+    stage('responsive operator workflow widths');
+    for (const width of [1440, 1024, 768, 390]) {
+      await page.call('Emulation.setDeviceMetricsOverride', {
+        width,
+        height: width <= 390 ? 844 : 900,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      await waitJS(
+        page,
+        'tasks route ' + width + 'px layout',
+        'window.innerWidth === ' + width + ' && document.documentElement.scrollWidth <= window.innerWidth',
+        5000,
+      );
+    }
+    await page.call('Emulation.setDeviceMetricsOverride', {
+      width: 1366,
+      height: 768,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
     const favoriteInspect = await page.evaluate('(() => {' +
       'const button = document.querySelector("[data-task-section=all][data-task-action=favorite][data-task-key=\\\"integration/inspect\\\"]");' +
       'if (!button) return false; button.click(); return true;' +
@@ -594,7 +616,7 @@ async function main() {
       assert.equal(Object.prototype.hasOwnProperty.call(submitted, forbidden), false, 'browser request must not select execution authority');
     }
 
-    await waitJS(page, 'fixture run completion', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "exited"');
+    await waitJS(page, 'fixture run completion', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "Succeeded"');
     const firstRunID = await page.evaluate('document.querySelector(".run-meta dd")?.textContent?.trim()');
     assert.match(firstRunID, /^[0-9a-f]{32}$/);
 
@@ -623,7 +645,7 @@ async function main() {
     await clickButton(page, 'Run task');
     await recentCreateRequest;
     await waitJS(page, 'recent fixture run completion',
-      'document.querySelector(".run-panel h2")?.textContent?.trim() === "exited"');
+      'document.querySelector(".run-panel h2")?.textContent?.trim() === "Succeeded"');
 
     const firstSnapshot = await fetchJSON(page, '/api/v1/runs/' + firstRunID);
     assert.equal(firstSnapshot.status, 200);
@@ -741,7 +763,7 @@ async function main() {
       (params) => isRunCreateRequest(params, 'wait'));
     await clickButton(page, 'Run task');
     await waitCreateRequest;
-    await waitJS(page, 'wait fixture running', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "running"');
+    await waitJS(page, 'wait fixture running', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "Running"');
     const waitRunID = await page.evaluate('document.querySelector(".run-meta dd")?.textContent?.trim()');
     assert.match(waitRunID, /^[0-9a-f]{32}$/);
     await waitJS(page, 'wait fixture observable output',
@@ -782,7 +804,7 @@ async function main() {
     await retriedStream;
 
     await clickButton(page, 'Cancel run');
-    await waitJS(page, 'explicit run cancellation', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "cancelled"', 8000);
+    await waitJS(page, 'explicit run cancellation', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "Cancelled"', 8000);
     const cancelled = await fetchJSON(page, '/api/v1/runs/' + waitRunID);
     assert.equal(cancelled.status, 200);
     assert.equal(cancelled.body.status, 'cancelled');

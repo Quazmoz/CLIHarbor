@@ -85,10 +85,10 @@ describe('command preview and retry workflows', () => {
     render(<App />);
     const query = await screen.findByRole('textbox', { name: 'Query' });
     fireEvent.change(query, { target: { value: 'hello world' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Preview invocation' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Preview command' }));
 
     expect(await screen.findByText('fixture.exe inspect --query "hello world"')).toBeInTheDocument();
-    expect(screen.getByText(/Display only\. CLIHarbor still executes/i)).toBeInTheDocument();
+    expect(screen.getByText(/Display only\. CLIHarbor executes/i)).toBeInTheDocument();
 
     fireEvent.change(query, { target: { value: 'changed' } });
     expect(screen.queryByText('fixture.exe inspect --query "hello world"')).not.toBeInTheDocument();
@@ -115,13 +115,13 @@ describe('command preview and retry workflows', () => {
     render(<App />);
     const query = await screen.findByRole('textbox', { name: 'Query' });
     fireEvent.change(query, { target: { value: 'old value' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Preview invocation' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Preview command' }));
 
     await waitFor(() =>
       expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs/preview')).toBe(true),
     );
     fireEvent.change(query, { target: { value: 'new value' } });
-    expect(screen.getByRole('button', { name: 'Preview invocation' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Preview command' })).toBeEnabled();
 
     resolvePreview?.(
       response(200, {
@@ -236,7 +236,7 @@ describe('managed CLI installation workflow', () => {
     render(<App />);
     const location = await screen.findByRole('textbox', { name: /Install base directory/i });
     fireEvent.change(location, { target: { value: '/home/alice/cli-tools' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Install verified CLI 1.2.3' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Install Fixture CLI' }));
 
     await waitFor(() =>
       expect(submitted).toEqual({

@@ -3,7 +3,8 @@ import { loginWithCredentials } from './api/authentication';
 import { normalizeError, type AppErrorDetail } from './api/errors';
 import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
-import type { ToolDiagnostic, ToolStatus } from './api/tools';
+import type { ToolDiagnostic } from './api/tools';
+import { describeToolReadiness } from './operatorLanguage';
 import {
   cancelRun,
   createRun,
@@ -42,13 +43,6 @@ interface AuthenticationPageProps {
   tools: ToolDiagnostic[];
   onOpenTasks: () => void;
   onOpenDiagnostics: () => void;
-}
-
-interface ToolReadinessView {
-  heading: string;
-  detail: string;
-  statusText: string;
-  ready: boolean;
 }
 
 interface VendorSessionCardProps {
@@ -104,54 +98,6 @@ function appendBounded(current: string, next: string): string {
     return current;
   }
   return current + next.slice(0, maxAuthEvidenceChars - current.length);
-}
-
-function describeTool(tool: ToolDiagnostic): ToolReadinessView {
-  const label = tool.packName || tool.toolId;
-  const detected = tool.version ? ' — ' + tool.version : '';
-  const views: Record<ToolStatus, Omit<ToolReadinessView, 'ready'>> = {
-    ready: {
-      heading: label + ' ready',
-      detail: 'The reviewed executable and version probe passed. Vendor authentication is checked separately when the pack declares a safe session check.',
-      statusText: 'Ready' + detected,
-    },
-    missing: {
-      heading: label + ' unavailable',
-      detail: tool.message || 'CLIHarbor could not find the reviewed executable.',
-      statusText: 'CLI unavailable',
-    },
-    ambiguous: {
-      heading: label + ' selection is ambiguous',
-      detail: tool.message || 'Multiple matching executables were found.',
-      statusText: 'Tool unavailable',
-    },
-    incompatible: {
-      heading: label + ' version is incompatible',
-      detail: tool.message || 'The detected version does not satisfy the trusted pack requirement.',
-      statusText: 'Version incompatible',
-    },
-    'probe-failed': {
-      heading: label + ' probe failed',
-      detail: tool.message || 'CLIHarbor could not verify the tool version.',
-      statusText: 'Probe failed',
-    },
-    'invalid-override': {
-      heading: label + ' override is invalid',
-      detail: tool.message || 'The configured backend tool override is not usable.',
-      statusText: 'Tool unavailable',
-    },
-    'identity-failed': {
-      heading: label + ' identity verification failed',
-      detail: tool.message || 'CLIHarbor could not verify the resolved executable identity.',
-      statusText: 'Tool unavailable',
-    },
-    'unsupported-platform': {
-      heading: label + ' is unsupported here',
-      detail: tool.message || 'The trusted pack does not support this platform.',
-      statusText: 'Tool unavailable',
-    },
-  };
-  return { ...views[tool.status], ready: tool.status === 'ready' };
 }
 
 function failureFromRun(
@@ -237,7 +183,7 @@ function VendorSessionCard({
     );
   }, [tasks, tool]);
 
-  const toolView = describeTool(tool);
+  const toolView = describeToolReadiness(tool);
   const canCheck = toolView.ready && tool.sessionCheck !== undefined && sessionTask !== undefined;
   const showDiagnostics =
     !toolView.ready ||
@@ -546,11 +492,12 @@ function VendorSessionCard({
 
   return (
     <article className="panel auth-status-card" aria-labelledby={headingID}>
-      <p className="status-label">{label} session</p>
+      <p className="status-label">{label} sign-in</p>
       <div className="auth-tool-heading">
         <div>
           <h3 id={headingID}>{toolView.heading}</h3>
-          <p>{toolView.detail}</p>
+          <p>{toolView.summary}</p>
+          {!toolView.ready && <p className="auth-remediation">{toolView.nextStep}</p>}
         </div>
         <span className={'tool-status ' + (toolView.ready ? 'tool-status--ready' : 'tool-status--attention')}>
           {toolView.statusText}
@@ -706,12 +653,12 @@ function VendorSessionCard({
         )}
       </div>
 
-      {tool.versionConstraint && (
-        <p className="auth-tool-meta">Trusted version requirement: {tool.versionConstraint}</p>
-      )}
-      <p className="auth-boundary-note">
-        CLI readiness and vendor authentication are separate. A discovered executable does not prove that a vendor session is signed in.
-      </p>
+      <details className="technical-details auth-boundary-note">
+        <summary>Technical sign-in details</summary>
+        <p>CLI readiness and vendor authentication are separate. A discovered executable does not prove that a vendor session is signed in.</p>
+        {tool.versionConstraint && <p>Trusted version requirement: {tool.versionConstraint}</p>}
+        <p>Pack: {tool.packId} · Tool: {tool.toolId} · Runtime status: {tool.status}</p>
+      </details>
     </article>
   );
 }
@@ -731,20 +678,20 @@ export function AuthenticationPage({
   return (
     <section className="auth-page" aria-labelledby="authentication-heading">
       <div className="route-heading">
-        <p className="status-label">Vendor sessions</p>
+        <p className="status-label">Sign-in status</p>
         <h2 id="authentication-heading">Authentication</h2>
         <p>
-          Verify reviewed vendor-owned CLI sessions and, where a reviewed adapter is available, hand off a password through
-          the authenticated local runtime without exposing it in process arguments, run history, or logs.
+          Check whether approved tools are signed in, sign in through a reviewed local bridge where supported, or use your
+          organization’s normal vendor sign-in process. CLIHarbor never treats an installed tool as proof of authentication.
         </p>
       </div>
 
       <div className="auth-layout">
         {vendorSessionTools.length === 0 ? (
           <article className="panel auth-status-card">
-            <p className="status-label">Vendor sessions</p>
-            <h3>No vendor-session workflows configured</h3>
-            <p>The currently loaded trusted packs do not expose browser tasks that depend on vendor-owned authentication.</p>
+            <p className="status-label">Sign-in status</p>
+            <h3>No sign-in checks are needed</h3>
+            <p>The available browser tasks do not declare a vendor authentication requirement.</p>
           </article>
         ) : (
           vendorSessionTools.map((tool) => (
@@ -770,7 +717,7 @@ export function AuthenticationPage({
 
       <article className="panel auth-guidance" aria-labelledby="authentication-guidance-heading">
         <p className="status-label">Approved flow</p>
-        <h3 id="authentication-guidance-heading">Use the reviewed bridge or your vendor flow</h3>
+        <h3 id="authentication-guidance-heading">Sign in safely, then verify</h3>
         <p>
           CLIHarbor never persists the password you enter. For supported Conjur password authentication, the browser submits it
           only to the authenticated loopback backend, which hands it directly to the pinned vendor API. The resulting vendor

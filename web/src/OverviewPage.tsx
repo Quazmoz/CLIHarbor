@@ -83,8 +83,8 @@ export function OverviewPage({
           <p className="status-label">Operator home</p>
           <h2 id="overview-heading">{workflowReady ? 'Ready for local operator work' : 'Local runtime is active'}</h2>
           <p>
-            Start from runtime readiness, move through vendor-session checks when needed, run only reviewed tasks, and keep
-            execution evidence visible. CLIHarbor remains loopback-only and server-owned.
+            Check whether your tools are ready, sign in only when a task requires it, then choose and run an approved task.
+            Technical execution details remain available when you need them.
           </p>
         </div>
         <div className="overview-hero-actions">
@@ -104,9 +104,9 @@ export function OverviewPage({
           <p>{tools.length === 0 ? 'No tools are configured.' : attentionToolCount === 0 ? 'No configured tool needs attention.' : attentionToolCount + ' tool state' + (attentionToolCount === 1 ? '' : 's') + ' need review.'}</p>
         </div>
         <div className="overview-metric">
-          <span>Safe task catalog</span>
+          <span>Available tasks</span>
           <strong>{tasks.length} task{tasks.length === 1 ? '' : 's'}</strong>
-          <p>{vendorSessionTaskCount} task{vendorSessionTaskCount === 1 ? '' : 's'} require a vendor-owned session.</p>
+          <p>{vendorSessionTaskCount} task{vendorSessionTaskCount === 1 ? '' : 's'} require sign-in before use.</p>
         </div>
         <div className="overview-metric">
           <span>Execution boundary</span>
@@ -150,7 +150,7 @@ export function OverviewPage({
                 <li key={taskKey(task)}>
                   <button type="button" className="quick-task-button" onClick={() => onOpenTask(taskKey(task))}>
                     <strong>{task.name}</strong>
-                    <span>{task.packName} · {task.toolId}{task.requiresAuth ? ' · vendor session' : ''}</span>
+                    <span>{task.packName}{task.requiresAuth ? ' · Sign-in required' : ''}</span>
                   </button>
                 </li>
               ))}
@@ -173,7 +173,7 @@ export function OverviewPage({
           <li className="workflow-step">
             <button type="button" onClick={() => onNavigate('authentication')}>
               <strong>Authentication</strong>
-              <span>{vendorSessionTaskCount > 0 ? vendorSessionTaskCount + ' task' + (vendorSessionTaskCount === 1 ? ' declares' : 's declare') + ' vendor-session requirements' : 'Review vendor-session readiness when a pack requires it'}</span>
+              <span>{vendorSessionTaskCount > 0 ? vendorSessionTaskCount + ' task' + (vendorSessionTaskCount === 1 ? ' needs' : 's need') + ' sign-in before use' : 'No available task currently requires sign-in'}</span>
             </button>
           </li>
           <li className="workflow-step">

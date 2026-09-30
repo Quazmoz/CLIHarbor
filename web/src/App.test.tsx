@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
 
@@ -198,10 +198,14 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByText('Fixture Pack — fixture')).toBeInTheDocument();
-    expect(screen.getByText('missing')).toBeInTheDocument();
-    expect(screen.getByText(/tool was not found on absolute PATH entries/i)).toBeInTheDocument();
-    expect(screen.getByText(/Pack 1\.0\.0 · Required >=1\.0\.0 <2\.0\.0/)).toBeInTheDocument();
+    expect(await screen.findByText("Fixture Pack isn't available yet")).toBeInTheDocument();
+    expect(screen.getByText('Setup needed')).toBeInTheDocument();
+    expect(screen.getByText(/Use your organization-approved installation path/i)).toBeInTheDocument();
+    const technical = screen.getByText('Technical details', { selector: 'summary' }).closest('details');
+    expect(technical).not.toBeNull();
+    expect(within(technical!).getByText(/Runtime status: missing/i)).toBeInTheDocument();
+    expect(within(technical!).getByText(/Required version: >=1\.0\.0 <2\.0\.0/i)).toBeInTheDocument();
+    expect(within(technical!).getByText(/tool was not found on absolute PATH entries/i)).toBeInTheDocument();
     expect(screen.queryByText(/C:\\/i)).not.toBeInTheDocument();
   });
 
@@ -335,7 +339,7 @@ describe('App', () => {
     }
 
     await waitFor(() => expect(source?.closed).toBe(true));
-    expect(await screen.findByRole('heading', { name: 'exited' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
     expect(screen.getByText('recovered output')).toBeInTheDocument();
     expect(screen.queryByText(/stopped after repeated disconnects/i)).not.toBeInTheDocument();
     expect(
@@ -540,7 +544,7 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
     expect(screen.getAllByText('<script>alert(1)</script>')).toHaveLength(2);
-    expect(screen.getByRole('heading', { name: 'exited' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
     expect(document.querySelector('script')).toBeNull();
     expect(source?.closed).toBe(true);
     expect(
@@ -624,7 +628,7 @@ describe('App', () => {
     expect(screen.getByText(/structured rendering could not validate this output/i)).toBeInTheDocument();
     expect(screen.getByText('wrong_type')).toBeInTheDocument();
     expect(screen.getByText('{"name":42}')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'exited' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
   });
 
   test('associates backend input failures with the affected field and moves focus', async () => {
@@ -797,7 +801,7 @@ describe('App', () => {
       source?.onerror?.(new Event('error'));
     }
 
-    expect(await screen.findByRole('heading', { name: 'run no longer retained' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Run no longer retained' })).toBeInTheDocument();
     expect(screen.getByText(/no longer available in local retention/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Retry live stream' })).not.toBeInTheDocument();
@@ -862,7 +866,7 @@ describe('App', () => {
       status: 'timed-out',
     });
 
-    expect(await screen.findByRole('heading', { name: 'timed-out' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Timed out' })).toBeInTheDocument();
     expect(screen.getByText(/execution time limit and was stopped/i)).toBeInTheDocument();
     for (const output of screen.getAllByText(/No stdout yet\.|No stderr yet\./i)) {
       expect(output.closest('pre')).toHaveAttribute('tabindex', '0');
@@ -935,7 +939,7 @@ describe('App', () => {
       sequence: 2,
       status: 'cancelled',
     });
-    expect(await screen.findByRole('heading', { name: 'cancelled' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Cancelled' })).toBeInTheDocument();
 
     resolveCancel?.(
       response(200, {
@@ -947,7 +951,7 @@ describe('App', () => {
       }),
     );
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'cancelled' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Cancelled' })).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancellation requested' })).not.toBeInTheDocument();
   });
@@ -1012,6 +1016,8 @@ describe('App', () => {
     const diagnostics = await screen.findByText('Tool readiness');
     expect(diagnostics.closest('details')).toHaveAttribute('open');
     expect(screen.getAllByText('1/1 ready').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Fixture is ready')).toBeInTheDocument();
+    expect(screen.getByText(/CLIHarbor verified version 1\.2\.3/i)).toBeInTheDocument();
   });
 
 });
@@ -1171,7 +1177,7 @@ describe('App routing', () => {
       exitCode: 1,
     });
 
-    expect(await screen.findByText(/Re-check Authentication before assuming the cause/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Re-check Authentication before assuming the tool is still signed in/i)).toBeInTheDocument();
     const reviewButtons = screen.getAllByRole('button', { name: 'Review authentication' });
     fireEvent.click(reviewButtons[reviewButtons.length - 1]);
     expect(window.location.pathname).toBe('/authentication');

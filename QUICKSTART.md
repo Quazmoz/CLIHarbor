@@ -112,9 +112,11 @@ Automatic setup requires outbound HTTPS access to the official GitHub/CyberArk r
 
 ### 7. Vendor authentication
 
-The Conjur pack exposes reviewed read-only, non-secret workflows and uses `vendor-session` authentication. CLIHarbor does not ask for or persist Conjur passwords, tokens, API keys, or MFA values.
+The Conjur pack exposes reviewed read-only, non-secret workflows and uses vendor-owned authentication. Open **Authentication** to check sign-in status.
 
-If no valid vendor session exists, authenticate through your organization's approved Conjur/CyberArk process, then retry the workflow in CLIHarbor.
+For supported password-style Conjur `authn`/LDAP configurations, CLIHarbor can show the reviewed **Sign in and verify** form. The password is sent only to the authenticated loopback runtime for that sign-in attempt, never placed in process arguments or run history, and is not persisted by CLIHarbor. The pinned Conjur API performs the exchange and writes the resulting vendor credential through Conjur's configured credential storage.
+
+OIDC, JWT, certificate, MFA, and other unsupported/interactive modes remain vendor-owned. Use your organization's approved Conjur/CyberArk sign-in process, return to **Authentication**, and run the reviewed session check. Never bypass enterprise application, network, or credential policy.
 
 ## Locked-down enterprise options
 
@@ -166,7 +168,7 @@ If CLIHarbor itself unexpectedly triggers UAC/admin credentials, cancel the prom
 | GitHub/vendor download blocked | Use the approved corporate Conjur installation path or rerun with `--no-auto-setup`; do not bypass controls |
 | Vendor tool is `ambiguous` | Review local evidence and pin the approved executable with `--tool-path`; CLIHarbor will not guess or auto-replace it |
 | Conjur version is incompatible | Do not bypass the version constraint; use/qualify a compatible approved version |
-| Conjur command reports login required | Authenticate through the approved vendor-owned flow; CLIHarbor does not collect credentials |
+| Conjur command reports login required | Open **Authentication**; use the reviewed password bridge only when offered, otherwise authenticate through the approved vendor-owned flow |
 | Browser launch fails | Use the printed short-lived loopback URL in an approved browser if company policy permits it |
 
 ## Developer quickstart

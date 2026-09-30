@@ -456,11 +456,19 @@ main {
   flex: 1;
 }
 
+.field-help,
 .field-error {
   margin: 0;
-  color: #e8b3b3 !important;
   font-size: 0.86rem;
   line-height: 1.45 !important;
+}
+
+.field-help {
+  color: var(--text-subtle);
+}
+
+.field-error {
+  color: #e8b3b3 !important;
 }
 
 .error-panel {
@@ -529,7 +537,7 @@ main {
   background: var(--accent);
 }
 
-.run-state--exited h2::before {
+.run-state--succeeded h2::before {
   background: var(--positive);
 }
 
@@ -610,9 +618,48 @@ main {
   overflow-wrap: anywhere;
 }
 
+.preview-confirmation {
+  color: #c7d7dc !important;
+}
+
 .preview-note {
   color: var(--text-subtle) !important;
   font-size: 0.8rem;
+}
+
+.technical-details {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.65rem;
+  color: var(--text-muted);
+}
+
+.technical-details > summary {
+  width: fit-content;
+  color: var(--text-subtle);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.technical-details > summary:hover {
+  color: var(--text);
+}
+
+.technical-details > p {
+  margin: 0.55rem 0 0;
+}
+
+.command-technical-details {
+  margin-top: 0;
+}
+
+.command-technical-details .invocation-preview {
+  margin-top: 0.65rem;
+}
+
+.run-technical-details .run-meta {
+  margin-top: 0.4rem !important;
 }
 
 .task-actions,
@@ -879,6 +926,14 @@ main {
 
 .tool-list p {
   margin: 0.35rem 0 0;
+}
+
+.tool-next-step {
+  color: #c8d5d9;
+}
+
+.tool-technical-details {
+  max-width: 56rem;
 }
 
 footer {
@@ -1361,7 +1416,7 @@ footer p {
   white-space: nowrap;
 }
 
-.run-history-status--exited {
+.run-history-status--succeeded {
   border-color: #365948;
   color: #bce0ca;
   background: var(--positive-surface);
@@ -1564,7 +1619,6 @@ footer p {
 
 .task-row-meta {
   color: var(--text-subtle);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .task-auth-badge {

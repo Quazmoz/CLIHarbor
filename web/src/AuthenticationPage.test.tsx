@@ -201,9 +201,9 @@ describe('AuthenticationPage', () => {
   });
 
   test.each([
-    ['missing', 'CLI unavailable'],
-    ['incompatible', 'Version incompatible'],
-    ['probe-failed', 'Probe failed'],
+    ['missing', 'Setup needed'],
+    ['incompatible', 'Version not supported'],
+    ['probe-failed', 'Verification failed'],
   ] as const)('blocks session checks when the tool state is %s', async (toolStatus, expectedStatus) => {
     const tool: ToolDiagnostic = { ...readyTool, status: toolStatus, version: undefined };
     const fetchMock = vi.fn();
@@ -492,8 +492,8 @@ describe('AuthenticationPage', () => {
 
     renderAuth([whoamiTask], [readyTool, kubectl]);
 
-    expect(screen.getByText('CyberArk / Idira Secrets Manager CLI 9.x session')).toBeInTheDocument();
-    expect(screen.getByText('Kubernetes kubectl session')).toBeInTheDocument();
+    expect(screen.getByText('CyberArk / Idira Secrets Manager CLI 9.x sign-in')).toBeInTheDocument();
+    expect(screen.getByText('Kubernetes kubectl sign-in')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Check session' })).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Session check unavailable' })).toBeInTheDocument();
   });
