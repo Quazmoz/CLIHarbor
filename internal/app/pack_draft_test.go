@@ -4,35 +4,31 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
 )
 
-func TestDraftPackGeneratesValidDraft(t *testing.T) {
+func TestDraftPackGeneratesDiscoveryOnlyDraft(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	helpPath := filepath.Join(root, "acme-help.txt")
-	helpText := `Acme CLI controls the Acme service.
-
-Usage:
-  acme [command]
-
-Available Commands:
-  get         Display one or many resources
-  list, ls    List resources in a namespace
-  describe    Show details of a specific resource
-  -h          not a real command
-  Weird       uppercase names are rejected
-  help        Help about any command
-
-Flags:
-  -v, --verbose   verbose output
-  status          ignored because it is outside the commands section
-`
+	helpText := "Acme CLI controls the Acme service.\n\n" +
+		"Usage:\n" +
+		"  acme [command]\n\n" +
+		"Available Commands:\n" +
+		"  get         Display one or many resources\n" +
+		"  list, ls    List resources in a namespace\n" +
+		"  describe    Show details of a specific resource\n" +
+		"  delete      Delete a resource\n" +
+		"  -h          not a real command\n" +
+		"  Weird       uppercase names are rejected\n" +
+		"  help        Help about any command\n\n" +
+		"Flags:\n" +
+		"  -v, --verbose   verbose output\n" +
+		"  status          ignored because it is outside the commands section\n"
 	if err := os.WriteFile(helpPath, []byte(helpText), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -71,72 +67,43 @@ Flags:
 	if tool.VersionProbe != nil || len(tool.HelpProbes) != 0 {
 		t.Fatalf("draft guessed probe behavior: %#v", tool)
 	}
-
-	wantCommands := []string{"describe", "get", "help", "list"}
-	if len(pack.Commands) != len(wantCommands) {
-		t.Fatalf("generated commands = %v, want %v", draftCommandKeys(pack.Commands), wantCommands)
-	}
-	for _, name := range wantCommands {
-		command, ok := pack.Commands[name]
-		if !ok {
-			t.Fatalf("draft missing command %q; got %v", name, draftCommandKeys(pack.Commands))
-		}
-		if command.Risk != packs.RiskRead {
-			t.Fatalf("command %q risk = %q, want read", name, command.Risk)
-		}
-		if command.Tool != "acme" {
-			t.Fatalf("command %q tool = %q, want acme", name, command.Tool)
-		}
-		if command.Output.Mode != packs.OutputRaw {
-			t.Fatalf("command %q output mode = %q, want raw", name, command.Output.Mode)
-		}
-		if len(command.Inputs) != 1 {
-			t.Fatalf("command %q inputs = %#v", name, command.Inputs)
-		}
-		input := command.Inputs[0]
-		if input.ID != "args" || input.Type != packs.InputString || !input.Validation.DisallowLeadingDash {
-			t.Fatalf("command %q input = %#v", name, input)
-		}
-		if len(command.Argv) != 2 {
-			t.Fatalf("command %q argv = %#v", name, command.Argv)
-		}
-		if command.Argv[0].Literal != name {
-			t.Fatalf("command %q first argv = %#v, want literal %q", name, command.Argv[0], name)
-		}
-		positional := command.Argv[1].Positional
-		if positional == nil || positional.ValueFrom != "args" || !positional.OmitWhenEmpty {
-			t.Fatalf("command %q positional = %#v", name, command.Argv[1])
-		}
+	if len(pack.Commands) != 0 {
+		t.Fatalf("draft granted executable command authority: %#v", pack.Commands)
 	}
 
-	for _, rejected := range []string{"weird", "status", "usage", "acme"} {
-		if _, ok := pack.Commands[rejected]; ok {
-			t.Fatalf("draft unexpectedly captured %q outside the commands section", rejected)
-		}
-	}
-
-	text := out.String()
+	text := string(data)
 	for _, want := range []string{
-		"Generated draft pack acme.yaml",
-		"4 unreviewed command(s)",
-		"acme-cli/acme",
-		"Review every command's risk",
+		"# Candidate subcommands parsed from captured help.",
+		"# These comments are non-authoritative and are never executable.",
+		"# - delete",
+		"# - describe",
+		"# - get",
+		"# - help",
+		"# - list",
 	} {
 		if !strings.Contains(text, want) {
-			t.Fatalf("draft output %q missing %q", text, want)
+			t.Fatalf("draft file missing %q:\n%s", want, text)
+		}
+	}
+	for _, rejected := range []string{"# - Weird", "# - status", "# - usage", "# - acme", "# - -h"} {
+		if strings.Contains(text, rejected) {
+			t.Fatalf("draft unexpectedly captured rejected candidate %q:\n%s", rejected, text)
+		}
+	}
+
+	output := out.String()
+	for _, want := range []string{
+		"Generated discovery-only draft pack acme.yaml",
+		"5 candidate subcommand(s)",
+		"acme-cli/acme",
+		"No executable, help probe, version probe, or runnable command was generated",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("draft output %q missing %q", output, want)
 		}
 	}
 
 	if err := DraftPack(Options{Out: &bytes.Buffer{}}, config); err == nil {
 		t.Fatal("DraftPack() unexpectedly overwrote an existing draft")
 	}
-}
-
-func draftCommandKeys(commands map[string]packs.Command) []string {
-	keys := make([]string, 0, len(commands))
-	for key := range commands {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
