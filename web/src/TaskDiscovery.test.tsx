@@ -54,7 +54,7 @@ describe('TaskDiscovery', () => {
     expect(screen.getByRole('heading', { name: 'Favorites' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Recently used' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'All tasks' })).toBeInTheDocument();
-    expect(screen.getAllByText('Requires vendor session').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Sign-in required').length).toBeGreaterThan(0);
     expect(screen.queryByText(/currently authenticated/i)).not.toBeInTheDocument();
 
     const favoriteSelect = container.querySelector(
