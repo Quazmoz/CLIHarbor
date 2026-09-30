@@ -156,7 +156,7 @@ Do not add export to secret-bearing results without explicit classification and 
 
 ## Managed CLI installation
 
-Diagnostics exposes **Install verified CLI** only when the trusted pack declares a portable install contract for the current platform.
+Diagnostics exposes **Install <tool>** only when the trusted pack declares a portable install contract for the current platform.
 
 The install card includes an optional **Install base directory** field. Blank means CLIHarbor's default current-user cache. A custom value must be an absolute path beneath the current user's home. The UI states that this is a current-user install, requires no administrator credentials, and requires one restart before activation.
 
