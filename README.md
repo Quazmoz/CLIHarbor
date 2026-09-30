@@ -47,7 +47,7 @@ bin\cliharbor-windows-x64-evaluation.exe
 
 No separate Conjur pack download and no `--pack-file` are required for the normal path.
 
-For supported Conjur `authn`/LDAP configurations, the **Authentication** page can accept an identity and password for a single sign-in attempt. The password is posted only to the authenticated loopback runtime, never placed in process argv or run history, and is not persisted by CLIHarbor. The pinned CyberArk Go API performs the login and stores the resulting vendor credential using Conjur's configured credential storage. OIDC/JWT/certificate/MFA-style flows remain vendor-owned.
+The **Authentication** page now provides the normal Conjur password sign-in path end to end. If this computer is not configured yet, the same form first asks for the HTTPS Conjur server, account, and standard or LDAP password mode, then delegates connection initialization to the exact discovered CyberArk CLI using fixed reviewed `conjur init self-hosted` arguments. Passwords are never passed to that process. The password is posted only to the authenticated loopback credential endpoint, never placed in process argv or run history, and is not persisted by CLIHarbor. The pinned CyberArk Go API performs the login and stores the resulting vendor credential using Conjur's configured credential storage. OIDC/JWT/certificate/MFA-style flows remain vendor-owned.
 
 ### Discovery order
 
@@ -287,11 +287,11 @@ requirements:
   authMode: vendor-session
 ```
 
-CLIHarbor supplies no password, token, API key, MFA response, or interactive credential stdin. If no valid vendor session exists, authenticate through the approved vendor-owned process and retry.
+Ordinary task execution supplies no password, token, API key, MFA response, or interactive credential stdin. Authentication is a separate reviewed boundary: the qualified Conjur integration may expose the dedicated GUI password bridge, while unsupported interactive modes continue to use the approved vendor-owned process.
 
 Installing the vendor executable and authenticating to the vendor are separate operations.
 
-The pack contract supports one validated zero-input, read-only, non-secret `sessionCheck` per tool, and the backend tool API exposes whether a tool has browser-runnable `vendor-session` work plus any reviewed check metadata. The browser Authentication page at `/authentication` consumes that metadata generically: it runs only the pack-declared check through the trusted execution path, never presents credential inputs or a fake login button, and shows vendor-session tools with no reviewed check as explicitly unavailable rather than guessing. Conjur declares its reviewed `whoami` check; kubectl intentionally declares no generic session check.
+The pack contract supports one validated zero-input, read-only, non-secret `sessionCheck` per tool, and the backend tool API exposes whether a tool has browser-runnable `vendor-session` work plus any reviewed check metadata. The browser Authentication page at `/authentication` consumes that metadata generically and runs only the pack-declared check through the trusted execution path. For the exact qualified Conjur adapter it may also show the reviewed connection/sign-in form; other vendor-session tools do not gain a generic credential form. Conjur declares its reviewed `whoami` check; kubectl intentionally declares no generic session check.
 
 The **Runs** page at `/runs` exposes bounded process-local history. Its list API is metadata-only; raw stdout/stderr and structured result data are fetched only when an operator opens one retained run. Restarting CLIHarbor clears the history.
 

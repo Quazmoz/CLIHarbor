@@ -997,6 +997,15 @@ footer p {
     max-width: none;
   }
 
+  .credential-login-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .credential-login-fields {
+    grid-template-columns: 1fr;
+  }
+
   .task-context-header,
   .command-preview-header,
   .tool-summary,
@@ -1156,6 +1165,25 @@ footer p {
   color: var(--text-muted);
   font-size: 0.88rem;
   line-height: 1.55;
+}
+
+.credential-setup-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.credential-setup-section + .credential-setup-section {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+}
+
+.credential-step-label {
+  margin: 0 0 0.35rem !important;
+  color: #cbd8dc !important;
+  font-size: 0.78rem;
+  font-weight: 720;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .credential-login-fields {

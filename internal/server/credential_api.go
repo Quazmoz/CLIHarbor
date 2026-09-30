@@ -22,7 +22,8 @@ type CredentialLoginMethod string
 const CredentialLoginMethodConjurPassword CredentialLoginMethod = "conjur-password"
 
 type CredentialLoginCapability struct {
-	Method CredentialLoginMethod `json:"method"`
+	Method        CredentialLoginMethod `json:"method"`
+	SetupRequired bool                  `json:"setupRequired,omitempty"`
 }
 
 type CredentialLoginRequest struct {

@@ -584,4 +584,86 @@ describe('AuthenticationPage', () => {
     expect(document.querySelector('input[type="password"]')).toBeNull();
     expect(screen.getByRole('button', { name: 'Check session' })).toBeEnabled();
   });
+
+  test('guides first-run Conjur setup through the GUI before signing in and verifying', async () => {
+    const setupTool: ToolDiagnostic = {
+      ...readyTool,
+      credentialLogin: {
+        method: 'conjur-password',
+        setupRequired: true,
+      },
+    };
+    const requests: string[] = [];
+    let configurationRequest: unknown;
+    let loginRequest: unknown;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(input);
+        requests.push(path);
+        if (path === '/api/v1/auth/configure') {
+          configurationRequest = JSON.parse(String(init?.body));
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+        if (path === '/api/v1/auth/login') {
+          loginRequest = JSON.parse(String(init?.body));
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+        if (path === '/api/v1/runs') {
+          return Promise.resolve(
+            response(202, {
+              runId: 'dddddddddddddddddddddddddddddddd',
+              packId: 'cyberark-conjur-v9',
+              commandId: 'whoami',
+              toolId: 'conjur',
+              status: 'exited',
+              exitCode: 0,
+            }),
+          );
+        }
+        return Promise.resolve(response(404, {}));
+      }),
+    );
+
+    renderAuth([whoamiTask], [setupTool]);
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Conjur server URL' }), {
+      target: { value: 'https://conjur.example.test' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Account' }), {
+      target: { value: 'engineering' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Identity' }), {
+      target: { value: 'alice' },
+    });
+    const password = document.querySelector('input[type="password"]') as HTMLInputElement | null;
+    expect(password).not.toBeNull();
+    fireEvent.change(password!, { target: { value: 'super-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect, sign in and verify' }));
+
+    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+    expect(requests.slice(0, 3)).toEqual([
+      '/api/v1/auth/configure',
+      '/api/v1/auth/login',
+      '/api/v1/runs',
+    ]);
+    expect(configurationRequest).toEqual({
+      packId: 'cyberark-conjur-v9',
+      toolId: 'conjur',
+      applianceUrl: 'https://conjur.example.test',
+      account: 'engineering',
+      authnType: 'authn',
+    });
+    expect(JSON.stringify(configurationRequest)).not.toContain('super-secret');
+    expect(loginRequest).toEqual({
+      packId: 'cyberark-conjur-v9',
+      toolId: 'conjur',
+      identity: 'alice',
+      secret: 'super-secret',
+    });
+    expect(password).toHaveValue('');
+    expect(screen.queryByRole('textbox', { name: 'Conjur server URL' })).not.toBeInTheDocument();
+  });
+
 });

@@ -7,8 +7,9 @@ import (
 )
 
 type taskCatalog struct {
-	tasks []server.Task
-	tools []server.ToolDiagnostic
+	tasks                     []server.Task
+	tools                     []server.ToolDiagnostic
+	credentialLoginCapability func() (string, string, server.CredentialLoginCapability, bool)
 }
 
 func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *taskCatalog {
@@ -151,6 +152,13 @@ func (c *taskCatalog) ListTasks() []server.Task {
 	return out
 }
 
+func (c *taskCatalog) setCredentialLoginCapabilityProvider(provider func() (string, string, server.CredentialLoginCapability, bool)) {
+	if c == nil {
+		return
+	}
+	c.credentialLoginCapability = provider
+}
+
 func (c *taskCatalog) enableCredentialLogin(packID, toolID string, capability server.CredentialLoginCapability) {
 	if c == nil {
 		return
@@ -183,6 +191,17 @@ func (c *taskCatalog) ListTools() []server.ToolDiagnostic {
 		if tool.Install != nil {
 			install := *tool.Install
 			out[i].Install = &install
+		}
+	}
+	if c.credentialLoginCapability != nil {
+		if packID, toolID, capability, ok := c.credentialLoginCapability(); ok {
+			for i := range out {
+				if out[i].PackID != packID || out[i].ToolID != toolID || out[i].Status != string(discovery.StatusReady) || !out[i].RequiresVendorSession {
+					continue
+				}
+				cloned := capability
+				out[i].CredentialLogin = &cloned
+			}
 		}
 	}
 	return out

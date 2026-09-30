@@ -105,15 +105,22 @@ Direct refresh/navigation is supported for `/authentication`, `/tasks`, and `/di
 
 CLIHarbor now implements one explicit credential adapter for the qualified Conjur integration. It is **not** a generic secret input type and it is not pack-authored command authority.
 
-The browser exposes the form only when:
+The browser exposes the form only for the qualified `cyberark-conjur-v9/conjur` tool while that exact discovered tool is healthy.
 
-- the qualified `cyberark-conjur-v9/conjur` tool is healthy;
-- local Conjur configuration can be loaded;
-- the configured authentication type is password-style `authn` or LDAP;
-- the configured Conjur appliance URL is HTTPS and the environment is not SaaS;
-- Conjur credential storage is enabled for writes.
+There are two reviewed states:
 
-The request path is fixed at `POST /api/v1/auth/login`. It inherits the same loopback Host/Origin, HttpOnly session-cookie and CSRF boundary as other mutating APIs, uses `Cache-Control: no-store`, accepts a small strict JSON schema, rejects duplicate/unknown fields and oversized bodies, and returns only reviewed sanitized errors.
+- **connection ready** — local Conjur configuration is password-style `authn` or LDAP, uses HTTPS, is not SaaS, and allows credential writes; the page shows identity/password fields;
+- **connection setup required** — the local configuration is missing the base server/account information and is otherwise eligible for password-style self-hosted setup; the same page additionally asks for HTTPS server URL, account, and standard or LDAP mode.
+
+First-run connection setup uses `POST /api/v1/auth/configure` behind the same loopback session/Origin/CSRF boundary. The backend accepts only bounded structured connection fields, revalidates the exact discovered Conjur executable identity, and invokes the official CLI directly with fixed argv equivalent to:
+
+```text
+conjur init self-hosted --url <https-url> --account <account>
+```
+
+LDAP adds only the reviewed `--authn-type ldap --service-id <id>` flags. CLIHarbor does not expose arbitrary init flags, does not pass a password to the init process, and does not add `--force`, `--insecure`, or `--self-signed`. Existing unsupported/interactive configurations and private/self-signed certificate trust cases remain vendor-owned rather than being silently overwritten or bypassed.
+
+The credential request path is fixed at `POST /api/v1/auth/login`. It inherits the same loopback Host/Origin, HttpOnly session-cookie and CSRF boundary as other mutating APIs, uses `Cache-Control: no-store`, accepts a small strict JSON schema, rejects duplicate/unknown fields and oversized bodies, and returns only reviewed sanitized errors.
 
 The credential is never converted into command argv. CLIHarbor calls pinned `conjur-api-go v0.15.4` in-process. The vendor library exchanges the password for a Conjur API key and stores that resulting credential using Conjur's configured storage backend. CLIHarbor does not retain the returned API-key buffer; it clears the returned byte slice after the vendor library has stored it.
 
@@ -128,7 +135,7 @@ The adapter deliberately rejects or does not advertise OIDC, JWT, certificate, I
 - vendor code owns credential validation and durable session storage;
 - secrets never enter normal logs, diagnostics, run history, URLs, command preview or process-list-visible argv;
 - only the exact reviewed Conjur tool identity can use this endpoint;
-- only one login attempt is admitted at a time;
+- connection setup and credential login share one bounded single-flight gate;
 - vendor error bodies/messages are not copied into browser responses;
 - network duration is bounded through the vendor client HTTP timeout;
 - backend policy and the normal session check remain authoritative after sign-in;

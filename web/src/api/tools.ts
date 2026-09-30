@@ -17,6 +17,7 @@ export interface VendorSessionCheck {
 
 export interface CredentialLoginCapability {
   method: 'conjur-password';
+  setupRequired?: boolean;
 }
 
 export interface ToolInstallCapability {
@@ -108,10 +109,17 @@ function parseInstall(value: unknown): ToolInstallCapability {
 }
 
 function parseCredentialLogin(value: unknown): CredentialLoginCapability {
-  if (!isRecord(value) || Object.keys(value).length !== 1 || value.method !== 'conjur-password') {
+  if (
+    !isRecord(value) ||
+    value.method !== 'conjur-password' ||
+    (value.setupRequired !== undefined && typeof value.setupRequired !== 'boolean') ||
+    Object.keys(value).some((key) => key !== 'method' && key !== 'setupRequired')
+  ) {
     throw clientError('invalid_response');
   }
-  return { method: 'conjur-password' };
+  return value.setupRequired === true
+    ? { method: 'conjur-password', setupRequired: true }
+    : { method: 'conjur-password' };
 }
 
 function parseTool(value: unknown): ToolDiagnostic {

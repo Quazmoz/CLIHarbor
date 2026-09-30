@@ -68,17 +68,16 @@ func Run(ctx context.Context, options Options) error {
 	installLocations, _ := newManagedInstallLocationStore()
 	toolInstaller := newManagedToolInstaller(runtimeState.Registry, toolbootstrap.NewPortableProvisioner(), installLocations)
 	catalog := newTaskCatalog(runtimeState.Registry, runtimeState.Discovery)
-	if packID, toolID, capability, ok := credentialLogin.Capability(); ok {
-		catalog.enableCredentialLogin(packID, toolID, capability)
-	}
+	catalog.setCredentialLoginCapabilityProvider(credentialLogin.Capability)
 	s, err := server.New(server.Config{
-		Version:         options.Version,
-		Frontend:        frontend,
-		Runs:            runManager,
-		Tasks:           catalog,
-		Tools:           catalog,
-		CredentialLogin: credentialLogin,
-		ToolInstaller:   toolInstaller,
+		Version:                 options.Version,
+		Frontend:                frontend,
+		Runs:                    runManager,
+		Tasks:                   catalog,
+		Tools:                   catalog,
+		CredentialLogin:         credentialLogin,
+		CredentialConfiguration: credentialLogin,
+		ToolInstaller:           toolInstaller,
 	})
 	if err != nil {
 		_ = shutdownRuns()

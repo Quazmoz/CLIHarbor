@@ -1,0 +1,145 @@
+package server
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"mime"
+	"net/http"
+	"net/url"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/Quazmoz/CLIHarbor/internal/apperror"
+)
+
+const maxCredentialConfigurationRequestBytes = 8 << 10
+
+type CredentialConfigurationRequest struct {
+	PackID       string
+	ToolID       string
+	ApplianceURL string
+	Account      string
+	AuthnType    string
+	ServiceID    string
+}
+
+type CredentialConfigurationService interface {
+	Configure(context.Context, CredentialConfigurationRequest) error
+}
+
+type credentialConfigurationRequestDTO struct {
+	PackID       string `json:"packId"`
+	ToolID       string `json:"toolId"`
+	ApplianceURL string `json:"applianceUrl"`
+	Account      string `json:"account"`
+	AuthnType    string `json:"authnType"`
+	ServiceID    string `json:"serviceId,omitempty"`
+}
+
+func (s *Server) handleCredentialConfiguration(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	request, err := decodeCredentialConfigurationRequest(w, r)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
+		return
+	}
+
+	err = s.credentialConfiguration.Configure(r.Context(), CredentialConfigurationRequest{
+		PackID:       request.PackID,
+		ToolID:       request.ToolID,
+		ApplianceURL: request.ApplianceURL,
+		Account:      request.Account,
+		AuthnType:    request.AuthnType,
+		ServiceID:    request.ServiceID,
+	})
+	if err != nil {
+		writeCredentialLoginError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func decodeCredentialConfigurationRequest(w http.ResponseWriter, r *http.Request) (credentialConfigurationRequestDTO, error) {
+	var zero credentialConfigurationRequestDTO
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		return zero, fmt.Errorf("content type must be application/json")
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxCredentialConfigurationRequestBytes)
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		return zero, err
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		return zero, fmt.Errorf("request body is empty")
+	}
+	if !utf8.Valid(data) {
+		return zero, fmt.Errorf("request body must be valid UTF-8")
+	}
+	if err := rejectDuplicateJSONKeys(data); err != nil {
+		return zero, err
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	var request credentialConfigurationRequestDTO
+	if err := decoder.Decode(&request); err != nil {
+		return zero, err
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		return zero, err
+	}
+
+	request.ApplianceURL = strings.TrimSpace(request.ApplianceURL)
+	request.Account = strings.TrimSpace(request.Account)
+	request.AuthnType = strings.ToLower(strings.TrimSpace(request.AuthnType))
+	request.ServiceID = strings.TrimSpace(request.ServiceID)
+
+	if !validCredentialTargetID(request.PackID) || !validCredentialTargetID(request.ToolID) {
+		return zero, fmt.Errorf("invalid credential target")
+	}
+	if err := validateCredentialConfigurationURL(request.ApplianceURL); err != nil {
+		return zero, err
+	}
+	if request.Account == "" || len(request.Account) > 256 || containsControlCharacter(request.Account) {
+		return zero, fmt.Errorf("invalid account")
+	}
+	switch request.AuthnType {
+	case "authn":
+		if request.ServiceID != "" {
+			return zero, fmt.Errorf("standard authentication must not include a service ID")
+		}
+	case "ldap":
+		if request.ServiceID == "" || len(request.ServiceID) > 256 || containsControlCharacter(request.ServiceID) {
+			return zero, fmt.Errorf("LDAP authentication requires a valid service ID")
+		}
+	default:
+		return zero, fmt.Errorf("unsupported authentication type")
+	}
+
+	return request, nil
+}
+
+func validateCredentialConfigurationURL(value string) error {
+	if value == "" || len(value) > 2048 || containsControlCharacter(value) {
+		return fmt.Errorf("invalid appliance URL")
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || !strings.EqualFold(parsed.Scheme, "https") || parsed.Host == "" || parsed.User != nil {
+		return fmt.Errorf("appliance URL must be an HTTPS URL without user information")
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("appliance URL must not include a query or fragment")
+	}
+	return nil
+}
