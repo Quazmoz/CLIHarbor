@@ -101,7 +101,7 @@ export function OverviewPage({
         <div className="overview-metric">
           <span>Tool readiness</span>
           <strong>{readyToolCount}/{tools.length} ready</strong>
-          <p>{attentionToolCount === 0 ? 'No configured tool needs attention.' : attentionToolCount + ' tool state' + (attentionToolCount === 1 ? '' : 's') + ' need review.'}</p>
+          <p>{tools.length === 0 ? 'No tools are configured.' : attentionToolCount === 0 ? 'No configured tool needs attention.' : attentionToolCount + ' tool state' + (attentionToolCount === 1 ? '' : 's') + ' need review.'}</p>
         </div>
         <div className="overview-metric">
           <span>Safe task catalog</span>
@@ -173,7 +173,7 @@ export function OverviewPage({
           <li className="workflow-step">
             <button type="button" onClick={() => onNavigate('authentication')}>
               <strong>Authentication</strong>
-              <span>{vendorSessionTaskCount > 0 ? vendorSessionTaskCount + ' task' + (vendorSessionTaskCount === 1 ? '' : 's') + ' declare vendor-session requirements' : 'Review vendor-session readiness when a pack requires it'}</span>
+              <span>{vendorSessionTaskCount > 0 ? vendorSessionTaskCount + ' task' + (vendorSessionTaskCount === 1 ? ' declares' : 's declare') + ' vendor-session requirements' : 'Review vendor-session readiness when a pack requires it'}</span>
             </button>
           </li>
           <li className="workflow-step">

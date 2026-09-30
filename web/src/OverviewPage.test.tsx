@@ -108,7 +108,7 @@ describe('OverviewPage', () => {
       />,
     );
 
-    expect(screen.getByText('1 task declare vendor-session requirements')).toBeInTheDocument();
+    expect(screen.getByText('1 task declares vendor-session requirements')).toBeInTheDocument();
     expect(screen.queryByText(/^Authenticated$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Signed in$/i)).not.toBeInTheDocument();
   });
