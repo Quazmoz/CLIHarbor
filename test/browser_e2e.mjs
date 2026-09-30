@@ -440,8 +440,19 @@ async function main() {
 
     await waitJS(page, 'clean authenticated application page',
       'location.href === ' + JSON.stringify(baseURL + '/') + ' && document.body.innerText.includes("CLIHarbor")');
-    await waitJS(page, 'fixture task metadata',
-      "Boolean(document.querySelector('select option[value=\\\"integration/inspect\\\"]'))");
+    await waitJS(page, 'operator overview dashboard',
+      'location.pathname === "/" && document.querySelector("#overview-heading")?.textContent?.includes("local operator work") === true');
+
+    const overviewSurface = await page.evaluate('(() => ({' +
+      'hasTaskForm: Boolean(document.querySelector(".task-panel form")),' +
+      'hasDiagnosticsDetails: Boolean(document.querySelector(".tool-diagnostics")),' +
+      'hasTasksLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Tasks"),' +
+      'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth' +
+    '}))()');
+    assert.equal(overviewSurface.hasTaskForm, false, 'overview must not duplicate the task execution workspace');
+    assert.equal(overviewSurface.hasDiagnosticsDetails, false, 'overview must not duplicate diagnostics details');
+    assert.equal(overviewSurface.hasTasksLink, true, 'overview must provide primary navigation to Tasks');
+    assert.equal(overviewSurface.horizontalOverflow, false, 'overview must fit the default browser viewport horizontally');
 
     const bootstrapState = await page.evaluate('(async () => {' +
       'const status = await fetch("/api/v1/status", { credentials: "same-origin" }).then((response) => response.json());' +
