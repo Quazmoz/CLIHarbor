@@ -761,7 +761,7 @@ function VendorSessionCard({
             </button>
           </div>
         </form>
-      ))}
+      )}
 
       <div className="auth-actions">
         {tool.sessionCheck !== undefined && (
