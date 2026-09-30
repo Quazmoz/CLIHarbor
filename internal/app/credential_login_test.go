@@ -146,6 +146,10 @@ func TestConjurCredentialLoginRejectsUnsupportedModesAndStorage(t *testing.T) {
 		{name: "storage-none", mutate: func(c *conjurapi.Config) { c.CredentialStorage = conjurapi.CredentialStorageNone }},
 		{name: "storage-readonly", mutate: func(c *conjurapi.Config) { c.CredentialStorageMode = conjurapi.CredentialStorageModeReadOnly }},
 		{name: "plaintext-appliance", mutate: func(c *conjurapi.Config) { c.ApplianceURL = "http://conjur.example.test" }},
+		{name: "appliance-userinfo", mutate: func(c *conjurapi.Config) { c.ApplianceURL = "https://alice:secret@conjur.example.test" }},
+		{name: "appliance-query", mutate: func(c *conjurapi.Config) { c.ApplianceURL = "https://conjur.example.test?redirect=other" }},
+		{name: "appliance-fragment", mutate: func(c *conjurapi.Config) { c.ApplianceURL = "https://conjur.example.test#other" }},
+		{name: "invalid-account", mutate: func(c *conjurapi.Config) { c.Account = "engineering\nother" }},
 		{name: "saas", mutate: func(c *conjurapi.Config) { c.Environment = conjurapi.EnvironmentSaaS }},
 	}
 	for _, tc := range cases {
@@ -170,6 +174,68 @@ func TestConjurCredentialLoginRejectsUnsupportedModesAndStorage(t *testing.T) {
 			var loginErr *server.CredentialLoginError
 			if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
 				t.Fatalf("error = %#v, want unsupported", err)
+			}
+		})
+	}
+}
+
+func TestConjurCredentialCapabilityOnlyOffersSetupForSafeWritablePartialConfig(t *testing.T) {
+	cases := []struct {
+		name          string
+		config        conjurapi.Config
+		wantAvailable bool
+		wantSetup     bool
+	}{
+		{
+			name: "missing-account",
+			config: func() conjurapi.Config {
+				config := supportedConjurConfig()
+				config.Account = ""
+				return config
+			}(),
+			wantAvailable: true,
+			wantSetup:     true,
+		},
+		{
+			name: "missing-appliance",
+			config: func() conjurapi.Config {
+				config := supportedConjurConfig()
+				config.ApplianceURL = ""
+				return config
+			}(),
+			wantAvailable: true,
+			wantSetup:     true,
+		},
+		{
+			name: "unsafe-existing-appliance",
+			config: func() conjurapi.Config {
+				config := supportedConjurConfig()
+				config.Account = ""
+				config.ApplianceURL = "https://alice:secret@conjur.example.test"
+				return config
+			}(),
+		},
+		{
+			name: "read-only-storage",
+			config: func() conjurapi.Config {
+				config := supportedConjurConfig()
+				config.Account = ""
+				config.CredentialStorageMode = conjurapi.CredentialStorageModeReadOnly
+				return config
+			}(),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service.loadConfig = func() (conjurapi.Config, error) { return tc.config, nil }
+			_, _, capability, available := service.Capability()
+			if available != tc.wantAvailable {
+				t.Fatalf("available = %t, want %t", available, tc.wantAvailable)
+			}
+			if available && capability.SetupRequired != tc.wantSetup {
+				t.Fatalf("setupRequired = %t, want %t", capability.SetupRequired, tc.wantSetup)
 			}
 		})
 	}
