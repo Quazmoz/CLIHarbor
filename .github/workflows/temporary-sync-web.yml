@@ -1,0 +1,44 @@
+name: Temporary PR web sync
+
+on:
+  push:
+    branches:
+      - ux/operator-dashboard
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ux/operator-dashboard
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: .go-version
+          cache: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Install frontend dependencies
+        run: npm ci --prefix web
+      - name: Build frontend
+        run: npm run build --prefix web
+      - name: Synchronize embedded frontend
+        run: go run ./tools/task sync-web
+      - name: Commit generated assets
+        shell: bash
+        run: |
+          if git diff --quiet -- internal/webui/static; then
+            echo "Embedded frontend is already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add internal/webui/static
+          git commit -m "Sync embedded frontend assets"
+          git push origin HEAD:ux/operator-dashboard
