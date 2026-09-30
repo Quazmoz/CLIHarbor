@@ -110,7 +110,7 @@ The browser exposes the form only for the qualified `cyberark-conjur-v9/conjur` 
 There are two reviewed states:
 
 - **connection ready** — local Conjur configuration is password-style `authn` or LDAP, uses HTTPS, is not SaaS, and allows credential writes; the page shows identity/password fields;
-- **connection setup required** — the local configuration is missing the base server/account information and is otherwise eligible for password-style self-hosted setup; the same page additionally asks for HTTPS server URL, account, and standard or LDAP mode.
+- **connection setup required** — the local configuration is missing the base server/account information and is otherwise eligible for password-style self-hosted setup; the page shows only HTTPS server URL, account, and standard or LDAP mode until that setup succeeds.
 
 First-run connection setup is deliberately staged before credential entry. While setup is required, the browser renders only the HTTPS server/account/authentication-mode fields and does not render a password input. A successful `POST /api/v1/auth/configure` must complete before the credential form is exposed. This prevents a mistyped or rejected connection setup from receiving a password in the same submission.
 
