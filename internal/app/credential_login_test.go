@@ -3,6 +3,9 @@ package app
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
@@ -147,5 +150,123 @@ func TestConjurCredentialLoginCapabilityRequiresReadyTool(t *testing.T) {
 	var loginErr *server.CredentialLoginError
 	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
 		t.Fatalf("error = %#v, want unsupported", err)
+	}
+}
+
+
+func readyConjurSnapshotWithExecutable(t *testing.T) discovery.Snapshot {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "conjur")
+	if err := os.WriteFile(path, []byte("reviewed-conjur-fixture"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := discovery.CaptureExecutableIdentity(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return discovery.NewSnapshot([]discovery.ToolState{{
+		PackID:             conjurCredentialPackID,
+		PackVersion:        "0.2.0",
+		ToolID:             conjurCredentialToolID,
+		Status:             discovery.StatusReady,
+		Path:               path,
+		ExecutableName:     filepath.Base(path),
+		Version:            "9.3.1",
+		ExecutableIdentity: identity,
+	}})
+}
+
+func TestConjurCredentialCapabilityOffersFirstRunSetupAndRefreshesAfterConfiguration(t *testing.T) {
+	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := conjurapi.Config{}
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+
+	packID, toolID, capability, available := service.Capability()
+	if !available || packID != conjurCredentialPackID || toolID != conjurCredentialToolID {
+		t.Fatalf("setup capability = %q/%q %#v available=%t", packID, toolID, capability, available)
+	}
+	if capability.Method != server.CredentialLoginMethodConjurPassword || !capability.SetupRequired {
+		t.Fatalf("setup capability = %#v, want conjur password with setup required", capability)
+	}
+
+	config = supportedConjurConfig()
+	_, _, capability, available = service.Capability()
+	if !available || capability.SetupRequired {
+		t.Fatalf("configured capability = %#v available=%t, want ready login", capability, available)
+	}
+}
+
+func TestConjurCredentialConfigurationUsesReviewedVendorInitArgumentsOnly(t *testing.T) {
+	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := conjurapi.Config{}
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+
+	var executable string
+	var args []string
+	service.runInit = func(_ context.Context, gotExecutable string, gotArgs []string) error {
+		executable = gotExecutable
+		args = append([]string(nil), gotArgs...)
+		config = supportedConjurConfig()
+		return nil
+	}
+
+	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
+		PackID:       conjurCredentialPackID,
+		ToolID:       conjurCredentialToolID,
+		ApplianceURL: "https://conjur.example.test",
+		Account:      "engineering",
+		AuthnType:    "authn",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if executable == "" {
+		t.Fatal("vendor init executable was not invoked")
+	}
+	want := []string{"init", "self-hosted", "--url", "https://conjur.example.test", "--account", "engineering"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("vendor init args = %#v, want %#v", args, want)
+	}
+	for _, arg := range args {
+		if arg == "super-secret" || arg == "--insecure" || arg == "--self-signed" || arg == "--force" {
+			t.Fatalf("unsafe init argument exposed: %q", arg)
+		}
+	}
+}
+
+func TestConjurCredentialConfigurationAddsOnlyReviewedLDAPFlags(t *testing.T) {
+	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := conjurapi.Config{}
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+
+	var args []string
+	service.runInit = func(_ context.Context, _ string, gotArgs []string) error {
+		args = append([]string(nil), gotArgs...)
+		config = supportedConjurConfig()
+		config.AuthnType = "ldap"
+		config.ServiceID = "corp"
+		return nil
+	}
+
+	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
+		PackID:       conjurCredentialPackID,
+		ToolID:       conjurCredentialToolID,
+		ApplianceURL: "https://conjur.example.test",
+		Account:      "engineering",
+		AuthnType:    "ldap",
+		ServiceID:    "corp",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"init", "self-hosted",
+		"--url", "https://conjur.example.test",
+		"--account", "engineering",
+		"--authn-type", "ldap",
+		"--service-id", "corp",
+	}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("vendor init args = %#v, want %#v", args, want)
 	}
 }
