@@ -11,6 +11,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 	"github.com/cyberark/conjur-api-go/conjurapi"
+	"github.com/cyberark/conjur-api-go/conjurapi/response"
 )
 
 type fakeConjurLoginClient struct {
@@ -80,11 +81,11 @@ func TestConjurCredentialLoginUsesVendorClientWithoutExposingReturnedAPIKey(t *t
 	}
 }
 
-func TestConjurCredentialLoginSanitizesVendorErrors(t *testing.T) {
+func TestConjurCredentialLoginSanitizesRejectedCredentialErrors(t *testing.T) {
 	service := newConjurCredentialLoginService(readyConjurSnapshot())
 	service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
 	service.newClient = func(conjurapi.Config) (conjurLoginClient, error) {
-		return &fakeConjurLoginClient{err: errors.New("server echoed password super-secret")}, nil
+		return &fakeConjurLoginClient{err: &response.ConjurError{Code: 401, Message: "server echoed password super-secret"}}, nil
 	}
 
 	err := service.Login(context.Background(), server.CredentialLoginRequest{
@@ -96,6 +97,42 @@ func TestConjurCredentialLoginSanitizesVendorErrors(t *testing.T) {
 	}
 	if got := err.Error(); got == "" || got == "server echoed password super-secret" {
 		t.Fatalf("unsafe error text = %q", got)
+	}
+}
+
+func TestConjurCredentialLoginTreatsNonCredentialFailuresAsUnavailable(t *testing.T) {
+	cases := []struct {
+		name   string
+		result []byte
+		err    error
+	}{
+		{name: "network-or-tls", err: errors.New("dial tcp: private infrastructure detail")},
+		{name: "vendor-service", err: &response.ConjurError{Code: 503, Message: "upstream internal detail"}},
+		{name: "credential-storage-after-remote-success", result: []byte("sensitive-returned-api-key"), err: errors.New("keyring unavailable")},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
+			returned := append([]byte(nil), tc.result...)
+			service.newClient = func(conjurapi.Config) (conjurLoginClient, error) {
+				return &fakeConjurLoginClient{result: returned, err: tc.err}, nil
+			}
+
+			err := service.Login(context.Background(), server.CredentialLoginRequest{
+				PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID, Identity: "alice", Secret: "super-secret",
+			})
+			var loginErr *server.CredentialLoginError
+			if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnavailable {
+				t.Fatalf("error = %#v, want sanitized unavailable error", err)
+			}
+			for _, value := range returned {
+				if value != 0 {
+					t.Fatalf("returned API key buffer was not cleared: %q", returned)
+				}
+			}
+		})
 	}
 }
 
