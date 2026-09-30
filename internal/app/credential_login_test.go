@@ -153,7 +153,6 @@ func TestConjurCredentialLoginCapabilityRequiresReadyTool(t *testing.T) {
 	}
 }
 
-
 func readyConjurSnapshotWithExecutable(t *testing.T) discovery.Snapshot {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "conjur")
