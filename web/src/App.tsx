@@ -19,6 +19,7 @@ import {
 } from './api/runs';
 import { AuthenticationPage } from './AuthenticationPage';
 import { RunsPage } from './RunsPage';
+import { OverviewPage } from './OverviewPage';
 import { TaskDiscovery } from './TaskDiscovery';
 import {
   loadTaskPreferences,
@@ -846,6 +847,7 @@ export function App() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="topbar">
         <div className="brand-block">
           <span className="eyebrow">LOCAL OPERATOR WORKSPACE</span>
@@ -875,7 +877,7 @@ export function App() {
         </div>
       </header>
 
-      <main aria-busy={state.kind === 'loading'}>
+      <main id="main-content" tabIndex={-1} aria-busy={state.kind === 'loading'}>
         {state.kind === 'loading' && (
           <section className="panel" role="status" aria-live="polite" aria-busy="true">
             <h2>Checking runtime</h2>
@@ -912,7 +914,20 @@ export function App() {
 
         {state.kind === 'ready' && route === 'runs' && <RunsPage tasks={state.tasks} />}
 
-        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && (
+        {state.kind === 'ready' && route === 'overview' && (
+          <OverviewPage
+            tasks={state.tasks}
+            tools={state.tools}
+            preferences={taskPreferences}
+            onNavigate={navigate}
+            onOpenTask={(taskKey) => {
+              selectTaskByKey(taskKey, state.tasks);
+              navigate('tasks');
+            }}
+          />
+        )}
+
+        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && (
           <>
             <section className="runtime-overview" aria-labelledby="runtime-heading">
               <div className="runtime-copy">
@@ -941,7 +956,7 @@ export function App() {
               </dl>
             </section>
 
-            {(route === 'overview' || route === 'tasks') && (
+            {route === 'tasks' && (
               <section className="workspace-grid">
               <article className="panel task-panel" aria-labelledby="task-heading">
                 <p className="status-label">Task</p>
@@ -1183,7 +1198,7 @@ export function App() {
               </section>
             )}
 
-            {(route === 'overview' || route === 'diagnostics') && (
+            {route === 'diagnostics' && (
               <details className="panel tool-diagnostics" open={route === 'diagnostics'}>
               <summary>
                 <span className="diagnostics-summary-copy">

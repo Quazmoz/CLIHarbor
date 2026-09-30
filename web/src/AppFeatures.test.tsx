@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
 
 function response(status: number, body: unknown): Response {
@@ -43,6 +43,10 @@ function baseRuntimeResponse(path: string): Response | undefined {
   }
   return undefined;
 }
+
+beforeEach(() => {
+  window.history.replaceState({}, '', '/tasks');
+});
 
 afterEach(() => {
   window.history.replaceState({}, '', '/');

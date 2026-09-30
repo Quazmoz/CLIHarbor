@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
 
 function response(status: number, body: unknown): Response {
@@ -52,6 +52,10 @@ class FakeEventSource {
     listener?.(new MessageEvent(type, { data: JSON.stringify(body) }));
   }
 }
+
+beforeEach(() => {
+  window.history.replaceState({}, '', '/tasks');
+});
 
 afterEach(() => {
   FakeEventSource.latest = undefined;
@@ -190,6 +194,7 @@ describe('App', () => {
       return Promise.resolve(response(404, { error: 'not_found' }));
     });
     vi.stubGlobal('fetch', fetchMock);
+    window.history.replaceState({}, '', '/diagnostics');
 
     render(<App />);
 
@@ -947,7 +952,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: 'Cancellation requested' })).not.toBeInTheDocument();
   });
 
-  test('prioritizes the operator workflow and keeps diagnostics secondary', async () => {
+  test('keeps task execution focused and diagnostics on its dedicated route', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
@@ -1001,15 +1006,45 @@ describe('App', () => {
     expect(screen.queryByText(/Run curated CLI tasks without handing execution authority/i)).not.toBeInTheDocument();
     expect(screen.getByText('Read-only safe task')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'No active run' })).toBeInTheDocument();
+    expect(screen.queryByText('Tool readiness')).not.toBeInTheDocument();
 
-    const diagnostics = screen.getByText('Tool readiness').closest('details');
-    expect(diagnostics).not.toBeNull();
-    expect(diagnostics).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
+    const diagnostics = await screen.findByText('Tool readiness');
+    expect(diagnostics.closest('details')).toHaveAttribute('open');
     expect(screen.getAllByText('1/1 ready').length).toBeGreaterThanOrEqual(1);
   });
 
 });
 
+
+describe('App shell accessibility', () => {
+  test('provides a focusable skip-link target for keyboard navigation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const path = requestPath(input);
+        if (path === '/api/v1/status') {
+          return Promise.resolve(
+            response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+          );
+        }
+        if (path === '/api/v1/tools') {
+          return Promise.resolve(response(200, { tools: [] }));
+        }
+        if (path === '/api/v1/tasks') {
+          return Promise.resolve(response(200, { tasks: [] }));
+        }
+        return Promise.resolve(response(404, {}));
+      }),
+    );
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Local runtime active' });
+
+    expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
+    expect(document.getElementById('main-content')).toHaveAttribute('tabindex', '-1');
+  });
+});
 
 describe('App routing', () => {
   test('supports direct Authentication navigation and native route links without credential fields', async () => {

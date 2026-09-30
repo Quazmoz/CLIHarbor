@@ -383,14 +383,12 @@ async function waitJS(page, label, expression, timeoutMs = 10000) {
 
 async function chooseTask(page, value) {
   const expression = '(() => {' +
-    'const select = Array.from(document.querySelectorAll("select")).find((element) => element.closest("label")?.textContent?.trim().startsWith("Available task"));' +
-    'if (!select) return false;' +
-    'const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set;' +
-    'setter.call(select, ' + JSON.stringify(value) + ');' +
-    'select.dispatchEvent(new Event("change", { bubbles: true }));' +
-    'return select.value === ' + JSON.stringify(value) + ';' +
+    'const button = Array.from(document.querySelectorAll("button[data-task-action=select]")).find((element) => element.dataset.taskKey === ' + JSON.stringify(value) + ');' +
+    'if (!button || button.disabled) return false;' +
+    'button.click();' +
+    'return true;' +
   '})()';
-  assert.equal(await page.evaluate(expression), true, 'task selector should accept the requested fixture task');
+  assert.equal(await page.evaluate(expression), true, 'task discovery should expose the requested fixture task');
 }
 
 async function setTextInput(page, label, value) {
@@ -440,8 +438,19 @@ async function main() {
 
     await waitJS(page, 'clean authenticated application page',
       'location.href === ' + JSON.stringify(baseURL + '/') + ' && document.body.innerText.includes("CLIHarbor")');
-    await waitJS(page, 'fixture task metadata',
-      "Boolean(document.querySelector('select option[value=\\\"integration/inspect\\\"]'))");
+    await waitJS(page, 'operator overview dashboard',
+      'location.pathname === "/" && document.querySelector("#overview-heading")?.textContent?.includes("local operator work") === true');
+
+    const overviewSurface = await page.evaluate('(() => ({' +
+      'hasTaskForm: Boolean(document.querySelector(".task-panel form")),' +
+      'hasDiagnosticsDetails: Boolean(document.querySelector(".tool-diagnostics")),' +
+      'hasTasksLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Tasks"),' +
+      'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth' +
+    '}))()');
+    assert.equal(overviewSurface.hasTaskForm, false, 'overview must not duplicate the task execution workspace');
+    assert.equal(overviewSurface.hasDiagnosticsDetails, false, 'overview must not duplicate diagnostics details');
+    assert.equal(overviewSurface.hasTasksLink, true, 'overview must provide primary navigation to Tasks');
+    assert.equal(overviewSurface.horizontalOverflow, false, 'overview must fit the default browser viewport horizontally');
 
     const bootstrapState = await page.evaluate('(async () => {' +
       'const status = await fetch("/api/v1/status", { credentials: "same-origin" }).then((response) => response.json());' +
@@ -705,9 +714,9 @@ async function main() {
     assert.equal(await waitHTTPStatus(attacker, hostileMutation.requestId), 403,
       'hostile-origin mutation must be rejected');
 
-    await navigate(page, baseURL + '/');
-    await waitJS(page, 'overview selector after task discovery runs',
-      "Boolean(document.querySelector('select option[value=\\\"integration/wait\\\"]'))");
+    await navigate(page, baseURL + '/tasks');
+    await waitJS(page, 'task discovery after task discovery runs',
+      "location.pathname === '/tasks' && Array.from(document.querySelectorAll('button[data-task-action=select]')).some((element) => element.dataset.taskKey === 'integration/wait')");
 
     stage('sse failure reconciliation and cancellation');
     const eventSourceTrackerInstalled = await page.evaluate('(() => {' +
