@@ -123,7 +123,6 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	}
 }
 
-
 func TestTaskCatalogRefreshesCredentialCapabilityWithoutRestart(t *testing.T) {
 	registry, err := packs.NewRegistry([]packs.LoadedPack{{
 		Pack: packs.Pack{
