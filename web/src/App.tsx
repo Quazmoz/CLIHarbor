@@ -380,7 +380,7 @@ function InputControl({
         />
       </label>
       {guidance && <p id={helpID} className="field-help">{guidance}</p>}
-        {error && <FieldFailure id={errorID} failure={error} />}
+      {error && <FieldFailure id={errorID} failure={error} />}
     </div>
   );
 }
@@ -415,8 +415,8 @@ function runStatusDescription(run: RunView, cancelRequested: boolean): string {
       return cancelRequested ? 'Cancellation requested. Waiting for the local process boundary to finish.' : 'The task is running locally.';
     case 'exited':
       return run.snapshot.exitCode === 0
-        ? 'The task completed.'
-        : `The task exited with code ${run.snapshot.exitCode ?? 'unknown'}.`;
+        ? 'The task completed successfully.'
+        : 'The task ended unsuccessfully. Review the result and output below, adjust inputs if appropriate, then retry when safe.';
     case 'cancelled':
       return 'The run was cancelled.';
     case 'timed-out':
