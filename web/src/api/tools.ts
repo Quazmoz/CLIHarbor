@@ -117,10 +117,9 @@ function parseCredentialLogin(value: unknown): CredentialLoginCapability {
   ) {
     throw clientError('invalid_response');
   }
-  return {
-    method: 'conjur-password',
-    setupRequired: value.setupRequired === true ? true : undefined,
-  };
+  return value.setupRequired === true
+    ? { method: 'conjur-password', setupRequired: true }
+    : { method: 'conjur-password' };
 }
 
 function parseTool(value: unknown): ToolDiagnostic {
