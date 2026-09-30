@@ -117,19 +117,22 @@ func (s *conjurCredentialLoginService) Configure(ctx context.Context, request se
 		args = append(args, "--authn-type", "ldap", "--service-id", request.ServiceID)
 	}
 
-	initErr := s.runInit(ctx, s.toolPath, args)
-
-	// Reconcile authoritative vendor configuration even when the process reports
-	// an error. The CLI may have durably written configuration immediately
-	// before a cancellation/timeout or a later output/lifecycle failure.
-	config, loadErr := s.loadConfig()
-	if loadErr == nil && conjurConfigMatchesConnectionRequest(config, request) {
-		return nil
-	}
-	if initErr != nil || loadErr != nil {
+	if initErr := s.runInit(ctx, s.toolPath, args); initErr != nil {
+		// Reconcile authoritative vendor configuration before reporting failure.
+		// The CLI may have durably written configuration immediately before a
+		// cancellation/timeout or a later output/lifecycle failure.
+		config, loadErr := s.loadConfig()
+		if loadErr == nil && conjurConfigMatchesConnectionRequest(config, request) {
+			return nil
+		}
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
-	return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+
+	config, err = s.loadConfig()
+	if err != nil || !conjurConfigMatchesConnectionRequest(config, request) {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+	return nil
 }
 
 func (s *conjurCredentialLoginService) Login(ctx context.Context, request server.CredentialLoginRequest) error {
