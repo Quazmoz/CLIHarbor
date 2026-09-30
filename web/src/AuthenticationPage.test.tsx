@@ -688,7 +688,7 @@ describe('AuthenticationPage', () => {
               code: 'authentication_unavailable',
               category: 'lifecycle',
               message: 'Vendor authentication is not currently available.',
-              remediation: 'Verify the vendor configuration and credential-storage policy, then retry.',
+              remediation: 'Check network/TLS reachability, vendor configuration, and credential-storage policy, then retry.',
               retryable: true,
             },
           }),
