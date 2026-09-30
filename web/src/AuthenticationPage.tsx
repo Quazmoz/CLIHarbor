@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { loginWithCredentials } from './api/authentication';
+import { configureCredentialConnection, loginWithCredentials } from './api/authentication';
 import { normalizeError, type AppErrorDetail } from './api/errors';
 import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
@@ -168,6 +168,13 @@ function VendorSessionCard({
   const [credentialSecret, setCredentialSecret] = useState('');
   const [credentialSubmitting, setCredentialSubmitting] = useState(false);
   const [credentialFailure, setCredentialFailure] = useState<AppErrorDetail | null>(null);
+  const [credentialConnectionReady, setCredentialConnectionReady] = useState(
+    tool.credentialLogin?.setupRequired !== true,
+  );
+  const [credentialApplianceURL, setCredentialApplianceURL] = useState('');
+  const [credentialAccount, setCredentialAccount] = useState('');
+  const [credentialAuthnType, setCredentialAuthnType] = useState<'authn' | 'ldap'>('authn');
+  const [credentialServiceID, setCredentialServiceID] = useState('');
 
   const sessionTask = useMemo(() => {
     if (tool.sessionCheck === undefined) {
@@ -383,13 +390,36 @@ function VendorSessionCard({
 
     const identity = credentialIdentity.trim();
     const secret = credentialSecret;
-    if (identity.length === 0 || secret.length === 0) {
+    const needsConnectionSetup = tool.credentialLogin.setupRequired === true && !credentialConnectionReady;
+    const applianceUrl = credentialApplianceURL.trim();
+    const account = credentialAccount.trim();
+    const serviceId = credentialServiceID.trim();
+    if (
+      identity.length === 0 ||
+      secret.length === 0 ||
+      (needsConnectionSetup &&
+        (applianceUrl.length === 0 ||
+          account.length === 0 ||
+          (credentialAuthnType === 'ldap' && serviceId.length === 0)))
+    ) {
       return;
     }
 
     setCredentialSubmitting(true);
     setCredentialFailure(null);
     try {
+      if (needsConnectionSetup) {
+        await configureCredentialConnection(status.csrfToken, {
+          packId: tool.packId,
+          toolId: tool.toolId,
+          applianceUrl,
+          account,
+          authnType: credentialAuthnType,
+          ...(credentialAuthnType === 'ldap' ? { serviceId } : {}),
+        });
+        setCredentialConnectionReady(true);
+      }
+
       await loginWithCredentials(status.csrfToken, {
         packId: tool.packId,
         toolId: tool.toolId,
@@ -471,7 +501,9 @@ function VendorSessionCard({
   } else if (check.kind === 'required') {
     primaryHeading = 'Authentication required';
     primaryDetail =
-      'The reviewed session check returned the pack-declared signed-out evidence. Authenticate externally, then re-check the session.';
+      tool.credentialLogin?.method === 'conjur-password'
+        ? 'Your Conjur session is signed out. Use the sign-in form below and CLIHarbor will verify the session automatically.'
+        : 'The reviewed session check returned the pack-declared signed-out evidence. Authenticate with your approved vendor flow, then re-check the session.';
     primaryClass = 'auth-state--attention';
     primarySymbol = '!';
   } else if (check.kind === 'cancelled') {
@@ -556,54 +588,149 @@ function VendorSessionCard({
         >
           <div className="credential-login-heading">
             <div>
-              <p className="status-label">Secure sign-in</p>
-              <h4>Sign in through the local Conjur bridge</h4>
+              <p className="status-label">Conjur sign-in</p>
+              <h4>{credentialConnectionReady ? 'Sign in to Conjur' : 'Connect and sign in to Conjur'}</h4>
             </div>
-            <span className="safety-chip">No credential argv</span>
+            <span className="safety-chip">Password stays local</span>
           </div>
-          <p id={headingID + '-credential-help'} className="credential-login-help">
-            Your identity and password are sent only to this authenticated loopback runtime for the current sign-in attempt.
-            CLIHarbor does not add them to run history, command arguments, logs, or its own storage. The pinned Conjur API
-            exchanges the password and writes the resulting vendor credential through Conjur's configured credential storage.
-          </p>
-          <div className="credential-login-fields">
-            <label className="field">
-              <span>Identity</span>
-              <input
-                type="text"
-                name="vendor-identity"
-                value={credentialIdentity}
-                maxLength={256}
-                autoComplete="off"
-                spellCheck={false}
-                aria-describedby={headingID + '-credential-help'}
-                disabled={credentialSubmitting || check.kind === 'checking'}
-                onChange={(event) => {
-                  setCredentialIdentity(event.target.value);
-                  setCredentialFailure(null);
-                }}
-                required
-              />
-            </label>
-            <label className="field">
-              <span>Password</span>
-              <input
-                type="password"
-                name="vendor-secret"
-                value={credentialSecret}
-                maxLength={4096}
-                autoComplete="off"
-                spellCheck={false}
-                aria-describedby={headingID + '-credential-help'}
-                disabled={credentialSubmitting || check.kind === 'checking'}
-                onChange={(event) => {
-                  setCredentialSecret(event.target.value);
-                  setCredentialFailure(null);
-                }}
-                required
-              />
-            </label>
+
+          {!credentialConnectionReady && (
+            <div className="credential-setup-section">
+              <div>
+                <p className="credential-step-label">Step 1 of 2 · Connection</p>
+                <p className="credential-login-help" id={headingID + '-connection-help'}>
+                  First time on this computer? Enter the Conjur server and account your organization gave you. CLIHarbor asks
+                  the reviewed Conjur CLI to create its normal current-user connection configuration; it does not accept insecure
+                  or self-signed bypass flags.
+                </p>
+              </div>
+              <div className="credential-login-fields">
+                <label className="field">
+                  <span>Conjur server URL</span>
+                  <input
+                    type="url"
+                    name="conjur-appliance-url"
+                    value={credentialApplianceURL}
+                    maxLength={2048}
+                    placeholder="https://conjur.example.com"
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-describedby={headingID + '-connection-help'}
+                    disabled={credentialSubmitting || check.kind === 'checking'}
+                    onChange={(event) => {
+                      setCredentialApplianceURL(event.target.value);
+                      setCredentialFailure(null);
+                    }}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Account</span>
+                  <input
+                    type="text"
+                    name="conjur-account"
+                    value={credentialAccount}
+                    maxLength={256}
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-describedby={headingID + '-connection-help'}
+                    disabled={credentialSubmitting || check.kind === 'checking'}
+                    onChange={(event) => {
+                      setCredentialAccount(event.target.value);
+                      setCredentialFailure(null);
+                    }}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Authentication method</span>
+                  <select
+                    name="conjur-authn-type"
+                    value={credentialAuthnType}
+                    aria-describedby={headingID + '-connection-help'}
+                    disabled={credentialSubmitting || check.kind === 'checking'}
+                    onChange={(event) => {
+                      setCredentialAuthnType(event.target.value === 'ldap' ? 'ldap' : 'authn');
+                      setCredentialFailure(null);
+                    }}
+                  >
+                    <option value="authn">Conjur username and password</option>
+                    <option value="ldap">LDAP username and password</option>
+                  </select>
+                </label>
+                {credentialAuthnType === 'ldap' && (
+                  <label className="field">
+                    <span>LDAP authenticator service ID</span>
+                    <input
+                      type="text"
+                      name="conjur-service-id"
+                      value={credentialServiceID}
+                      maxLength={256}
+                      autoComplete="off"
+                      spellCheck={false}
+                      aria-describedby={headingID + '-connection-help'}
+                      disabled={credentialSubmitting || check.kind === 'checking'}
+                      onChange={(event) => {
+                        setCredentialServiceID(event.target.value);
+                        setCredentialFailure(null);
+                      }}
+                      required
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="credential-setup-section">
+            <div>
+              {!credentialConnectionReady && <p className="credential-step-label">Step 2 of 2 · Credentials</p>}
+              <p id={headingID + '-credential-help'} className="credential-login-help">
+                Enter your normal Conjur identity and password. The password is sent only to this authenticated local runtime
+                for this attempt, never placed in command arguments or run history, and cleared from the form after submission.
+                Conjur remains responsible for its resulting vendor credential.
+              </p>
+            </div>
+            <div className="credential-login-fields">
+              <label className="field">
+                <span>Identity</span>
+                <input
+                  type="text"
+                  name="vendor-identity"
+                  value={credentialIdentity}
+                  maxLength={256}
+                  autoComplete="username"
+                  spellCheck={false}
+                  aria-describedby={headingID + '-credential-help'}
+                  disabled={credentialSubmitting || check.kind === 'checking'}
+                  onChange={(event) => {
+                    setCredentialIdentity(event.target.value);
+                    setCredentialFailure(null);
+                  }}
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>Password</span>
+                <input
+                  type="password"
+                  name="vendor-secret"
+                  value={credentialSecret}
+                  maxLength={4096}
+                  autoComplete="current-password"
+                  spellCheck={false}
+                  aria-describedby={headingID + '-credential-help'}
+                  disabled={credentialSubmitting || check.kind === 'checking'}
+                  onChange={(event) => {
+                    setCredentialSecret(event.target.value);
+                    setCredentialFailure(null);
+                  }}
+                  required
+                />
+              </label>
+            </div>
           </div>
+
           {credentialFailure !== null && (
             <div className="credential-login-error" role="alert">
               <strong>{credentialFailure.message}</strong>
@@ -617,14 +744,24 @@ function VendorSessionCard({
                 credentialSubmitting ||
                 check.kind === 'checking' ||
                 credentialIdentity.trim().length === 0 ||
-                credentialSecret.length === 0
+                credentialSecret.length === 0 ||
+                (!credentialConnectionReady &&
+                  (credentialApplianceURL.trim().length === 0 ||
+                    credentialAccount.trim().length === 0 ||
+                    (credentialAuthnType === 'ldap' && credentialServiceID.trim().length === 0)))
               }
             >
-              {credentialSubmitting ? 'Signing in…' : 'Sign in and verify'}
+              {credentialSubmitting
+                ? credentialConnectionReady
+                  ? 'Signing in…'
+                  : 'Connecting and signing in…'
+                : credentialConnectionReady
+                  ? 'Sign in and verify'
+                  : 'Connect, sign in and verify'}
             </button>
           </div>
         </form>
-      )}
+      ))}
 
       <div className="auth-actions">
         {tool.sessionCheck !== undefined && (
@@ -681,8 +818,9 @@ export function AuthenticationPage({
         <p className="status-label">Sign-in status</p>
         <h2 id="authentication-heading">Authentication</h2>
         <p>
-          Check whether approved tools are signed in, sign in through a reviewed local bridge where supported, or use your
-          organization’s normal vendor sign-in process. CLIHarbor never treats an installed tool as proof of authentication.
+          Check whether approved tools are signed in and use the built-in Conjur form when password sign-in is supported. On a
+          new computer, CLIHarbor can also guide the reviewed Conjur CLI through its normal connection setup before signing in.
+          Other authentication modes continue to use your organization’s approved vendor flow.
         </p>
       </div>
 
