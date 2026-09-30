@@ -2,8 +2,11 @@ package app
 
 import (
 	"context"
+	"io"
 	"net/url"
+	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
@@ -11,9 +14,11 @@ import (
 )
 
 const (
-	conjurCredentialPackID            = "cyberark-conjur-v9"
-	conjurCredentialToolID            = "conjur"
-	credentialLoginHTTPTimeoutSeconds = 20
+	conjurCredentialPackID             = "cyberark-conjur-v9"
+	conjurCredentialToolID             = "conjur"
+	credentialLoginHTTPTimeoutSeconds  = 20
+	conjurConnectionSetupTimeout       = 45 * time.Second
+	conjurConnectionSetupWaitDelay     = 2 * time.Second
 )
 
 type conjurLoginClient interface {
@@ -21,22 +26,31 @@ type conjurLoginClient interface {
 }
 
 type conjurCredentialLoginService struct {
-	enabled    bool
-	loginGate  chan struct{}
-	loadConfig func() (conjurapi.Config, error)
-	newClient  func(conjurapi.Config) (conjurLoginClient, error)
+	enabled      bool
+	toolPath     string
+	toolIdentity discovery.ExecutableIdentity
+	authGate     chan struct{}
+	loadConfig   func() (conjurapi.Config, error)
+	newClient    func(conjurapi.Config) (conjurLoginClient, error)
+	runInit      func(context.Context, string, []string) error
 }
 
 func newConjurCredentialLoginService(snapshot discovery.Snapshot) *conjurCredentialLoginService {
 	state, ok := snapshot.Find(discovery.ToolRef{PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID})
-	return &conjurCredentialLoginService{
-		enabled:    ok && state.Healthy(),
-		loginGate:  make(chan struct{}, 1),
+	service := &conjurCredentialLoginService{
+		enabled:  ok && state.Healthy(),
+		authGate: make(chan struct{}, 1),
 		loadConfig: conjurapi.LoadConfig,
 		newClient: func(config conjurapi.Config) (conjurLoginClient, error) {
 			return conjurapi.NewClient(config)
 		},
+		runInit: runConjurConnectionInit,
 	}
+	if ok {
+		service.toolPath = state.Path
+		service.toolIdentity = state.ExecutableIdentity
+	}
+	return service
 }
 
 func (s *conjurCredentialLoginService) Capability() (string, string, server.CredentialLoginCapability, bool) {
@@ -44,25 +58,81 @@ func (s *conjurCredentialLoginService) Capability() (string, string, server.Cred
 		return "", "", server.CredentialLoginCapability{}, false
 	}
 	config, err := s.loadConfig()
-	if err != nil || !supportsConjurPasswordLogin(config) {
+	if err != nil {
 		return "", "", server.CredentialLoginCapability{}, false
 	}
-	return conjurCredentialPackID, conjurCredentialToolID, server.CredentialLoginCapability{
-		Method: server.CredentialLoginMethodConjurPassword,
-	}, true
+	if supportsConjurPasswordLogin(config) {
+		return conjurCredentialPackID, conjurCredentialToolID, server.CredentialLoginCapability{
+			Method: server.CredentialLoginMethodConjurPassword,
+		}, true
+	}
+	if conjurConnectionSetupRequired(config) {
+		return conjurCredentialPackID, conjurCredentialToolID, server.CredentialLoginCapability{
+			Method:        server.CredentialLoginMethodConjurPassword,
+			SetupRequired: true,
+		}, true
+	}
+	return "", "", server.CredentialLoginCapability{}, false
+}
+
+func (s *conjurCredentialLoginService) Configure(ctx context.Context, request server.CredentialConfigurationRequest) error {
+	if s == nil || !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	if !validConjurConnectionRequest(request) {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	if !s.acquireAuthGate() {
+		return &server.CredentialLoginError{Code: server.CredentialLoginBusy}
+	}
+	defer s.releaseAuthGate()
+
+	select {
+	case <-ctx.Done():
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	default:
+	}
+
+	config, err := s.loadConfig()
+	if err != nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+	if supportsConjurPasswordLogin(config) {
+		return nil
+	}
+	if !conjurConnectionSetupRequired(config) || s.toolPath == "" || !s.toolIdentity.Valid() || !s.toolIdentity.Matches(s.toolPath) {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+
+	args := []string{
+		"init",
+		"self-hosted",
+		"--url", request.ApplianceURL,
+		"--account", request.Account,
+	}
+	if request.AuthnType == "ldap" {
+		args = append(args, "--authn-type", "ldap", "--service-id", request.ServiceID)
+	}
+
+	if err := s.runInit(ctx, s.toolPath, args); err != nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+
+	config, err = s.loadConfig()
+	if err != nil || !supportsConjurPasswordLogin(config) {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+	return nil
 }
 
 func (s *conjurCredentialLoginService) Login(ctx context.Context, request server.CredentialLoginRequest) error {
 	if s == nil || !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
-
-	select {
-	case s.loginGate <- struct{}{}:
-		defer func() { <-s.loginGate }()
-	default:
+	if !s.acquireAuthGate() {
 		return &server.CredentialLoginError{Code: server.CredentialLoginBusy}
 	}
+	defer s.releaseAuthGate()
 
 	select {
 	case <-ctx.Done():
@@ -96,6 +166,74 @@ func (s *conjurCredentialLoginService) Login(ctx context.Context, request server
 	return nil
 }
 
+func (s *conjurCredentialLoginService) acquireAuthGate() bool {
+	if s == nil {
+		return false
+	}
+	select {
+	case s.authGate <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *conjurCredentialLoginService) releaseAuthGate() {
+	<-s.authGate
+}
+
+func runConjurConnectionInit(ctx context.Context, executable string, args []string) error {
+	runCtx, cancel := context.WithTimeout(ctx, conjurConnectionSetupTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(runCtx, executable, args...)
+	cmd.Stdin = nil
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	cmd.WaitDelay = conjurConnectionSetupWaitDelay
+	return cmd.Run()
+}
+
+func validConjurConnectionRequest(request server.CredentialConfigurationRequest) bool {
+	applianceURL, err := url.Parse(request.ApplianceURL)
+	if err != nil ||
+		!strings.EqualFold(applianceURL.Scheme, "https") ||
+		applianceURL.Host == "" ||
+		applianceURL.User != nil ||
+		applianceURL.RawQuery != "" ||
+		applianceURL.Fragment != "" {
+		return false
+	}
+	if strings.TrimSpace(request.Account) == "" {
+		return false
+	}
+	switch request.AuthnType {
+	case "authn":
+		return request.ServiceID == ""
+	case "ldap":
+		return strings.TrimSpace(request.ServiceID) != ""
+	default:
+		return false
+	}
+}
+
+func conjurConnectionSetupRequired(config conjurapi.Config) bool {
+	if config.IsSaaS() {
+		return false
+	}
+	authnType := strings.ToLower(strings.TrimSpace(config.AuthnType))
+	switch authnType {
+	case "", "authn", "ldap":
+	default:
+		return false
+	}
+
+	if strings.TrimSpace(config.ApplianceURL) == "" || strings.TrimSpace(config.Account) == "" {
+		return true
+	}
+	return authnType == "ldap" && strings.TrimSpace(config.ServiceID) == ""
+}
+
 func supportsConjurPasswordLogin(config conjurapi.Config) bool {
 	if config.IsSaaS() {
 		return false
@@ -109,6 +247,9 @@ func supportsConjurPasswordLogin(config conjurapi.Config) bool {
 	switch authnType {
 	case "", "authn", "ldap":
 	default:
+		return false
+	}
+	if authnType == "ldap" && strings.TrimSpace(config.ServiceID) == "" {
 		return false
 	}
 	if config.CredentialStorage == conjurapi.CredentialStorageNone {
