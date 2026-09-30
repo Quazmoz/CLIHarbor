@@ -716,9 +716,9 @@ async function main() {
     assert.equal(await waitHTTPStatus(attacker, hostileMutation.requestId), 403,
       'hostile-origin mutation must be rejected');
 
-    await navigate(page, baseURL + '/');
-    await waitJS(page, 'overview selector after task discovery runs',
-      "Boolean(document.querySelector('select option[value=\\\"integration/wait\\\"]'))");
+    await navigate(page, baseURL + '/tasks');
+    await waitJS(page, 'task selector after task discovery runs',
+      "location.pathname === '/tasks' && Boolean(document.querySelector('select option[value=\\\"integration/wait\\\"]'))");
 
     stage('sse failure reconciliation and cancellation');
     const eventSourceTrackerInstalled = await page.evaluate('(() => {' +
