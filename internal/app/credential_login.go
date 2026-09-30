@@ -117,15 +117,19 @@ func (s *conjurCredentialLoginService) Configure(ctx context.Context, request se
 		args = append(args, "--authn-type", "ldap", "--service-id", request.ServiceID)
 	}
 
-	if err := s.runInit(ctx, s.toolPath, args); err != nil {
-		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
-	}
+	initErr := s.runInit(ctx, s.toolPath, args)
 
-	config, err = s.loadConfig()
-	if err != nil || !supportsConjurPasswordLogin(config) {
+	// Reconcile authoritative vendor configuration even when the process reports
+	// an error. The CLI may have durably written configuration immediately
+	// before a cancellation/timeout or a later output/lifecycle failure.
+	config, loadErr := s.loadConfig()
+	if loadErr == nil && conjurConfigMatchesConnectionRequest(config, request) {
+		return nil
+	}
+	if initErr != nil || loadErr != nil {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
-	return nil
+	return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 }
 
 func (s *conjurCredentialLoginService) Login(ctx context.Context, request server.CredentialLoginRequest) error {
@@ -264,6 +268,24 @@ func conjurConnectionSetupRequired(config conjurapi.Config) bool {
 	}
 
 	return applianceURL == "" || account == ""
+}
+
+func conjurConfigMatchesConnectionRequest(config conjurapi.Config, request server.CredentialConfigurationRequest) bool {
+	if !supportsConjurPasswordLogin(config) ||
+		config.ApplianceURL != request.ApplianceURL ||
+		config.Account != request.Account {
+		return false
+	}
+
+	authnType := strings.ToLower(strings.TrimSpace(config.AuthnType))
+	switch request.AuthnType {
+	case "authn":
+		return (authnType == "" || authnType == "authn") && strings.TrimSpace(config.ServiceID) == ""
+	case "ldap":
+		return authnType == "ldap" && config.ServiceID == request.ServiceID
+	default:
+		return false
+	}
 }
 
 func supportsConjurPasswordLogin(config conjurapi.Config) bool {
