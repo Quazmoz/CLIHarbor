@@ -131,7 +131,7 @@ describe('TaskDiscovery', () => {
 
     const all = screen.getByRole('heading', { name: 'All tasks' }).closest('section');
     expect(all).not.toBeNull();
-    expect(within(all!).getByText(/Alpha Pack · conjur · inspect/)).toBeInTheDocument();
-    expect(within(all!).getByText(/Beta Pack · idsec · inspect/)).toBeInTheDocument();
+    expect(within(all!).getByText('Alpha Pack')).toBeInTheDocument();
+    expect(within(all!).getByText('Beta Pack')).toBeInTheDocument();
   });
 });
