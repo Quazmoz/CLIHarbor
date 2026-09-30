@@ -138,6 +138,7 @@ The adapter deliberately rejects or does not advertise OIDC, JWT, certificate, I
 - secrets never enter normal logs, diagnostics, run history, URLs, command preview or process-list-visible argv;
 - only the exact reviewed Conjur tool identity can use this endpoint;
 - connection setup completes before the GUI renders password entry, and setup/login share one bounded single-flight gate;
+- after connection init, CLIHarbor reloads and verifies the requested vendor configuration; a timeout/error is reconciled against that authoritative state before failure is reported;
 - vendor error bodies/messages are not copied into browser responses;
 - network duration is bounded through the vendor client HTTP timeout;
 - backend policy and the normal session check remain authoritative after sign-in;
