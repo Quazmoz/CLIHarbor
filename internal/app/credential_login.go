@@ -240,10 +240,10 @@ func conjurConnectionSetupRequired(config conjurapi.Config) bool {
 
 	applianceURL := strings.TrimSpace(config.ApplianceURL)
 	account := strings.TrimSpace(config.Account)
-	if applianceURL != "" && !validConjurHTTPSURL(applianceURL) {
+	if applianceURL != "" && !validConjurHTTPSURL(config.ApplianceURL) {
 		return false
 	}
-	if account != "" && !validConjurConfigScalar(account) {
+	if account != "" && !validConjurConfigScalar(config.Account) {
 		return false
 	}
 
@@ -255,7 +255,7 @@ func conjurConnectionSetupRequired(config conjurapi.Config) bool {
 	}
 	if authnType == "ldap" {
 		serviceID := strings.TrimSpace(config.ServiceID)
-		if serviceID != "" && !validConjurConfigScalar(serviceID) {
+		if serviceID != "" && !validConjurConfigScalar(config.ServiceID) {
 			return false
 		}
 		if serviceID == "" {
@@ -306,8 +306,7 @@ func validConjurHTTPSURL(value string) bool {
 }
 
 func validConjurConfigScalar(value string) bool {
-	value = strings.TrimSpace(value)
-	if value == "" || len(value) > 256 {
+	if strings.TrimSpace(value) != value || value == "" || len(value) > 256 {
 		return false
 	}
 	for _, r := range value {
