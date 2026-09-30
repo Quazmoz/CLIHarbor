@@ -167,7 +167,7 @@ func TestTaskCatalogRefreshesCredentialCapabilityWithoutRestart(t *testing.T) {
 		t.Fatalf("second capability = %#v, want configured login", second)
 	}
 
-	first[0].CredentialLogin.SetupRequired = false
+	second[0].CredentialLogin.SetupRequired = true
 	third := catalog.ListTools()
 	if third[0].CredentialLogin == nil || third[0].CredentialLogin.SetupRequired {
 		t.Fatalf("credential capability should be freshly cloned: %#v", third[0].CredentialLogin)
