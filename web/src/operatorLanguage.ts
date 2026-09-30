@@ -52,7 +52,7 @@ export function describeToolReadiness(tool: ToolDiagnostic): ToolReadinessCopy {
       heading: name + ' could not be verified',
       statusText: 'Verification failed',
       summary: 'CLIHarbor found the tool but could not safely confirm its version.',
-      nextStep: 'Check the approved installation and local application or network policy, then retry after relaunching CLIHarbor.',
+      nextStep: 'Check the approved installation and local application-control policy, then retry after relaunching CLIHarbor.',
     },
     'invalid-override': {
       heading: name + ' has an invalid configured location',
