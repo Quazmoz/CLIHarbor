@@ -12,7 +12,7 @@ The highest-risk code is pack validation/trust, tool discovery, execution planni
 
 ### Phase 1 checkpoint
 
-Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/session/bootstrap behavior, restrictive headers/CSP, frontend route ownership, safe dev proxying, browser launch/fallback behavior, React status states, embedded production assets, Go/frontend build gates, and Linux race testing.
+Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/session/bootstrap behavior, restrictive headers/CSP, frontend route ownership, safe dev proxying, browser launch/fallback behavior, React status states, embedded production assets, Go/frontend build gates, and Linux race testing. The production-browser harness lets Chrome allocate its own loopback DevTools port, discovers that bound port from Chrome's `DevToolsActivePort` file, validates the port metadata before use, and permits only one fresh-profile startup retry so runner startup failures cannot become unbounded test retries.
 
 ### Phase 2 checkpoint
 
