@@ -877,7 +877,7 @@ export function App() {
         </div>
       </header>
 
-      <main id="main-content" aria-busy={state.kind === 'loading'}>
+      <main id="main-content" tabIndex={-1} aria-busy={state.kind === 'loading'}>
         {state.kind === 'loading' && (
           <section className="panel" role="status" aria-live="polite" aria-busy="true">
             <h2>Checking runtime</h2>

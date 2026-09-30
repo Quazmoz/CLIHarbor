@@ -1017,6 +1017,35 @@ describe('App', () => {
 });
 
 
+describe('App shell accessibility', () => {
+  test('provides a focusable skip-link target for keyboard navigation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const path = requestPath(input);
+        if (path === '/api/v1/status') {
+          return Promise.resolve(
+            response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-runtime-only' }),
+          );
+        }
+        if (path === '/api/v1/tools') {
+          return Promise.resolve(response(200, { tools: [] }));
+        }
+        if (path === '/api/v1/tasks') {
+          return Promise.resolve(response(200, { tasks: [] }));
+        }
+        return Promise.resolve(response(404, {}));
+      }),
+    );
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Local runtime active' });
+
+    expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
+    expect(document.getElementById('main-content')).toHaveAttribute('tabindex', '-1');
+  });
+});
+
 describe('App routing', () => {
   test('supports direct Authentication navigation and native route links without credential fields', async () => {
     window.history.replaceState({}, '', '/authentication');
