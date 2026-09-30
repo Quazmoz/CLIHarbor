@@ -138,7 +138,7 @@ func run(args []string) error {
 
 func runPackCommand(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: cliharbor pack <init|validate|lint|test|generate-tests> ...")
+		return fmt.Errorf("usage: cliharbor pack <init|draft|validate|lint|test|generate-tests> ...")
 	}
 	switch args[0] {
 	case "init":
@@ -162,6 +162,31 @@ func runPackCommand(args []string) error {
 			ToolID:         *toolID,
 			ExecutableName: *executable,
 			Platforms:      append([]string(nil), platforms...),
+			OutputPath:     flags.Arg(0),
+		})
+	case "draft":
+		flags := flag.NewFlagSet("cliharbor pack draft", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		id := flags.String("id", "", "pack id")
+		name := flags.String("name", "", "human-readable pack name")
+		toolID := flags.String("tool", "", "tool id")
+		executable := flags.String("executable", "", "approved executable basename")
+		helpFile := flags.String("help-file", "", "captured vendor --help output to draft reviewable commands from")
+		var platforms stringList
+		flags.Var(&platforms, "platform", "supported platform: windows, linux, or darwin (repeatable; defaults to windows)")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *helpFile == "" || flags.NArg() != 1 || flags.Arg(0) == "" {
+			return fmt.Errorf("usage: cliharbor pack draft --id <id> --name <name> --tool <tool-id> --executable <basename> --help-file <captured-help.txt> [--platform <os>] <output.yaml>")
+		}
+		return app.DraftPack(app.Options{Out: os.Stdout}, app.PackDraftConfig{
+			ID:             *id,
+			Name:           *name,
+			ToolID:         *toolID,
+			ExecutableName: *executable,
+			Platforms:      append([]string(nil), platforms...),
+			HelpPath:       *helpFile,
 			OutputPath:     flags.Arg(0),
 		})
 	case "validate":
@@ -208,7 +233,7 @@ func runPackCommand(args []string) error {
 		}
 		return app.GeneratePackTests(app.Options{Out: os.Stdout}, flags.Arg(0), *outputPath)
 	default:
-		return fmt.Errorf("usage: cliharbor pack <init|validate|lint|test|generate-tests> ...")
+		return fmt.Errorf("usage: cliharbor pack <init|draft|validate|lint|test|generate-tests> ...")
 	}
 }
 
