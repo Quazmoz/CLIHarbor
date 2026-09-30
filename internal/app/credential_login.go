@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"io"
+	"net/http"
 	"net/url"
 	"os/exec"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 	"github.com/cyberark/conjur-api-go/conjurapi"
+	"github.com/cyberark/conjur-api-go/conjurapi/response"
 )
 
 const (
@@ -114,12 +117,19 @@ func (s *conjurCredentialLoginService) Configure(ctx context.Context, request se
 		args = append(args, "--authn-type", "ldap", "--service-id", request.ServiceID)
 	}
 
-	if err := s.runInit(ctx, s.toolPath, args); err != nil {
+	if initErr := s.runInit(ctx, s.toolPath, args); initErr != nil {
+		// Reconcile authoritative vendor configuration before reporting failure.
+		// The CLI may have durably written configuration immediately before a
+		// cancellation/timeout or a later output/lifecycle failure.
+		config, loadErr := s.loadConfig()
+		if loadErr == nil && conjurConfigMatchesConnectionRequest(config, request) {
+			return nil
+		}
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
 
 	config, err = s.loadConfig()
-	if err != nil || !supportsConjurPasswordLogin(config) {
+	if err != nil || !conjurConfigMatchesConnectionRequest(config, request) {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
 	return nil
@@ -157,13 +167,33 @@ func (s *conjurCredentialLoginService) Login(ctx context.Context, request server
 	}
 
 	apiKey, err := client.Login(request.Identity, request.Secret)
+	hadAPIKey := len(apiKey) > 0
 	for i := range apiKey {
 		apiKey[i] = 0
 	}
 	if err != nil {
-		return &server.CredentialLoginError{Code: server.CredentialLoginRejected}
+		return &server.CredentialLoginError{Code: classifyConjurCredentialLoginError(hadAPIKey, err)}
 	}
 	return nil
+}
+
+func classifyConjurCredentialLoginError(hadAPIKey bool, err error) server.CredentialLoginErrorCode {
+	// A returned API key means the remote credential exchange succeeded and a
+	// later local step (for example credential persistence) failed. Never tell
+	// the operator to re-enter a password for that condition.
+	if hadAPIKey {
+		return server.CredentialLoginUnavailable
+	}
+
+	var conjurErr *response.ConjurError
+	if errors.As(err, &conjurErr) && conjurErr.Code == http.StatusUnauthorized {
+		return server.CredentialLoginRejected
+	}
+
+	// Network/TLS/timeouts, non-401 server responses, malformed responses and
+	// local storage/configuration failures are availability problems. Keep the
+	// vendor error body private and avoid misclassifying them as bad passwords.
+	return server.CredentialLoginUnavailable
 }
 
 func (s *conjurCredentialLoginService) acquireAuthGate() bool {
@@ -195,65 +225,119 @@ func runConjurConnectionInit(ctx context.Context, executable string, args []stri
 }
 
 func validConjurConnectionRequest(request server.CredentialConfigurationRequest) bool {
-	applianceURL, err := url.Parse(request.ApplianceURL)
-	if err != nil ||
-		!strings.EqualFold(applianceURL.Scheme, "https") ||
-		applianceURL.Host == "" ||
-		applianceURL.User != nil ||
-		applianceURL.RawQuery != "" ||
-		applianceURL.Fragment != "" {
-		return false
-	}
-	if strings.TrimSpace(request.Account) == "" {
+	if !validConjurHTTPSURL(request.ApplianceURL) || !validConjurConfigScalar(request.Account) {
 		return false
 	}
 	switch request.AuthnType {
 	case "authn":
 		return request.ServiceID == ""
 	case "ldap":
-		return strings.TrimSpace(request.ServiceID) != ""
+		return validConjurConfigScalar(request.ServiceID)
 	default:
 		return false
 	}
 }
 
 func conjurConnectionSetupRequired(config conjurapi.Config) bool {
-	if config.IsSaaS() {
+	if config.IsSaaS() ||
+		config.CredentialStorage == conjurapi.CredentialStorageNone ||
+		config.CredentialStorageMode == conjurapi.CredentialStorageModeReadOnly {
 		return false
 	}
+
+	applianceURL := strings.TrimSpace(config.ApplianceURL)
+	account := strings.TrimSpace(config.Account)
+	if applianceURL != "" && !validConjurHTTPSURL(config.ApplianceURL) {
+		return false
+	}
+	if account != "" && !validConjurConfigScalar(config.Account) {
+		return false
+	}
+
 	authnType := strings.ToLower(strings.TrimSpace(config.AuthnType))
 	switch authnType {
 	case "", "authn", "ldap":
 	default:
 		return false
 	}
-
-	if strings.TrimSpace(config.ApplianceURL) == "" || strings.TrimSpace(config.Account) == "" {
-		return true
+	if authnType == "ldap" {
+		serviceID := strings.TrimSpace(config.ServiceID)
+		if serviceID != "" && !validConjurConfigScalar(config.ServiceID) {
+			return false
+		}
+		if serviceID == "" {
+			return true
+		}
 	}
-	return authnType == "ldap" && strings.TrimSpace(config.ServiceID) == ""
+
+	return applianceURL == "" || account == ""
+}
+
+func conjurConfigMatchesConnectionRequest(config conjurapi.Config, request server.CredentialConfigurationRequest) bool {
+	if !supportsConjurPasswordLogin(config) ||
+		config.ApplianceURL != request.ApplianceURL ||
+		config.Account != request.Account {
+		return false
+	}
+
+	authnType := strings.ToLower(strings.TrimSpace(config.AuthnType))
+	switch request.AuthnType {
+	case "authn":
+		return (authnType == "" || authnType == "authn") && strings.TrimSpace(config.ServiceID) == ""
+	case "ldap":
+		return authnType == "ldap" && config.ServiceID == request.ServiceID
+	default:
+		return false
+	}
 }
 
 func supportsConjurPasswordLogin(config conjurapi.Config) bool {
-	if config.IsSaaS() {
-		return false
-	}
-	applianceURL, err := url.Parse(config.ApplianceURL)
-	if err != nil || !strings.EqualFold(applianceURL.Scheme, "https") || applianceURL.Host == "" {
+	if config.IsSaaS() ||
+		config.CredentialStorage == conjurapi.CredentialStorageNone ||
+		config.CredentialStorageMode == conjurapi.CredentialStorageModeReadOnly ||
+		!validConjurHTTPSURL(config.ApplianceURL) ||
+		!validConjurConfigScalar(config.Account) {
 		return false
 	}
 
 	authnType := strings.ToLower(strings.TrimSpace(config.AuthnType))
 	switch authnType {
-	case "", "authn", "ldap":
+	case "", "authn":
+		return true
+	case "ldap":
+		return validConjurConfigScalar(config.ServiceID)
 	default:
 		return false
 	}
-	if authnType == "ldap" && strings.TrimSpace(config.ServiceID) == "" {
+}
+
+func validConjurHTTPSURL(value string) bool {
+	if strings.TrimSpace(value) != value || value == "" || len(value) > 2048 {
 		return false
 	}
-	if config.CredentialStorage == conjurapi.CredentialStorageNone {
+	for _, r := range value {
+		if r <= 0x1f || r == 0x7f {
+			return false
+		}
+	}
+
+	applianceURL, err := url.Parse(value)
+	return err == nil &&
+		strings.EqualFold(applianceURL.Scheme, "https") &&
+		applianceURL.Host != "" &&
+		applianceURL.User == nil &&
+		applianceURL.RawQuery == "" &&
+		applianceURL.Fragment == ""
+}
+
+func validConjurConfigScalar(value string) bool {
+	if strings.TrimSpace(value) != value || value == "" || len(value) > 256 {
 		return false
 	}
-	return config.CredentialStorageMode != conjurapi.CredentialStorageModeReadOnly
+	for _, r := range value {
+		if r <= 0x1f || r == 0x7f {
+			return false
+		}
+	}
+	return true
 }

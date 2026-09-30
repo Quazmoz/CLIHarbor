@@ -47,7 +47,7 @@ bin\cliharbor-windows-x64-evaluation.exe
 
 No separate Conjur pack download and no `--pack-file` are required for the normal path.
 
-The **Authentication** page now provides the normal Conjur password sign-in path end to end. If this computer is not configured yet, the same form first asks for the HTTPS Conjur server, account, and standard or LDAP password mode, then delegates connection initialization to the exact discovered CyberArk CLI using fixed reviewed `conjur init self-hosted` arguments. Passwords are never passed to that process. The password is posted only to the authenticated loopback credential endpoint, never placed in process argv or run history, and is not persisted by CLIHarbor. The pinned CyberArk Go API performs the login and stores the resulting vendor credential using Conjur's configured credential storage. OIDC/JWT/certificate/MFA-style flows remain vendor-owned.
+The **Authentication** page provides the normal Conjur password sign-in path end to end. On a new computer it first asks only for the HTTPS Conjur server, account, and standard or LDAP mode, then delegates connection initialization to the exact discovered CyberArk CLI using fixed reviewed `conjur init self-hosted` arguments. The password field is not exposed until that connection step succeeds. Passwords are never passed to the init process; sign-in posts the password only to the authenticated loopback credential endpoint, never places it in process argv or run history, and CLIHarbor does not persist it. The pinned CyberArk Go API performs the login and stores the resulting vendor credential using Conjur's configured credential storage. OIDC/JWT/certificate/MFA-style flows remain vendor-owned.
 
 ### Discovery order
 

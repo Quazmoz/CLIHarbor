@@ -78,7 +78,7 @@ func DetailFor(code Code) Detail {
 	case CodeAuthenticationFailed:
 		return Detail{Code: code, Category: CategorySecurity, Message: "Vendor authentication was not accepted.", Remediation: "Re-enter the credential or use your organization's approved vendor authentication flow."}
 	case CodeAuthenticationUnavailable:
-		return Detail{Code: code, Category: CategoryLifecycle, Message: "Vendor authentication is not currently available.", Remediation: "Verify the vendor configuration and credential-storage policy, then retry.", Retryable: true}
+		return Detail{Code: code, Category: CategoryLifecycle, Message: "Vendor authentication is not currently available.", Remediation: "Check network/TLS reachability, vendor configuration, and credential-storage policy, then retry.", Retryable: true}
 	case CodeAuthenticationBusy:
 		return Detail{Code: code, Category: CategoryCapacity, Message: "A vendor sign-in attempt is already in progress.", Remediation: "Wait for the current sign-in attempt to finish, then retry.", Retryable: true}
 	case CodeResourceNotFound:

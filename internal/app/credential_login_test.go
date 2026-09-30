@@ -11,6 +11,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 	"github.com/cyberark/conjur-api-go/conjurapi"
+	"github.com/cyberark/conjur-api-go/conjurapi/response"
 )
 
 type fakeConjurLoginClient struct {
@@ -80,11 +81,11 @@ func TestConjurCredentialLoginUsesVendorClientWithoutExposingReturnedAPIKey(t *t
 	}
 }
 
-func TestConjurCredentialLoginSanitizesVendorErrors(t *testing.T) {
+func TestConjurCredentialLoginSanitizesRejectedCredentialErrors(t *testing.T) {
 	service := newConjurCredentialLoginService(readyConjurSnapshot())
 	service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
 	service.newClient = func(conjurapi.Config) (conjurLoginClient, error) {
-		return &fakeConjurLoginClient{err: errors.New("server echoed password super-secret")}, nil
+		return &fakeConjurLoginClient{err: &response.ConjurError{Code: 401, Message: "server echoed password super-secret"}}, nil
 	}
 
 	err := service.Login(context.Background(), server.CredentialLoginRequest{
@@ -99,6 +100,42 @@ func TestConjurCredentialLoginSanitizesVendorErrors(t *testing.T) {
 	}
 }
 
+func TestConjurCredentialLoginTreatsNonCredentialFailuresAsUnavailable(t *testing.T) {
+	cases := []struct {
+		name   string
+		result []byte
+		err    error
+	}{
+		{name: "network-or-tls", err: errors.New("dial tcp: private infrastructure detail")},
+		{name: "vendor-service", err: &response.ConjurError{Code: 503, Message: "upstream internal detail"}},
+		{name: "credential-storage-after-remote-success", result: []byte("sensitive-returned-api-key"), err: errors.New("keyring unavailable")},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
+			returned := append([]byte(nil), tc.result...)
+			service.newClient = func(conjurapi.Config) (conjurLoginClient, error) {
+				return &fakeConjurLoginClient{result: returned, err: tc.err}, nil
+			}
+
+			err := service.Login(context.Background(), server.CredentialLoginRequest{
+				PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID, Identity: "alice", Secret: "super-secret",
+			})
+			var loginErr *server.CredentialLoginError
+			if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnavailable {
+				t.Fatalf("error = %#v, want sanitized unavailable error", err)
+			}
+			for _, value := range returned {
+				if value != 0 {
+					t.Fatalf("returned API key buffer was not cleared: %q", returned)
+				}
+			}
+		})
+	}
+}
+
 func TestConjurCredentialLoginRejectsUnsupportedModesAndStorage(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -109,6 +146,12 @@ func TestConjurCredentialLoginRejectsUnsupportedModesAndStorage(t *testing.T) {
 		{name: "storage-none", mutate: func(c *conjurapi.Config) { c.CredentialStorage = conjurapi.CredentialStorageNone }},
 		{name: "storage-readonly", mutate: func(c *conjurapi.Config) { c.CredentialStorageMode = conjurapi.CredentialStorageModeReadOnly }},
 		{name: "plaintext-appliance", mutate: func(c *conjurapi.Config) { c.ApplianceURL = "http://conjur.example.test" }},
+		{name: "appliance-userinfo", mutate: func(c *conjurapi.Config) { c.ApplianceURL = "https://alice:secret@conjur.example.test" }},
+		{name: "appliance-query", mutate: func(c *conjurapi.Config) { c.ApplianceURL = "https://conjur.example.test?redirect=other" }},
+		{name: "appliance-fragment", mutate: func(c *conjurapi.Config) { c.ApplianceURL = "https://conjur.example.test#other" }},
+		{name: "invalid-account", mutate: func(c *conjurapi.Config) { c.Account = "engineering\nother" }},
+		{name: "noncanonical-account", mutate: func(c *conjurapi.Config) { c.Account = " engineering " }},
+		{name: "noncanonical-ldap-service", mutate: func(c *conjurapi.Config) { c.AuthnType = "ldap"; c.ServiceID = " corp " }},
 		{name: "saas", mutate: func(c *conjurapi.Config) { c.Environment = conjurapi.EnvironmentSaaS }},
 	}
 	for _, tc := range cases {
@@ -133,6 +176,77 @@ func TestConjurCredentialLoginRejectsUnsupportedModesAndStorage(t *testing.T) {
 			var loginErr *server.CredentialLoginError
 			if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
 				t.Fatalf("error = %#v, want unsupported", err)
+			}
+		})
+	}
+}
+
+func TestConjurCredentialCapabilityOnlyOffersSetupForSafeWritablePartialConfig(t *testing.T) {
+	cases := []struct {
+		name          string
+		config        conjurapi.Config
+		wantAvailable bool
+		wantSetup     bool
+	}{
+		{
+			name: "missing-account",
+			config: func() conjurapi.Config {
+				config := supportedConjurConfig()
+				config.Account = ""
+				return config
+			}(),
+			wantAvailable: true,
+			wantSetup:     true,
+		},
+		{
+			name: "missing-appliance",
+			config: func() conjurapi.Config {
+				config := supportedConjurConfig()
+				config.ApplianceURL = ""
+				return config
+			}(),
+			wantAvailable: true,
+			wantSetup:     true,
+		},
+		{
+			name: "unsafe-existing-appliance",
+			config: func() conjurapi.Config {
+				config := supportedConjurConfig()
+				config.Account = ""
+				config.ApplianceURL = "https://alice:secret@conjur.example.test"
+				return config
+			}(),
+		},
+		{
+			name: "noncanonical-existing-account",
+			config: func() conjurapi.Config {
+				config := supportedConjurConfig()
+				config.ApplianceURL = ""
+				config.Account = " engineering "
+				return config
+			}(),
+		},
+		{
+			name: "read-only-storage",
+			config: func() conjurapi.Config {
+				config := supportedConjurConfig()
+				config.Account = ""
+				config.CredentialStorageMode = conjurapi.CredentialStorageModeReadOnly
+				return config
+			}(),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service.loadConfig = func() (conjurapi.Config, error) { return tc.config, nil }
+			_, _, capability, available := service.Capability()
+			if available != tc.wantAvailable {
+				t.Fatalf("available = %t, want %t", available, tc.wantAvailable)
+			}
+			if available && capability.SetupRequired != tc.wantSetup {
+				t.Fatalf("setupRequired = %t, want %t", capability.SetupRequired, tc.wantSetup)
 			}
 		})
 	}
@@ -230,6 +344,51 @@ func TestConjurCredentialConfigurationUsesReviewedVendorInitArgumentsOnly(t *tes
 		if arg == "super-secret" || arg == "--insecure" || arg == "--self-signed" || arg == "--force" {
 			t.Fatalf("unsafe init argument exposed: %q", arg)
 		}
+	}
+}
+
+func TestConjurCredentialConfigurationReconcilesTimeoutAfterSuccessfulWrite(t *testing.T) {
+	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := conjurapi.Config{}
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+	service.runInit = func(_ context.Context, _ string, _ []string) error {
+		config = supportedConjurConfig()
+		config.AuthnType = ""
+		return context.DeadlineExceeded
+	}
+
+	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
+		PackID:       conjurCredentialPackID,
+		ToolID:       conjurCredentialToolID,
+		ApplianceURL: "https://conjur.example.test",
+		Account:      "engineering",
+		AuthnType:    "authn",
+	})
+	if err != nil {
+		t.Fatalf("reconciled configuration returned error: %v", err)
+	}
+}
+
+func TestConjurCredentialConfigurationRequiresRequestedStateAfterInit(t *testing.T) {
+	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := conjurapi.Config{}
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+	service.runInit = func(_ context.Context, _ string, _ []string) error {
+		config = supportedConjurConfig()
+		config.Account = "different-account"
+		return nil
+	}
+
+	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
+		PackID:       conjurCredentialPackID,
+		ToolID:       conjurCredentialToolID,
+		ApplianceURL: "https://conjur.example.test",
+		Account:      "engineering",
+		AuthnType:    "authn",
+	})
+	var loginErr *server.CredentialLoginError
+	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnavailable {
+		t.Fatalf("error = %#v, want unavailable for mismatched authoritative config", err)
 	}
 }
 
