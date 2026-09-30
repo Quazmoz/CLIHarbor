@@ -9,6 +9,7 @@ import {
   type RunSummary,
 } from './api/runs';
 import type { Task } from './api/tasks';
+import { runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 
 interface RunsPageProps {
   tasks: Task[];
@@ -26,19 +27,7 @@ function taskName(run: Pick<RunSummary, 'packId' | 'commandId'>, tasks: Task[]):
 }
 
 function statusText(status: RunStatus, exitCode?: number): string {
-  switch (status) {
-    case 'running':
-      return 'Running';
-    case 'cancelled':
-      return 'Cancelled';
-    case 'timed-out':
-      return 'Timed out';
-    case 'failed':
-      return 'Failed';
-    case 'exited':
-      return exitCode === 0 ? 'Succeeded' : exitCode === undefined ? 'Exited' : 'Exited (' + exitCode + ')';
-  }
-  return 'Unknown';
+  return runOutcomeHeading(status, exitCode);
 }
 
 function formatTimestamp(value?: string): string {
@@ -91,9 +80,12 @@ function FailureNotice({ failure }: { failure: AppErrorDetail }) {
     <div className="failure-notice" role="alert">
       <strong>{failure.message}</strong>
       {failure.remediation && <p className="remediation">{failure.remediation}</p>}
-      <p className="error-code">
-        Error code: <code>{failure.code}</code>
-      </p>
+      <details className="technical-details">
+        <summary>Technical details</summary>
+        <p className="error-code">
+          Error code: <code>{failure.code}</code> · Category: <code>{failure.category}</code>
+        </p>
+      </details>
     </div>
   );
 }
@@ -237,7 +229,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
                       </span>
                     </span>
                     <span className="run-history-entry-meta">
-                      <span className={'run-history-status run-history-status--' + summary.status}>
+                      <span className={'run-history-status run-history-status--' + runOutcomeTone(summary.status, summary.exitCode)}>
                         {statusText(summary.status, summary.exitCode)}
                       </span>
                       <span>{formatTimestamp(summary.startedAt)}</span>
@@ -282,7 +274,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
 
               {detail !== null && (
                 <>
-                  <dl className="run-meta run-history-meta">
+                  <dl className="run-meta run-history-meta" aria-label="Run summary">
                     <div>
                       <dt>Status</dt>
                       <dd>{statusText(detail.status, detail.exitCode)}</dd>
