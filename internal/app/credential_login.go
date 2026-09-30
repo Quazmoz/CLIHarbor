@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"io"
+	"net/http"
 	"net/url"
 	"os/exec"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 	"github.com/cyberark/conjur-api-go/conjurapi"
+	"github.com/cyberark/conjur-api-go/conjurapi/response"
 )
 
 const (
@@ -157,13 +160,33 @@ func (s *conjurCredentialLoginService) Login(ctx context.Context, request server
 	}
 
 	apiKey, err := client.Login(request.Identity, request.Secret)
+	hadAPIKey := len(apiKey) > 0
 	for i := range apiKey {
 		apiKey[i] = 0
 	}
 	if err != nil {
-		return &server.CredentialLoginError{Code: server.CredentialLoginRejected}
+		return &server.CredentialLoginError{Code: classifyConjurCredentialLoginError(hadAPIKey, err)}
 	}
 	return nil
+}
+
+func classifyConjurCredentialLoginError(hadAPIKey bool, err error) server.CredentialLoginErrorCode {
+	// A returned API key means the remote credential exchange succeeded and a
+	// later local step (for example credential persistence) failed. Never tell
+	// the operator to re-enter a password for that condition.
+	if hadAPIKey {
+		return server.CredentialLoginUnavailable
+	}
+
+	var conjurErr *response.ConjurError
+	if errors.As(err, &conjurErr) && conjurErr.Code == http.StatusUnauthorized {
+		return server.CredentialLoginRejected
+	}
+
+	// Network/TLS/timeouts, non-401 server responses, malformed responses and
+	// local storage/configuration failures are availability problems. Keep the
+	// vendor error body private and avoid misclassifying them as bad passwords.
+	return server.CredentialLoginUnavailable
 }
 
 func (s *conjurCredentialLoginService) acquireAuthGate() bool {
