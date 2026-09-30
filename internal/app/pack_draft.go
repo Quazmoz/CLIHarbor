@@ -1,7 +1,6 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,15 +10,15 @@ import (
 	"unicode/utf8"
 
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	"gopkg.in/yaml.v3"
 )
 
 const (
-	maxDraftHelpBytes      = 1 << 20
-	maxDraftSubcommands    = 128
-	draftPositionalInputID = "args"
+	maxDraftHelpBytes   = 1 << 20
+	maxDraftSubcommands = 128
 )
 
-var draftSubcommandPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
+var draftSubcommandPattern = regexp.MustCompile("^[a-z][a-z0-9-]{0,62}$")
 
 // PackDraftConfig describes a reviewable, discovery-only draft synthesized from
 // captured vendor help output. Drafting never executes an executable, help
@@ -34,11 +33,10 @@ type PackDraftConfig struct {
 	OutputPath     string
 }
 
-// DraftPack turns a captured "--help" command listing into an unreviewed draft
-// pack. Each detected subcommand becomes a read-classified command whose single
-// optional positional argument maps to a leading-dash-rejecting string input.
-// The result is validated with packs.Parse so an author never receives a draft
-// that cannot load, but every command still requires human review before use.
+// DraftPack extracts candidate command names from captured help text, but never
+// turns those untrusted names into executable pack commands. Candidates are
+// emitted only as YAML comments beside a valid discovery-only scaffold. A human
+// must add reviewed command definitions before the pack can execute anything.
 func DraftPack(options Options, config PackDraftConfig) error {
 	if options.Out == nil {
 		return fmt.Errorf("pack draft output writer is required")
@@ -65,38 +63,46 @@ func DraftPack(options Options, config PackDraftConfig) error {
 	}
 	subcommands := parseSubcommands(helpText)
 	if len(subcommands) == 0 {
-		return fmt.Errorf("pack draft found no reviewable subcommands in %s; capture the vendor's command listing with its --help output", filepath.Base(config.HelpPath))
+		return fmt.Errorf("pack draft found no candidate subcommands in %s; capture the vendor's command listing with its --help output", filepath.Base(config.HelpPath))
 	}
 	if len(subcommands) > maxDraftSubcommands {
 		return fmt.Errorf("pack draft detected %d subcommands, exceeding the %d-command limit; draft focused packs from narrower help output", len(subcommands), maxDraftSubcommands)
 	}
 
-	pack := packs.Pack{
+	document := packScaffoldDocument{
 		APIVersion: packs.SupportedAPIVersion,
 		Kind:       packs.PackKind,
-		Metadata: packs.Metadata{
+		Metadata: packScaffoldMetadata{
 			ID:          config.ID,
 			Name:        config.Name,
 			Version:     "0.1.0",
-			Description: "Draft pack generated from captured help output. Every command is unreviewed; confirm risk, inputs, and argv against authoritative vendor documentation before enabling.",
+			Description: "Discovery-only draft generated from captured help output. Candidate command names are comments only and grant no runtime authority.",
 		},
-		Runtime: packs.Runtime{
+		Runtime: packScaffoldRuntime{
 			Platforms: platforms,
-			Tools: map[string]packs.Tool{
+			Tools: map[string]packScaffoldTool{
 				config.ToolID: {ExecutableNames: []string{config.ExecutableName}},
 			},
 		},
-		Commands: make(map[string]packs.Command, len(subcommands)),
-	}
-	for _, subcommand := range subcommands {
-		pack.Commands[subcommand] = draftCommand(config.ToolID, subcommand)
+		Commands: map[string]packScaffoldCmd{},
 	}
 
-	data, err := json.MarshalIndent(pack, "", "  ")
+	data, err := yaml.Marshal(document)
 	if err != nil {
 		return fmt.Errorf("encode pack draft: %w", err)
 	}
-	data = append(data, '\n')
+	data = append(data, []byte("
+# Candidate subcommands parsed from captured help.
+")...)
+	data = append(data, []byte("# These comments are non-authoritative and are never executable.
+")...)
+	data = append(data, []byte("# Review vendor documentation, then add only deterministic commands with the correct risk, inputs, argv, and output contract.
+")...)
+	for _, subcommand := range subcommands {
+		data = append(data, []byte("# - "+subcommand+"
+")...)
+	}
+
 	if _, err := packs.Parse(data); err != nil {
 		return fmt.Errorf("pack draft configuration is invalid: %w", err)
 	}
@@ -142,36 +148,13 @@ func DraftPack(options Options, config PackDraftConfig) error {
 
 	_, err = fmt.Fprintf(
 		options.Out,
-		"Generated draft pack %s with %d unreviewed command(s) for %s/%s from captured help output.\nNo executable, help probe, or version probe was run. Review every command's risk, inputs, and argv before enabling.\n",
+		"Generated discovery-only draft pack %s with %d candidate subcommand(s) for %s/%s from captured help output.\nNo executable, help probe, version probe, or runnable command was generated. Review vendor documentation before adding command authority.\n",
 		filepath.Base(absolute),
 		len(subcommands),
 		config.ID,
 		config.ToolID,
 	)
 	return err
-}
-
-func draftCommand(toolID, subcommand string) packs.Command {
-	return packs.Command{
-		Name:        "Draft: " + subcommand,
-		Description: "Unreviewed draft derived from captured help output. Confirm the risk classification, inputs, argv, and output handling before enabling this command.",
-		Tool:        toolID,
-		Risk:        packs.RiskRead,
-		Inputs: []packs.Input{
-			{
-				ID:         draftPositionalInputID,
-				Type:       packs.InputString,
-				Label:      "Additional arguments",
-				Required:   false,
-				Validation: packs.InputValidation{DisallowLeadingDash: true},
-			},
-		},
-		Argv: []packs.Argument{
-			{Literal: subcommand},
-			{Positional: &packs.PositionalArgument{ValueFrom: draftPositionalInputID, OmitWhenEmpty: true}},
-		},
-		Output: packs.Output{Mode: packs.OutputRaw},
-	}
 }
 
 func readDraftHelpFile(path string) (string, error) {
@@ -202,17 +185,16 @@ func readDraftHelpFile(path string) (string, error) {
 	return string(data), nil
 }
 
-// parseSubcommands extracts safe subcommand identifiers from captured help text.
-// It only reads indented entries inside a recognized commands section, keeps the
-// first whitespace- or comma-delimited token, and accepts a token only when it
-// matches the pack id grammar. Flags, uppercase noise, and prose are ignored so
-// the draft never invents an executable-facing name from unreviewed text.
+// parseSubcommands extracts candidate identifiers from captured help text.
+// Captured vendor output is untrusted: these names are authoring hints only and
+// never become executable commands without an explicit human-authored pack edit.
 func parseSubcommands(helpText string) []string {
 	seen := make(map[string]struct{})
 	ordered := make([]string, 0)
 	inSection := false
-	for _, rawLine := range strings.Split(helpText, "\n") {
-		line := strings.TrimRight(rawLine, "\r")
+	for _, rawLine := range strings.Split(helpText, "
+") {
+		line := strings.TrimRight(rawLine, "")
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			inSection = false
@@ -222,7 +204,7 @@ func parseSubcommands(helpText string) []string {
 			inSection = true
 			continue
 		}
-		indented := line != strings.TrimLeft(line, " \t")
+		indented := line != strings.TrimLeft(line, " 	")
 		if !indented {
 			inSection = false
 			continue
