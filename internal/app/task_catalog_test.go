@@ -122,3 +122,55 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 		t.Fatal("tool metadata returned shared credential-login state")
 	}
 }
+
+
+func TestTaskCatalogRefreshesCredentialCapabilityWithoutRestart(t *testing.T) {
+	registry, err := packs.NewRegistry([]packs.LoadedPack{{
+		Pack: packs.Pack{
+			Metadata: packs.Metadata{ID: "fixture", Name: "Fixture Pack", Version: "1.0.0"},
+			Runtime: packs.Runtime{Tools: map[string]packs.Tool{
+				"ready": {SessionCheck: &packs.SessionCheck{CommandID: "session"}},
+			}},
+			Commands: map[string]packs.Command{
+				"session": {
+					Name: "Session status", Tool: "ready", Risk: packs.RiskRead,
+					Requirements: packs.Requirements{RequiresAuth: true, AuthMode: packs.AuthModeVendorSession},
+					Output:       packs.Output{Mode: packs.OutputRaw},
+				},
+			},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := discovery.NewSnapshot([]discovery.ToolState{{
+		PackID: "fixture", PackVersion: "1.0.0", ToolID: "ready",
+		Status: discovery.StatusReady, Version: "1.2.3",
+	}})
+
+	setupRequired := true
+	catalog := newTaskCatalog(registry, snapshot)
+	catalog.setCredentialLoginCapabilityProvider(func() (string, string, server.CredentialLoginCapability, bool) {
+		return "fixture", "ready", server.CredentialLoginCapability{
+			Method:        server.CredentialLoginMethodConjurPassword,
+			SetupRequired: setupRequired,
+		}, true
+	})
+
+	first := catalog.ListTools()
+	if len(first) != 1 || first[0].CredentialLogin == nil || !first[0].CredentialLogin.SetupRequired {
+		t.Fatalf("first capability = %#v, want setup required", first)
+	}
+
+	setupRequired = false
+	second := catalog.ListTools()
+	if len(second) != 1 || second[0].CredentialLogin == nil || second[0].CredentialLogin.SetupRequired {
+		t.Fatalf("second capability = %#v, want configured login", second)
+	}
+
+	first[0].CredentialLogin.SetupRequired = false
+	third := catalog.ListTools()
+	if third[0].CredentialLogin == nil || third[0].CredentialLogin.SetupRequired {
+		t.Fatalf("credential capability should be freshly cloned: %#v", third[0].CredentialLogin)
+	}
+}
