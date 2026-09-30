@@ -335,7 +335,7 @@ describe('App', () => {
     }
 
     await waitFor(() => expect(source?.closed).toBe(true));
-    expect(await screen.findByRole('heading', { name: 'exited' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
     expect(screen.getByText('recovered output')).toBeInTheDocument();
     expect(screen.queryByText(/stopped after repeated disconnects/i)).not.toBeInTheDocument();
     expect(
@@ -540,7 +540,7 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
     expect(screen.getAllByText('<script>alert(1)</script>')).toHaveLength(2);
-    expect(screen.getByRole('heading', { name: 'exited' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
     expect(document.querySelector('script')).toBeNull();
     expect(source?.closed).toBe(true);
     expect(
@@ -624,7 +624,7 @@ describe('App', () => {
     expect(screen.getByText(/structured rendering could not validate this output/i)).toBeInTheDocument();
     expect(screen.getByText('wrong_type')).toBeInTheDocument();
     expect(screen.getByText('{"name":42}')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'exited' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
   });
 
   test('associates backend input failures with the affected field and moves focus', async () => {
@@ -1012,6 +1012,8 @@ describe('App', () => {
     const diagnostics = await screen.findByText('Tool readiness');
     expect(diagnostics.closest('details')).toHaveAttribute('open');
     expect(screen.getAllByText('1/1 ready').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Fixture is ready')).toBeInTheDocument();
+    expect(screen.getByText(/CLIHarbor verified version 1\.2\.3/i)).toBeInTheDocument();
   });
 
 });
