@@ -236,7 +236,7 @@ describe('managed CLI installation workflow', () => {
     render(<App />);
     const location = await screen.findByRole('textbox', { name: /Install base directory/i });
     fireEvent.change(location, { target: { value: '/home/alice/cli-tools' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Install verified CLI 1.2.3' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Install Fixture CLI' }));
 
     await waitFor(() =>
       expect(submitted).toEqual({
