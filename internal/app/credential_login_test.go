@@ -347,6 +347,51 @@ func TestConjurCredentialConfigurationUsesReviewedVendorInitArgumentsOnly(t *tes
 	}
 }
 
+func TestConjurCredentialConfigurationReconcilesTimeoutAfterSuccessfulWrite(t *testing.T) {
+	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := conjurapi.Config{}
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+	service.runInit = func(_ context.Context, _ string, _ []string) error {
+		config = supportedConjurConfig()
+		config.AuthnType = ""
+		return context.DeadlineExceeded
+	}
+
+	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
+		PackID:       conjurCredentialPackID,
+		ToolID:       conjurCredentialToolID,
+		ApplianceURL: "https://conjur.example.test",
+		Account:      "engineering",
+		AuthnType:    "authn",
+	})
+	if err != nil {
+		t.Fatalf("reconciled configuration returned error: %v", err)
+	}
+}
+
+func TestConjurCredentialConfigurationRequiresRequestedStateAfterInit(t *testing.T) {
+	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := conjurapi.Config{}
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+	service.runInit = func(_ context.Context, _ string, _ []string) error {
+		config = supportedConjurConfig()
+		config.Account = "different-account"
+		return nil
+	}
+
+	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
+		PackID:       conjurCredentialPackID,
+		ToolID:       conjurCredentialToolID,
+		ApplianceURL: "https://conjur.example.test",
+		Account:      "engineering",
+		AuthnType:    "authn",
+	})
+	var loginErr *server.CredentialLoginError
+	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnavailable {
+		t.Fatalf("error = %#v, want unavailable for mismatched authoritative config", err)
+	}
+}
+
 func TestConjurCredentialConfigurationAddsOnlyReviewedLDAPFlags(t *testing.T) {
 	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
 	config := conjurapi.Config{}
