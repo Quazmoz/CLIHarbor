@@ -34,6 +34,7 @@ describe('fetchTools', () => {
                 },
                 credentialLogin: {
                   method: 'conjur-password',
+                  setupRequired: true,
                 },
                 install: {
                   version: '9.3.1',
@@ -60,7 +61,7 @@ describe('fetchTools', () => {
       commandId: 'whoami',
       unauthenticatedStderrContains: 'please login again',
     });
-    expect(diagnostics[0].credentialLogin).toEqual({ method: 'conjur-password' });
+    expect(diagnostics[0].credentialLogin).toEqual({ method: 'conjur-password', setupRequired: true });
     expect(diagnostics[0].install).toEqual({ version: '9.3.1', customLocation: true });
     expect(diagnostics[1].requiresVendorSession).toBe(true);
     expect(diagnostics[1].sessionCheck).toBeUndefined();
@@ -90,6 +91,14 @@ describe('fetchTools', () => {
     {
       requiresVendorSession: true,
       credentialLogin: { method: 'unsupported-method' },
+    },
+    {
+      requiresVendorSession: true,
+      credentialLogin: { method: 'conjur-password', setupRequired: 'yes' },
+    },
+    {
+      requiresVendorSession: true,
+      credentialLogin: { method: 'conjur-password', arbitrary: true },
     },
   ])('rejects malformed or inconsistent session metadata: %j', async (metadata) => {
     vi.stubGlobal(
