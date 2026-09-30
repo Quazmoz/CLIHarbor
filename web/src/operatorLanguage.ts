@@ -90,6 +90,8 @@ export function inputGuidance(input: TaskInput): string | undefined {
     } else {
       parts.push('Enter a whole number.');
     }
+  } else if (input.type === 'enum') {
+    parts.push(input.required ? 'Choose one approved value.' : 'Choose one approved value, or leave this unset.');
   } else if (input.type === 'multiselect') {
     parts.push(input.required ? 'Choose one or more values.' : 'Choose any values that apply, or leave this unselected.');
   } else if (input.type === 'boolean') {
