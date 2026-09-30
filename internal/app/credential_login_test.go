@@ -150,6 +150,8 @@ func TestConjurCredentialLoginRejectsUnsupportedModesAndStorage(t *testing.T) {
 		{name: "appliance-query", mutate: func(c *conjurapi.Config) { c.ApplianceURL = "https://conjur.example.test?redirect=other" }},
 		{name: "appliance-fragment", mutate: func(c *conjurapi.Config) { c.ApplianceURL = "https://conjur.example.test#other" }},
 		{name: "invalid-account", mutate: func(c *conjurapi.Config) { c.Account = "engineering\nother" }},
+		{name: "noncanonical-account", mutate: func(c *conjurapi.Config) { c.Account = " engineering " }},
+		{name: "noncanonical-ldap-service", mutate: func(c *conjurapi.Config) { c.AuthnType = "ldap"; c.ServiceID = " corp " }},
 		{name: "saas", mutate: func(c *conjurapi.Config) { c.Environment = conjurapi.EnvironmentSaaS }},
 	}
 	for _, tc := range cases {
@@ -212,6 +214,15 @@ func TestConjurCredentialCapabilityOnlyOffersSetupForSafeWritablePartialConfig(t
 				config := supportedConjurConfig()
 				config.Account = ""
 				config.ApplianceURL = "https://alice:secret@conjur.example.test"
+				return config
+			}(),
+		},
+		{
+			name: "noncanonical-existing-account",
+			config: func() conjurapi.Config {
+				config := supportedConjurConfig()
+				config.ApplianceURL = ""
+				config.Account = " engineering "
 				return config
 			}(),
 		},
