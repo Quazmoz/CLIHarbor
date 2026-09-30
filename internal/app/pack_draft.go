@@ -91,16 +91,11 @@ func DraftPack(options Options, config PackDraftConfig) error {
 	if err != nil {
 		return fmt.Errorf("encode pack draft: %w", err)
 	}
-	data = append(data, []byte("
-# Candidate subcommands parsed from captured help.
-")...)
-	data = append(data, []byte("# These comments are non-authoritative and are never executable.
-")...)
-	data = append(data, []byte("# Review vendor documentation, then add only deterministic commands with the correct risk, inputs, argv, and output contract.
-")...)
+	data = append(data, []byte("\n# Candidate subcommands parsed from captured help.\n")...)
+	data = append(data, []byte("# These comments are non-authoritative and are never executable.\n")...)
+	data = append(data, []byte("# Review vendor documentation, then add only deterministic commands with the correct risk, inputs, argv, and output contract.\n")...)
 	for _, subcommand := range subcommands {
-		data = append(data, []byte("# - "+subcommand+"
-")...)
+		data = append(data, []byte("# - "+subcommand+"\n")...)
 	}
 
 	if _, err := packs.Parse(data); err != nil {
@@ -192,9 +187,8 @@ func parseSubcommands(helpText string) []string {
 	seen := make(map[string]struct{})
 	ordered := make([]string, 0)
 	inSection := false
-	for _, rawLine := range strings.Split(helpText, "
-") {
-		line := strings.TrimRight(rawLine, "")
+	for _, rawLine := range strings.Split(helpText, "\n") {
+		line := strings.TrimRight(rawLine, "\r")
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			inSection = false
@@ -204,7 +198,7 @@ func parseSubcommands(helpText string) []string {
 			inSection = true
 			continue
 		}
-		indented := line != strings.TrimLeft(line, " 	")
+		indented := line != strings.TrimLeft(line, " \t")
 		if !indented {
 			inSection = false
 			continue
