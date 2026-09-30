@@ -194,6 +194,7 @@ describe('App', () => {
       return Promise.resolve(response(404, { error: 'not_found' }));
     });
     vi.stubGlobal('fetch', fetchMock);
+    window.history.replaceState({}, '', '/diagnostics');
 
     render(<App />);
 
@@ -951,7 +952,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: 'Cancellation requested' })).not.toBeInTheDocument();
   });
 
-  test('prioritizes the operator workflow and keeps diagnostics secondary', async () => {
+  test('keeps task execution focused and diagnostics on its dedicated route', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
@@ -1005,10 +1006,11 @@ describe('App', () => {
     expect(screen.queryByText(/Run curated CLI tasks without handing execution authority/i)).not.toBeInTheDocument();
     expect(screen.getByText('Read-only safe task')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'No active run' })).toBeInTheDocument();
+    expect(screen.queryByText('Tool readiness')).not.toBeInTheDocument();
 
-    const diagnostics = screen.getByText('Tool readiness').closest('details');
-    expect(diagnostics).not.toBeNull();
-    expect(diagnostics).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
+    const diagnostics = await screen.findByText('Tool readiness');
+    expect(diagnostics.closest('details')).toHaveAttribute('open');
     expect(screen.getAllByText('1/1 ready').length).toBeGreaterThanOrEqual(1);
   });
 
