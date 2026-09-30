@@ -763,7 +763,7 @@ async function main() {
       (params) => isRunCreateRequest(params, 'wait'));
     await clickButton(page, 'Run task');
     await waitCreateRequest;
-    await waitJS(page, 'wait fixture running', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "running"');
+    await waitJS(page, 'wait fixture running', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "Running"');
     const waitRunID = await page.evaluate('document.querySelector(".run-meta dd")?.textContent?.trim()');
     assert.match(waitRunID, /^[0-9a-f]{32}$/);
     await waitJS(page, 'wait fixture observable output',
@@ -804,7 +804,7 @@ async function main() {
     await retriedStream;
 
     await clickButton(page, 'Cancel run');
-    await waitJS(page, 'explicit run cancellation', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "cancelled"', 8000);
+    await waitJS(page, 'explicit run cancellation', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "Cancelled"', 8000);
     const cancelled = await fetchJSON(page, '/api/v1/runs/' + waitRunID);
     assert.equal(cancelled.status, 200);
     assert.equal(cancelled.body.status, 'cancelled');
