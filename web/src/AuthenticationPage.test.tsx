@@ -585,7 +585,7 @@ describe('AuthenticationPage', () => {
     expect(screen.getByRole('button', { name: 'Check session' })).toBeEnabled();
   });
 
-  test('guides first-run Conjur setup through the GUI before signing in and verifying', async () => {
+  test('keeps the password out of first-run connection setup, then signs in and verifies', async () => {
     const setupTool: ToolDiagnostic = {
       ...readyTool,
       credentialLogin: {
@@ -628,26 +628,21 @@ describe('AuthenticationPage', () => {
 
     renderAuth([whoamiTask], [setupTool]);
 
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
+
     fireEvent.change(screen.getByRole('textbox', { name: 'Conjur server URL' }), {
       target: { value: 'https://conjur.example.test' },
     });
     fireEvent.change(screen.getByRole('textbox', { name: 'Account' }), {
       target: { value: 'engineering' },
     });
-    fireEvent.change(screen.getByRole('textbox', { name: 'Identity' }), {
-      target: { value: 'alice' },
-    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save connection and continue' }));
+
+    const identity = await screen.findByRole('textbox', { name: 'Identity' });
     const password = document.querySelector('input[type="password"]') as HTMLInputElement | null;
     expect(password).not.toBeNull();
-    fireEvent.change(password!, { target: { value: 'super-secret' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Connect, sign in and verify' }));
-
-    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
-    expect(requests.slice(0, 3)).toEqual([
-      '/api/v1/auth/configure',
-      '/api/v1/auth/login',
-      '/api/v1/runs',
-    ]);
+    expect(requests).toEqual(['/api/v1/auth/configure']);
     expect(configurationRequest).toEqual({
       packId: 'cyberark-conjur-v9',
       toolId: 'conjur',
@@ -655,7 +650,18 @@ describe('AuthenticationPage', () => {
       account: 'engineering',
       authnType: 'authn',
     });
-    expect(JSON.stringify(configurationRequest)).not.toContain('super-secret');
+    expect(JSON.stringify(configurationRequest)).not.toContain('secret');
+
+    fireEvent.change(identity, { target: { value: 'alice' } });
+    fireEvent.change(password!, { target: { value: 'super-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in and verify' }));
+
+    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+    expect(requests.slice(0, 3)).toEqual([
+      '/api/v1/auth/configure',
+      '/api/v1/auth/login',
+      '/api/v1/runs',
+    ]);
     expect(loginRequest).toEqual({
       packId: 'cyberark-conjur-v9',
       toolId: 'conjur',
@@ -664,6 +670,47 @@ describe('AuthenticationPage', () => {
     });
     expect(password).toHaveValue('');
     expect(screen.queryByRole('textbox', { name: 'Conjur server URL' })).not.toBeInTheDocument();
+  });
+
+  test('does not reveal credential inputs when first-run connection setup fails', async () => {
+    const setupTool: ToolDiagnostic = {
+      ...readyTool,
+      credentialLogin: {
+        method: 'conjur-password',
+        setupRequired: true,
+      },
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (requestPath(input) === '/api/v1/auth/configure') {
+        return Promise.resolve(
+          response(503, {
+            error: {
+              code: 'authentication_unavailable',
+              category: 'lifecycle',
+              message: 'Vendor authentication is not currently available.',
+              remediation: 'Verify the vendor configuration and credential-storage policy, then retry.',
+              retryable: true,
+            },
+          }),
+        );
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderAuth([whoamiTask], [setupTool]);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Conjur server URL' }), {
+      target: { value: 'https://conjur.example.test' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Account' }), {
+      target: { value: 'engineering' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save connection and continue' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Vendor authentication is not currently available.');
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
 });
