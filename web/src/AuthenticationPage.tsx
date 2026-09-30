@@ -378,10 +378,53 @@ function VendorSessionCard({
     }
   };
 
+  const submitCredentialConfiguration = async () => {
+    if (
+      tool.credentialLogin?.method !== 'conjur-password' ||
+      !toolView.ready ||
+      credentialConnectionReady ||
+      credentialSubmitting ||
+      check.kind === 'checking'
+    ) {
+      return;
+    }
+
+    const applianceUrl = credentialApplianceURL.trim();
+    const account = credentialAccount.trim();
+    const serviceId = credentialServiceID.trim();
+    if (
+      applianceUrl.length === 0 ||
+      account.length === 0 ||
+      (credentialAuthnType === 'ldap' && serviceId.length === 0)
+    ) {
+      return;
+    }
+
+    setCredentialSubmitting(true);
+    setCredentialFailure(null);
+    setCredentialSecret('');
+    try {
+      await configureCredentialConnection(status.csrfToken, {
+        packId: tool.packId,
+        toolId: tool.toolId,
+        applianceUrl,
+        account,
+        authnType: credentialAuthnType,
+        ...(credentialAuthnType === 'ldap' ? { serviceId } : {}),
+      });
+      setCredentialConnectionReady(true);
+    } catch (error) {
+      setCredentialFailure(normalizeError(error).detail);
+    } finally {
+      setCredentialSubmitting(false);
+    }
+  };
+
   const submitCredentialLogin = async () => {
     if (
       tool.credentialLogin?.method !== 'conjur-password' ||
       !toolView.ready ||
+      !credentialConnectionReady ||
       credentialSubmitting ||
       check.kind === 'checking'
     ) {
@@ -390,36 +433,13 @@ function VendorSessionCard({
 
     const identity = credentialIdentity.trim();
     const secret = credentialSecret;
-    const needsConnectionSetup = tool.credentialLogin.setupRequired === true && !credentialConnectionReady;
-    const applianceUrl = credentialApplianceURL.trim();
-    const account = credentialAccount.trim();
-    const serviceId = credentialServiceID.trim();
-    if (
-      identity.length === 0 ||
-      secret.length === 0 ||
-      (needsConnectionSetup &&
-        (applianceUrl.length === 0 ||
-          account.length === 0 ||
-          (credentialAuthnType === 'ldap' && serviceId.length === 0)))
-    ) {
+    if (identity.length === 0 || secret.length === 0) {
       return;
     }
 
     setCredentialSubmitting(true);
     setCredentialFailure(null);
     try {
-      if (needsConnectionSetup) {
-        await configureCredentialConnection(status.csrfToken, {
-          packId: tool.packId,
-          toolId: tool.toolId,
-          applianceUrl,
-          account,
-          authnType: credentialAuthnType,
-          ...(credentialAuthnType === 'ldap' ? { serviceId } : {}),
-        });
-        setCredentialConnectionReady(true);
-      }
-
       await loginWithCredentials(status.csrfToken, {
         packId: tool.packId,
         toolId: tool.toolId,
@@ -583,15 +603,19 @@ function VendorSessionCard({
           className="credential-login-form"
           onSubmit={(event) => {
             event.preventDefault();
-            void submitCredentialLogin();
+            if (credentialConnectionReady) {
+              void submitCredentialLogin();
+            } else {
+              void submitCredentialConfiguration();
+            }
           }}
         >
           <div className="credential-login-heading">
             <div>
               <p className="status-label">Conjur sign-in</p>
-              <h4>{credentialConnectionReady ? 'Sign in to Conjur' : 'Connect and sign in to Conjur'}</h4>
+              <h4>{credentialConnectionReady ? 'Sign in to Conjur' : 'Connect to Conjur'}</h4>
             </div>
-            <span className="safety-chip">Password stays local</span>
+            <span className="safety-chip">{credentialConnectionReady ? 'Password stays local' : 'No password yet'}</span>
           </div>
 
           {!credentialConnectionReady && (
@@ -599,9 +623,9 @@ function VendorSessionCard({
               <div>
                 <p className="credential-step-label">Step 1 of 2 · Connection</p>
                 <p className="credential-login-help" id={headingID + '-connection-help'}>
-                  First time on this computer? Enter the Conjur server and account your organization gave you. CLIHarbor asks
-                  the reviewed Conjur CLI to create its normal current-user connection configuration; it does not accept insecure
-                  or self-signed bypass flags.
+                  Enter the HTTPS Conjur server and account your organization gave you. CLIHarbor asks the reviewed Conjur CLI
+                  to create its normal current-user connection configuration. No password is requested or sent until this step
+                  succeeds, and insecure or self-signed bypass flags are never accepted.
                 </p>
               </div>
               <div className="credential-login-fields">
@@ -682,54 +706,56 @@ function VendorSessionCard({
             </div>
           )}
 
-          <div className="credential-setup-section">
-            <div>
-              {!credentialConnectionReady && <p className="credential-step-label">Step 2 of 2 · Credentials</p>}
-              <p id={headingID + '-credential-help'} className="credential-login-help">
-                Enter your normal Conjur identity and password. The password is sent only to this authenticated local runtime
-                for this attempt, never placed in command arguments or run history, and cleared from the form after submission.
-                Conjur remains responsible for its resulting vendor credential.
-              </p>
+          {credentialConnectionReady && (
+            <div className="credential-setup-section">
+              <div>
+                {tool.credentialLogin.setupRequired === true && <p className="credential-step-label">Step 2 of 2 · Credentials</p>}
+                <p id={headingID + '-credential-help'} className="credential-login-help">
+                  Enter your normal Conjur identity and password. The password is sent only to this authenticated local runtime
+                  for this attempt, never placed in command arguments or run history, and cleared from the form after submission.
+                  Conjur remains responsible for its resulting vendor credential.
+                </p>
+              </div>
+              <div className="credential-login-fields">
+                <label className="field">
+                  <span>Identity</span>
+                  <input
+                    type="text"
+                    name="vendor-identity"
+                    value={credentialIdentity}
+                    maxLength={256}
+                    autoComplete="username"
+                    spellCheck={false}
+                    aria-describedby={headingID + '-credential-help'}
+                    disabled={credentialSubmitting || check.kind === 'checking'}
+                    onChange={(event) => {
+                      setCredentialIdentity(event.target.value);
+                      setCredentialFailure(null);
+                    }}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Password</span>
+                  <input
+                    type="password"
+                    name="vendor-secret"
+                    value={credentialSecret}
+                    maxLength={4096}
+                    autoComplete="current-password"
+                    spellCheck={false}
+                    aria-describedby={headingID + '-credential-help'}
+                    disabled={credentialSubmitting || check.kind === 'checking'}
+                    onChange={(event) => {
+                      setCredentialSecret(event.target.value);
+                      setCredentialFailure(null);
+                    }}
+                    required
+                  />
+                </label>
+              </div>
             </div>
-            <div className="credential-login-fields">
-              <label className="field">
-                <span>Identity</span>
-                <input
-                  type="text"
-                  name="vendor-identity"
-                  value={credentialIdentity}
-                  maxLength={256}
-                  autoComplete="username"
-                  spellCheck={false}
-                  aria-describedby={headingID + '-credential-help'}
-                  disabled={credentialSubmitting || check.kind === 'checking'}
-                  onChange={(event) => {
-                    setCredentialIdentity(event.target.value);
-                    setCredentialFailure(null);
-                  }}
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Password</span>
-                <input
-                  type="password"
-                  name="vendor-secret"
-                  value={credentialSecret}
-                  maxLength={4096}
-                  autoComplete="current-password"
-                  spellCheck={false}
-                  aria-describedby={headingID + '-credential-help'}
-                  disabled={credentialSubmitting || check.kind === 'checking'}
-                  onChange={(event) => {
-                    setCredentialSecret(event.target.value);
-                    setCredentialFailure(null);
-                  }}
-                  required
-                />
-              </label>
-            </div>
-          </div>
+          )}
 
           {credentialFailure !== null && (
             <div className="credential-login-error" role="alert">
@@ -743,21 +769,20 @@ function VendorSessionCard({
               disabled={
                 credentialSubmitting ||
                 check.kind === 'checking' ||
-                credentialIdentity.trim().length === 0 ||
-                credentialSecret.length === 0 ||
-                (!credentialConnectionReady &&
-                  (credentialApplianceURL.trim().length === 0 ||
+                (credentialConnectionReady
+                  ? credentialIdentity.trim().length === 0 || credentialSecret.length === 0
+                  : credentialApplianceURL.trim().length === 0 ||
                     credentialAccount.trim().length === 0 ||
-                    (credentialAuthnType === 'ldap' && credentialServiceID.trim().length === 0)))
+                    (credentialAuthnType === 'ldap' && credentialServiceID.trim().length === 0))
               }
             >
               {credentialSubmitting
                 ? credentialConnectionReady
                   ? 'Signing in…'
-                  : 'Connecting and signing in…'
+                  : 'Saving connection…'
                 : credentialConnectionReady
                   ? 'Sign in and verify'
-                  : 'Connect, sign in and verify'}
+                  : 'Save connection and continue'}
             </button>
           </div>
         </form>
