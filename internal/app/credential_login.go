@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	conjurCredentialPackID             = "cyberark-conjur-v9"
-	conjurCredentialToolID             = "conjur"
-	credentialLoginHTTPTimeoutSeconds  = 20
-	conjurConnectionSetupTimeout       = 45 * time.Second
-	conjurConnectionSetupWaitDelay     = 2 * time.Second
+	conjurCredentialPackID            = "cyberark-conjur-v9"
+	conjurCredentialToolID            = "conjur"
+	credentialLoginHTTPTimeoutSeconds = 20
+	conjurConnectionSetupTimeout      = 45 * time.Second
+	conjurConnectionSetupWaitDelay    = 2 * time.Second
 )
 
 type conjurLoginClient interface {
@@ -38,8 +38,8 @@ type conjurCredentialLoginService struct {
 func newConjurCredentialLoginService(snapshot discovery.Snapshot) *conjurCredentialLoginService {
 	state, ok := snapshot.Find(discovery.ToolRef{PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID})
 	service := &conjurCredentialLoginService{
-		enabled:  ok && state.Healthy(),
-		authGate: make(chan struct{}, 1),
+		enabled:    ok && state.Healthy(),
+		authGate:   make(chan struct{}, 1),
 		loadConfig: conjurapi.LoadConfig,
 		newClient: func(config conjurapi.Config) (conjurLoginClient, error) {
 			return conjurapi.NewClient(config)
