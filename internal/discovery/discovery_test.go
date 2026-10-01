@@ -393,3 +393,25 @@ func TestDiscoverPATHCandidateTakesPriorityOverFallbackDirectory(t *testing.T) {
 		t.Fatalf("candidates = %#v, want only PATH tier", state.Candidates)
 	}
 }
+
+
+func TestDefaultUserSearchDirectoriesIncludeDefaultGoBin(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "home")
+	want := filepath.Join(home, "go", "bin")
+
+	for _, goos := range []string{"windows", "linux"} {
+		t.Run(goos, func(t *testing.T) {
+			directories := defaultUserSearchDirectories(goos, home)
+			found := false
+			for _, directory := range directories {
+				if directory == want {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("default user search directories = %#v, want %q", directories, want)
+			}
+		})
+	}
+}
