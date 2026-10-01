@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { configureCredentialConnection, loginWithCredentials } from './api/authentication';
+import { configureCredentialConnection, launchInteractiveLogin, loginWithCredentials } from './api/authentication';
 import { normalizeError, type AppErrorDetail } from './api/errors';
 import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
@@ -168,6 +168,7 @@ export function VendorSessionCard({
   const [credentialSecret, setCredentialSecret] = useState('');
   const [credentialSubmitting, setCredentialSubmitting] = useState(false);
   const [credentialFailure, setCredentialFailure] = useState<AppErrorDetail | null>(null);
+  const [vendorLoginOpened, setVendorLoginOpened] = useState(false);
   const [credentialConnectionReady, setCredentialConnectionReady] = useState(
     tool.credentialLogin?.setupRequired !== true,
   );
@@ -456,6 +457,32 @@ export function VendorSessionCard({
     }
   };
 
+  const launchVendorLogin = async () => {
+    if (
+      tool.credentialLogin?.method !== 'conjur-vendor-login' ||
+      !toolView.ready ||
+      credentialSubmitting ||
+      check.kind === 'checking'
+    ) {
+      return;
+    }
+
+    setCredentialSubmitting(true);
+    setCredentialFailure(null);
+    setVendorLoginOpened(false);
+    try {
+      await launchInteractiveLogin(status.csrfToken, {
+        packId: tool.packId,
+        toolId: tool.toolId,
+      });
+      setVendorLoginOpened(true);
+    } catch (error) {
+      setCredentialFailure(normalizeError(error).detail);
+    } finally {
+      setCredentialSubmitting(false);
+    }
+  };
+
   const cancelCheck = async () => {
     if (check.kind !== 'checking' || check.runId === undefined || activeRunRef.current !== check.runId) {
       return;
@@ -523,7 +550,9 @@ export function VendorSessionCard({
     primaryDetail =
       tool.credentialLogin?.method === 'conjur-password'
         ? 'Your Conjur session is signed out. Use the sign-in form below and CLIHarbor will verify the session automatically.'
-        : 'The reviewed session check returned the pack-declared signed-out evidence. Authenticate with your approved vendor flow, then re-check the session.';
+        : tool.credentialLogin?.method === 'conjur-vendor-login'
+          ? 'Your Conjur session is signed out. Open the official Conjur sign-in flow below, complete it, then re-check the session.'
+          : 'The reviewed session check returned the pack-declared signed-out evidence. Authenticate with your approved vendor flow, then re-check the session.';
     primaryClass = 'auth-state--attention';
     primarySymbol = '!';
   } else if (check.kind === 'cancelled') {
@@ -799,6 +828,44 @@ export function VendorSessionCard({
         </form>
       )}
 
+      {tool.credentialLogin?.method === 'conjur-vendor-login' && toolView.ready && (
+        <div className="credential-login-form">
+          <div className="credential-login-heading">
+            <div>
+              <p className="status-label">Official Conjur sign-in</p>
+              <h4>Continue with the vendor login flow</h4>
+            </div>
+            <span className="safety-chip">Credentials stay vendor-owned</span>
+          </div>
+          <p className="credential-login-help">
+            CLIHarbor will open the exact verified Conjur CLI in a separate Windows terminal with only the reviewed
+            <code> login</code> argument. Conjur owns any password, OIDC, JWT, browser handoff, or SaaS interaction.
+            CLIHarbor does not receive or record those credentials.
+          </p>
+          {credentialFailure !== null && (
+            <div className="credential-login-error" role="alert">
+              <strong>{credentialFailure.message}</strong>
+              {credentialFailure.remediation && <span>{credentialFailure.remediation}</span>}
+            </div>
+          )}
+          {vendorLoginOpened && (
+            <div className="credential-login-success" role="status">
+              <strong>Official Conjur sign-in opened.</strong>
+              <span>Finish the vendor flow in the new terminal/browser, then select Check session.</span>
+            </div>
+          )}
+          <div className="credential-login-actions">
+            <button
+              type="button"
+              disabled={credentialSubmitting || check.kind === 'checking'}
+              onClick={() => void launchVendorLogin()}
+            >
+              {credentialSubmitting ? 'Opening Conjur sign-in…' : vendorLoginOpened ? 'Open Conjur sign-in again' : 'Open official Conjur sign-in'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="auth-actions">
         {tool.sessionCheck !== undefined && (
           <button type="button" disabled={!canCheck || check.kind === 'checking'} onClick={() => void startCheck()}>
@@ -898,8 +965,9 @@ export function AuthenticationPage({
           credential remains owned by Conjur's configured credential storage.
         </p>
         <p className="auth-guidance-step">
-          OIDC, JWT, MFA, certificate, and other interactive or non-password modes remain vendor-owned. Use your organization's
-          approved vendor authentication process for those modes, then return here and run the reviewed session check.
+          When the current Conjur configuration uses a reviewed vendor-owned login mode such as OIDC, JWT, or Idira SaaS,
+          CLIHarbor can open the exact verified Conjur CLI in a separate Windows terminal with fixed <code>login</code> argv.
+          Unsupported modes such as certificate/IAM/Azure/GCP remain outside CLIHarbor and continue through your organization's approved flow.
         </p>
         <p>
           CLIHarbor’s local browser session is a separate trust boundary from vendor sessions. A successful sign-in still does
