@@ -245,7 +245,7 @@ There is no tokenization, template/interpolation language, shell interpretation,
 
 Discovery consumes validated registry metadata only.
 
-PATH search uses absolute entries, ignores empty/relative/cwd entries, requires regular files, normalizes/de-duplicates candidates, and fails closed on ambiguity. Operators may explicitly pin one absolute path with:
+PATH search uses absolute entries, ignores empty/relative/cwd entries, requires regular files, normalizes/de-duplicates candidates, and fails closed on ambiguity. When PATH has no match, discovery checks a bounded non-recursive set of common current-user locations, including the default Go `~/go/bin`, Windows WinGet links and Scoop shims; PATH always has higher priority, and multiple matches within the fallback tier still fail closed. Operators may explicitly pin one absolute path with:
 
 ```text
 --tool-path pack/tool=/absolute/path
