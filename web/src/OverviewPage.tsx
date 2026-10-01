@@ -58,8 +58,8 @@ export function OverviewPage({
   const vendorSessionTools = tools.filter(
     (tool) => tool.status === 'ready' && tool.requiresVendorSession === true,
   );
-  const hasBrowserCredentialLogin = vendorSessionTools.some(
-    (tool) => tool.credentialLogin?.method === 'conjur-password',
+  const hasGuidedCredentialLogin = vendorSessionTools.some(
+    (tool) => tool.credentialLogin !== undefined,
   );
   const shortcuts = useMemo(() => quickTasks(tasks, preferences), [tasks, preferences]);
   const workflowReady = tools.length > 0 && attentionToolCount === 0 && tasks.length > 0;
@@ -111,11 +111,11 @@ export function OverviewPage({
         <section className="overview-login" aria-labelledby="overview-login-heading">
           <div className="route-heading">
             <p className="status-label">CLI sign-in</p>
-            <h2 id="overview-login-heading">{hasBrowserCredentialLogin ? 'Sign in from this browser' : 'CLI authentication'}</h2>
+            <h2 id="overview-login-heading">{hasGuidedCredentialLogin ? 'Sign in from CLIHarbor' : 'CLI authentication'}</h2>
             <p>
-              CLIHarbor keeps detected vendor-session CLIs visible here independently from browser credential support. When
-              the reviewed browser credential adapter is available, you can sign in here without placing passwords in command
-              arguments or run history; otherwise you can still verify the detected CLI session and see why browser sign-in is unavailable.
+              CLIHarbor keeps detected vendor-session CLIs visible independently from sign-in method. Supported password
+              configurations use the local credential bridge; supported OIDC/JWT/SaaS configurations open the verified vendor
+              login flow. In both cases credentials stay out of task argv and run history, and the reviewed session check remains authoritative.
             </p>
           </div>
           <div className="auth-layout">
