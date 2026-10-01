@@ -241,16 +241,21 @@ func DefaultUserSearchDirectories(goos string) []string {
 	if err != nil || home == "" || !filepath.IsAbs(home) {
 		return nil
 	}
-	home = filepath.Clean(home)
+	return defaultUserSearchDirectories(goos, filepath.Clean(home))
+}
+
+func defaultUserSearchDirectories(goos, home string) []string {
 	if goos == "windows" {
 		return []string{
 			filepath.Join(home, "AppData", "Local", "Microsoft", "WinGet", "Links"),
 			filepath.Join(home, "scoop", "shims"),
+			filepath.Join(home, "go", "bin"),
 			filepath.Join(home, ".local", "bin"),
 			filepath.Join(home, "bin"),
 		}
 	}
 	return []string{
+		filepath.Join(home, "go", "bin"),
 		filepath.Join(home, ".local", "bin"),
 		filepath.Join(home, "bin"),
 	}
