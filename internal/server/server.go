@@ -40,6 +40,7 @@ type Config struct {
 	Tasks                   TaskService
 	Tools                   ToolService
 	CredentialLogin         CredentialLoginService
+	CredentialInteractiveLogin CredentialInteractiveLoginService
 	CredentialConfiguration CredentialConfigurationService
 	ToolInstaller           ToolInstallService
 	MaxEventStreams         int
@@ -65,6 +66,7 @@ type Server struct {
 	tasks                   TaskService
 	tools                   ToolService
 	credentialLogin         CredentialLoginService
+	credentialInteractiveLogin CredentialInteractiveLoginService
 	credentialConfiguration CredentialConfigurationService
 	toolInstaller           ToolInstallService
 	runStreamSlots          chan struct{}
@@ -131,6 +133,7 @@ func New(config Config) (*Server, error) {
 		tasks:                   config.Tasks,
 		tools:                   config.Tools,
 		credentialLogin:         config.CredentialLogin,
+		credentialInteractiveLogin: config.CredentialInteractiveLogin,
 		credentialConfiguration: config.CredentialConfiguration,
 		toolInstaller:           config.ToolInstaller,
 		runStreamSlots:          make(chan struct{}, maxEventStreams),
@@ -158,6 +161,9 @@ func New(config Config) (*Server, error) {
 	}
 	if s.credentialLogin != nil {
 		mux.Handle("/api/v1/auth/login", s.requireSession(http.HandlerFunc(s.handleCredentialLogin)))
+	}
+	if s.credentialInteractiveLogin != nil {
+		mux.Handle("/api/v1/auth/interactive", s.requireSession(http.HandlerFunc(s.handleCredentialInteractiveLogin)))
 	}
 	if s.credentialConfiguration != nil {
 		mux.Handle("/api/v1/auth/configure", s.requireSession(http.HandlerFunc(s.handleCredentialConfiguration)))
