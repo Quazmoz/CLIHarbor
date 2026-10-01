@@ -165,6 +165,35 @@ describe('OverviewPage', () => {
     expect(screen.getByLabelText('Password')).toHaveValue('');
   });
 
+  test('keeps a detected Conjur CLI visible when browser credential capability is unavailable', () => {
+    const detectedWithoutBrowserLogin: ToolDiagnostic[] = [
+      {
+        ...readyTools[0],
+        credentialLogin: undefined,
+      },
+      readyTools[1],
+    ];
+
+    render(
+      <OverviewPage
+        status={status}
+        tasks={tasks}
+        tools={detectedWithoutBrowserLogin}
+        preferences={{ favorites: [], recent: [] }}
+        onNavigate={vi.fn()}
+        onOpenTask={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Sign in from this browser' })).toBeInTheDocument();
+    expect(screen.getByText('2/2 ready')).toBeInTheDocument();
+    expect(
+      screen.getByText(/CLI detected; browser sign-in is unavailable for the current vendor configuration/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check session' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
+  });
+
   test('routes the primary recommendation to diagnostics when a tool needs attention', () => {
     const navigate = vi.fn();
     const attentionTools: ToolDiagnostic[] = [
