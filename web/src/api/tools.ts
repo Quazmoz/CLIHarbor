@@ -15,10 +15,14 @@ export interface VendorSessionCheck {
   unauthenticatedStderrContains?: string;
 }
 
-export interface CredentialLoginCapability {
-  method: 'conjur-password';
-  setupRequired?: boolean;
-}
+export type CredentialLoginCapability =
+  | {
+      method: 'conjur-password';
+      setupRequired?: boolean;
+    }
+  | {
+      method: 'conjur-vendor-login';
+    };
 
 export interface ToolInstallCapability {
   version: string;
@@ -111,11 +115,15 @@ function parseInstall(value: unknown): ToolInstallCapability {
 function parseCredentialLogin(value: unknown): CredentialLoginCapability {
   if (
     !isRecord(value) ||
-    value.method !== 'conjur-password' ||
+    (value.method !== 'conjur-password' && value.method !== 'conjur-vendor-login') ||
     (value.setupRequired !== undefined && typeof value.setupRequired !== 'boolean') ||
-    Object.keys(value).some((key) => key !== 'method' && key !== 'setupRequired')
+    Object.keys(value).some((key) => key !== 'method' && key !== 'setupRequired') ||
+    (value.method === 'conjur-vendor-login' && value.setupRequired !== undefined)
   ) {
     throw clientError('invalid_response');
+  }
+  if (value.method === 'conjur-vendor-login') {
+    return { method: 'conjur-vendor-login' };
   }
   return value.setupRequired === true
     ? { method: 'conjur-password', setupRequired: true }
