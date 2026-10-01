@@ -70,15 +70,15 @@ func Run(ctx context.Context, options Options) error {
 	catalog := newTaskCatalog(runtimeState.Registry, runtimeState.Discovery)
 	catalog.setCredentialLoginCapabilityProvider(credentialLogin.Capability)
 	s, err := server.New(server.Config{
-		Version:                 options.Version,
-		Frontend:                frontend,
-		Runs:                    runManager,
-		Tasks:                   catalog,
-		Tools:                   catalog,
-		CredentialLogin:         credentialLogin,
+		Version:                    options.Version,
+		Frontend:                   frontend,
+		Runs:                       runManager,
+		Tasks:                      catalog,
+		Tools:                      catalog,
+		CredentialLogin:            credentialLogin,
 		CredentialInteractiveLogin: credentialLogin,
-		CredentialConfiguration: credentialLogin,
-		ToolInstaller:           toolInstaller,
+		CredentialConfiguration:    credentialLogin,
+		ToolInstaller:              toolInstaller,
 	})
 	if err != nil {
 		_ = shutdownRuns()
