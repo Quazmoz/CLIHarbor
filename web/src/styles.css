@@ -1789,6 +1789,10 @@ footer p {
   gap: var(--space-4);
 }
 
+.overview-login .auth-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .overview-hero {
   display: flex;
   align-items: flex-start;
