@@ -76,7 +76,7 @@ CLIHarbor must not persist vendor passwords, MFA values, API keys, or access/ref
 
 Supported authenticated read workflows use explicit `vendor-session` semantics and reuse the vendor CLI's approved session/configuration mechanisms. A narrowly reviewed vendor adapter may accept an ephemeral credential through the authenticated loopback UI only when the secret is kept out of argv, logs, run history and CLIHarbor persistence and durable session material remains owned by the vendor credential store.
 
-The current Conjur adapter supports only password-style `authn`/LDAP login through pinned `conjur-api-go v0.15.4`. OIDC, JWT, certificate, MFA/challenge and other interactive modes remain vendor-owned.
+The current Conjur adapters support password-style `authn`/LDAP login through pinned `conjur-api-go v0.15.4` and, on Windows, a vendor-owned external-terminal launch for upstream-supported OIDC, JWT, and SaaS/cloud `conjur login` modes. CLIHarbor supplies no credential argv or terminal keystrokes to the latter and never captures its credential interaction. Certificate, IAM, Azure, GCP, unknown modes, and generic MFA/challenge handling remain outside CLIHarbor.
 
 ### G6 — Better UX than raw CLI
 
@@ -155,7 +155,7 @@ Current browser workflows:
 - resource exists/show/permitted roles;
 - role exists/show/members/memberships.
 
-Current product explicitly excludes secret retrieval, login credential handling, password/API-key rotation, policy/issuer/host-factory mutations, and unqualified deployment-specific commands.
+Current product explicitly excludes secret retrieval, login as an ordinary browser task, CLIHarbor-owned credential/session storage, password/API-key rotation, policy/issuer/host-factory mutations, and unqualified deployment-specific commands.
 
 ## 8. Functional requirements
 
@@ -227,7 +227,7 @@ The runtime shall:
 
 CLIHarbor shall not save vendor passwords, MFA codes, API keys, or tokens.
 
-Authenticated browser execution requires an explicit reviewed auth mode. Current Conjur read workflows use `vendor-session`; CLIHarbor supplies no credential stdin or credential argv.
+Authenticated browser execution requires an explicit reviewed auth mode. Current Conjur read workflows use `vendor-session`; ordinary task execution supplies no credential stdin or credential argv. Guided Conjur authentication is a separate adapter boundary: either the reviewed password bridge or a shell-free launch of the exact verified vendor executable with fixed `login` argv for supported vendor-owned modes.
 
 Installing the Conjur executable and authenticating to Conjur are separate operations.
 
