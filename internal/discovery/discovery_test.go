@@ -394,7 +394,6 @@ func TestDiscoverPATHCandidateTakesPriorityOverFallbackDirectory(t *testing.T) {
 	}
 }
 
-
 func TestDefaultUserSearchDirectoriesIncludeDefaultGoBin(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "home")
 	want := filepath.Join(home, "go", "bin")
@@ -415,7 +414,6 @@ func TestDefaultUserSearchDirectoriesIncludeDefaultGoBin(t *testing.T) {
 		})
 	}
 }
-
 
 func TestDiscoverUsesDefaultGoBinFallback(t *testing.T) {
 	home := t.TempDir()
