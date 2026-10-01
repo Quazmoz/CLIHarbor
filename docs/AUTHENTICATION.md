@@ -105,7 +105,7 @@ Direct refresh/navigation is supported for `/authentication`, `/tasks`, and `/di
 
 CLIHarbor now implements one explicit credential adapter for the qualified Conjur integration. It is **not** a generic secret input type and it is not pack-authored command authority.
 
-The browser exposes the form only for the qualified `cyberark-conjur-v9/conjur` tool while that exact discovered tool is healthy.
+The browser exposes the form only for the qualified `cyberark-conjur-v9/conjur` tool while that exact discovered tool is healthy. The same reviewed sign-in card is available directly on Overview and on `/authentication`; both surfaces call the same loopback credential endpoint and verify the resulting vendor session through the same pack-declared CLI session check.
 
 There are two reviewed states:
 
