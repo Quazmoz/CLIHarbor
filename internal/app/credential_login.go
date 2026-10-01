@@ -358,14 +358,14 @@ func supportsConjurPasswordLogin(config conjurapi.Config) bool {
 func supportsConjurVendorLogin(config conjurapi.Config) bool {
 	if config.CredentialStorage == conjurapi.CredentialStorageNone ||
 		config.CredentialStorageMode == conjurapi.CredentialStorageModeReadOnly ||
-		!validConjurHTTPSURL(config.ApplianceURL) {
+		!validConjurHTTPSURL(config.ApplianceURL) ||
+		!validConjurConfigScalar(config.Account) {
 		return false
 	}
 
 	authnType := strings.ToLower(strings.TrimSpace(config.AuthnType))
 	switch authnType {
 	case "cloud":
-		// Idira Secrets Manager SaaS does not require an account value.
 		return config.IsSaaS()
 	case "oidc":
 		return validConjurConfigScalar(config.Account) && validConjurConfigScalar(config.ServiceID)
