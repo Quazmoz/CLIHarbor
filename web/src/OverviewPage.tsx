@@ -58,6 +58,9 @@ export function OverviewPage({
   const vendorSessionTools = tools.filter(
     (tool) => tool.status === 'ready' && tool.requiresVendorSession === true,
   );
+  const hasBrowserCredentialLogin = vendorSessionTools.some(
+    (tool) => tool.credentialLogin?.method === 'conjur-password',
+  );
   const shortcuts = useMemo(() => quickTasks(tasks, preferences), [tasks, preferences]);
   const workflowReady = tools.length > 0 && attentionToolCount === 0 && tasks.length > 0;
 
@@ -108,7 +111,7 @@ export function OverviewPage({
         <section className="overview-login" aria-labelledby="overview-login-heading">
           <div className="route-heading">
             <p className="status-label">CLI sign-in</p>
-            <h2 id="overview-login-heading">Sign in from this browser</h2>
+            <h2 id="overview-login-heading">{hasBrowserCredentialLogin ? 'Sign in from this browser' : 'CLI authentication'}</h2>
             <p>
               CLIHarbor keeps detected vendor-session CLIs visible here independently from browser credential support. When
               the reviewed browser credential adapter is available, you can sign in here without placing passwords in command
