@@ -259,8 +259,9 @@ Controls:
 - discovery begins only after explicit pack trust;
 - only absolute PATH entries are searched;
 - empty/relative/cwd entries are ignored;
+- only after PATH misses, a bounded non-recursive current-user fallback set is checked, including the default Go `~/go/bin`, Windows WinGet links and Scoop shims;
 - candidates are normalized/de-duplicated;
-- multiple matches fail as ambiguous;
+- multiple matches within the selected discovery tier fail as ambiguous;
 - operator may explicitly pin one absolute matching path;
 - invalid override never silently falls back to PATH;
 - version probes/constraints may block incompatible binaries;
