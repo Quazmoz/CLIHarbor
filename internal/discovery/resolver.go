@@ -111,7 +111,7 @@ func (r *Resolver) resolveTool(ctx context.Context, state ToolState, tool packs.
 	switch len(candidates) {
 	case 0:
 		state.Status = StatusMissing
-		state.Message = "tool was not found on absolute PATH entries; install it or configure an explicit tool path"
+		state.Message = "tool was not found in the configured PATH or approved current-user fallback locations; install it or configure an explicit tool path"
 		return state, nil
 	case 1:
 		state.Path = candidates[0].Path
