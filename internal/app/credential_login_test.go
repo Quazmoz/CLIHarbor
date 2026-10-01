@@ -457,7 +457,6 @@ func TestConjurCredentialCapabilityOffersVendorOwnedLoginForReviewedModes(t *tes
 			mutate: func(c *conjurapi.Config) {
 				c.AuthnType = "cloud"
 				c.Environment = conjurapi.EnvironmentSaaS
-				c.Account = ""
 			},
 		},
 	}
@@ -480,6 +479,20 @@ func TestConjurCredentialCapabilityOffersVendorOwnedLoginForReviewedModes(t *tes
 				t.Fatalf("capability = %#v, want vendor-owned login", capability)
 			}
 		})
+	}
+}
+
+func TestConjurCredentialCapabilityRejectsInvalidVendorConfiguration(t *testing.T) {
+	service := newConjurCredentialLoginService(readyConjurSnapshot())
+	service.interactiveSupported = func() bool { return true }
+	config := supportedConjurConfig()
+	config.AuthnType = "cloud"
+	config.Environment = conjurapi.EnvironmentSaaS
+	config.Account = ""
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+
+	if _, _, _, available := service.Capability(); available {
+		t.Fatal("invalid SaaS config unexpectedly advertised vendor login")
 	}
 }
 
