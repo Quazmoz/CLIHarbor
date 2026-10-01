@@ -928,6 +928,7 @@ export function App() {
 
         {state.kind === 'ready' && route === 'overview' && (
           <OverviewPage
+            status={state.status}
             tasks={state.tasks}
             tools={state.tools}
             preferences={taskPreferences}

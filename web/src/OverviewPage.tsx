@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import { VendorSessionCard } from './AuthenticationPage';
+import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import { taskIdentityKey, type TaskPreferences } from './taskPreferences';
@@ -6,6 +8,7 @@ import { taskIdentityKey, type TaskPreferences } from './taskPreferences';
 export type OverviewDestination = 'authentication' | 'tasks' | 'runs' | 'diagnostics';
 
 interface OverviewPageProps {
+  status: RuntimeStatus;
   tasks: Task[];
   tools: ToolDiagnostic[];
   preferences: TaskPreferences;
@@ -42,6 +45,7 @@ function quickTasks(tasks: Task[], preferences: TaskPreferences): Task[] {
 }
 
 export function OverviewPage({
+  status,
   tasks,
   tools,
   preferences,
@@ -51,6 +55,12 @@ export function OverviewPage({
   const readyToolCount = tools.filter((tool) => tool.status === 'ready').length;
   const attentionToolCount = tools.length - readyToolCount;
   const vendorSessionTaskCount = tasks.filter((task) => task.requiresAuth === true).length;
+  const browserLoginTools = tools.filter(
+    (tool) =>
+      tool.status === 'ready' &&
+      tool.requiresVendorSession === true &&
+      tool.credentialLogin?.method === 'conjur-password',
+  );
   const shortcuts = useMemo(() => quickTasks(tasks, preferences), [tasks, preferences]);
   const workflowReady = tools.length > 0 && attentionToolCount === 0 && tasks.length > 0;
 
@@ -96,6 +106,32 @@ export function OverviewPage({
           </button>
         </div>
       </div>
+
+      {browserLoginTools.length > 0 && (
+        <section className="overview-login" aria-labelledby="overview-login-heading">
+          <div className="route-heading">
+            <p className="status-label">CLI sign-in</p>
+            <h2 id="overview-login-heading">Sign in from this browser</h2>
+            <p>
+              Sign in to the approved CLI without leaving CLIHarbor. Passwords are sent only to the authenticated local
+              runtime, never placed in command arguments or run history, and a successful handoff is verified with the
+              reviewed CLI session check.
+            </p>
+          </div>
+          <div className="auth-layout">
+            {browserLoginTools.map((tool) => (
+              <VendorSessionCard
+                key={tool.packId + '/' + tool.toolId + '/' + tool.packVersion}
+                status={status}
+                tasks={tasks}
+                tool={tool}
+                onOpenTasks={() => onNavigate('tasks')}
+                onOpenDiagnostics={() => onNavigate('diagnostics')}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="overview-metrics" aria-label="Workspace summary">
         <div className="overview-metric">

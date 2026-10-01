@@ -492,11 +492,15 @@ async function main() {
       'hasTaskForm: Boolean(document.querySelector(".task-panel form")),' +
       'hasDiagnosticsDetails: Boolean(document.querySelector(".tool-diagnostics")),' +
       'hasTasksLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Tasks"),' +
+      'hasBrowserSignIn: document.querySelector("#overview-login-heading")?.textContent?.trim() === "Sign in from this browser",' +
+      'hasConjurSetup: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Save connection and continue"),' +
       'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth' +
     '}))()');
     assert.equal(overviewSurface.hasTaskForm, false, 'overview must not duplicate the task execution workspace');
     assert.equal(overviewSurface.hasDiagnosticsDetails, false, 'overview must not duplicate diagnostics details');
     assert.equal(overviewSurface.hasTasksLink, true, 'overview must provide primary navigation to Tasks');
+    assert.equal(overviewSurface.hasBrowserSignIn, true, 'overview must expose the reviewed browser CLI sign-in surface');
+    assert.equal(overviewSurface.hasConjurSetup, true, 'first-run Conjur connection setup must be actionable from overview');
     assert.equal(overviewSurface.horizontalOverflow, false, 'overview must fit the default browser viewport horizontally');
 
     const bootstrapState = await page.evaluate('(async () => {' +

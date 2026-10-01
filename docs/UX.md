@@ -42,7 +42,7 @@ Home answers four questions immediately:
 3. Am I authenticated?
 4. What should I do next?
 
-The implemented Overview is a dedicated operator dashboard rather than a second copy of the task runner. It summarizes tool readiness, task availability, and the local-only boundary; chooses a conservative next step from authoritative runtime/tool state; exposes one-click Favorites/Recently used task entry; and presents the normal Tools → Authentication → Tasks → Runs workflow without inventing an authentication verdict. Task configuration/execution lives on `/tasks`, diagnostics on `/diagnostics`, and retained history on `/runs`.
+The implemented Overview is a dedicated operator dashboard rather than a second copy of the task runner. It summarizes tool readiness, task availability, and the local-only boundary; chooses a conservative next step from authoritative runtime/tool state; exposes one-click Favorites/Recently used task entry; and presents the normal Tools → Authentication → Tasks → Runs workflow without inventing an authentication verdict. When the backend advertises a reviewed browser credential adapter, Overview also embeds the same real vendor-session sign-in card so the operator can sign in without hunting through navigation. Task configuration/execution lives on `/tasks`, diagnostics on `/diagnostics`, and retained history on `/runs`.
 
 Example cards:
 
