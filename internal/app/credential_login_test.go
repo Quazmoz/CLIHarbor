@@ -432,7 +432,6 @@ func TestConjurCredentialConfigurationAddsOnlyReviewedLDAPFlags(t *testing.T) {
 	}
 }
 
-
 func TestConjurCredentialCapabilityOffersVendorOwnedLoginForReviewedModes(t *testing.T) {
 	cases := []struct {
 		name   string
