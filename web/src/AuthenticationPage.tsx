@@ -170,7 +170,7 @@ export function VendorSessionCard({
   const [credentialFailure, setCredentialFailure] = useState<AppErrorDetail | null>(null);
   const [vendorLoginOpened, setVendorLoginOpened] = useState(false);
   const [credentialConnectionReady, setCredentialConnectionReady] = useState(
-    tool.credentialLogin?.setupRequired !== true,
+    tool.credentialLogin?.method !== 'conjur-password' || tool.credentialLogin.setupRequired !== true,
   );
   const [credentialApplianceURL, setCredentialApplianceURL] = useState('');
   const [credentialAccount, setCredentialAccount] = useState('');
