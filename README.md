@@ -57,7 +57,7 @@ CLIHarbor discovery is deterministic and intentionally tiered:
 2. exact verified CLIHarbor-managed copy in the default user cache;
 3. exact verified CLIHarbor-managed copy in the persisted custom user-home location;
 4. exact pack-declared executable names on absolute `PATH` entries;
-5. only when `PATH` has no match, common user-level CLI locations such as `~/.local/bin`, `~/bin`, Windows WinGet links, and Scoop shims.
+5. only when `PATH` has no match, common user-level CLI locations such as `~/go/bin`, `~/.local/bin`, `~/bin`, Windows WinGet links, and Scoop shims.
 
 Fallback locations never override a valid `PATH` match and are not recursively scanned. Multiple candidates within the active discovery tier still fail closed as ambiguous.
 
