@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"encoding/pem"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -28,7 +27,6 @@ func configureBrowserConjurFixture(t *testing.T, fixture *executionFixtureConfig
 	conjurrcPath := filepath.Join(tempDir, ".conjurrc")
 	netrcPath := filepath.Join(tempDir, ".netrc")
 	certPath := filepath.Join(tempDir, "conjur-ca.pem")
-	authMarkerPath := filepath.Join(tempDir, "authenticated")
 	conjurPath := filepath.Join(tempDir, "conjur")
 
 	const identity = "alice"
@@ -41,10 +39,6 @@ func configureBrowserConjurFixture(t *testing.T, fixture *executionFixtureConfig
 		gotIdentity, gotSecret, ok := r.BasicAuth()
 		if !ok || gotIdentity != identity || gotSecret != secret {
 			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		if err := os.WriteFile(authMarkerPath, []byte("authenticated"), 0o600); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -122,7 +116,9 @@ case "${1:-}" in
     } > "$CONJURRC"
     ;;
   whoami)
-    if [ -f "$CLIHARBOR_E2E_CONJUR_MARKER" ]; then
+    if [ -s "$CLIHARBOR_E2E_CONJUR_NETRC" ] &&
+       grep -q 'alice' "$CLIHARBOR_E2E_CONJUR_NETRC" &&
+       grep -q 'e2e-api-key' "$CLIHARBOR_E2E_CONJUR_NETRC"; then
       printf '{"account":"engineering","username":"alice"}\n'
       exit 0
     fi
@@ -138,7 +134,7 @@ esac
 		t.Fatal(err)
 	}
 
-	pack := fmt.Sprintf(`apiVersion: cliharbor.dev/v1
+	pack := `apiVersion: cliharbor.dev/v1
 kind: CliPack
 metadata:
   id: cyberark-conjur-v9
@@ -172,7 +168,7 @@ commands:
     requirements:
       requiresAuth: true
       authMode: vendor-session
-`)
+`
 	packPath := filepath.Join(tempDir, "conjur-browser-e2e.yaml")
 	if err := os.WriteFile(packPath, []byte(pack), 0o600); err != nil {
 		t.Fatal(err)
@@ -188,7 +184,6 @@ commands:
 	t.Setenv("CLIHARBOR_E2E_CONJUR_SECRET", secret)
 	t.Setenv("CLIHARBOR_E2E_CONJUR_CERT", certPath)
 	t.Setenv("CLIHARBOR_E2E_CONJUR_NETRC", netrcPath)
-	t.Setenv("CLIHARBOR_E2E_CONJUR_MARKER", authMarkerPath)
 }
 
 func TestProductionEmbeddedBrowserE2E(t *testing.T) {
