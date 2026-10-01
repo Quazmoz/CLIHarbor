@@ -185,7 +185,7 @@ describe('OverviewPage', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Sign in from this browser' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'CLI authentication' })).toBeInTheDocument();
     expect(screen.getByText('2/2 ready')).toBeInTheDocument();
     expect(
       screen.getByText(/CLI detected; browser sign-in is unavailable for the current vendor configuration/i),
