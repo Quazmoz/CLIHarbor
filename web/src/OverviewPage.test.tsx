@@ -1,9 +1,30 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { OverviewPage } from './OverviewPage';
+import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import type { TaskPreferences } from './taskPreferences';
+
+function response(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function requestPath(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.pathname;
+  return new URL(input.url).pathname;
+}
+
+const status: RuntimeStatus = {
+  name: 'CLIHarbor',
+  version: 'dev',
+  session: 'active',
+  csrfToken: 'csrf-overview-test',
+};
 
 const tasks: Task[] = [
   {
@@ -34,6 +55,14 @@ const readyTools: ToolDiagnostic[] = [
     toolId: 'conjur',
     status: 'ready',
     version: '9.3.1',
+    requiresVendorSession: true,
+    sessionCheck: {
+      commandId: 'whoami',
+      unauthenticatedStderrContains: 'please login again',
+    },
+    credentialLogin: {
+      method: 'conjur-password',
+    },
   },
   {
     packId: 'docker',
@@ -49,6 +78,10 @@ const preferences: TaskPreferences = {
   recent: [{ packId: 'conjur', commandId: 'whoami' }],
 };
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('OverviewPage', () => {
   test('summarizes readiness and opens favorite or recent tasks directly', () => {
     const navigate = vi.fn();
@@ -56,6 +89,7 @@ describe('OverviewPage', () => {
 
     render(
       <OverviewPage
+        status={status}
         tasks={tasks}
         tools={readyTools}
         preferences={preferences}
@@ -75,6 +109,62 @@ describe('OverviewPage', () => {
     expect(navigate).toHaveBeenCalledWith('authentication');
   });
 
+  test('renders and completes CLI sign-in directly from the overview', async () => {
+    let loginRequest: unknown;
+    let loginHeaders: HeadersInit | undefined;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(input);
+        if (path === '/api/v1/auth/login') {
+          loginRequest = JSON.parse(String(init?.body));
+          loginHeaders = init?.headers;
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+        if (path === '/api/v1/runs') {
+          return Promise.resolve(
+            response(202, {
+              runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+              packId: 'conjur',
+              commandId: 'whoami',
+              toolId: 'conjur',
+              status: 'exited',
+              exitCode: 0,
+            }),
+          );
+        }
+        return Promise.resolve(response(404, {}));
+      }),
+    );
+
+    render(
+      <OverviewPage
+        status={status}
+        tasks={tasks}
+        tools={readyTools}
+        preferences={{ favorites: [], recent: [] }}
+        onNavigate={vi.fn()}
+        onOpenTask={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Sign in from this browser' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Identity' }), { target: { value: 'alice' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'super-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in and verify' }));
+
+    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+    expect(loginRequest).toEqual({
+      packId: 'conjur',
+      toolId: 'conjur',
+      identity: 'alice',
+      secret: 'super-secret',
+    });
+    expect(loginHeaders).toMatchObject({ 'X-CLIHarbor-CSRF': status.csrfToken });
+    expect(screen.getByLabelText('Password')).toHaveValue('');
+  });
+
   test('routes the primary recommendation to diagnostics when a tool needs attention', () => {
     const navigate = vi.fn();
     const attentionTools: ToolDiagnostic[] = [
@@ -84,6 +174,7 @@ describe('OverviewPage', () => {
 
     render(
       <OverviewPage
+        status={status}
         tasks={tasks}
         tools={attentionTools}
         preferences={{ favorites: [], recent: [] }}
@@ -100,6 +191,7 @@ describe('OverviewPage', () => {
   test('keeps authentication status conservative rather than inventing a signed-in verdict', () => {
     render(
       <OverviewPage
+        status={status}
         tasks={tasks}
         tools={readyTools}
         preferences={{ favorites: [], recent: [] }}
