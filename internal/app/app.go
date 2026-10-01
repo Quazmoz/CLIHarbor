@@ -76,6 +76,7 @@ func Run(ctx context.Context, options Options) error {
 		Tasks:                   catalog,
 		Tools:                   catalog,
 		CredentialLogin:         credentialLogin,
+		CredentialInteractiveLogin: credentialLogin,
 		CredentialConfiguration: credentialLogin,
 		ToolInstaller:           toolInstaller,
 	})
