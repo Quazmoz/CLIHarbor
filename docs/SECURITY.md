@@ -142,7 +142,9 @@ This allows a **read-only, non-secret** command to use authentication already su
 
 The qualified Conjur integration additionally has one narrow in-process credential bridge. The browser may submit identity/password only to the authenticated, CSRF-protected loopback endpoint `POST /api/v1/auth/login`; that request is not a task/run and never becomes command argv, invocation preview, retained run input, stdout/stderr or diagnostics. The adapter is fixed to the qualified `cyberark-conjur-v9/conjur` identity, supports only password-style `authn`/LDAP configuration against an HTTPS appliance URL in a non-SaaS environment, admits one sign-in attempt at a time, bounds request/network duration, and returns only closed-set errors.
 
-The adapter calls pinned `conjur-api-go v0.15.4` directly. The vendor library performs credential validation/exchange and writes the resulting API key using Conjur's configured credential-storage backend. CLIHarbor never persists the submitted password and clears the returned API-key byte buffer after the vendor library stores it. OIDC/JWT/certificate/IAM/Azure/MFA/challenge flows remain vendor-owned and are not coerced into this form.
+The adapter calls pinned `conjur-api-go v0.15.4` directly. The vendor library performs credential validation/exchange and writes the resulting API key using Conjur's configured credential-storage backend. CLIHarbor never persists the submitted password and clears the returned API-key byte buffer after the vendor library stores it.
+
+For reviewed OIDC, JWT, and Idira SaaS/cloud configuration on Windows, CLIHarbor may instead expose `POST /api/v1/auth/interactive`. That endpoint accepts only the fixed pack/tool identity under the same authenticated loopback + exact Origin + CSRF boundary. The backend reloads vendor configuration, revalidates the exact discovered executable identity, and starts only that executable with fixed argv `["login"]` in a new Windows console. No browser field can supply executable/argv/environment/working-directory/credential data, no shell is invoked, no input/output is redirected into CLIHarbor, and process/thread handles are released immediately so the vendor/operator owns the interactive flow. Certificate/IAM/Azure/GCP/unknown modes and disabled/read-only credential storage remain fail-closed to the organization's external process.
 
 Installing the pinned Conjur executable does not configure a Conjur account or create/authenticate vendor credentials.
 
@@ -293,13 +295,16 @@ Before `change`/`destructive` execution is enabled, backend confirmation must be
 
 - generic auth-required tasks remain blocked;
 - `vendor-session` must be explicitly declared in a trusted pack;
-- the credential endpoint accepts only bounded identity/password JSON under the existing local session + exact Origin + CSRF boundary;
-- the backend adapter is hard-bound to the qualified Conjur pack/tool identity rather than browser-supplied executable/argv;
-- unsupported OIDC/JWT/certificate/IAM/Azure modes, SaaS, plaintext appliance URLs, and disabled/read-only credential storage fail closed;
-- only one credential handoff runs concurrently;
+- the password credential endpoint accepts only bounded identity/password JSON under the existing local session + exact Origin + CSRF boundary;
+- the vendor-login endpoint accepts only bounded pack/tool identity under that same boundary and supplies no browser-controlled argv;
+- both adapters are hard-bound to the qualified Conjur pack/tool identity rather than browser-supplied executable authority;
+- password login remains limited to HTTPS self-hosted authn/LDAP; vendor-terminal launch remains limited to reviewed OIDC/JWT/SaaS modes with writable vendor credential storage;
+- certificate/IAM/Azure/GCP/unknown modes, plaintext self-hosted appliance URLs, and disabled/read-only credential storage fail closed;
+- connection setup, password handoff, and vendor-login launch share one authentication single-flight gate;
+- executable identity is revalidated immediately before vendor-login launch, which uses fixed `conjur login` argv without a shell or credential capture;
 - submitted credentials never become process argv, task values, run history, diagnostics or logs;
 - raw vendor authentication errors are collapsed to reviewed browser-safe codes;
-- a successful handoff is followed by the existing trusted `whoami` session check; login response alone is not authorization evidence;
+- a successful password handoff or vendor-login launch is followed by the existing trusted `whoami` session check; transport/launch success alone is not authorization evidence;
 - future mutations must make profile/account/tenant context explicit before execution.
 
 ### T12 — Long-running/noisy process denial of service
