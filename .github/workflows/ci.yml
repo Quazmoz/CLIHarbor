@@ -41,6 +41,22 @@ jobs:
         run: npm run build --prefix web
       - name: Generate embedded frontend
         run: go run ./tools/task sync-web
+      - name: Export generated frontend bytes for branch synchronization
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          echo 'CLIHARBOR_GEN_HTML_BEGIN'
+          base64 -w0 internal/webui/static/index.html
+          echo
+          echo 'CLIHARBOR_GEN_HTML_END'
+          echo 'CLIHARBOR_GEN_JS_BEGIN'
+          base64 -w0 internal/webui/static/assets/index-BI-_QxDM.js
+          echo
+          echo 'CLIHARBOR_GEN_JS_END'
+          echo 'CLIHARBOR_GEN_CSS_BEGIN'
+          base64 -w0 internal/webui/static/assets/index-BWTwLU6i.css
+          echo
+          echo 'CLIHARBOR_GEN_CSS_END'
       - name: Capture generated frontend for synchronization
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
