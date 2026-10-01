@@ -30,12 +30,12 @@ type conjurLoginClient interface {
 }
 
 type conjurCredentialLoginService struct {
-	enabled      bool
-	toolPath     string
-	toolIdentity discovery.ExecutableIdentity
-	authGate     chan struct{}
-	loadConfig   func() (conjurapi.Config, error)
-	newClient    func(conjurapi.Config) (conjurLoginClient, error)
+	enabled              bool
+	toolPath             string
+	toolIdentity         discovery.ExecutableIdentity
+	authGate             chan struct{}
+	loadConfig           func() (conjurapi.Config, error)
+	newClient            func(conjurapi.Config) (conjurLoginClient, error)
 	runInit              func(context.Context, string, []string) error
 	interactiveSupported func() bool
 	launchInteractive    func(string, []string) error
