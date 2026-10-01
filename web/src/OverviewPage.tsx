@@ -55,11 +55,11 @@ export function OverviewPage({
   const readyToolCount = tools.filter((tool) => tool.status === 'ready').length;
   const attentionToolCount = tools.length - readyToolCount;
   const vendorSessionTaskCount = tasks.filter((task) => task.requiresAuth === true).length;
-  const browserLoginTools = tools.filter(
-    (tool) =>
-      tool.status === 'ready' &&
-      tool.requiresVendorSession === true &&
-      tool.credentialLogin?.method === 'conjur-password',
+  const vendorSessionTools = tools.filter(
+    (tool) => tool.status === 'ready' && tool.requiresVendorSession === true,
+  );
+  const hasBrowserCredentialLogin = vendorSessionTools.some(
+    (tool) => tool.credentialLogin?.method === 'conjur-password',
   );
   const shortcuts = useMemo(() => quickTasks(tasks, preferences), [tasks, preferences]);
   const workflowReady = tools.length > 0 && attentionToolCount === 0 && tasks.length > 0;
@@ -107,19 +107,19 @@ export function OverviewPage({
         </div>
       </div>
 
-      {browserLoginTools.length > 0 && (
+      {vendorSessionTools.length > 0 && (
         <section className="overview-login" aria-labelledby="overview-login-heading">
           <div className="route-heading">
             <p className="status-label">CLI sign-in</p>
-            <h2 id="overview-login-heading">Sign in from this browser</h2>
+            <h2 id="overview-login-heading">{hasBrowserCredentialLogin ? 'Sign in from this browser' : 'CLI authentication'}</h2>
             <p>
-              Sign in to the approved CLI without leaving CLIHarbor. Passwords are sent only to the authenticated local
-              runtime, never placed in command arguments or run history, and a successful handoff is verified with the
-              reviewed CLI session check.
+              CLIHarbor keeps detected vendor-session CLIs visible here independently from browser credential support. When
+              the reviewed browser credential adapter is available, you can sign in here without placing passwords in command
+              arguments or run history; otherwise you can still verify the detected CLI session and see why browser sign-in is unavailable.
             </p>
           </div>
           <div className="auth-layout">
-            {browserLoginTools.map((tool) => (
+            {vendorSessionTools.map((tool) => (
               <VendorSessionCard
                 key={tool.packId + '/' + tool.toolId + '/' + tool.packVersion}
                 status={status}

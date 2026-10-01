@@ -598,6 +598,17 @@ export function VendorSessionCard({
         </div>
       )}
 
+      {toolView.ready && tool.credentialLogin === undefined && (
+        <div className="credential-login-error" role="status">
+          <strong>CLI detected; browser sign-in is unavailable for the current vendor configuration.</strong>
+          <span>
+            Detection and authentication are separate. CLIHarbor can still run the reviewed session check. If you expected the
+            built-in Conjur password form, review Diagnostics and the current Conjur connection/authentication mode instead of
+            reinstalling the CLI.
+          </span>
+        </div>
+      )}
+
       {tool.credentialLogin?.method === 'conjur-password' && toolView.ready && (
         <form
           className="credential-login-form"
