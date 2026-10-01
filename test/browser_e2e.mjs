@@ -11,6 +11,12 @@ const bootstrapURL = process.env.CLIHARBOR_E2E_BOOTSTRAP_URL;
 if (!bootstrapURL) {
   throw new Error('missing CLIHARBOR_E2E_BOOTSTRAP_URL');
 }
+const conjurURL = process.env.CLIHARBOR_E2E_CONJUR_URL;
+const conjurIdentity = process.env.CLIHARBOR_E2E_CONJUR_IDENTITY;
+const conjurSecret = process.env.CLIHARBOR_E2E_CONJUR_SECRET;
+if (!conjurURL || !conjurIdentity || !conjurSecret) {
+  throw new Error('missing hermetic Conjur browser E2E configuration');
+}
 if (typeof WebSocket !== 'function') {
   throw new Error('this E2E harness requires the built-in WebSocket available in Node 24');
 }
@@ -380,6 +386,21 @@ function isRunCreateRequest(params, commandID) {
   }
 }
 
+function isConjurSessionCheckRequest(params) {
+  if (params.request?.url === undefined || params.request.url !== new URL('/api/v1/runs', bootstrapURL).href) {
+    return false;
+  }
+  if (params.request.method !== 'POST' || typeof params.request.postData !== 'string') {
+    return false;
+  }
+  try {
+    const body = JSON.parse(params.request.postData);
+    return body?.packId === 'cyberark-conjur-v9' && body?.commandId === 'whoami';
+  } catch {
+    return false;
+  }
+}
+
 function headerValue(headers, name) {
   if (!headers) {
     return undefined;
@@ -511,6 +532,89 @@ async function main() {
     assert.equal(authSurface.passwordInputs, 0, 'authentication route must not contain password inputs');
     assert.equal(authSurface.horizontalOverflow, false, 'authentication route must fit the 1366px enterprise viewport horizontally');
     assert.equal(authSurface.hasAuthLink, true, 'authentication route must remain in primary navigation');
+
+    stage('staged Conjur GUI authentication');
+    assert.equal(
+      await page.evaluate('document.body.innerText.includes("Save connection and continue")'),
+      true,
+      'first-run Conjur setup must expose the connection stage',
+    );
+    const configureRequestPromise = page.waitEvent(
+      'Network.requestWillBeSent',
+      (params) =>
+        params.request?.url === new URL('/api/v1/auth/configure', baseURL).href &&
+        params.request.method === 'POST',
+    );
+    await setTextInput(page, 'Conjur server URL', conjurURL);
+    await setTextInput(page, 'Account', 'engineering');
+    await clickButton(page, 'Save connection and continue');
+
+    const configureRequest = await configureRequestPromise;
+    assert.equal(
+      headerValue(configureRequest.request.headers, 'X-CLIHarbor-CSRF')?.length > 0,
+      true,
+      'connection setup must carry the authenticated local CSRF boundary',
+    );
+    assert.equal(
+      (configureRequest.request.postData ?? '').includes(conjurSecret),
+      false,
+      'connection setup must not contain the password',
+    );
+    assert.deepEqual(JSON.parse(configureRequest.request.postData), {
+      packId: 'cyberark-conjur-v9',
+      toolId: 'conjur',
+      applianceUrl: conjurURL,
+      account: 'engineering',
+      authnType: 'authn',
+    });
+    assert.equal(await waitHTTPStatus(page, configureRequest.requestId), 204, 'connection setup should succeed');
+
+    await waitJS(
+      page,
+      'credential stage after connection setup',
+      'document.querySelectorAll("input[type=password]").length === 1 && ' +
+        'Array.from(document.querySelectorAll("input")).some((input) => input.closest("label")?.textContent?.trim().startsWith("Identity")) && ' +
+        '!Array.from(document.querySelectorAll("input")).some((input) => input.closest("label")?.textContent?.trim().startsWith("Conjur server URL"))',
+    );
+
+    const loginRequestPromise = page.waitEvent(
+      'Network.requestWillBeSent',
+      (params) =>
+        params.request?.url === new URL('/api/v1/auth/login', baseURL).href &&
+        params.request.method === 'POST',
+    );
+    const sessionCheckPromise = page.waitEvent('Network.requestWillBeSent', isConjurSessionCheckRequest);
+    await setTextInput(page, 'Identity', conjurIdentity);
+    await setTextInput(page, 'Password', conjurSecret);
+    await clickButton(page, 'Sign in and verify');
+
+    const loginRequest = await loginRequestPromise;
+    assert.deepEqual(JSON.parse(loginRequest.request.postData), {
+      packId: 'cyberark-conjur-v9',
+      toolId: 'conjur',
+      identity: conjurIdentity,
+      secret: conjurSecret,
+    });
+    assert.equal(await waitHTTPStatus(page, loginRequest.requestId), 204, 'credential login should succeed');
+
+    const sessionCheckRequest = await sessionCheckPromise;
+    assert.equal(
+      (sessionCheckRequest.request.postData ?? '').includes(conjurSecret),
+      false,
+      'session verification must not contain the password',
+    );
+    await waitJS(
+      page,
+      'authenticated Conjur session',
+      'document.body.innerText.includes("Authenticated") && document.body.innerText.includes("engineering") && document.body.innerText.includes("alice")',
+      15000,
+    );
+    const credentialState = await page.evaluate('(() => ({' +
+      'passwordValue: document.querySelector("input[type=password]")?.value ?? null,' +
+      'connectionInputs: Array.from(document.querySelectorAll("input")).filter((input) => input.closest("label")?.textContent?.trim().startsWith("Conjur server URL")).length' +
+    '}))()');
+    assert.equal(credentialState.passwordValue, '', 'password input must be cleared after the login attempt');
+    assert.equal(credentialState.connectionInputs, 0, 'successful setup must not leave connection inputs active');
 
     stage('direct run history route');
     await navigate(page, baseURL + '/runs');
