@@ -67,6 +67,34 @@ describe('fetchTools', () => {
     expect(diagnostics[1].sessionCheck).toBeUndefined();
   });
 
+  test('accepts the reviewed vendor-owned Conjur login capability', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          response(200, {
+            tools: [
+              {
+                packId: 'cyberark-conjur-v9',
+                packName: 'CyberArk / Idira Secrets Manager CLI 9.x',
+                packVersion: '0.1.2',
+                toolId: 'conjur',
+                status: 'ready',
+                requiresVendorSession: true,
+                credentialLogin: {
+                  method: 'conjur-vendor-login',
+                },
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+
+    const diagnostics = await fetchTools();
+    expect(diagnostics[0].credentialLogin).toEqual({ method: 'conjur-vendor-login' });
+  });
+
   test.each([
     {
       requiresVendorSession: false,
@@ -99,6 +127,10 @@ describe('fetchTools', () => {
     {
       requiresVendorSession: true,
       credentialLogin: { method: 'conjur-password', arbitrary: true },
+    },
+    {
+      requiresVendorSession: true,
+      credentialLogin: { method: 'conjur-vendor-login', setupRequired: true },
     },
   ])('rejects malformed or inconsistent session metadata: %j', async (metadata) => {
     vi.stubGlobal(
