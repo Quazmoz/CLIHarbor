@@ -415,3 +415,36 @@ func TestDefaultUserSearchDirectoriesIncludeDefaultGoBin(t *testing.T) {
 		})
 	}
 }
+
+
+func TestDiscoverUsesDefaultGoBinFallback(t *testing.T) {
+	home := t.TempDir()
+	goBin := filepath.Join(home, "go", "bin")
+	if err := os.MkdirAll(goBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	executable := createExecutable(t, goBin, platformExecutableName("fixture"))
+	executable = resolvedTestPath(t, executable)
+
+	resolver := NewResolver(Config{
+		GOOS:         runtime.GOOS,
+		PathValue:    t.TempDir(),
+		FallbackDirs: defaultUserSearchDirectories(runtime.GOOS, home),
+		ProbeRunner:  &fakeProbeRunner{},
+	})
+	snapshot, err := resolver.Discover(
+		context.Background(),
+		testRegistry(t, packs.Tool{ExecutableNames: []string{"fixture"}}),
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	state, ok := snapshot.Find(ToolRef{PackID: "demo", ToolID: "fixture"})
+	if !ok {
+		t.Fatal("tool state missing")
+	}
+	if state.Status != StatusReady || state.Path != executable {
+		t.Fatalf("state = %#v, want ready Go-bin fallback executable %q", state, executable)
+	}
+}
