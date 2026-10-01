@@ -358,20 +358,21 @@ func supportsConjurPasswordLogin(config conjurapi.Config) bool {
 func supportsConjurVendorLogin(config conjurapi.Config) bool {
 	if config.CredentialStorage == conjurapi.CredentialStorageNone ||
 		config.CredentialStorageMode == conjurapi.CredentialStorageModeReadOnly ||
-		!validConjurHTTPSURL(config.ApplianceURL) ||
-		!validConjurConfigScalar(config.Account) {
+		!validConjurHTTPSURL(config.ApplianceURL) {
 		return false
 	}
 
 	authnType := strings.ToLower(strings.TrimSpace(config.AuthnType))
 	switch authnType {
-	case "oidc":
-		return validConjurConfigScalar(config.ServiceID)
-	case "jwt":
-		return validConjurConfigScalar(config.ServiceID) &&
-			(config.JWTContent != "" || strings.TrimSpace(config.JWTFilePath) != "")
 	case "cloud":
+		// Idira Secrets Manager SaaS does not require an account value.
 		return config.IsSaaS()
+	case "oidc":
+		return validConjurConfigScalar(config.Account) && validConjurConfigScalar(config.ServiceID)
+	case "jwt":
+		return validConjurConfigScalar(config.Account) &&
+			validConjurConfigScalar(config.ServiceID) &&
+			(config.JWTContent != "" || strings.TrimSpace(config.JWTFilePath) != "")
 	default:
 		return false
 	}
