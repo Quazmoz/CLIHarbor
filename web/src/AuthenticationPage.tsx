@@ -151,7 +151,7 @@ function evidenceFromSnapshot(
   }
 }
 
-function VendorSessionCard({
+export function VendorSessionCard({
   status,
   tasks,
   tool,
