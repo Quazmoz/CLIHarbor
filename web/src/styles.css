@@ -75,6 +75,8 @@ button:focus-visible,
 summary:focus-visible,
 .field input:focus-visible,
 .field select:focus-visible,
+.structured-result-control input:focus-visible,
+.structured-result-control select:focus-visible,
 .checkbox-row input:focus-visible,
 .error-panel:focus,
 .failure-notice:focus,
@@ -751,6 +753,48 @@ main {
   font-size: 1rem;
 }
 
+.structured-result-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, auto) auto;
+  gap: 0.65rem;
+  align-items: end;
+  margin-bottom: 0.8rem;
+}
+
+.structured-result-control {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.structured-result-control input,
+.structured-result-control select {
+  min-height: 2.35rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.structured-result-count {
+  align-self: center;
+  color: var(--text-subtle);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.structured-result-empty {
+  margin: 0;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  color: var(--text-subtle) !important;
+}
+
 .structured-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
@@ -770,6 +814,7 @@ main {
 }
 
 .structured-card dt {
+  overflow-wrap: anywhere;
   font-size: 0.75rem;
   font-weight: 750;
   letter-spacing: 0.04em;
@@ -777,9 +822,77 @@ main {
 }
 
 .structured-card dd {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.55rem;
+  text-align: left;
+}
+
+.structured-card-value {
+  min-width: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  text-align: left;
+}
+
+.structured-copy-button {
+  min-height: 1.9rem;
+  flex: 0 0 auto;
+  border-color: var(--border);
+  padding: 0.32rem 0.5rem;
+  font-size: 0.72rem;
+}
+
+.structured-copy-status {
+  margin: 0.7rem 0 0 !important;
+  color: var(--text-muted) !important;
+  font-size: 0.8rem;
+}
+
+.structured-json {
+  margin-top: 0.8rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.structured-json > summary {
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.structured-json p {
+  margin: 0.55rem 0 !important;
+  color: var(--text-subtle) !important;
+  font-size: 0.78rem;
+}
+
+.structured-json pre {
+  max-height: 18rem;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  color: var(--text);
+  background: var(--surface-code);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 620px) {
+  .structured-result-controls {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .structured-result-count {
+    justify-self: start;
+  }
 }
 
 .parser-warning,

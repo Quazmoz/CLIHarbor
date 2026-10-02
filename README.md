@@ -145,7 +145,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Vendor sessions | Explicit `vendor-session` mode, reviewed zero-input session checks, a Conjur-only ephemeral password bridge, and a Windows vendor-owned Conjur login launcher for reviewed OIDC/JWT/SaaS modes; credentials stay out of task argv/run history/logs and durable session material remains vendor-owned |
 | Windows lifecycle | Suspended launch, Job Object assignment before resume, descendant containment and teardown |
 | Browser runs | Authenticated run APIs, planner-backed sanitized invocation preview, bounded SSE streaming/replay, reconnect reconciliation, cancellation, in-memory retry-with-inputs, bounded retention and metadata-only Recent Runs history |
-| Structured results | Strict bounded scalar JSON parsing, inert React rendering and raw-output fallback |
+| Structured results | Strict bounded scalar JSON parsing, inert React rendering, client-side field filter/sort, explicit per-field copy, normalized JSON inspection, and raw-output fallback |
 | Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, SHA-256 and strict inspection |
 | Diagnostics | Allowlisted non-secret support export; no command output, argv, paths, environment values, browser secrets or credentials |
 | Windows qualification | Exact toolchain, deterministic rebuild checks, `EVALUATION_SHA256SUMS`, self-test/evidence smoke and extracted-bundle preflight |
