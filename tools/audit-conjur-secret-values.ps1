@@ -11,7 +11,8 @@ printed, logged, or written to the report.
 The script does not mutate Conjur. It invokes only:
   conjur --version
   conjur whoami --output json
-  conjur list --kind variable --limit=-1 --output json
+  conjur list --kind variable --count --output json
+  conjur list --kind variable --limit <page-size> --offset <offset> --output json
   conjur variable get --id <variable> --output json
 
 Exit codes:
@@ -32,6 +33,10 @@ param(
     [int]$ProcessTimeoutSeconds = 120,
     [ValidateRange(1, 1000000)]
     [int]$MaxVariables = 50000,
+    [ValidateRange(1, 10000)]
+    [int]$ListPageSize = 500,
+    [ValidateRange(4096, 16777216)]
+    [int]$MaxSecretOutputChars = 1048576,
     [ValidateSet('High', 'Medium')]
     [string]$MinimumConfidence = 'Medium',
     [switch]$AllowUnsupportedVersion,
@@ -121,7 +126,11 @@ function Invoke-ConjurProcess {
         [Parameter(Mandatory = $true)]
         [string[]]$Arguments,
         [Parameter(Mandatory = $true)]
-        [int]$TimeoutSeconds
+        [int]$TimeoutSeconds,
+        [ValidateRange(1024, 67108864)]
+        [int]$MaxStdoutChars = 8388608,
+        [ValidateRange(1024, 8388608)]
+        [int]$MaxStderrChars = 524288
     )
 
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
@@ -165,10 +174,24 @@ function Invoke-ConjurProcess {
 
         $process.WaitForExit()
 
+        $stdout = $stdoutTask.Result
+        $stderr = $stderrTask.Result
+        $stdoutLimitExceeded = $stdout.Length -gt $MaxStdoutChars
+        $stderrLimitExceeded = $stderr.Length -gt $MaxStderrChars
+
+        if ($stdoutLimitExceeded) {
+            $stdout = ''
+        }
+        if ($stderrLimitExceeded) {
+            $stderr = ''
+        }
+
         return [pscustomobject][ordered]@{
-            ExitCode = $process.ExitCode
-            Stdout   = $stdoutTask.Result
-            Stderr   = $stderrTask.Result
+            ExitCode            = $process.ExitCode
+            Stdout              = $stdout
+            Stderr              = $stderr
+            StdoutLimitExceeded = $stdoutLimitExceeded
+            StderrLimitExceeded = $stderrLimitExceeded
         }
     }
     finally {
@@ -202,6 +225,16 @@ function ConvertFrom-ResourceIdToVariableId {
         [Parameter(Mandatory = $true)]
         [string]$ResourceId
     )
+
+    if ($ResourceId.Length -gt 2048 -or $ResourceId.Trim() -ne $ResourceId) {
+        throw "Conjur returned an invalid variable identifier."
+    }
+    foreach ($character in $ResourceId.ToCharArray()) {
+        $code = [int]$character
+        if ($code -le 0x1f -or $code -eq 0x7f) {
+            throw "Conjur returned an invalid variable identifier."
+        }
+    }
 
     $marker = ':variable:'
     $index = $ResourceId.IndexOf($marker, [System.StringComparison]::Ordinal)
