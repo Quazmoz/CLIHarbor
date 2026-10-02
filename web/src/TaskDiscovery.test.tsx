@@ -83,7 +83,7 @@ describe('TaskDiscovery', () => {
       />,
     );
 
-    const search = screen.getByRole('searchbox', { name: 'Search tasks' });
+    const search = screen.getByRole('searchbox', { name: 'Find a task' });
     fireEvent.change(search, { target: { value: 'conjur' } });
     expect(screen.getByRole('heading', { name: 'Search results' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Favorites' })).not.toBeInTheDocument();
@@ -127,7 +127,7 @@ describe('TaskDiscovery', () => {
         onToggleFavorite={vi.fn()}
       />,
     );
-    const search = screen.getByRole('searchbox', { name: 'Search tasks' });
+    const search = screen.getByRole('searchbox', { name: 'Find a task' });
     fireEvent.keyDown(document.body, { key: '/' });
     expect(search).toHaveFocus();
 
