@@ -35,7 +35,7 @@ Variable identifiers are operational metadata and may themselves be sensitive. P
 - An already authenticated Conjur session.
 - Permission to list and retrieve the variables being audited.
 
-The audit covers **all variables visible to the authenticated identity**. Conjur authorization may intentionally hide variables from that identity; those cannot be audited by this session.
+The audit covers **all variables visible to the authenticated identity**. It refuses to retrieve values when the visible inventory exceeds the default safety bound of 50,000 variables; increase `-MaxVariables` deliberately if a larger full audit is required. Conjur authorization may intentionally hide variables from that identity; those cannot be audited by this session.
 
 The script fails closed on a non-9.x CLI unless `-AllowUnsupportedVersion` is supplied after reviewing CLI compatibility.
 
@@ -89,7 +89,7 @@ Medium-confidence findings:
 
 The default is `-MinimumConfidence Medium`. Use `-MinimumConfidence High` to report only strong reference matches.
 
-The classifier deliberately ignores common non-reference shapes such as prose/whitespace-bearing values, PEM blocks, JSON-like values, ordinary URLs, and connection strings containing `=`.
+The classifier deliberately ignores common non-reference shapes such as prose/whitespace-bearing values, PEM blocks, JSON-like values, ordinary URLs, connection strings containing `=`, IPv4 addresses, semantic versions, JWT-shaped tokens, and plain hostnames.
 
 These are heuristics, not proof that a secret is wrong. Review every finding in context before changing any Conjur value.
 
