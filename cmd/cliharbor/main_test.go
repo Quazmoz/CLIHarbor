@@ -200,3 +200,102 @@ func TestEvaluationPreflightCommandShapeFailsClosed(t *testing.T) {
 		}
 	}
 }
+
+
+func TestHelpRequestRecognizesOperatorHelpAtUsefulPositions(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{name: "top level long", args: []string{"--help"}, want: nil},
+		{name: "top level short", args: []string{"-h"}, want: nil},
+		{name: "help command", args: []string{"help"}, want: nil},
+		{name: "help nested topic", args: []string{"help", "pack", "init"}, want: []string{"pack", "init"}},
+		{name: "command", args: []string{"serve", "--help"}, want: []string{"serve"}},
+		{name: "command after option", args: []string{"serve", "--no-auto-setup", "--help"}, want: []string{"serve"}},
+		{name: "command with top-level option first", args: []string{"--no-auto-setup", "--help"}, want: nil},
+		{name: "nested command", args: []string{"pack", "init", "--help"}, want: []string{"pack", "init"}},
+		{name: "nested command after options", args: []string{"pack", "init", "--id", "demo", "--help"}, want: []string{"pack", "init"}},
+		{name: "diagnostics nested", args: []string{"diagnostics", "export", "--pack-file", "demo.yaml", "--help"}, want: []string{"diagnostics", "export"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := helpRequest(tc.args)
+			if !ok {
+				t.Fatalf("helpRequest(%v) did not recognize help", tc.args)
+			}
+			if strings.Join(got, "/") != strings.Join(tc.want, "/") {
+				t.Fatalf("helpRequest(%v) path = %v, want %v", tc.args, got, tc.want)
+			}
+		})
+	}
+
+	if _, ok := helpRequest([]string{"serve", "--no-auto-setup"}); ok {
+		t.Fatal("ordinary command unexpectedly treated as help")
+	}
+}
+
+func TestPrintHelpProvidesCommandMapAndSafetyBoundary(t *testing.T) {
+	var output strings.Builder
+	if err := printHelp(&output, nil); err != nil {
+		t.Fatalf("printHelp(top-level): %v", err)
+	}
+	for _, want := range []string{
+		"Usage:",
+		"cliharbor [serve] [options]",
+		"doctor",
+		"inventory",
+		"pack",
+		"diagnostics",
+		"evaluation",
+		"does not provide an arbitrary shell",
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("top-level help missing %q:\n%s", want, output.String())
+		}
+	}
+}
+
+func TestPrintHelpProvidesNestedUsage(t *testing.T) {
+	var output strings.Builder
+	if err := printHelp(&output, []string{"pack", "init"}); err != nil {
+		t.Fatalf("printHelp(pack init): %v", err)
+	}
+	if !strings.Contains(output.String(), "cliharbor pack init --id <id>") {
+		t.Fatalf("nested help missing pack init usage:\n%s", output.String())
+	}
+	if !strings.Contains(output.String(), "discovery-only pack scaffold") {
+		t.Fatalf("nested help missing safety scope:\n%s", output.String())
+	}
+}
+
+func TestPrintHelpRejectsUnknownTopicActionably(t *testing.T) {
+	var output strings.Builder
+	err := printHelp(&output, []string{"pack", "unknown"})
+	if err == nil {
+		t.Fatal("unknown help topic unexpectedly succeeded")
+	}
+	if !strings.Contains(err.Error(), "cliharbor help") {
+		t.Fatalf("unknown help topic error is not actionable: %v", err)
+	}
+}
+
+func TestUnknownCommandsPointToHelp(t *testing.T) {
+	cases := [][]string{
+		{"serv"},
+		{"pack", "innit"},
+		{"evidence", "inspekt"},
+		{"diagnostics", "inspect"},
+		{"evaluation", "check"},
+	}
+	for _, args := range cases {
+		err := run(args)
+		if err == nil {
+			t.Fatalf("run(%v) unexpectedly succeeded", args)
+		}
+		if !strings.Contains(err.Error(), "cliharbor help") {
+			t.Fatalf("run(%v) error is not actionable: %v", args, err)
+		}
+	}
+}
