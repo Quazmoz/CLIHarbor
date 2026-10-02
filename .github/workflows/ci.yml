@@ -49,15 +49,6 @@ jobs:
           path: internal/webui/static
           if-no-files-found: error
           retention-days: 1
-      - name: Emit generated frontend transfer payload
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        run: |
-          for file in internal/webui/static/index.html internal/webui/static/assets/*; do
-            echo "CLIHARBOR_TRANSFER_BEGIN $file"
-            base64 -w 8000 "$file"
-            echo "CLIHARBOR_TRANSFER_END $file"
-          done
       - name: Verify embedded frontend is synchronized
         run: go run ./tools/task verify-web-sync
       - name: Verify Go module integrity
