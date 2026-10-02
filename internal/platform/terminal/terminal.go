@@ -10,7 +10,7 @@ import (
 var ErrUnsupported = errors.New("external vendor terminal is unsupported on this platform")
 
 // Supported reports whether CLIHarbor can launch an exact executable into a
-// separate interactive terminal without going through a shell.
+// vendor-owned Windows process without going through a shell.
 func Supported() bool {
 	return platformSupported()
 }
@@ -25,6 +25,19 @@ func Launch(executable string, args []string) error {
 		return ErrUnsupported
 	}
 	return launchPlatform(executable, args)
+}
+
+// LaunchHidden starts the exact executable with the supplied argv without a
+// visible console window. The detached vendor process still owns its own
+// browser handoff/session storage; CLIHarbor does not capture stdin/stdout.
+func LaunchHidden(executable string, args []string) error {
+	if err := validateLaunch(executable, args); err != nil {
+		return err
+	}
+	if !platformSupported() {
+		return ErrUnsupported
+	}
+	return launchHiddenPlatform(executable, args)
 }
 
 func validateLaunch(executable string, args []string) error {
