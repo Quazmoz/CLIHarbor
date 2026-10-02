@@ -42,7 +42,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function New-OrdinalStringSet {
-    return [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    # Prevent PowerShell from pipeline-unrolling an empty collection into no output.
+    return ,([System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal))
 }
 
 function ConvertTo-WindowsCommandLineArgument {
