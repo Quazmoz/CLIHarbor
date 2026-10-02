@@ -551,7 +551,7 @@ export function VendorSessionCard({
       tool.credentialLogin?.method === 'conjur-password'
         ? 'Your Conjur session is signed out. Use the sign-in form below and CLIHarbor will verify the session automatically.'
         : tool.credentialLogin?.method === 'conjur-vendor-login'
-          ? 'Your Conjur session is signed out. Open the official Conjur sign-in flow below, complete it, then re-check the session.'
+          ? 'Your Conjur session is signed out. Start the official Conjur sign-in flow below, complete any vendor browser or terminal interaction, then re-check the session.'
           : 'The reviewed session check returned the pack-declared signed-out evidence. Authenticate with your approved vendor flow, then re-check the session.';
     primaryClass = 'auth-state--attention';
     primarySymbol = '!';
@@ -838,9 +838,10 @@ export function VendorSessionCard({
             <span className="safety-chip">Credentials stay vendor-owned</span>
           </div>
           <p className="credential-login-help">
-            CLIHarbor will open the exact verified Conjur CLI in a separate Windows terminal with only the reviewed
-            <code> login</code> argument. Conjur owns any password, OIDC, JWT, browser handoff, or SaaS interaction.
-            CLIHarbor does not receive or record those credentials.
+            CLIHarbor starts the exact verified Conjur CLI with only the reviewed <code>login</code> argument. OIDC and
+            JWT run without a CLIHarbor console; OIDC may open the vendor browser flow. Idira SaaS/cloud may open a
+            separate vendor-owned terminal when interactive challenges are required. CLIHarbor does not receive or record
+            credentials from this flow.
           </p>
           {credentialFailure !== null && (
             <div className="credential-login-error" role="alert">
@@ -850,8 +851,8 @@ export function VendorSessionCard({
           )}
           {vendorLoginOpened && (
             <div className="credential-login-success" role="status">
-              <strong>Official Conjur sign-in opened.</strong>
-              <span>Finish the vendor flow in the new terminal/browser, then select Check session.</span>
+              <strong>Official Conjur sign-in started.</strong>
+              <span>Complete any vendor browser or terminal flow, then select Check session to verify the session.</span>
             </div>
           )}
           <div className="credential-login-actions">
@@ -860,7 +861,7 @@ export function VendorSessionCard({
               disabled={credentialSubmitting || check.kind === 'checking'}
               onClick={() => void launchVendorLogin()}
             >
-              {credentialSubmitting ? 'Opening Conjur sign-in…' : vendorLoginOpened ? 'Open Conjur sign-in again' : 'Open official Conjur sign-in'}
+              {credentialSubmitting ? 'Starting Conjur sign-in…' : vendorLoginOpened ? 'Start Conjur sign-in again' : 'Start official Conjur sign-in'}
             </button>
           </div>
         </div>
@@ -966,8 +967,9 @@ export function AuthenticationPage({
         </p>
         <p className="auth-guidance-step">
           When the current Conjur configuration uses a reviewed vendor-owned login mode such as OIDC, JWT, or Idira SaaS,
-          CLIHarbor can open the exact verified Conjur CLI in a separate Windows terminal with fixed <code>login</code> argv.
-          Unsupported modes such as certificate/IAM/Azure/GCP remain outside CLIHarbor and continue through your organization's approved flow.
+          CLIHarbor starts the exact verified Conjur CLI with fixed <code>login</code> argv. OIDC/JWT avoid an unnecessary
+          console window; SaaS/cloud retains a vendor-owned terminal when interactive challenges require it. Unsupported
+          modes such as certificate/IAM/Azure/GCP remain outside CLIHarbor and continue through your organization's approved flow.
         </p>
         <p>
           CLIHarbor’s local browser session is a separate trust boundary from vendor sessions. A successful sign-in still does
