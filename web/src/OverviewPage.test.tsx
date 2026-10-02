@@ -149,7 +149,7 @@ describe('OverviewPage', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Sign in from this browser' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sign in from CLIHarbor' })).toBeInTheDocument();
     fireEvent.change(screen.getByRole('textbox', { name: 'Identity' }), { target: { value: 'alice' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'super-secret' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in and verify' }));
@@ -163,6 +163,39 @@ describe('OverviewPage', () => {
     });
     expect(loginHeaders).toMatchObject({ 'X-CLIHarbor-CSRF': status.csrfToken });
     expect(screen.getByLabelText('Password')).toHaveValue('');
+  });
+
+  test('offers vendor-owned Conjur login directly from Overview when advertised', async () => {
+    const vendorLoginTools: ToolDiagnostic[] = [
+      {
+        ...readyTools[0],
+        credentialLogin: { method: 'conjur-vendor-login' },
+      },
+      readyTools[1],
+    ];
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (requestPath(input) === '/api/v1/auth/interactive') {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <OverviewPage
+        status={status}
+        tasks={tasks}
+        tools={vendorLoginTools}
+        preferences={{ favorites: [], recent: [] }}
+        onNavigate={vi.fn()}
+        onOpenTask={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Sign in from CLIHarbor' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open official Conjur sign-in' }));
+    expect(await screen.findByText('Official Conjur sign-in opened.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   test('keeps a detected Conjur CLI visible when browser credential capability is unavailable', () => {

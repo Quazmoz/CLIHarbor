@@ -94,27 +94,30 @@ Online source/release evidence establishes the generic command and fallback-byte
 
 ## Stage 4 — Authentication UX
 
-**Current state:** generic read-only `vendor-session` readiness UX is implemented; CLIHarbor-owned login orchestration is not.
+**Current state:** generic read-only `vendor-session` readiness plus the reviewed Conjur sign-in adapters are implemented; broader vendor auth remains demand-driven.
 
 Implemented:
 
 - pack-declared, zero-input read-only/non-secret session checks validated against the declaring tool;
 - browser-safe metadata identifying which tools require vendor sessions and any reviewed session check;
-- a multi-tool Authentication page driven by generic tool/session metadata rather than Conjur identifiers;
+- a multi-tool Authentication page driven by generic tool/session metadata rather than hard-coded task execution;
 - conservative signed-out classification only from optional reviewed pack evidence;
 - bounded output, cancellation/reconciliation, stale-completion protection, and allowlisted inert identity rendering;
 - explicit **Session check unavailable** behavior for vendor-session tools such as kubectl that do not have a reliable generic auth probe;
-- Conjur retains its reviewed `whoami` check and signed-out evidence without adding credential authority.
+- Conjur password-style `authn`/LDAP handoff through the pinned vendor API without password argv/history/persistence;
+- first-run Conjur connection setup using exact reviewed `init self-hosted` argv;
+- Windows vendor-owned Conjur login launch for reviewed OIDC, JWT, and SaaS/cloud modes using the identity-verified executable plus fixed `login` argv, with no shell or credential capture;
+- the existing Conjur `whoami` check remains authoritative after either sign-in path.
 
 Potential deliverables, only when justified by real operator needs:
 
 - broader vendor-specific auth-state detection where authoritative evidence exists;
-- vendor-owned login launch;
 - session refresh/status display;
 - documented vendor logout;
-- explicit profile/context visibility.
+- explicit profile/context visibility;
+- additional vendor-owned login launchers after their exact authentication contracts are reviewed.
 
-The preferred architecture remains vendor-owned credentials/session storage. Browser password/MFA forms and embedded PTY remain deferred because they materially expand the security boundary.
+The preferred architecture remains vendor-owned credentials/session storage. Generic browser password/MFA forms and embedded PTY remain deferred because they materially expand the security boundary.
 
 ## Stage 5 — Additional useful read-only workflows
 

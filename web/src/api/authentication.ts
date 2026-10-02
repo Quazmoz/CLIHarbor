@@ -16,6 +16,11 @@ export interface CredentialLoginRequest {
   secret: string;
 }
 
+export interface CredentialInteractiveLoginRequest {
+  packId: string;
+  toolId: string;
+}
+
 async function expectNoContent(response: Response): Promise<void> {
   if (!response.ok) {
     throw await errorFromResponse(response);
@@ -51,6 +56,27 @@ export async function loginWithCredentials(
   signal?: AbortSignal,
 ): Promise<void> {
   const response = await fetch('/api/v1/auth/login', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-CLIHarbor-CSRF': csrfToken,
+    },
+    body: JSON.stringify(request),
+    signal,
+  });
+
+  await expectNoContent(response);
+}
+
+
+export async function launchInteractiveLogin(
+  csrfToken: string,
+  request: CredentialInteractiveLoginRequest,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch('/api/v1/auth/interactive', {
     method: 'POST',
     credentials: 'same-origin',
     headers: {

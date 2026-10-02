@@ -713,4 +713,74 @@ describe('AuthenticationPage', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  test('opens the official Conjur login flow without collecting credentials', async () => {
+    const vendorLoginTool: ToolDiagnostic = {
+      ...readyTool,
+      credentialLogin: {
+        method: 'conjur-vendor-login',
+      },
+    };
+    let interactiveRequest: unknown;
+    let interactiveHeaders: HeadersInit | undefined;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (requestPath(input) === '/api/v1/auth/interactive') {
+        interactiveRequest = JSON.parse(String(init?.body));
+        interactiveHeaders = init?.headers;
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderAuth([whoamiTask], [vendorLoginTool]);
+
+    expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Open official Conjur sign-in' }));
+
+    expect(await screen.findByText('Official Conjur sign-in opened.')).toBeInTheDocument();
+    expect(interactiveRequest).toEqual({
+      packId: 'cyberark-conjur-v9',
+      toolId: 'conjur',
+    });
+    expect(interactiveHeaders).toMatchObject({ 'X-CLIHarbor-CSRF': status.csrfToken });
+    expect(JSON.stringify(interactiveRequest)).not.toContain('args');
+    expect(JSON.stringify(interactiveRequest)).not.toContain('secret');
+    expect(screen.getByRole('button', { name: 'Check session' })).toBeInTheDocument();
+  });
+
+  test('shows a sanitized failure when the official Conjur login flow cannot launch', async () => {
+    const vendorLoginTool: ToolDiagnostic = {
+      ...readyTool,
+      credentialLogin: {
+        method: 'conjur-vendor-login',
+      },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        if (requestPath(input) === '/api/v1/auth/interactive') {
+          return Promise.resolve(
+            response(503, {
+              error: {
+                code: 'authentication_unavailable',
+                category: 'lifecycle',
+                message: 'Vendor authentication is not currently available.',
+                remediation: 'Check local vendor configuration and retry.',
+                retryable: true,
+              },
+            }),
+          );
+        }
+        return Promise.resolve(response(404, {}));
+      }),
+    );
+
+    renderAuth([whoamiTask], [vendorLoginTool]);
+    fireEvent.click(screen.getByRole('button', { name: 'Open official Conjur sign-in' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Vendor authentication is not currently available.');
+    expect(screen.queryByText('Official Conjur sign-in opened.')).not.toBeInTheDocument();
+  });
+
 });
