@@ -18,10 +18,10 @@ The script:
 - verifies the CLI session before auditing;
 - counts visible variables first with `conjur list --kind variable --count --output json` and enforces `-MaxVariables` before enumeration or secret retrieval;
 - enumerates only resource-ID strings in bounded pages using explicit `--limit` / `--offset`; it intentionally does not request `--inspect`, so annotations and other resource metadata do not enter the audit process;
-- fails closed if the inventory changes during paging, returns duplicate IDs, or does not match the authoritative pre-count;
-- rejects noncanonical/control-character-bearing resource IDs before rendering or report generation;
+- fails closed if paging returns duplicates/count inconsistencies, then re-counts and re-enumerates the complete visible ID set after all value reads so inventory drift does not silently yield a supposedly complete report;
+- rejects control/format/bidirectional-spoofing resource-ID characters before rendering or report generation;
 - retrieves values one at a time with `conjur variable get --id ... --output json`;
-- limits secret-bearing stdout passed into JSON parsing/classification and records an `output_limit_exceeded` failure instead of retaining oversized output;
+- requires the qualified `{ "value": <string> }` secret JSON shape, limits secret-bearing stdout passed into JSON parsing/classification, and records sanitized failures instead of coercing malformed output;
 - performs no variable or policy mutation;
 - never intentionally prints secret values;
 - never writes secret values to its JSON report;
@@ -39,7 +39,7 @@ Variable identifiers are operational metadata and may themselves be sensitive. P
 - An already authenticated Conjur session.
 - Permission to list and retrieve the variables being audited.
 
-The audit covers **all variables visible to the authenticated identity**. It refuses to enumerate/retrieve values when the pre-count exceeds the default safety bound of 50,000 variables; increase `-MaxVariables` deliberately if a larger full audit is required. Conjur authorization may intentionally hide variables from that identity; those cannot be audited by this session.
+The audit covers **all variables visible to the authenticated identity**. It refuses to enumerate/retrieve values when the pre-count exceeds the default safety bound of 50,000 variables; increase `-MaxVariables` deliberately if a larger full audit is required. Conjur authorization may intentionally hide variables from that identity; those cannot be audited by this session. The script verifies that the visible variable-ID set is unchanged at the end of the run, but Conjur does not provide this client-side audit with transaction/snapshot isolation: an existing variable's value can still change between its individual read and the final inventory check. Run the audit during a stable window or rerun if concurrent secret rotation is expected.
 
 The default inventory page size is 500 (`-ListPageSize`). The default maximum retained stdout for any one secret retrieval is 1 MiB (`-MaxSecretOutputChars`). Both are operator-tunable within explicit bounds.
 
