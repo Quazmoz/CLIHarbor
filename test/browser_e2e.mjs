@@ -631,7 +631,7 @@ async function main() {
     assert.equal(runsSurface.horizontalOverflow, false, 'runs route must fit the 1366px enterprise viewport horizontally');
     assert.equal(runsSurface.hasRunsLink, true, 'runs route must remain in primary navigation');
 
-    stage('task discovery favorites and enterprise viewport');
+    stage('task discovery empty shortcuts and enterprise viewport');
     await navigate(page, baseURL + '/tasks');
     await waitJS(page, 'tasks discovery route',
       'location.pathname === "/tasks" && Boolean(document.querySelector("input[type=search]"))');
@@ -639,12 +639,14 @@ async function main() {
       'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,' +
       'hasFavorites: Array.from(document.querySelectorAll("h3")).some((heading) => heading.textContent?.trim() === "Favorites"),' +
       'hasRecent: Array.from(document.querySelectorAll("h3")).some((heading) => heading.textContent?.trim() === "Recently used"),' +
-      'hasAll: Array.from(document.querySelectorAll("h3")).some((heading) => heading.textContent?.trim() === "All tasks")' +
+      'hasAll: Array.from(document.querySelectorAll("h3")).some((heading) => heading.textContent?.trim() === "All tasks"),' +
+      'taskCount: document.querySelector(".task-search-count")?.textContent?.trim() ?? ""' +
     '}))()');
     assert.equal(taskDiscoverySurface.horizontalOverflow, false, 'tasks route must fit the 1366px enterprise viewport horizontally');
-    assert.equal(taskDiscoverySurface.hasFavorites, true);
-    assert.equal(taskDiscoverySurface.hasRecent, true);
+    assert.equal(taskDiscoverySurface.hasFavorites, false, 'empty Favorites must stay hidden until useful');
+    assert.equal(taskDiscoverySurface.hasRecent, false, 'empty Recently used must stay hidden until useful');
     assert.equal(taskDiscoverySurface.hasAll, true);
+    assert.match(taskDiscoverySurface.taskCount, /task/, 'task discovery should keep catalog size visible');
 
     stage('responsive operator workflow widths');
     for (const width of [1440, 1024, 768, 390]) {
@@ -766,13 +768,25 @@ async function main() {
     assert.equal(rendered.injectedElement, false, 'hostile output must not become DOM');
     assert.equal(rendered.handlerRan, false, 'hostile output event handlers must never execute');
 
-    await waitJS(page, 'recent task after favorite launch',
+    const shortcutDeduplication = await page.evaluate('(() => ({' +
+      'favoritePresent: Boolean(document.querySelector("[data-task-section=favorites][data-task-action=select][data-task-key=\\\"integration/inspect\\\"]")),' +
+      'recentDuplicate: Boolean(document.querySelector("[data-task-section=recent][data-task-action=select][data-task-key=\\\"integration/inspect\\\"]"))' +
+    '}))()');
+    assert.equal(shortcutDeduplication.favoritePresent, true, 'used favorite task should remain in Favorites');
+    assert.equal(shortcutDeduplication.recentDuplicate, false, 'Favorites must not be duplicated in Recently used');
+
+    const unfavoriteInspect = await page.evaluate('(() => {' +
+      'const button = document.querySelector("[data-task-section=favorites][data-task-action=favorite][data-task-key=\\\"integration/inspect\\\"]");' +
+      'if (!button || button.disabled) return false; button.click(); return true;' +
+    '})()');
+    assert.equal(unfavoriteInspect, true, 'completed favorite task should be removable from Favorites');
+    await waitJS(page, 'recent task after removing favorite',
       'Boolean(document.querySelector("[data-task-section=recent][data-task-action=select][data-task-key=\\\"integration/inspect\\\"]"))');
     const selectRecent = await page.evaluate('(() => {' +
       'const button = document.querySelector("[data-task-section=recent][data-task-action=select][data-task-key=\\\"integration/inspect\\\"]");' +
       'if (!button || button.disabled) return false; button.click(); return true;' +
     '})()');
-    assert.equal(selectRecent, true, 'recent task should feed the existing task form');
+    assert.equal(selectRecent, true, 'recent task should feed the existing task form after favorite removal');
     await setTextInput(page, 'Query', 'recent-relaunch');
     const recentCreateRequest = page.waitEvent('Network.requestWillBeSent',
       (params) => isRunCreateRequest(params, 'inspect'));
