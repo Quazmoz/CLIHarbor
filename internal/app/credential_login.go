@@ -39,6 +39,7 @@ type conjurCredentialLoginService struct {
 	runInit              func(context.Context, string, []string) error
 	interactiveSupported func() bool
 	launchInteractive    func(string, []string) error
+	launchBackground     func(string, []string) error
 }
 
 func newConjurCredentialLoginService(snapshot discovery.Snapshot) *conjurCredentialLoginService {
@@ -53,6 +54,7 @@ func newConjurCredentialLoginService(snapshot discovery.Snapshot) *conjurCredent
 		runInit:              runConjurConnectionInit,
 		interactiveSupported: terminal.Supported,
 		launchInteractive:    terminal.Launch,
+		launchBackground:     terminal.LaunchHidden,
 	}
 	if ok {
 		service.toolPath = state.Path
@@ -215,7 +217,22 @@ func (s *conjurCredentialLoginService) LaunchInteractive(ctx context.Context, re
 	// The reviewed upstream Conjur 9.x login command owns OIDC/JWT/SaaS
 	// interaction and vendor credential persistence. CLIHarbor supplies no
 	// identity, password, token, URL, or browser-auth data in argv.
-	if err := s.launchInteractive(s.toolPath, []string{"login"}); err != nil {
+	//
+	// OIDC opens its own browser callback flow and JWT consumes its configured
+	// JWT source, so neither needs a visible console. SaaS/cloud authentication
+	// can legitimately prompt for passwords, MFA mechanisms, OTP/PIN values,
+	// security questions, or other interactive challenges; keep that flow in a
+	// separate vendor-owned terminal instead of routing those secrets through
+	// CLIHarbor.
+	launcher := s.launchInteractive
+	authnType := strings.ToLower(strings.TrimSpace(config.AuthnType))
+	if authnType == "oidc" || authnType == "jwt" {
+		launcher = s.launchBackground
+	}
+	if launcher == nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	if err := launcher(s.toolPath, []string{"login"}); err != nil {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
 	return nil
