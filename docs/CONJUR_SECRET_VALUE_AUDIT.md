@@ -53,7 +53,7 @@ This does not contact Conjur:
 .\tools\audit-conjur-secret-values.ps1 -SelfTest
 ```
 
-The self-test exercises positive/negative classifier cases plus resource-ID parsing/control-character rejection.
+The self-test exercises positive/negative classifier cases, resource-ID control/spoof-character rejection, exact count/secret JSON contracts, the Windows PowerShell process-launch path, and retained-output limit behavior.
 
 ## Audit all visible variables
 
