@@ -1,0 +1,103 @@
+name: Temporary dependency refresh
+
+on:
+  push:
+    branches:
+      - chore/dependency-refresh-2026-10-02
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: '.go-version'
+          cache: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.node-version'
+          package-manager-cache: false
+
+      - name: Refresh direct Go dependencies within their current patch lines
+        run: |
+          go get -u=patch github.com/Masterminds/semver/v3 github.com/cyberark/conjur-api-go github.com/santhosh-tekuri/jsonschema/v6 gopkg.in/yaml.v3
+          go mod tidy
+
+      - name: Refresh direct frontend dependencies within current major versions
+        working-directory: web
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const cp = require('child_process');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+
+          function major(v) {
+            const m = String(v).match(/^(\d+)\./);
+            if (!m) throw new Error(`Unsupported version format: ${v}`);
+            return Number(m[1]);
+          }
+
+          function latest(name) {
+            return cp.execFileSync('npm', ['view', `${name}@latest`, 'version'], {
+              encoding: 'utf8',
+              stdio: ['ignore', 'pipe', 'inherit'],
+            }).trim();
+          }
+
+          function refresh(section, saveFlag) {
+            const deps = pkg[section] || {};
+            const updates = [];
+            for (const [name, current] of Object.entries(deps)) {
+              const next = latest(name);
+              if (major(next) !== major(current)) {
+                console.log(`skip major upgrade ${name}: ${current} -> ${next}`);
+                continue;
+              }
+              if (next !== current) {
+                console.log(`update ${name}: ${current} -> ${next}`);
+                updates.push(`${name}@${next}`);
+              }
+            }
+            if (updates.length) {
+              cp.execFileSync('npm', ['install', saveFlag, '--save-exact', ...updates], {
+                stdio: 'inherit',
+              });
+            }
+          }
+
+          refresh('dependencies', '--save');
+          refresh('devDependencies', '--save-dev');
+          NODE
+
+      - name: Validate refreshed dependencies
+        run: |
+          npm ci --prefix web
+          npm run typecheck --prefix web
+          npm run lint --prefix web
+          npm test --prefix web
+          npm run build --prefix web
+          go run ./tools/task sync-web
+          go run ./tools/task verify-web-sync
+          go mod verify
+          go vet ./...
+          go test -timeout 2m ./...
+
+      - name: Commit generated dependency refresh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add go.mod go.sum web/package.json web/package-lock.json internal/webui/static
+          if git diff --cached --quiet; then
+            echo "No dependency changes were needed."
+            exit 0
+          fi
+          git commit -m "chore: refresh package versions"
+          git push origin HEAD:chore/dependency-refresh-2026-10-02
