@@ -733,7 +733,15 @@ try {
             }
         }
         finally {
+            # Managed strings cannot be reliably zeroized, but drop every
+            # reference we control as soon as this variable has been classified.
+            if ($null -ne $getResult) {
+                $getResult.Stdout = ''
+                $getResult.Stderr = ''
+            }
             $secretValue = $null
+            $valueProperty = $null
+            $classification = $null
             $secretObject = $null
             $getResult = $null
         }
