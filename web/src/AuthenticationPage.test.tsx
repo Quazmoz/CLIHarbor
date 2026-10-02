@@ -736,9 +736,9 @@ describe('AuthenticationPage', () => {
 
     expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
     expect(document.querySelector('input[type="password"]')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Open official Conjur sign-in' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start official Conjur sign-in' }));
 
-    expect(await screen.findByText('Official Conjur sign-in opened.')).toBeInTheDocument();
+    expect(await screen.findByText('Official Conjur sign-in started.')).toBeInTheDocument();
     expect(interactiveRequest).toEqual({
       packId: 'cyberark-conjur-v9',
       toolId: 'conjur',
@@ -777,10 +777,10 @@ describe('AuthenticationPage', () => {
     );
 
     renderAuth([whoamiTask], [vendorLoginTool]);
-    fireEvent.click(screen.getByRole('button', { name: 'Open official Conjur sign-in' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start official Conjur sign-in' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Vendor authentication is not currently available.');
-    expect(screen.queryByText('Official Conjur sign-in opened.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Official Conjur sign-in started.')).not.toBeInTheDocument();
   });
 
 });
