@@ -393,7 +393,8 @@ function Invoke-ClassifierSelfTest {
     foreach ($reference in @(
         'prod/service/password',
         'RH/value/value/value/password',
-        'acme:variable:prod/service/token'
+        'acme:variable:prod/service/token',
+        'team/app/database/name'
     )) {
         [void]$references.Add($reference)
         [void]$normalizedReferences.Add((Normalize-ReferenceShape -Value $reference))
@@ -402,6 +403,7 @@ function Invoke-ClassifierSelfTest {
     $cases = @(
         [pscustomobject]@{ Name = 'exact known path'; Value = 'prod/service/password'; Confidence = 'High'; Reason = 'exact_known_variable_reference' },
         [pscustomobject]@{ Name = 'normalized dot path'; Value = 'RH.value.value.value/password'; Confidence = 'High'; Reason = 'normalized_known_variable_reference' },
+        [pscustomobject]@{ Name = 'ambiguous dot-only known path'; Value = 'team.app.database.name'; Confidence = 'Medium'; Reason = 'normalized_known_variable_reference' },
         [pscustomobject]@{ Name = 'reference URI'; Value = 'conjur://prod/service/password'; Confidence = 'High'; Reason = 'secret_reference_uri' },
         [pscustomobject]@{ Name = 'dot slash notation shape'; Value = 'other.team.database/password'; Confidence = 'Medium'; Reason = 'dot_notation_reference_shape' },
         [pscustomobject]@{ Name = 'dot credential suffix'; Value = 'other.team.database.password'; Confidence = 'Medium'; Reason = 'dot_notation_reference_shape' },
@@ -432,6 +434,19 @@ function Invoke-ClassifierSelfTest {
         }
         if ($actual.Confidence -ne $case.Confidence -or $actual.Reason -ne $case.Reason) {
             throw "Self-test '$($case.Name)' returned $($actual.Confidence)/$($actual.Reason), expected $($case.Confidence)/$($case.Reason)."
+        }
+    }
+
+    if ((ConvertFrom-ResourceIdToVariableId -ResourceId 'acct:variable:prod/service/password') -ne 'prod/service/password') {
+        throw "Self-test resource ID parsing failed."
+    }
+    try {
+        $null = ConvertFrom-ResourceIdToVariableId -ResourceId "acct:variable:bad`nidentifier"
+        throw "Self-test unsafe resource ID was unexpectedly accepted."
+    }
+    catch {
+        if ($_.Exception.Message -eq 'Self-test unsafe resource ID was unexpectedly accepted.') {
+            throw
         }
     }
 
