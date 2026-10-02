@@ -285,14 +285,26 @@ function Test-SecretValueShape {
         }
     }
 
+    $secretFieldSuffix = '(password|passwd|pwd|username|user|token|api[-_]?key|secret|client[-_]?secret|private[-_]?key|access[-_]?key|credential|credentials)'
     $normalizedCandidate = Normalize-ReferenceShape -Value $candidate
     if (
         ($candidate.Contains('/') -or $candidate.Contains('\') -or $candidate.Contains('.')) -and
         -not [string]::IsNullOrEmpty($normalizedCandidate) -and
         $KnownNormalizedReferences.Contains($normalizedCandidate)
     ) {
+        # Dot-only values are ambiguous with ordinary host/domain-like values.
+        # Keep those at Medium unless the final segment is explicitly
+        # credential-like; slash/backslash notation is strong path evidence.
+        $confidence = 'Medium'
+        if (
+            $candidate.Contains('/') -or
+            $candidate.Contains('\') -or
+            $candidate -match ('(?:^|\.)' + $secretFieldSuffix + '$')
+        ) {
+            $confidence = 'High'
+        }
         return [pscustomobject][ordered]@{
-            Confidence = 'High'
+            Confidence = $confidence
             Reason     = 'normalized_known_variable_reference'
         }
     }
@@ -325,7 +337,6 @@ function Test-SecretValueShape {
         return $null
     }
 
-    $secretFieldSuffix = '(password|passwd|pwd|username|user|token|api[-_]?key|secret|client[-_]?secret|private[-_]?key|access[-_]?key|credential|credentials)'
     $dotReferencePattern = '^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2,}(?:[\\/][A-Za-z0-9_.@-]+(?:[\\/][A-Za-z0-9_.@-]+)*)?$'
     if ($candidate -match $dotReferencePattern) {
         if (
