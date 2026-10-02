@@ -407,7 +407,12 @@ try {
     }
 
     $listed = ConvertFrom-ConjurJson -Json $listResult.Stdout -Context 'conjur list'
-    $resources = @($listed)
+    if ($null -eq $listed) {
+        $resources = @()
+    }
+    else {
+        $resources = @($listed)
+    }
 
     $records = New-Object 'System.Collections.Generic.List[object]'
     $resourceIds = New-OrdinalStringSet
