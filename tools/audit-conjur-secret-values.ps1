@@ -226,12 +226,19 @@ function ConvertFrom-ResourceIdToVariableId {
         [string]$ResourceId
     )
 
-    if ($ResourceId.Length -gt 2048 -or $ResourceId.Trim() -ne $ResourceId) {
+    if ($ResourceId.Length -gt 2048) {
         throw "Conjur returned an invalid variable identifier."
     }
     foreach ($character in $ResourceId.ToCharArray()) {
         $code = [int]$character
-        if ($code -le 0x1f -or $code -eq 0x7f) {
+        $category = [System.Char]::GetUnicodeCategory($character)
+        if (
+            $code -le 0x1f -or
+            ($code -ge 0x7f -and $code -le 0x9f) -or
+            $category -eq [System.Globalization.UnicodeCategory]::Format -or
+            $category -eq [System.Globalization.UnicodeCategory]::LineSeparator -or
+            $category -eq [System.Globalization.UnicodeCategory]::ParagraphSeparator
+        ) {
             throw "Conjur returned an invalid variable identifier."
         }
     }
@@ -475,13 +482,18 @@ function Invoke-ClassifierSelfTest {
     if ((ConvertFrom-ResourceIdToVariableId -ResourceId 'acct:variable:prod/service/password') -ne 'prod/service/password') {
         throw "Self-test resource ID parsing failed."
     }
-    try {
-        $null = ConvertFrom-ResourceIdToVariableId -ResourceId "acct:variable:bad`nidentifier"
-        throw "Self-test unsafe resource ID was unexpectedly accepted."
-    }
-    catch {
-        if ($_.Exception.Message -eq 'Self-test unsafe resource ID was unexpectedly accepted.') {
-            throw
+    foreach ($unsafeResourceId in @(
+        "acct:variable:bad`nidentifier",
+        "acct:variable:spoof$([char]0x202e)txt"
+    )) {
+        try {
+            $null = ConvertFrom-ResourceIdToVariableId -ResourceId $unsafeResourceId
+            throw "Self-test unsafe resource ID was unexpectedly accepted."
+        }
+        catch {
+            if ($_.Exception.Message -eq 'Self-test unsafe resource ID was unexpectedly accepted.') {
+                throw
+            }
         }
     }
 
@@ -652,11 +664,11 @@ try {
             }
 
             $valueProperty = $secretObject.PSObject.Properties['value']
-            if ($null -eq $valueProperty) {
+            if ($null -eq $valueProperty -or $valueProperty.Value -isnot [string]) {
                 $failures.Add([pscustomobject][ordered]@{
                     VariableId = $record.VariableId
                     ResourceId = $record.ResourceId
-                    ErrorCode  = 'missing_value_field'
+                    ErrorCode  = 'invalid_value_field'
                     ExitCode   = $getResult.ExitCode
                 })
                 continue
