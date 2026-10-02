@@ -256,6 +256,103 @@ function ConvertFrom-ResourceIdToVariableId {
     return $variableId
 }
 
+function Get-ConjurVariableCount {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Executable,
+        [Parameter(Mandatory = $true)]
+        [int]$HttpTimeoutSeconds,
+        [Parameter(Mandatory = $true)]
+        [int]$ProcessTimeoutSeconds
+    )
+
+    $countResult = Invoke-ConjurProcess -Executable $Executable -Arguments @(
+        '--timeout', ([string]$HttpTimeoutSeconds),
+        'list', '--kind', 'variable', '--count', '--output', 'json'
+    ) -TimeoutSeconds $ProcessTimeoutSeconds
+
+    if ($countResult.ExitCode -ne 0 -or $countResult.StdoutLimitExceeded -or $countResult.StderrLimitExceeded) {
+        throw "Conjur variable count failed."
+    }
+
+    $countObject = ConvertFrom-ConjurJson -Json $countResult.Stdout -Context 'conjur list --count'
+    $countProperty = $countObject.PSObject.Properties['count']
+    if ($null -eq $countProperty -or ($countProperty.Value -isnot [int] -and $countProperty.Value -isnot [long])) {
+        throw "Conjur variable count returned an unexpected JSON shape."
+    }
+
+    $count = [int64]$countProperty.Value
+    if ($count -lt 0) {
+        throw "Conjur variable count returned an invalid count."
+    }
+    return $count
+}
+
+function Get-ConjurVariableResourceIds {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Executable,
+        [Parameter(Mandatory = $true)]
+        [int64]$ExpectedCount,
+        [Parameter(Mandatory = $true)]
+        [int]$PageSize,
+        [Parameter(Mandatory = $true)]
+        [int]$HttpTimeoutSeconds,
+        [Parameter(Mandatory = $true)]
+        [int]$ProcessTimeoutSeconds
+    )
+
+    $resourceIds = New-OrdinalStringSet
+    $offset = 0
+
+    while ($offset -lt $ExpectedCount) {
+        $limit = [Math]::Min($PageSize, [int]($ExpectedCount - $offset))
+        $listResult = Invoke-ConjurProcess -Executable $Executable -Arguments @(
+            '--timeout', ([string]$HttpTimeoutSeconds),
+            'list', '--kind', 'variable',
+            '--limit', ([string]$limit),
+            '--offset', ([string]$offset),
+            '--output', 'json'
+        ) -TimeoutSeconds $ProcessTimeoutSeconds
+
+        if ($listResult.ExitCode -ne 0 -or $listResult.StdoutLimitExceeded -or $listResult.StderrLimitExceeded) {
+            throw "Conjur variable enumeration failed."
+        }
+
+        $listed = ConvertFrom-ConjurJson -Json $listResult.Stdout -Context 'conjur list'
+        $page = @($listed)
+        if ($page.Count -eq 0 -or $page.Count -gt $limit) {
+            throw "Conjur variable inventory changed during enumeration; refusing a partial audit."
+        }
+
+        foreach ($resource in $page) {
+            if ($null -eq $resource -or $resource -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$resource)) {
+                throw "Conjur list returned an unexpected variable identifier shape; refusing a partial audit."
+            }
+
+            # Conjur CLI 9.x list output is a JSON array of resource-ID strings
+            # unless --inspect is requested. Avoid --inspect so annotations and
+            # other resource metadata never enter the audit process.
+            $resourceId = [string]$resource
+            $null = ConvertFrom-ResourceIdToVariableId -ResourceId $resourceId
+            if (-not $resourceIds.Add($resourceId)) {
+                throw "Conjur variable inventory changed or contained duplicate identifiers; refusing a partial audit."
+            }
+        }
+
+        $offset += $page.Count
+        if ($page.Count -lt $limit -and $offset -lt $ExpectedCount) {
+            throw "Conjur variable inventory changed during enumeration; refusing a partial audit."
+        }
+    }
+
+    if ($resourceIds.Count -ne $ExpectedCount) {
+        throw "Conjur variable inventory changed during enumeration; refusing a partial audit."
+    }
+
+    return ,$resourceIds
+}
+
 function Normalize-ReferenceShape {
     param(
         [Parameter(Mandatory = $true)]
@@ -535,82 +632,30 @@ try {
     $null = ConvertFrom-ConjurJson -Json $sessionResult.Stdout -Context 'conjur whoami'
 
     # Enforce the inventory bound before any bulk listing or secret retrieval.
-    $countResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--timeout', $HttpTimeout, 'list', '--kind', 'variable', '--count', '--output', 'json') -TimeoutSeconds $ProcessTimeoutSeconds
-    if ($countResult.ExitCode -ne 0 -or $countResult.StdoutLimitExceeded -or $countResult.StderrLimitExceeded) {
-        throw "Conjur variable count failed."
-    }
-    $countObject = ConvertFrom-ConjurJson -Json $countResult.Stdout -Context 'conjur list --count'
-    $countProperty = $countObject.PSObject.Properties['count']
-    if ($null -eq $countProperty) {
-        throw "Conjur variable count returned an unexpected JSON shape."
-    }
-    try {
-        $expectedVariableCount = [int64]$countProperty.Value
-    }
-    catch {
-        throw "Conjur variable count returned an invalid count."
-    }
-    if ($expectedVariableCount -lt 0) {
-        throw "Conjur variable count returned an invalid count."
-    }
+    $expectedVariableCount = Get-ConjurVariableCount -Executable $resolvedConjur -HttpTimeoutSeconds $HttpTimeout -ProcessTimeoutSeconds $ProcessTimeoutSeconds
     if ($expectedVariableCount -gt $MaxVariables) {
         throw "Conjur reports $expectedVariableCount visible variables, exceeding MaxVariables=$MaxVariables. Increase -MaxVariables deliberately to audit the full set."
     }
 
+    $resourceIds = Get-ConjurVariableResourceIds -Executable $resolvedConjur -ExpectedCount $expectedVariableCount -PageSize $ListPageSize -HttpTimeoutSeconds $HttpTimeout -ProcessTimeoutSeconds $ProcessTimeoutSeconds
     $records = New-Object 'System.Collections.Generic.List[object]'
-    $resourceIds = New-OrdinalStringSet
     $knownReferences = New-OrdinalStringSet
     $knownNormalizedReferences = New-OrdinalStringSet
-    $offset = 0
 
-    while ($offset -lt $expectedVariableCount) {
-        $limit = [Math]::Min($ListPageSize, [int]($expectedVariableCount - $offset))
-        $listResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--timeout', $HttpTimeout, 'list', '--kind', 'variable', '--limit', ([string]$limit), '--offset', ([string]$offset), '--output', 'json') -TimeoutSeconds $ProcessTimeoutSeconds
-        if ($listResult.ExitCode -ne 0 -or $listResult.StdoutLimitExceeded -or $listResult.StderrLimitExceeded) {
-            throw "Conjur variable enumeration failed."
-        }
+    foreach ($resourceId in $resourceIds) {
+        $variableId = ConvertFrom-ResourceIdToVariableId -ResourceId $resourceId
+        [void]$knownReferences.Add($resourceId)
+        [void]$knownReferences.Add($variableId)
+        [void]$knownNormalizedReferences.Add((Normalize-ReferenceShape -Value $resourceId))
+        [void]$knownNormalizedReferences.Add((Normalize-ReferenceShape -Value $variableId))
 
-        $listed = ConvertFrom-ConjurJson -Json $listResult.Stdout -Context 'conjur list'
-        $page = @($listed)
-        if ($page.Count -eq 0 -or $page.Count -gt $limit) {
-            throw "Conjur variable inventory changed during enumeration; refusing a partial audit."
-        }
-
-        foreach ($resource in $page) {
-            if ($null -eq $resource -or $resource -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$resource)) {
-                throw "Conjur list returned an unexpected variable identifier shape; refusing a partial audit."
-            }
-
-            # Conjur CLI 9.x list output is a JSON array of resource-ID strings
-            # unless --inspect is requested. Avoid --inspect so annotations and
-            # other resource metadata never enter the audit process.
-            $resourceId = [string]$resource
-            if (-not $resourceIds.Add($resourceId)) {
-                throw "Conjur variable inventory changed or contained duplicate identifiers; refusing a partial audit."
-            }
-
-            $variableId = ConvertFrom-ResourceIdToVariableId -ResourceId $resourceId
-            [void]$knownReferences.Add($resourceId)
-            [void]$knownReferences.Add($variableId)
-            [void]$knownNormalizedReferences.Add((Normalize-ReferenceShape -Value $resourceId))
-            [void]$knownNormalizedReferences.Add((Normalize-ReferenceShape -Value $variableId))
-
-            $records.Add([pscustomobject][ordered]@{
-                ResourceId = $resourceId
-                VariableId = $variableId
-            })
-        }
-
-        $offset += $page.Count
-        if ($page.Count -lt $limit -and $offset -lt $expectedVariableCount) {
-            throw "Conjur variable inventory changed during enumeration; refusing a partial audit."
-        }
+        $records.Add([pscustomobject][ordered]@{
+            ResourceId = $resourceId
+            VariableId = $variableId
+        })
     }
 
     $orderedRecords = @($records | Sort-Object -Property VariableId, ResourceId)
-    if ($orderedRecords.Count -ne $expectedVariableCount) {
-        throw "Conjur variable inventory changed during enumeration; refusing a partial audit."
-    }
 
     $findings = New-Object 'System.Collections.Generic.List[object]'
     $failures = New-Object 'System.Collections.Generic.List[object]'
@@ -695,6 +740,18 @@ try {
     }
 
     Write-Progress -Activity 'Auditing Conjur variable values' -Completed
+
+    # The audit is not a server-side transaction. Revalidate the visible ID set
+    # after value reads so additions/deletions/replacements during a long audit
+    # do not silently produce a report that claims a stable full inventory.
+    $endingVariableCount = Get-ConjurVariableCount -Executable $resolvedConjur -HttpTimeoutSeconds $HttpTimeout -ProcessTimeoutSeconds $ProcessTimeoutSeconds
+    if ($endingVariableCount -ne $expectedVariableCount) {
+        throw "Conjur variable inventory changed during the audit; rerun against a stable inventory."
+    }
+    $endingResourceIds = Get-ConjurVariableResourceIds -Executable $resolvedConjur -ExpectedCount $endingVariableCount -PageSize $ListPageSize -HttpTimeoutSeconds $HttpTimeout -ProcessTimeoutSeconds $ProcessTimeoutSeconds
+    if (-not $resourceIds.SetEquals($endingResourceIds)) {
+        throw "Conjur variable inventory changed during the audit; rerun against a stable inventory."
+    }
 
     $report = [pscustomobject][ordered]@{
         SchemaVersion     = 1
