@@ -370,9 +370,12 @@ git clone https://github.com/Quazmoz/CLIHarbor.git
 cd CLIHarbor
 npm ci --prefix web
 go run ./tools/task check
+go run ./cmd/cliharbor --help
 go run ./cmd/cliharbor self-test
 go run ./cmd/cliharbor serve
 ```
+
+Use `go run ./cmd/cliharbor help <command>` (or `<command> --help`) for command-specific operator guidance; nested command help such as `help pack init` is also available.
 
 Frontend development:
 
