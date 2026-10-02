@@ -88,6 +88,16 @@ Equivalent explicit form:
 bin\cliharbor-windows-x64-evaluation.exe serve
 ```
 
+Need a command reminder without starting a workflow? CLIHarbor now has built-in operator help:
+
+```bat
+bin\cliharbor-windows-x64-evaluation.exe --help
+bin\cliharbor-windows-x64-evaluation.exe help serve
+bin\cliharbor-windows-x64-evaluation.exe help diagnostics export
+```
+
+Command typos fail with a pointer back to the relevant help surface instead of falling through to an unrelated startup error.
+
 CLIHarbor then:
 
 1. loads its embedded, reviewed Conjur 9.x pack;
