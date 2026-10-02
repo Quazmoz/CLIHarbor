@@ -16,15 +16,19 @@ The script:
 
 - uses the already authenticated official Conjur CLI;
 - verifies the CLI session before auditing;
-- enumerates all variables visible to the authenticated identity with `conjur list --kind variable --limit=-1 --output json`;
+- counts visible variables first with `conjur list --kind variable --count --output json` and enforces `-MaxVariables` before enumeration or secret retrieval;
+- enumerates only resource-ID strings in bounded pages using explicit `--limit` / `--offset`; it intentionally does not request `--inspect`, so annotations and other resource metadata do not enter the audit process;
+- fails closed if the inventory changes during paging, returns duplicate IDs, or does not match the authoritative pre-count;
+- rejects noncanonical/control-character-bearing resource IDs before rendering or report generation;
 - retrieves values one at a time with `conjur variable get --id ... --output json`;
+- limits secret-bearing stdout passed into JSON parsing/classification and records an `output_limit_exceeded` failure instead of retaining oversized output;
 - performs no variable or policy mutation;
 - never intentionally prints secret values;
 - never writes secret values to its JSON report;
 - reports only variable identifiers, confidence/reason codes, and sanitized retrieval failures;
 - keeps secret-bearing command output only in process memory while classifying it.
 
-Managed runtimes cannot guarantee immediate erasure of process memory. Run the script only on an approved workstation, and do not enable PowerShell transcription, command tracing, or debugging around the audit.
+The process helper drains stdout/stderr asynchronously to avoid child-process pipe deadlocks, so `-MaxSecretOutputChars` is a bound on output retained and processed by the audit after process completion, not a claim that the .NET runtime can prevent every transient allocation while draining the child pipe. Managed runtimes also cannot guarantee immediate erasure of process memory. Run the script only on an approved workstation, and do not enable PowerShell transcription, command tracing, or debugging around the audit.
 
 Variable identifiers are operational metadata and may themselves be sensitive. Protect the optional redacted report accordingly.
 
@@ -35,7 +39,9 @@ Variable identifiers are operational metadata and may themselves be sensitive. P
 - An already authenticated Conjur session.
 - Permission to list and retrieve the variables being audited.
 
-The audit covers **all variables visible to the authenticated identity**. It refuses to retrieve values when the visible inventory exceeds the default safety bound of 50,000 variables; increase `-MaxVariables` deliberately if a larger full audit is required. Conjur authorization may intentionally hide variables from that identity; those cannot be audited by this session.
+The audit covers **all variables visible to the authenticated identity**. It refuses to enumerate/retrieve values when the pre-count exceeds the default safety bound of 50,000 variables; increase `-MaxVariables` deliberately if a larger full audit is required. Conjur authorization may intentionally hide variables from that identity; those cannot be audited by this session.
+
+The default inventory page size is 500 (`-ListPageSize`). The default maximum retained stdout for any one secret retrieval is 1 MiB (`-MaxSecretOutputChars`). Both are operator-tunable within explicit bounds.
 
 The script fails closed on a non-9.x CLI unless `-AllowUnsupportedVersion` is supplied after reviewing CLI compatibility.
 
@@ -46,6 +52,8 @@ This does not contact Conjur:
 ```powershell
 .\tools\audit-conjur-secret-values.ps1 -SelfTest
 ```
+
+The self-test exercises positive/negative classifier cases plus resource-ID parsing/control-character rejection.
 
 ## Audit all visible variables
 
@@ -78,11 +86,13 @@ The report contains no secret values. By default an existing report is not repla
 High-confidence findings:
 
 - the value exactly equals a known Conjur variable resource ID/path;
-- the value becomes a known variable path after normalizing common dot/slash notation;
+- slash/backslash notation normalizes to a known variable path;
+- normalized dot notation ends in an explicitly credential-like field such as `password` or `token`;
 - the value is an explicit `conjur://`, `cyberark://`, or `idira://` secret-reference URI.
 
 Medium-confidence findings:
 
+- a dot-only value normalizes to a known variable path but remains ambiguous with hostname/domain-like data;
 - multi-segment dot notation such as `team.app.database/password`;
 - path-shaped values ending in fields such as `password`, `token`, `api_key`, or `client_secret`;
 - deeply hierarchical path-only values.
@@ -98,8 +108,8 @@ These are heuristics, not proof that a secret is wrong. Review every finding in 
 | Code | Meaning |
 | ---: | --- |
 | 0 | Audit completed; no suspicious values |
-| 1 | Fatal setup/session/listing/report failure |
+| 1 | Fatal setup/session/inventory/report failure |
 | 2 | Audit completed; suspicious values found |
-| 3 | Audit completed, but one or more variables could not be retrieved or parsed |
+| 3 | Audit completed, but one or more variables could not be retrieved, parsed, or safely retained within the output bound |
 
 Exit code 3 takes precedence over 2 because an incomplete audit must not look fully successful.
