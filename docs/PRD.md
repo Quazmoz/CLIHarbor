@@ -76,7 +76,7 @@ CLIHarbor must not persist vendor passwords, MFA values, API keys, or access/ref
 
 Supported authenticated read workflows use explicit `vendor-session` semantics and reuse the vendor CLI's approved session/configuration mechanisms. A narrowly reviewed vendor adapter may accept an ephemeral credential through the authenticated loopback UI only when the secret is kept out of argv, logs, run history and CLIHarbor persistence and durable session material remains owned by the vendor credential store.
 
-The current Conjur adapters support password-style `authn`/LDAP login through pinned `conjur-api-go v0.15.4` and, on Windows, a vendor-owned external-terminal launch for upstream-supported OIDC, JWT, and SaaS/cloud `conjur login` modes. CLIHarbor supplies no credential argv or terminal keystrokes to the latter and never captures its credential interaction. Certificate, IAM, Azure, GCP, unknown modes, and generic MFA/challenge handling remain outside CLIHarbor.
+The current Conjur adapters support password-style `authn`/LDAP login through pinned `conjur-api-go v0.15.4` and, on Windows, a vendor-owned `conjur login` launcher for reviewed OIDC, JWT, and SaaS/cloud modes. OIDC/JWT run without an unnecessary console window; SaaS/cloud retains an external vendor terminal when the upstream flow may require interactive challenges. CLIHarbor supplies no credential argv/keystrokes and never captures vendor credential interaction. Certificate, IAM, Azure, GCP, unknown modes, and generic embedded MFA/challenge handling remain outside CLIHarbor.
 
 ### G6 — Better UX than raw CLI
 
