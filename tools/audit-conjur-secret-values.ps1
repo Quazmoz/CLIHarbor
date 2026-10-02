@@ -386,6 +386,41 @@ function Test-MeetsMinimumConfidence {
     return $Confidence -eq 'High' -or $Confidence -eq 'Medium'
 }
 
+function Invoke-ProcessLauncherSelfTest {
+    if ($env:OS -ne 'Windows_NT') {
+        return
+    }
+
+    $powershell = Get-Command -Name 'powershell.exe' -CommandType Application -ErrorAction Stop | Select-Object -First 1
+    $probe = Invoke-ConjurProcess -Executable $powershell.Source -Arguments @(
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "[Console]::Out.Write('launcher value with spaces')"
+    ) -TimeoutSeconds 15
+
+    if (
+        $probe.ExitCode -ne 0 -or
+        $probe.StdoutLimitExceeded -or
+        $probe.StderrLimitExceeded -or
+        $probe.Stdout -ne 'launcher value with spaces' -or
+        -not [string]::IsNullOrEmpty($probe.Stderr)
+    ) {
+        throw "Self-test process launcher failed."
+    }
+
+    $limitProbe = Invoke-ConjurProcess -Executable $powershell.Source -Arguments @(
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "[Console]::Out.Write(('x' * 2048))"
+    ) -TimeoutSeconds 15 -MaxStdoutChars 1024
+
+    if (-not $limitProbe.StdoutLimitExceeded -or -not [string]::IsNullOrEmpty($limitProbe.Stdout)) {
+        throw "Self-test process output limit failed."
+    }
+}
+
 function Invoke-ClassifierSelfTest {
     $references = New-OrdinalStringSet
     $normalizedReferences = New-OrdinalStringSet
@@ -450,7 +485,8 @@ function Invoke-ClassifierSelfTest {
         }
     }
 
-    Write-Host "Self-test passed: $($cases.Count) classifier cases."
+    Invoke-ProcessLauncherSelfTest
+    Write-Host "Self-test passed: $($cases.Count) classifier cases plus process-launch/output-bound checks."
 }
 
 if ($SelfTest) {
