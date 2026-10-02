@@ -276,8 +276,14 @@ function Get-ConjurVariableCount {
     }
 
     $countObject = ConvertFrom-ConjurJson -Json $countResult.Stdout -Context 'conjur list --count'
+    $countProperties = @($countObject.PSObject.Properties)
     $countProperty = $countObject.PSObject.Properties['count']
-    if ($null -eq $countProperty -or ($countProperty.Value -isnot [int] -and $countProperty.Value -isnot [long])) {
+    if (
+        $countObject.GetType().FullName -ne 'System.Management.Automation.PSCustomObject' -or
+        $countProperties.Count -ne 1 -or
+        $null -eq $countProperty -or
+        ($countProperty.Value -isnot [int] -and $countProperty.Value -isnot [long])
+    ) {
         throw "Conjur variable count returned an unexpected JSON shape."
     }
 
@@ -708,8 +714,14 @@ try {
                 continue
             }
 
+            $secretProperties = @($secretObject.PSObject.Properties)
             $valueProperty = $secretObject.PSObject.Properties['value']
-            if ($null -eq $valueProperty -or $valueProperty.Value -isnot [string]) {
+            if (
+                $secretObject.GetType().FullName -ne 'System.Management.Automation.PSCustomObject' -or
+                $secretProperties.Count -ne 1 -or
+                $null -eq $valueProperty -or
+                $valueProperty.Value -isnot [string]
+            ) {
                 $failures.Add([pscustomobject][ordered]@{
                     VariableId = $record.VariableId
                     ResourceId = $record.ResourceId
@@ -740,6 +752,7 @@ try {
                 $getResult.Stderr = ''
             }
             $secretValue = $null
+            $secretProperties = $null
             $valueProperty = $null
             $classification = $null
             $secretObject = $null
