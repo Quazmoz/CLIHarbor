@@ -9,3 +9,7 @@ func platformSupported() bool {
 func launchPlatform(string, []string) error {
 	return ErrUnsupported
 }
+
+func launchHiddenPlatform(string, []string) error {
+	return ErrUnsupported
+}
