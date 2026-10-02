@@ -27,8 +27,14 @@ const fields: StructuredField[] = [
   },
 ];
 
+const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+
 afterEach(() => {
-  delete (navigator as Navigator & { clipboard?: Clipboard }).clipboard;
+  if (originalClipboard === undefined) {
+    Reflect.deleteProperty(navigator, 'clipboard');
+  } else {
+    Object.defineProperty(navigator, 'clipboard', originalClipboard);
+  }
   vi.restoreAllMocks();
 });
 
@@ -54,7 +60,7 @@ describe('StructuredResultView', () => {
       target: { value: 'label' },
     });
 
-    const labels = Array.from(container.querySelectorAll('.structured-card dt > span')).map(
+    const labels = Array.from(container.querySelectorAll('.structured-card dt')).map(
       (element) => element.textContent,
     );
     expect(labels).toEqual(['Alpha', 'Beta', 'Missing']);

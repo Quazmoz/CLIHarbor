@@ -109,8 +109,9 @@ export function StructuredResultView({ fields }: StructuredResultViewProps) {
         <dl className="structured-grid">
           {visibleFields.map((field) => (
             <div key={field.key} className="structured-card">
-              <dt>
-                <span>{field.label}</span>
+              <dt>{field.label}</dt>
+              <dd>
+                <span className="structured-card-value">{field.present ? field.value : 'Not provided'}</span>
                 <button
                   type="button"
                   className="structured-copy-button"
@@ -120,8 +121,7 @@ export function StructuredResultView({ fields }: StructuredResultViewProps) {
                 >
                   Copy value
                 </button>
-              </dt>
-              <dd>{field.present ? field.value : 'Not provided'}</dd>
+              </dd>
             </div>
           ))}
         </dl>

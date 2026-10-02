@@ -814,19 +814,25 @@ main {
 }
 
 .structured-card dt {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.55rem;
+  overflow-wrap: anywhere;
   font-size: 0.75rem;
   font-weight: 750;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.structured-card dt > span {
+.structured-card dd {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.55rem;
+  text-align: left;
+}
+
+.structured-card-value {
   min-width: 0;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .structured-copy-button {
@@ -835,13 +841,6 @@ main {
   border-color: var(--border);
   padding: 0.32rem 0.5rem;
   font-size: 0.72rem;
-  text-transform: none;
-}
-
-.structured-card dd {
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-  text-align: left;
 }
 
 .structured-copy-status {
