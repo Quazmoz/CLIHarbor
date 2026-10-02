@@ -450,13 +450,16 @@ func runPackCommand(args []string) error {
 		}
 		return app.GeneratePackTests(app.Options{Out: os.Stdout}, flags.Arg(0), *outputPath)
 	default:
-		return fmt.Errorf("usage: cliharbor pack <init|draft|validate|lint|test|generate-tests> ...")
+		return fmt.Errorf("unknown pack command %q; run 'cliharbor help pack' for available commands", args[0])
 	}
 }
 
 func runEvaluationCommand(args []string) error {
-	if len(args) == 0 || args[0] != "preflight" {
+	if len(args) == 0 {
 		return fmt.Errorf("usage: cliharbor evaluation preflight [--bundle <directory>]")
+	}
+	if args[0] != "preflight" {
+		return fmt.Errorf("unknown evaluation command %q; run 'cliharbor help evaluation' for available commands", args[0])
 	}
 	flags := flag.NewFlagSet("cliharbor evaluation preflight", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -479,8 +482,11 @@ func runEvaluationCommand(args []string) error {
 }
 
 func runDiagnosticsCommand(args []string) error {
-	if len(args) == 0 || args[0] != "export" {
+	if len(args) == 0 {
 		return fmt.Errorf("usage: cliharbor diagnostics export [--pack-file <file>] [--pack-dir <dir>] [--tool-path <pack/tool=/absolute/path>] <output>")
+	}
+	if args[0] != "export" {
+		return fmt.Errorf("unknown diagnostics command %q; run 'cliharbor help diagnostics' for available commands", args[0])
 	}
 	flags := flag.NewFlagSet("cliharbor diagnostics export", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -536,7 +542,7 @@ func runEvidenceCommand(args []string) error {
 		}
 		return app.PrintEvidenceChecksum(app.Options{Out: os.Stdout}, args[1])
 	default:
-		return fmt.Errorf("usage: cliharbor evidence <inspect|checksum> ...")
+		return fmt.Errorf("unknown evidence command %q; run 'cliharbor help evidence' for available commands", args[0])
 	}
 }
 
