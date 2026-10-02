@@ -10,6 +10,7 @@ import {
 } from './api/runs';
 import type { Task } from './api/tasks';
 import { runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
+import { StructuredResultView } from './StructuredResultView';
 
 interface RunsPageProps {
   tasks: Task[];
@@ -306,14 +307,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
                     <section className="structured-result" aria-labelledby="history-structured-heading">
                       <h3 id="history-structured-heading">Structured result</h3>
                       {detail.structured.status === 'available' ? (
-                        <dl className="structured-grid">
-                          {(detail.structured.fields ?? []).map((field) => (
-                            <div key={field.key} className="structured-card">
-                              <dt>{field.label}</dt>
-                              <dd>{field.present ? field.value : 'Not provided'}</dd>
-                            </div>
-                          ))}
-                        </dl>
+                        <StructuredResultView fields={detail.structured.fields ?? []} />
                       ) : (
                         <p className="parser-warning">
                           Structured result status: <code>{detail.structured.status}</code>

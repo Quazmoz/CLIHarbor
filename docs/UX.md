@@ -149,14 +149,18 @@ Phase 5 implements a minimal cards renderer for validated scalar structured resu
 
 If parsing is invalid or unavailable, show the stable parser status/error and explicitly keep raw stdout/stderr accessible. A non-zero CLI exit never becomes a structured success. Raw output remains evidence even when structured parsing succeeds.
 
-Useful features later:
+Implemented structured-result conveniences:
 
-- client-side filter/sort;
-- copy selected field;
-- export non-secret result;
-- expandable JSON view.
+- client-side filtering across validated field labels, keys, and displayed values;
+- stable source-order, label, and key sorting without changing backend data;
+- explicit per-field copy for present validated values only;
+- an expandable normalized JSON inspection view built from the validated structured DTO rather than raw process output.
 
-Do not add export to secret-bearing results without explicit classification and review.
+Still deferred:
+
+- export of non-secret results.
+
+Do not add export to secret-bearing results without explicit classification and review. Copy behavior must also be revisited before any secret-bearing browser workflow is enabled.
 
 ## Managed CLI installation
 
