@@ -466,8 +466,8 @@ try {
     $resolvedConjur = Resolve-ConjurExecutable -Path $ConjurPath
 
     $versionResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--version') -TimeoutSeconds $ProcessTimeoutSeconds
-    if ($versionResult.ExitCode -ne 0) {
-        throw "Unable to read the Conjur CLI version."
+    if ($versionResult.ExitCode -ne 0 -or $versionResult.StdoutLimitExceeded -or $versionResult.StderrLimitExceeded) {
+        throw "Unable to read the Conjur CLI version safely."
     }
 
     $versionMatch = [System.Text.RegularExpressions.Regex]::Match($versionResult.Stdout, '(?<![0-9])([0-9]+)\.([0-9]+)\.([0-9]+)')
@@ -481,7 +481,7 @@ try {
     }
 
     $sessionResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--timeout', $HttpTimeout, 'whoami', '--output', 'json') -TimeoutSeconds $ProcessTimeoutSeconds
-    if ($sessionResult.ExitCode -ne 0) {
+    if ($sessionResult.ExitCode -ne 0 -or $sessionResult.StdoutLimitExceeded -or $sessionResult.StderrLimitExceeded) {
         throw "Conjur session verification failed. Authenticate with the approved vendor flow before auditing."
     }
     $null = ConvertFrom-ConjurJson -Json $sessionResult.Stdout -Context 'conjur whoami'
@@ -582,7 +582,16 @@ try {
         $secretValue = $null
 
         try {
-            $getResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--timeout', $HttpTimeout, 'variable', 'get', '--id', $record.VariableId, '--output', 'json') -TimeoutSeconds $ProcessTimeoutSeconds
+            $getResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--timeout', $HttpTimeout, 'variable', 'get', '--id', $record.VariableId, '--output', 'json') -TimeoutSeconds $ProcessTimeoutSeconds -MaxStdoutChars $MaxSecretOutputChars
+            if ($getResult.StdoutLimitExceeded -or $getResult.StderrLimitExceeded) {
+                $failures.Add([pscustomobject][ordered]@{
+                    VariableId = $record.VariableId
+                    ResourceId = $record.ResourceId
+                    ErrorCode  = 'output_limit_exceeded'
+                    ExitCode   = $getResult.ExitCode
+                })
+                continue
+            }
             if ($getResult.ExitCode -ne 0) {
                 $failures.Add([pscustomobject][ordered]@{
                     VariableId = $record.VariableId
@@ -649,6 +658,8 @@ try {
         RetrievalFailures = $failures.Count
         MinimumConfidence = $MinimumConfidence
         MaxVariables      = $MaxVariables
+        ListPageSize      = $ListPageSize
+        MaxSecretOutputChars = $MaxSecretOutputChars
         Findings          = @($findings)
         Failures          = @($failures)
     }
