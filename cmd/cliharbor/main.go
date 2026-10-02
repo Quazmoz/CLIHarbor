@@ -43,19 +43,29 @@ func helpRequest(args []string) ([]string, bool) {
 	if args[0] == "help" {
 		return append([]string(nil), args[1:]...), true
 	}
-	if isHelpFlag(args[0]) {
-		return nil, true
-	}
-	if len(args) >= 2 && isHelpFlag(args[1]) {
-		return []string{args[0]}, true
-	}
-	if len(args) >= 3 && isHelpFlag(args[2]) {
-		switch args[0] {
-		case "pack", "evidence", "diagnostics", "evaluation":
-			return []string{args[0], args[1]}, true
+
+	helpIndex := -1
+	for index, arg := range args {
+		if isHelpFlag(arg) {
+			helpIndex = index
+			break
 		}
 	}
-	return nil, false
+	if helpIndex == -1 {
+		return nil, false
+	}
+	if helpIndex == 0 || strings.HasPrefix(args[0], "-") {
+		return nil, true
+	}
+
+	path := []string{args[0]}
+	switch args[0] {
+	case "pack", "evidence", "diagnostics", "evaluation":
+		if len(args) > 1 && !isHelpFlag(args[1]) && !strings.HasPrefix(args[1], "-") {
+			path = append(path, args[1])
+		}
+	}
+	return path, true
 }
 
 var helpText = map[string]string{
@@ -108,7 +118,7 @@ Options:
   --web-dev-url <url>       Development only: use a Vite origin on 127.0.0.1.
   -h, --help                Show this help.
 
-Running `cliharbor` with no command is equivalent to `cliharbor serve`.
+Running cliharbor with no command is equivalent to cliharbor serve.
 `,
 	"doctor": `Usage:
   cliharbor doctor [options]
@@ -150,7 +160,7 @@ Print CLIHarbor version, commit, and build identity.
 
 Pack commands author and verify declarative reviewed CLI contracts. They do not grant arbitrary shell authority.
 
-Run `cliharbor help pack <command>` for command-specific usage.
+Run 'cliharbor help pack <command>' for command-specific usage.
 `,
 	"pack init": `Usage:
   cliharbor pack init --id <id> --name <name> --tool <tool-id> --executable <basename> [--platform <os>] <output.yaml>
@@ -185,7 +195,7 @@ Generate a deterministic starter planner-contract fixture. Review generated argv
 	"evidence": `Usage:
   cliharbor evidence <inspect|checksum> ...
 
-Inspect or hash CLIHarbor Phase 0 evidence. Run `cliharbor help evidence <command>` for details.
+Inspect or hash CLIHarbor Phase 0 evidence. Run 'cliharbor help evidence <command>' for details.
 `,
 	"evidence inspect": `Usage:
   cliharbor evidence inspect [--sha256 <64-hex-digest>] <file>
@@ -200,7 +210,7 @@ Print the SHA-256 of the exact evidence bytes. A checksum is not a signature or 
 	"diagnostics": `Usage:
   cliharbor diagnostics export [options] <output>
 
-Export allowlisted, privacy-preserving support metadata. Run `cliharbor help diagnostics export` for options.
+Export allowlisted, privacy-preserving support metadata. Run 'cliharbor help diagnostics export' for options.
 `,
 	"diagnostics export": `Usage:
   cliharbor diagnostics export [--pack-file <file>] [--pack-dir <dir>] [--tool-path <ref=path>] <output>
@@ -210,7 +220,7 @@ Write a new diagnostics bundle containing allowlisted metadata only. Command out
 	"evaluation": `Usage:
   cliharbor evaluation preflight [--bundle <directory>]
 
-Verify an extracted qualified Windows evaluation bundle. Run `cliharbor help evaluation preflight` for details.
+Verify an extracted qualified Windows evaluation bundle. Run 'cliharbor help evaluation preflight' for details.
 `,
 	"evaluation preflight": `Usage:
   cliharbor evaluation preflight [--bundle <directory>]
