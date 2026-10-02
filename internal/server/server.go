@@ -30,19 +30,20 @@ const (
 // Random, Now, and ShutdownTimeout are injectable to keep security/lifecycle
 // behavior deterministic in tests.
 type Config struct {
-	Version                 string
-	BootstrapTTL            time.Duration
-	ShutdownTimeout         time.Duration
-	Random                  io.Reader
-	Now                     func() time.Time
-	Frontend                http.Handler
-	Runs                    RunService
-	Tasks                   TaskService
-	Tools                   ToolService
-	CredentialLogin         CredentialLoginService
-	CredentialConfiguration CredentialConfigurationService
-	ToolInstaller           ToolInstallService
-	MaxEventStreams         int
+	Version                    string
+	BootstrapTTL               time.Duration
+	ShutdownTimeout            time.Duration
+	Random                     io.Reader
+	Now                        func() time.Time
+	Frontend                   http.Handler
+	Runs                       RunService
+	Tasks                      TaskService
+	Tools                      ToolService
+	CredentialLogin            CredentialLoginService
+	CredentialInteractiveLogin CredentialInteractiveLoginService
+	CredentialConfiguration    CredentialConfigurationService
+	ToolInstaller              ToolInstallService
+	MaxEventStreams            int
 }
 
 // Server owns one loopback listener and one in-memory browser session.
@@ -54,22 +55,23 @@ type Server struct {
 	version         string
 	shutdownTimeout time.Duration
 
-	mu                      sync.Mutex
-	now                     func() time.Time
-	bootstrapToken          string
-	bootstrapExpires        time.Time
-	bootstrapConsumed       bool
-	sessionToken            string
-	csrfToken               string
-	runs                    RunService
-	tasks                   TaskService
-	tools                   ToolService
-	credentialLogin         CredentialLoginService
-	credentialConfiguration CredentialConfigurationService
-	toolInstaller           ToolInstallService
-	runStreamSlots          chan struct{}
-	streamCtx               context.Context
-	streamCancel            context.CancelFunc
+	mu                         sync.Mutex
+	now                        func() time.Time
+	bootstrapToken             string
+	bootstrapExpires           time.Time
+	bootstrapConsumed          bool
+	sessionToken               string
+	csrfToken                  string
+	runs                       RunService
+	tasks                      TaskService
+	tools                      ToolService
+	credentialLogin            CredentialLoginService
+	credentialInteractiveLogin CredentialInteractiveLoginService
+	credentialConfiguration    CredentialConfigurationService
+	toolInstaller              ToolInstallService
+	runStreamSlots             chan struct{}
+	streamCtx                  context.Context
+	streamCancel               context.CancelFunc
 }
 
 // New creates a server bound to an ephemeral IPv4 loopback port. It does not
@@ -118,24 +120,25 @@ func New(config Config) (*Server, error) {
 	streamCtx, streamCancel := context.WithCancel(context.Background())
 
 	s := &Server{
-		listener:                listener,
-		baseURL:                 "http://" + listener.Addr().String(),
-		version:                 config.Version,
-		shutdownTimeout:         config.ShutdownTimeout,
-		now:                     config.Now,
-		bootstrapToken:          bootstrapToken,
-		bootstrapExpires:        config.Now().Add(config.BootstrapTTL),
-		sessionToken:            sessionToken,
-		csrfToken:               csrfToken,
-		runs:                    config.Runs,
-		tasks:                   config.Tasks,
-		tools:                   config.Tools,
-		credentialLogin:         config.CredentialLogin,
-		credentialConfiguration: config.CredentialConfiguration,
-		toolInstaller:           config.ToolInstaller,
-		runStreamSlots:          make(chan struct{}, maxEventStreams),
-		streamCtx:               streamCtx,
-		streamCancel:            streamCancel,
+		listener:                   listener,
+		baseURL:                    "http://" + listener.Addr().String(),
+		version:                    config.Version,
+		shutdownTimeout:            config.ShutdownTimeout,
+		now:                        config.Now,
+		bootstrapToken:             bootstrapToken,
+		bootstrapExpires:           config.Now().Add(config.BootstrapTTL),
+		sessionToken:               sessionToken,
+		csrfToken:                  csrfToken,
+		runs:                       config.Runs,
+		tasks:                      config.Tasks,
+		tools:                      config.Tools,
+		credentialLogin:            config.CredentialLogin,
+		credentialInteractiveLogin: config.CredentialInteractiveLogin,
+		credentialConfiguration:    config.CredentialConfiguration,
+		toolInstaller:              config.ToolInstaller,
+		runStreamSlots:             make(chan struct{}, maxEventStreams),
+		streamCtx:                  streamCtx,
+		streamCancel:               streamCancel,
 	}
 
 	mux := http.NewServeMux()
@@ -158,6 +161,9 @@ func New(config Config) (*Server, error) {
 	}
 	if s.credentialLogin != nil {
 		mux.Handle("/api/v1/auth/login", s.requireSession(http.HandlerFunc(s.handleCredentialLogin)))
+	}
+	if s.credentialInteractiveLogin != nil {
+		mux.Handle("/api/v1/auth/interactive", s.requireSession(http.HandlerFunc(s.handleCredentialInteractiveLogin)))
 	}
 	if s.credentialConfiguration != nil {
 		mux.Handle("/api/v1/auth/configure", s.requireSession(http.HandlerFunc(s.handleCredentialConfiguration)))

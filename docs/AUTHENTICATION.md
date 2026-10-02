@@ -130,7 +130,7 @@ The browser clears password state after every attempt. Login requests are not re
 
 After a successful handoff, the UI immediately executes the existing reviewed `whoami` session check. That check, not the optimistic login response, remains the browser-visible evidence that the vendor session is usable.
 
-The adapter deliberately rejects or does not advertise OIDC, JWT, certificate, IAM/Azure and read-only/disabled credential-storage configurations. MFA/challenge flows and other interactive modes remain vendor-owned.
+The password adapter deliberately rejects OIDC, JWT, cloud/SaaS, certificate, IAM/Azure/GCP and read-only/disabled credential-storage configurations. On Windows, OIDC, JWT, and `cloud` configurations that can persist their vendor session may instead advertise the separate vendor-owned login launcher described below. Certificate, IAM, Azure, GCP, unknown modes, and read-only/disabled credential storage remain outside CLIHarbor's guided sign-in surfaces.
 
 ### Credential bridge invariants
 
@@ -144,20 +144,21 @@ The adapter deliberately rejects or does not advertise OIDC, JWT, certificate, I
 - backend policy and the normal session check remain authoritative after sign-in;
 - a browser form is presentation, not authorization.
 
-## External-terminal login
+## Vendor-owned external-terminal login
 
-If a future vendor workflow truly requires interactive terminal authentication, the preferred model is a separate vendor-owned terminal process in the current user's session rather than a password form in CLIHarbor.
+CLIHarbor implements the ADR-005 external-terminal model for the reviewed Conjur 9.x modes that the official CLI itself handles through `conjur login`: OIDC, JWT, and Idira Secrets Manager SaaS/cloud.
 
-Requirements would include:
+When the backend advertises `conjur-vendor-login`, the authenticated browser may request only the trusted Conjur pack/tool identity. It cannot submit executable path, argv, identity, password, token, browser URL, environment variable, or working directory. The backend reloads the current Conjur configuration, confirms the mode remains eligible, revalidates the exact discovery-time executable identity, and launches exactly:
 
-- exact command from a trusted pack/adapter;
-- no synthesized password keystrokes;
-- no silent elevation;
-- clear terminal ownership/title;
-- bounded wait/cancellation;
-- no blind capture of interactive credential output into run history.
+```text
+<verified conjur executable> login
+```
 
-This is not currently implemented by the generic read-only task executor.
+On Windows this uses `CreateProcess` with `CREATE_NEW_CONSOLE` and an explicit application path/command line. CLIHarbor does not invoke PowerShell/CMD, does not synthesize keystrokes, does not redirect/capture the child terminal, does not elevate, and closes its process/thread handles immediately after successful launch. The new process is intentionally vendor/operator-owned: Conjur owns terminal prompts, any OIDC/browser handoff, and durable session material. The browser shows only that launch succeeded; the existing reviewed `whoami` session check remains the authoritative proof that sign-in completed.
+
+The launch request inherits CLIHarbor's exact loopback session, Host/Origin and CSRF boundary, strict JSON decoding, and sanitized error taxonomy. The launch action shares the Conjur authentication single-flight gate, so connection setup, password handoff, and vendor-terminal launch cannot race inside the adapter.
+
+The generic read-only task executor still does not become an interactive terminal or PTY. Other vendor CLIs and Conjur authentication types require their own reviewed adapter/evidence before they may gain a launcher.
 
 ## Embedded PTY
 

@@ -19,7 +19,10 @@ const maxCredentialLoginRequestBytes = 8 << 10
 
 type CredentialLoginMethod string
 
-const CredentialLoginMethodConjurPassword CredentialLoginMethod = "conjur-password"
+const (
+	CredentialLoginMethodConjurPassword    CredentialLoginMethod = "conjur-password"
+	CredentialLoginMethodConjurVendorLogin CredentialLoginMethod = "conjur-vendor-login"
+)
 
 type CredentialLoginCapability struct {
 	Method        CredentialLoginMethod `json:"method"`

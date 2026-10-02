@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
+	"github.com/Quazmoz/CLIHarbor/internal/platform/terminal"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 	"github.com/cyberark/conjur-api-go/conjurapi"
 	"github.com/cyberark/conjur-api-go/conjurapi/response"
@@ -29,13 +30,15 @@ type conjurLoginClient interface {
 }
 
 type conjurCredentialLoginService struct {
-	enabled      bool
-	toolPath     string
-	toolIdentity discovery.ExecutableIdentity
-	authGate     chan struct{}
-	loadConfig   func() (conjurapi.Config, error)
-	newClient    func(conjurapi.Config) (conjurLoginClient, error)
-	runInit      func(context.Context, string, []string) error
+	enabled              bool
+	toolPath             string
+	toolIdentity         discovery.ExecutableIdentity
+	authGate             chan struct{}
+	loadConfig           func() (conjurapi.Config, error)
+	newClient            func(conjurapi.Config) (conjurLoginClient, error)
+	runInit              func(context.Context, string, []string) error
+	interactiveSupported func() bool
+	launchInteractive    func(string, []string) error
 }
 
 func newConjurCredentialLoginService(snapshot discovery.Snapshot) *conjurCredentialLoginService {
@@ -47,7 +50,9 @@ func newConjurCredentialLoginService(snapshot discovery.Snapshot) *conjurCredent
 		newClient: func(config conjurapi.Config) (conjurLoginClient, error) {
 			return conjurapi.NewClient(config)
 		},
-		runInit: runConjurConnectionInit,
+		runInit:              runConjurConnectionInit,
+		interactiveSupported: terminal.Supported,
+		launchInteractive:    terminal.Launch,
 	}
 	if ok {
 		service.toolPath = state.Path
@@ -73,6 +78,11 @@ func (s *conjurCredentialLoginService) Capability() (string, string, server.Cred
 		return conjurCredentialPackID, conjurCredentialToolID, server.CredentialLoginCapability{
 			Method:        server.CredentialLoginMethodConjurPassword,
 			SetupRequired: true,
+		}, true
+	}
+	if s.interactiveSupported != nil && s.interactiveSupported() && supportsConjurVendorLogin(config) {
+		return conjurCredentialPackID, conjurCredentialToolID, server.CredentialLoginCapability{
+			Method: server.CredentialLoginMethodConjurVendorLogin,
 		}, true
 	}
 	return "", "", server.CredentialLoginCapability{}, false
@@ -173,6 +183,40 @@ func (s *conjurCredentialLoginService) Login(ctx context.Context, request server
 	}
 	if err != nil {
 		return &server.CredentialLoginError{Code: classifyConjurCredentialLoginError(hadAPIKey, err)}
+	}
+	return nil
+}
+
+func (s *conjurCredentialLoginService) LaunchInteractive(ctx context.Context, request server.CredentialInteractiveLoginRequest) error {
+	if s == nil || !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	if s.interactiveSupported == nil || !s.interactiveSupported() || s.launchInteractive == nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	if !s.acquireAuthGate() {
+		return &server.CredentialLoginError{Code: server.CredentialLoginBusy}
+	}
+	defer s.releaseAuthGate()
+
+	select {
+	case <-ctx.Done():
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	default:
+	}
+
+	config, err := s.loadConfig()
+	if err != nil || !supportsConjurVendorLogin(config) {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	if s.toolPath == "" || !s.toolIdentity.Valid() || !s.toolIdentity.Matches(s.toolPath) {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+	// The reviewed upstream Conjur 9.x login command owns OIDC/JWT/SaaS
+	// interaction and vendor credential persistence. CLIHarbor supplies no
+	// identity, password, token, URL, or browser-auth data in argv.
+	if err := s.launchInteractive(s.toolPath, []string{"login"}); err != nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
 	return nil
 }
@@ -306,6 +350,29 @@ func supportsConjurPasswordLogin(config conjurapi.Config) bool {
 		return true
 	case "ldap":
 		return validConjurConfigScalar(config.ServiceID)
+	default:
+		return false
+	}
+}
+
+func supportsConjurVendorLogin(config conjurapi.Config) bool {
+	if config.CredentialStorage == conjurapi.CredentialStorageNone ||
+		config.CredentialStorageMode == conjurapi.CredentialStorageModeReadOnly ||
+		!validConjurHTTPSURL(config.ApplianceURL) ||
+		!validConjurConfigScalar(config.Account) {
+		return false
+	}
+
+	authnType := strings.ToLower(strings.TrimSpace(config.AuthnType))
+	switch authnType {
+	case "cloud":
+		return config.IsSaaS()
+	case "oidc":
+		return validConjurConfigScalar(config.Account) && validConjurConfigScalar(config.ServiceID)
+	case "jwt":
+		return validConjurConfigScalar(config.Account) &&
+			validConjurConfigScalar(config.ServiceID) &&
+			(config.JWTContent != "" || strings.TrimSpace(config.JWTFilePath) != "")
 	default:
 		return false
 	}

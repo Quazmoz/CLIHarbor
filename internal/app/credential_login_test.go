@@ -157,6 +157,9 @@ func TestConjurCredentialLoginRejectsUnsupportedModesAndStorage(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			// This table covers configurations that are unsupported by the
+			// browser password bridge. Vendor-owned login is tested separately.
+			service.interactiveSupported = func() bool { return false }
 			config := supportedConjurConfig()
 			tc.mutate(&config)
 			service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
@@ -426,5 +429,164 @@ func TestConjurCredentialConfigurationAddsOnlyReviewedLDAPFlags(t *testing.T) {
 	}
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("vendor init args = %#v, want %#v", args, want)
+	}
+}
+
+func TestConjurCredentialCapabilityOffersVendorOwnedLoginForReviewedModes(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*conjurapi.Config)
+	}{
+		{
+			name: "oidc",
+			mutate: func(c *conjurapi.Config) {
+				c.AuthnType = "oidc"
+				c.ServiceID = "corp-oidc"
+			},
+		},
+		{
+			name: "jwt",
+			mutate: func(c *conjurapi.Config) {
+				c.AuthnType = "jwt"
+				c.ServiceID = "corp-jwt"
+				c.JWTFilePath = "current-user-jwt"
+			},
+		},
+		{
+			name: "saas-cloud",
+			mutate: func(c *conjurapi.Config) {
+				c.AuthnType = "cloud"
+				c.Environment = conjurapi.EnvironmentSaaS
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service.interactiveSupported = func() bool { return true }
+			config := supportedConjurConfig()
+			tc.mutate(&config)
+			service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+
+			packID, toolID, capability, available := service.Capability()
+			if !available {
+				t.Fatal("reviewed vendor-owned login was not advertised")
+			}
+			if packID != conjurCredentialPackID || toolID != conjurCredentialToolID {
+				t.Fatalf("capability target = %s/%s", packID, toolID)
+			}
+			if capability.Method != server.CredentialLoginMethodConjurVendorLogin || capability.SetupRequired {
+				t.Fatalf("capability = %#v, want vendor-owned login", capability)
+			}
+		})
+	}
+}
+
+func TestConjurCredentialCapabilityRejectsInvalidVendorConfiguration(t *testing.T) {
+	service := newConjurCredentialLoginService(readyConjurSnapshot())
+	service.interactiveSupported = func() bool { return true }
+	config := supportedConjurConfig()
+	config.AuthnType = "cloud"
+	config.Environment = conjurapi.EnvironmentSaaS
+	config.Account = ""
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+
+	if _, _, _, available := service.Capability(); available {
+		t.Fatal("invalid SaaS config unexpectedly advertised vendor login")
+	}
+}
+
+func TestConjurCredentialCapabilityDoesNotInventVendorLoginForUnsupportedModes(t *testing.T) {
+	for _, authnType := range []string{"iam", "azure", "gcp", "cert"} {
+		t.Run(authnType, func(t *testing.T) {
+			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service.interactiveSupported = func() bool { return true }
+			config := supportedConjurConfig()
+			config.AuthnType = authnType
+			config.ServiceID = "service"
+			service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+			if _, _, _, available := service.Capability(); available {
+				t.Fatalf("%s unexpectedly advertised vendor login", authnType)
+			}
+		})
+	}
+}
+
+func TestConjurVendorOwnedLoginLaunchesOnlyVerifiedConjurLoginArgv(t *testing.T) {
+	executable := filepath.Join(t.TempDir(), "conjur")
+	if err := os.WriteFile(executable, []byte("fixture"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := discovery.CaptureExecutableIdentity(executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service := newConjurCredentialLoginService(readyConjurSnapshot())
+	service.toolPath = executable
+	service.toolIdentity = identity
+	service.interactiveSupported = func() bool { return true }
+	config := supportedConjurConfig()
+	config.AuthnType = "oidc"
+	config.ServiceID = "corp-oidc"
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+
+	calls := 0
+	service.launchInteractive = func(gotExecutable string, gotArgs []string) error {
+		calls++
+		if gotExecutable != executable {
+			t.Fatalf("executable = %q, want %q", gotExecutable, executable)
+		}
+		if !reflect.DeepEqual(gotArgs, []string{"login"}) {
+			t.Fatalf("argv = %#v, want [login]", gotArgs)
+		}
+		return nil
+	}
+
+	err = service.LaunchInteractive(context.Background(), server.CredentialInteractiveLoginRequest{
+		PackID: conjurCredentialPackID,
+		ToolID: conjurCredentialToolID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("launch calls = %d, want 1", calls)
+	}
+}
+
+func TestConjurVendorOwnedLoginRevalidatesExecutableIdentity(t *testing.T) {
+	executable := filepath.Join(t.TempDir(), "conjur")
+	if err := os.WriteFile(executable, []byte("fixture"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := discovery.CaptureExecutableIdentity(executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(executable, []byte("replaced"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	service := newConjurCredentialLoginService(readyConjurSnapshot())
+	service.toolPath = executable
+	service.toolIdentity = identity
+	service.interactiveSupported = func() bool { return true }
+	config := supportedConjurConfig()
+	config.AuthnType = "oidc"
+	config.ServiceID = "corp-oidc"
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+	service.launchInteractive = func(string, []string) error {
+		t.Fatal("replaced executable must not be launched")
+		return nil
+	}
+
+	err = service.LaunchInteractive(context.Background(), server.CredentialInteractiveLoginRequest{
+		PackID: conjurCredentialPackID,
+		ToolID: conjurCredentialToolID,
+	})
+	var loginErr *server.CredentialLoginError
+	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnavailable {
+		t.Fatalf("error = %#v, want sanitized unavailable", err)
 	}
 }

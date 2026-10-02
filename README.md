@@ -47,7 +47,7 @@ bin\cliharbor-windows-x64-evaluation.exe
 
 No separate Conjur pack download and no `--pack-file` are required for the normal path.
 
-The **Authentication** page provides the normal Conjur password sign-in path end to end. On a new computer it first asks only for the HTTPS Conjur server, account, and standard or LDAP mode, then delegates connection initialization to the exact discovered CyberArk CLI using fixed reviewed `conjur init self-hosted` arguments. The password field is not exposed until that connection step succeeds. Passwords are never passed to the init process; sign-in posts the password only to the authenticated loopback credential endpoint, never places it in process argv or run history, and CLIHarbor does not persist it. The pinned CyberArk Go API performs the login and stores the resulting vendor credential using Conjur's configured credential storage. OIDC/JWT/certificate/MFA-style flows remain vendor-owned.
+The **Authentication** page provides guided Conjur sign-in without turning CLIHarbor into a credential store. Standard/LDAP password configurations use the narrow loopback credential bridge: on a new computer the UI first gathers only the HTTPS Conjur server/account/mode, delegates fixed reviewed `conjur init self-hosted` setup to the exact discovered CLI, and exposes the password field only after setup succeeds. OIDC, JWT, and Idira SaaS/cloud configurations use **Open official Conjur sign-in**, which launches the same identity-verified Conjur executable in a separate Windows terminal with fixed argv `["login"]`. The vendor CLI owns all prompts/browser handoff and resulting session storage; CLIHarbor receives no password/token from that flow. Certificate, IAM, Azure, GCP, and unknown modes remain outside the guided launcher and fail closed to the organization's approved vendor process.
 
 ### Discovery order
 
@@ -142,7 +142,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
 | Planning | Typed inputs, trusted literals/flags/switches/enum mappings, constrained positional values, deterministic argv |
 | Execution | Direct executable launch, no ordinary shell, executable identity revalidation, bounded timeout/output/cancellation |
-| Vendor sessions | Explicit `vendor-session` mode, reviewed zero-input session checks, and a Conjur-only ephemeral password bridge that keeps credentials out of argv/run history/logs and leaves durable session material in Conjur's configured credential storage |
+| Vendor sessions | Explicit `vendor-session` mode, reviewed zero-input session checks, a Conjur-only ephemeral password bridge, and a Windows vendor-owned Conjur login launcher for reviewed OIDC/JWT/SaaS modes; credentials stay out of task argv/run history/logs and durable session material remains vendor-owned |
 | Windows lifecycle | Suspended launch, Job Object assignment before resume, descendant containment and teardown |
 | Browser runs | Authenticated run APIs, planner-backed sanitized invocation preview, bounded SSE streaming/replay, reconnect reconciliation, cancellation, in-memory retry-with-inputs, bounded retention and metadata-only Recent Runs history |
 | Structured results | Strict bounded scalar JSON parsing, inert React rendering, client-side field filter/sort, explicit per-field copy, normalized JSON inspection, and raw-output fallback |
@@ -153,7 +153,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 
 Still intentionally gated:
 
-- generic credential forms, MFA/challenge handling, or CLIHarbor-owned token persistence beyond the reviewed Conjur password bridge;
+- generic credential forms, embedded MFA/challenge handling, or CLIHarbor-owned token persistence beyond the reviewed Conjur adapters;
 - secret-returning workflows;
 - change/destructive browser execution;
 - automatic execution of unreviewed generated commands;
@@ -287,7 +287,7 @@ requirements:
   authMode: vendor-session
 ```
 
-Ordinary task execution supplies no password, token, API key, MFA response, or interactive credential stdin. Authentication is a separate reviewed boundary: the qualified Conjur integration may expose the dedicated GUI password bridge, while unsupported interactive modes continue to use the approved vendor-owned process.
+Ordinary task execution supplies no password, token, API key, MFA response, or interactive credential stdin. Authentication is a separate reviewed boundary: the qualified Conjur integration may expose the dedicated GUI password bridge or, for reviewed OIDC/JWT/SaaS modes on Windows, launch the exact verified vendor CLI with fixed `login` argv in a separate terminal. Other modes continue to use the approved vendor-owned process.
 
 Installing the vendor executable and authenticating to the vendor are separate operations.
 
