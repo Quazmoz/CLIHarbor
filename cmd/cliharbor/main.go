@@ -32,6 +32,206 @@ func (s *stringList) Set(value string) error {
 	return nil
 }
 
+func isHelpFlag(value string) bool {
+	return value == "-h" || value == "--help"
+}
+
+func helpRequest(args []string) ([]string, bool) {
+	if len(args) == 0 {
+		return nil, false
+	}
+	if args[0] == "help" {
+		return append([]string(nil), args[1:]...), true
+	}
+	if isHelpFlag(args[0]) {
+		return nil, true
+	}
+	if len(args) >= 2 && isHelpFlag(args[1]) {
+		return []string{args[0]}, true
+	}
+	if len(args) >= 3 && isHelpFlag(args[2]) {
+		switch args[0] {
+		case "pack", "evidence", "diagnostics", "evaluation":
+			return []string{args[0], args[1]}, true
+		}
+	}
+	return nil, false
+}
+
+var helpText = map[string]string{
+	"": `CLIHarbor — secure local browser workflows over reviewed command-line tools.
+
+Usage:
+  cliharbor [serve] [options]
+  cliharbor doctor [options]
+  cliharbor inventory [options]
+  cliharbor self-test
+  cliharbor version
+  cliharbor pack <command> [options]
+  cliharbor evidence <command> [options]
+  cliharbor diagnostics export [options] <output>
+  cliharbor evaluation preflight [options]
+  cliharbor help [command [subcommand]]
+
+Commands:
+  serve         Start the loopback-only browser workspace (default).
+  doctor        Inspect configured pack and CLI readiness without browser startup.
+  inventory     Collect bounded discovery-only Phase 0 evidence.
+  self-test     Run vendor-free local runtime checks.
+  version       Print build/version identity.
+  pack          Create, validate, lint, test, or generate reviewed pack artifacts.
+  evidence      Check or inspect exported Phase 0 evidence.
+  diagnostics   Export privacy-preserving support metadata.
+  evaluation    Verify an extracted Windows evaluation bundle.
+  help          Show this help or help for one command/subcommand.
+
+Examples:
+  cliharbor
+  cliharbor doctor
+  cliharbor help serve
+  cliharbor pack --help
+  cliharbor pack init --help
+
+CLIHarbor executes reviewed executable + argv contracts directly and does not provide an arbitrary shell.
+`,
+	"serve": `Usage:
+  cliharbor [serve] [options]
+
+Start the authenticated loopback-only browser workspace.
+
+Options:
+  --pack-file <file>        Add an explicit trusted pack file (repeatable).
+  --pack-dir <dir>          Add an explicit trusted pack directory.
+  --tool-path <ref=path>    Pin pack/tool to an approved absolute executable path (repeatable).
+  --no-default-packs        Omit embedded first-party packs.
+  --no-auto-setup           Disable current-user setup of missing first-party dependencies.
+  --web-dev-url <url>       Development only: use a Vite origin on 127.0.0.1.
+  -h, --help                Show this help.
+
+Running `cliharbor` with no command is equivalent to `cliharbor serve`.
+`,
+	"doctor": `Usage:
+  cliharbor doctor [options]
+
+Inspect configured packs and CLI discovery/version readiness. Doctor is local operator output and may include exact paths.
+
+Options:
+  --pack-file <file>        Add an explicit trusted pack file (repeatable).
+  --pack-dir <dir>          Add an explicit trusted pack directory.
+  --tool-path <ref=path>    Pin pack/tool to an approved absolute executable path (repeatable).
+  --no-default-packs        Omit embedded first-party packs.
+  -h, --help                Show this help.
+`,
+	"inventory": `Usage:
+  cliharbor inventory [options]
+
+Collect bounded discovery-only Phase 0 inventory. Inventory does not create browser task authority.
+
+Options:
+  --pack-file <file>        Explicit trusted inventory pack (repeatable).
+  --pack-dir <dir>          Explicit trusted inventory pack directory.
+  --tool-path <ref=path>    Pin pack/tool to an approved absolute executable path (repeatable).
+  --probe <ref>             Run one pack-declared fixed evidence probe (repeatable).
+  --export <file>           Write sanitized Phase 0 evidence to a new file.
+  -h, --help                Show this help.
+`,
+	"self-test": `Usage:
+  cliharbor self-test
+
+Run vendor-free local runtime checks. Pack and tool override flags are intentionally unavailable.
+`,
+	"version": `Usage:
+  cliharbor version
+
+Print CLIHarbor version, commit, and build identity.
+`,
+	"pack": `Usage:
+  cliharbor pack <init|draft|validate|lint|test|generate-tests> ...
+
+Pack commands author and verify declarative reviewed CLI contracts. They do not grant arbitrary shell authority.
+
+Run `cliharbor help pack <command>` for command-specific usage.
+`,
+	"pack init": `Usage:
+  cliharbor pack init --id <id> --name <name> --tool <tool-id> --executable <basename> [--platform <os>] <output.yaml>
+
+Create a discovery-only pack scaffold. No vendor commands or probes are guessed.
+`,
+	"pack draft": `Usage:
+  cliharbor pack draft --id <id> --name <name> --tool <tool-id> --executable <basename> --help-file <captured-help.txt> [--platform <os>] <output.yaml>
+
+Draft reviewable command candidates from explicitly captured vendor help. Generated content still requires human review.
+`,
+	"pack validate": `Usage:
+  cliharbor pack validate <pack.yaml-or-directory> [...]
+
+Validate pack schema, semantics, and security constraints without executing the declared CLI.
+`,
+	"pack lint": `Usage:
+  cliharbor pack lint [--cases <cases.json>] <pack.yaml-or-directory> [...]
+
+Run deterministic pack authoring/security lint. Optional cases add contract-coverage diagnostics.
+`,
+	"pack test": `Usage:
+  cliharbor pack test --cases <cases.json> <pack.yaml-or-directory>
+
+Run bounded planner contract cases without launching the declared vendor CLI.
+`,
+	"pack generate-tests": `Usage:
+  cliharbor pack generate-tests --output <cases.json> <pack.yaml-or-directory>
+
+Generate a deterministic starter planner-contract fixture. Review generated argv against authoritative vendor evidence.
+`,
+	"evidence": `Usage:
+  cliharbor evidence <inspect|checksum> ...
+
+Inspect or hash CLIHarbor Phase 0 evidence. Run `cliharbor help evidence <command>` for details.
+`,
+	"evidence inspect": `Usage:
+  cliharbor evidence inspect [--sha256 <64-hex-digest>] <file>
+
+Strictly validate and render one Phase 0 evidence file. With --sha256, byte integrity is checked before rendering.
+`,
+	"evidence checksum": `Usage:
+  cliharbor evidence checksum <file>
+
+Print the SHA-256 of the exact evidence bytes. A checksum is not a signature or host attestation.
+`,
+	"diagnostics": `Usage:
+  cliharbor diagnostics export [options] <output>
+
+Export allowlisted, privacy-preserving support metadata. Run `cliharbor help diagnostics export` for options.
+`,
+	"diagnostics export": `Usage:
+  cliharbor diagnostics export [--pack-file <file>] [--pack-dir <dir>] [--tool-path <ref=path>] <output>
+
+Write a new diagnostics bundle containing allowlisted metadata only. Command output, argv, environment values, executable paths, browser secrets, and credentials are excluded.
+`,
+	"evaluation": `Usage:
+  cliharbor evaluation preflight [--bundle <directory>]
+
+Verify an extracted qualified Windows evaluation bundle. Run `cliharbor help evaluation preflight` for details.
+`,
+	"evaluation preflight": `Usage:
+  cliharbor evaluation preflight [--bundle <directory>]
+
+Run vendor-free evaluation-bundle integrity and local-runtime preflight checks.
+`,
+}
+
+func printHelp(out io.Writer, path []string) error {
+	key := strings.Join(path, " ")
+	content, ok := helpText[key]
+	if !ok {
+		if key == "" {
+			key = "top-level"
+		}
+		return fmt.Errorf("unknown help topic %q; run 'cliharbor help' for available commands", key)
+	}
+	_, err := fmt.Fprint(out, content)
+	return err
+}
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "cliharbor: %v\n", err)
@@ -40,6 +240,9 @@ func main() {
 }
 
 func run(args []string) error {
+	if path, ok := helpRequest(args); ok {
+		return printHelp(os.Stdout, path)
+	}
 	if len(args) > 0 && args[0] == "evidence" {
 		return runEvidenceCommand(args[1:])
 	}
@@ -59,6 +262,10 @@ func run(args []string) error {
 		case "serve", "doctor", "inventory", "self-test", "version":
 			command = args[0]
 			args = args[1:]
+		default:
+			if !strings.HasPrefix(args[0], "-") {
+				return fmt.Errorf("unknown command %q; run 'cliharbor help' for available commands", args[0])
+			}
 		}
 	}
 
