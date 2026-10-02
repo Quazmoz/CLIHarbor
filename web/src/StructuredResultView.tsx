@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { StructuredField } from './api/runs';
 
 type SortMode = 'source' | 'label' | 'key';
@@ -35,10 +35,6 @@ export function StructuredResultView({ fields }: StructuredResultViewProps) {
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('source');
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
-
-  useEffect(() => {
-    setCopyNotice(null);
-  }, [fields]);
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleFields = useMemo(() => {
