@@ -5,6 +5,8 @@ package terminal
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -55,5 +57,31 @@ func launchPlatform(executable string, args []string) error {
 	// authority while the vendor CLI owns prompts, browser handoff, and session storage.
 	_ = windows.CloseHandle(processInfo.Thread)
 	_ = windows.CloseHandle(processInfo.Process)
+	return nil
+}
+
+func launchHiddenPlatform(executable string, args []string) error {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return fmt.Errorf("resolve current-user home for vendor login")
+	}
+
+	cmd := exec.Command(executable, args...)
+	cmd.Dir = home
+	// Nil stdin/stdout/stderr are connected to the null device by os/exec.
+	// CREATE_NO_WINDOW prevents the transient console flash while leaving OIDC
+	// browser handoff and JWT authentication fully owned by the vendor process.
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: windows.CREATE_NO_WINDOW,
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("launch hidden vendor login: %w", err)
+	}
+
+	// Start succeeding is the authoritative launch event. A later handle-release
+	// cleanup error must not be surfaced as a retryable launch failure because
+	// that could duplicate an already-running authentication flow.
+	_ = cmd.Process.Release()
 	return nil
 }
