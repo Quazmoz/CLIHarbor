@@ -617,3 +617,65 @@ Backend tests cover request-boundary enforcement, malformed/oversized payloads, 
 ### Supersedes / superseded by
 
 - Refines ADR-004 and ADR-005: durable authentication remains vendor-owned, but a reviewed ephemeral browser-to-vendor credential bridge is now allowed.
+
+## ADR-026 — Present vendor-owned Conjur login according to authentication mode
+
+**Date:** 2026-10-02  
+**Status:** Accepted.
+
+### Context
+
+The first vendor-login launcher treated reviewed OIDC, JWT, and Idira SaaS/cloud modes identically by starting `conjur login` in a new Windows console. That preserved vendor ownership but produced a transient Command Prompt window for modes that do not require terminal input and left the browser with only a launch acknowledgement.
+
+Qualified Conjur 9.x source establishes materially different interaction contracts: OIDC owns a browser plus loopback callback flow, JWT authenticates from its configured JWT source, while SaaS/cloud Identity authentication can require password, MFA-mechanism selection, OTP/PIN values, security questions, or other interactive input.
+
+### Decision
+
+Keep one fixed, identity-revalidated vendor-login authority but select presentation from the already-loaded Conjur authentication mode:
+
+- OIDC and JWT start the exact verified Conjur executable with fixed argv `["login"]` without a visible console window.
+- OIDC remains responsible for opening its own browser and receiving its loopback callback.
+- Idira SaaS/cloud starts the same fixed command in a separate vendor-owned terminal so interactive credential/MFA challenges never pass through CLIHarbor.
+- CLIHarbor does not redirect/capture vendor credential stdin/stdout for either path and does not synthesize keystrokes.
+- Browser launch success is not authentication evidence. The reviewed Conjur `whoami` session check remains authoritative.
+
+### Alternatives considered
+
+1. Always open a new console for every vendor-owned mode.
+2. Embed a PTY/terminal in the React UI.
+3. Reimplement OIDC/SaaS authentication inside CLIHarbor.
+4. Hold the loopback HTTP request open until `conjur login` completes.
+
+### Rationale
+
+Mode-aware presentation removes unnecessary console flash without broadening the credential boundary. An embedded PTY or SaaS challenge UI would make CLIHarbor responsible for additional secret/MFA material. Waiting synchronously for completion is also inconsistent with browser/OIDC flows that may legitimately outlive ordinary HTTP request timeouts.
+
+### Security / reliability implications
+
+- executable identity and fixed argv remain backend-authoritative;
+- no shell is introduced;
+- OIDC/JWT no-console launch does not grant CLIHarbor access to browser tokens or vendor session material;
+- SaaS/cloud retains a real terminal specifically because upstream interaction can require sensitive operator input;
+- the existing authentication single-flight gate still prevents setup/password/vendor-login races;
+- a started vendor process may later fail independently, so the UI must never equate launch with authenticated state.
+
+### Verification
+
+- backend table coverage must assert OIDC/JWT select the hidden launcher and SaaS/cloud selects the vendor-terminal launcher;
+- every mode must retain the exact verified executable and fixed `login` argv;
+- executable replacement must fail closed before either launcher runs;
+- React coverage must distinguish “sign-in started” from authenticated state and retain explicit session verification;
+- Windows CI must compile/test the platform-specific process flags and qualify the resulting evaluation artifact.
+
+### Revisit when
+
+- upstream Conjur changes OIDC/JWT/SaaS interaction semantics;
+- CLIHarbor gains an explicit asynchronous authentication-operation API;
+- a vendor-supported non-secret completion/status channel becomes available;
+- embedded terminal/MFA handling is proposed and receives a separate security review.
+
+### Supersedes / superseded by
+
+- Refines ADR-005: an external terminal remains preferred when terminal interaction is actually required; non-interactive vendor-owned modes no longer open one merely for presentation.
+- Complements ADR-025; the password bridge remains unchanged.
+
