@@ -220,6 +220,60 @@ function ConvertFrom-ConjurJson {
     }
 }
 
+function ConvertFrom-ConjurCountJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Json
+    )
+
+    $countObject = ConvertFrom-ConjurJson -Json $Json -Context 'conjur list --count'
+    if ($null -eq $countObject) {
+        throw "Conjur variable count returned an unexpected JSON shape."
+    }
+
+    $countProperties = @($countObject.PSObject.Properties)
+    $countProperty = $countObject.PSObject.Properties['count']
+    if (
+        $countObject.GetType().FullName -ne 'System.Management.Automation.PSCustomObject' -or
+        $countProperties.Count -ne 1 -or
+        $null -eq $countProperty -or
+        ($countProperty.Value -isnot [int] -and $countProperty.Value -isnot [long])
+    ) {
+        throw "Conjur variable count returned an unexpected JSON shape."
+    }
+
+    $count = [int64]$countProperty.Value
+    if ($count -lt 0) {
+        throw "Conjur variable count returned an invalid count."
+    }
+    return $count
+}
+
+function ConvertFrom-ConjurSecretJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Json
+    )
+
+    $secretObject = ConvertFrom-ConjurJson -Json $Json -Context 'conjur variable get'
+    if ($null -eq $secretObject) {
+        throw "Conjur variable get returned an unexpected JSON shape."
+    }
+
+    $secretProperties = @($secretObject.PSObject.Properties)
+    $valueProperty = $secretObject.PSObject.Properties['value']
+    if (
+        $secretObject.GetType().FullName -ne 'System.Management.Automation.PSCustomObject' -or
+        $secretProperties.Count -ne 1 -or
+        $null -eq $valueProperty -or
+        $valueProperty.Value -isnot [string]
+    ) {
+        throw "Conjur variable get returned an unexpected JSON shape."
+    }
+
+    return [string]$valueProperty.Value
+}
+
 function ConvertFrom-ResourceIdToVariableId {
     param(
         [Parameter(Mandatory = $true)]
@@ -275,23 +329,7 @@ function Get-ConjurVariableCount {
         throw "Conjur variable count failed."
     }
 
-    $countObject = ConvertFrom-ConjurJson -Json $countResult.Stdout -Context 'conjur list --count'
-    $countProperties = @($countObject.PSObject.Properties)
-    $countProperty = $countObject.PSObject.Properties['count']
-    if (
-        $countObject.GetType().FullName -ne 'System.Management.Automation.PSCustomObject' -or
-        $countProperties.Count -ne 1 -or
-        $null -eq $countProperty -or
-        ($countProperty.Value -isnot [int] -and $countProperty.Value -isnot [long])
-    ) {
-        throw "Conjur variable count returned an unexpected JSON shape."
-    }
-
-    $count = [int64]$countProperty.Value
-    if ($count -lt 0) {
-        throw "Conjur variable count returned an invalid count."
-    }
-    return $count
+    return ConvertFrom-ConjurCountJson -Json $countResult.Stdout
 }
 
 function Get-ConjurVariableResourceIds {
@@ -600,8 +638,48 @@ function Invoke-ClassifierSelfTest {
         }
     }
 
+    if ((ConvertFrom-ConjurCountJson -Json '{"count":3}') -ne 3) {
+        throw "Self-test Conjur count JSON parsing failed."
+    }
+    foreach ($invalidCountJson in @(
+        '[]',
+        '{"count":"3"}',
+        '{"count":3,"extra":1}',
+        '{"count":-1}'
+    )) {
+        try {
+            $null = ConvertFrom-ConjurCountJson -Json $invalidCountJson
+            throw "Self-test invalid count JSON was unexpectedly accepted."
+        }
+        catch {
+            if ($_.Exception.Message -eq 'Self-test invalid count JSON was unexpectedly accepted.') {
+                throw
+            }
+        }
+    }
+
+    if ((ConvertFrom-ConjurSecretJson -Json '{"value":"fixture"}') -ne 'fixture') {
+        throw "Self-test Conjur secret JSON parsing failed."
+    }
+    foreach ($invalidSecretJson in @(
+        '[]',
+        '{"value":3}',
+        '{"value":"fixture","extra":1}',
+        '{"other":"fixture"}'
+    )) {
+        try {
+            $null = ConvertFrom-ConjurSecretJson -Json $invalidSecretJson
+            throw "Self-test invalid secret JSON was unexpectedly accepted."
+        }
+        catch {
+            if ($_.Exception.Message -eq 'Self-test invalid secret JSON was unexpectedly accepted.') {
+                throw
+            }
+        }
+    }
+
     Invoke-ProcessLauncherSelfTest
-    Write-Host "Self-test passed: $($cases.Count) classifier cases plus process-launch/output-bound checks."
+    Write-Host "Self-test passed: $($cases.Count) classifier cases plus JSON-contract and process-launch/output-bound checks."
 }
 
 if ($SelfTest) {
@@ -677,7 +755,6 @@ try {
         Write-Progress -Activity 'Auditing Conjur variable values' -Status "$position of $($orderedRecords.Count)" -PercentComplete $percent
 
         $getResult = $null
-        $secretObject = $null
         $secretValue = $null
 
         try {
@@ -702,7 +779,7 @@ try {
             }
 
             try {
-                $secretObject = ConvertFrom-ConjurJson -Json $getResult.Stdout -Context 'conjur variable get'
+                $secretValue = ConvertFrom-ConjurSecretJson -Json $getResult.Stdout
             }
             catch {
                 $failures.Add([pscustomobject][ordered]@{
@@ -714,24 +791,6 @@ try {
                 continue
             }
 
-            $secretProperties = @($secretObject.PSObject.Properties)
-            $valueProperty = $secretObject.PSObject.Properties['value']
-            if (
-                $secretObject.GetType().FullName -ne 'System.Management.Automation.PSCustomObject' -or
-                $secretProperties.Count -ne 1 -or
-                $null -eq $valueProperty -or
-                $valueProperty.Value -isnot [string]
-            ) {
-                $failures.Add([pscustomobject][ordered]@{
-                    VariableId = $record.VariableId
-                    ResourceId = $record.ResourceId
-                    ErrorCode  = 'invalid_value_field'
-                    ExitCode   = $getResult.ExitCode
-                })
-                continue
-            }
-
-            $secretValue = [string]$valueProperty.Value
             $inspected++
 
             $classification = Test-SecretValueShape -Value $secretValue -KnownReferences $knownReferences -KnownNormalizedReferences $knownNormalizedReferences
@@ -752,10 +811,7 @@ try {
                 $getResult.Stderr = ''
             }
             $secretValue = $null
-            $secretProperties = $null
-            $valueProperty = $null
             $classification = $null
-            $secretObject = $null
             $getResult = $null
         }
     }
