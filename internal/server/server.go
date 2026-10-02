@@ -22,8 +22,10 @@ const (
 	defaultBootstrapTTL    = 2 * time.Minute
 	defaultMaxEventStreams = 16
 	shutdownTimeout        = 5 * time.Second
-	sessionCookieName      = "cliharbor_session"
-	csrfHeaderName         = "X-CLIHarbor-CSRF"
+	// Covers handlers bounded by vendor setup (45s) or artifact download (60s + verify).
+	slowResponseWriteTimeout = 2 * time.Minute
+	sessionCookieName        = "cliharbor_session"
+	csrfHeaderName           = "X-CLIHarbor-CSRF"
 )
 
 // Config contains the small set of runtime values needed by the local server.

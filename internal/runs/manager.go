@@ -26,7 +26,10 @@ const (
 	defaultChunkBytes      = 16 << 10
 	defaultMaxOutputStream = 256 << 10
 	defaultMaxEventBytes   = 1 << 20
-	defaultMaxEvents       = 1024
+	// Bytes are already bounded by defaultMaxEventBytes; this only caps per-event
+	// overhead. 1024 failed line-streaming CLIs well under the byte cap.
+	// ponytail: coalesce small writes in the executor if event overhead matters.
+	defaultMaxEvents = 8192
 )
 
 type Status string

@@ -112,7 +112,9 @@ func (s *conjurCredentialLoginService) Configure(ctx context.Context, request se
 	if err != nil {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
-	if supportsConjurPasswordLogin(config) {
+	// Idempotent only for the same connection; a different server/account against
+	// an existing configuration must not be reported as saved.
+	if conjurConfigMatchesConnectionRequest(config, request) {
 		return nil
 	}
 	if !conjurConnectionSetupRequired(config) || s.toolPath == "" || !s.toolIdentity.Valid() || !s.toolIdentity.Matches(s.toolPath) {

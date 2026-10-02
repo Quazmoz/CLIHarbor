@@ -542,6 +542,14 @@ export function App() {
     setFormValues(initialValues(firstTask));
   }, []);
 
+  const refreshTools = useCallback(() => {
+    // Best effort: on failure the current snapshot stays and a reload recovers.
+    void fetchTools().then(
+      (tools) => setState((current) => (current.kind === 'ready' ? { ...current, tools } : current)),
+      () => undefined,
+    );
+  }, []);
+
   const loadFailure = useCallback((error: unknown) => {
     setState({ kind: 'error', failure: normalizeError(error).detail });
   }, []);
@@ -925,6 +933,7 @@ export function App() {
             tools={state.tools}
             onOpenTasks={() => navigate('tasks')}
             onOpenDiagnostics={() => navigate('diagnostics')}
+            onToolsChanged={refreshTools}
           />
         )}
 

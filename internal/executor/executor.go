@@ -271,11 +271,17 @@ func (e *Executor) Run(ctx context.Context, plan planner.Plan, sink Sink) (Resul
 	exitCode := 0
 	if waitErr != nil {
 		var exitErr *exec.ExitError
-		if !errors.As(waitErr, &exitErr) {
+		switch {
+		case errors.As(waitErr, &exitErr):
+			exitCode = exitErr.ExitCode()
+		case errors.Is(waitErr, exec.ErrWaitDelay) && cmd.ProcessState != nil:
+			// The CLI exited cleanly but a lingering child held its output open
+			// past WaitDelay; the controller's close above ends that child.
+			exitCode = cmd.ProcessState.ExitCode()
+		default:
 			_ = state.emit(Event{RunID: runID, Type: EventFailed, Timestamp: ended})
 			return Result{RunID: runID, Status: StatusFailed, StartedAt: started, EndedAt: ended, ExitCode: -1}, &Error{Code: ErrWait, Message: "wait for planned executable"}
 		}
-		exitCode = exitErr.ExitCode()
 	}
 	code := exitCode
 	if err := state.emit(Event{RunID: runID, Type: EventExited, Timestamp: ended, ExitCode: &code}); err != nil {

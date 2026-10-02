@@ -136,6 +136,11 @@ func (r *Resolver) resolveTool(ctx context.Context, state ToolState, tool packs.
 
 	output, err := r.probeRunner.Run(ctx, state.Path, *tool.VersionProbe)
 	if err != nil {
+		// Shutdown during discovery is not a tool fault; abort instead of
+		// reporting probe failures and continuing startup.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ToolState{}, ctxErr
+		}
 		state.Status = StatusProbeFailed
 		state.Message = err.Error()
 		return state, nil

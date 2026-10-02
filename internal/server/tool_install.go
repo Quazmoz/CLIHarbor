@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Quazmoz/CLIHarbor/internal/apperror"
@@ -74,6 +75,8 @@ func (s *Server) handleToolInstall(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
 		return
 	}
+	// Download plus verification can outlast the server-wide 30s WriteTimeout.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(slowResponseWriteTimeout))
 	result, err := s.toolInstaller.InstallTool(r.Context(), ToolInstallRequest{
 		PackID:      request.PackID,
 		ToolID:      request.ToolID,

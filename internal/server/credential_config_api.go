@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Quazmoz/CLIHarbor/internal/apperror"
@@ -52,6 +53,9 @@ func (s *Server) handleCredentialConfiguration(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Vendor connection setup may legitimately outlast the server-wide 30s
+	// WriteTimeout; without this the browser sees a reset for a setup that succeeded.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(slowResponseWriteTimeout))
 	err = s.credentialConfiguration.Configure(r.Context(), CredentialConfigurationRequest{
 		PackID:       request.PackID,
 		ToolID:       request.ToolID,

@@ -43,6 +43,7 @@ interface AuthenticationPageProps {
   tools: ToolDiagnostic[];
   onOpenTasks: () => void;
   onOpenDiagnostics: () => void;
+  onToolsChanged?: () => void;
 }
 
 interface VendorSessionCardProps {
@@ -51,6 +52,7 @@ interface VendorSessionCardProps {
   tool: ToolDiagnostic;
   onOpenTasks: () => void;
   onOpenDiagnostics: () => void;
+  onToolsChanged?: () => void;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -157,6 +159,7 @@ export function VendorSessionCard({
   tool,
   onOpenTasks,
   onOpenDiagnostics,
+  onToolsChanged,
 }: VendorSessionCardProps) {
   const [check, setCheck] = useState<AuthenticationCheck>({ kind: 'unchecked' });
   const attemptRef = useRef(0);
@@ -225,6 +228,7 @@ export function VendorSessionCard({
     const checkedAt = new Date().toISOString();
 
     if (runStatus === 'exited' && exitCode === 0) {
+      setVendorLoginOpened(false);
       setCheck({
         kind: 'authenticated',
         checkedAt,
@@ -414,6 +418,9 @@ export function VendorSessionCard({
         ...(credentialAuthnType === 'ldap' ? { serviceId } : {}),
       });
       setCredentialConnectionReady(true);
+      // The runtime's capability snapshot still says setup is required; refresh it
+      // so returning to this page later does not show the connection step again.
+      onToolsChanged?.();
     } catch (error) {
       setCredentialFailure(normalizeError(error).detail);
     } finally {
@@ -482,6 +489,17 @@ export function VendorSessionCard({
       setCredentialSubmitting(false);
     }
   };
+
+  // The vendor flow finishes in another browser tab or terminal; verify as soon as
+  // the operator returns instead of requiring them to find Check session.
+  useEffect(() => {
+    if (!vendorLoginOpened) {
+      return undefined;
+    }
+    const recheck = () => void startCheck();
+    window.addEventListener('focus', recheck);
+    return () => window.removeEventListener('focus', recheck);
+  }); // Re-subscribes each render so the listener always sees the current check state.
 
   const cancelCheck = async () => {
     if (check.kind !== 'checking' || check.runId === undefined || activeRunRef.current !== check.runId) {
@@ -852,7 +870,10 @@ export function VendorSessionCard({
           {vendorLoginOpened && (
             <div className="credential-login-success" role="status">
               <strong>Official Conjur sign-in started.</strong>
-              <span>Complete any vendor browser or terminal flow, then select Check session to verify the session.</span>
+              <span>
+                Complete any vendor browser or terminal flow. CLIHarbor re-checks the session when you return to this tab, or
+                select Check session.
+              </span>
             </div>
           )}
           <div className="credential-login-actions">
@@ -910,6 +931,7 @@ export function AuthenticationPage({
   tools,
   onOpenTasks,
   onOpenDiagnostics,
+  onToolsChanged,
 }: AuthenticationPageProps) {
   const vendorSessionTools = useMemo(
     () => tools.filter((tool) => tool.requiresVendorSession === true),
@@ -952,6 +974,7 @@ export function AuthenticationPage({
               tool={tool}
               onOpenTasks={onOpenTasks}
               onOpenDiagnostics={onOpenDiagnostics}
+              onToolsChanged={onToolsChanged}
             />
           ))
         )}
