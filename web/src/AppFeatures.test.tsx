@@ -84,6 +84,10 @@ describe('command preview and retry workflows', () => {
 
     render(<App />);
     const query = await screen.findByRole('textbox', { name: 'Query' });
+    expect(screen.getByText('1 · Select')).toBeInTheDocument();
+    expect(screen.getByText('2 · Configure')).toBeInTheDocument();
+    expect(screen.getByText('3 · Verify')).toBeInTheDocument();
+    expect(screen.getByText('4 · Result')).toBeInTheDocument();
     fireEvent.change(query, { target: { value: 'hello world' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preview command' }));
 
