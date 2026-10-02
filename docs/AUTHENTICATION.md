@@ -154,9 +154,9 @@ When the backend advertises `conjur-vendor-login`, the authenticated browser may
 <verified conjur executable> login
 ```
 
-On Windows this uses `CreateProcess` with `CREATE_NEW_CONSOLE` and an explicit application path/command line. CLIHarbor does not invoke PowerShell/CMD, does not synthesize keystrokes, does not redirect/capture the child terminal, does not elevate, and closes its process/thread handles immediately after successful launch. The new process is intentionally vendor/operator-owned: Conjur owns terminal prompts, any OIDC/browser handoff, and durable session material. The browser shows only that launch succeeded; the existing reviewed `whoami` session check remains the authoritative proof that sign-in completed.
+On Windows the presentation is selected from the already-validated Conjur authentication mode. OIDC and JWT start the exact executable without a visible console window; OIDC still owns its browser launch and loopback callback, while JWT uses its configured JWT source. Idira SaaS/cloud starts the exact executable in a separate vendor-owned console because the upstream flow may require password, MFA-mechanism, OTP/PIN, security-question, or other interactive input. CLIHarbor does not invoke PowerShell/CMD, synthesize keystrokes, redirect/capture vendor credential interaction, or elevate. Launch success alone is never treated as authentication; the existing reviewed `whoami` session check remains authoritative.
 
-The launch request inherits CLIHarbor's exact loopback session, Host/Origin and CSRF boundary, strict JSON decoding, and sanitized error taxonomy. The launch action shares the Conjur authentication single-flight gate, so connection setup, password handoff, and vendor-terminal launch cannot race inside the adapter.
+The launch request inherits CLIHarbor's exact loopback session, Host/Origin and CSRF boundary, strict JSON decoding, and sanitized error taxonomy. The launch action shares the Conjur authentication single-flight gate, so connection setup, password handoff, and vendor-login launch cannot race inside the adapter.
 
 The generic read-only task executor still does not become an interactive terminal or PTY. Other vendor CLIs and Conjur authentication types require their own reviewed adapter/evidence before they may gain a launcher.
 
