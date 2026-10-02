@@ -201,7 +201,6 @@ func TestEvaluationPreflightCommandShapeFailsClosed(t *testing.T) {
 	}
 }
 
-
 func TestHelpRequestRecognizesOperatorHelpAtUsefulPositions(t *testing.T) {
 	cases := []struct {
 		name string
