@@ -93,7 +93,7 @@ describe('App', () => {
     expect(await screen.findByText('1.2.3-test')).toBeInTheDocument();
     expect(screen.getByText('Authenticated local runtime')).toBeInTheDocument();
     expect(screen.getByText('Local only')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Local runtime active' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Choose, verify, and run' })).toBeInTheDocument();
     expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(3);

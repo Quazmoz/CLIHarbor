@@ -130,7 +130,12 @@ export function TaskDiscovery({
     .filter((task): task is Task => task !== undefined && matches(task));
   const recentTasks = preferences.recent
     .map((identity) => byIdentity.get(taskIdentityKey(identity)))
-    .filter((task): task is Task => task !== undefined && matches(task));
+    .filter(
+      (task): task is Task =>
+        task !== undefined &&
+        matches(task) &&
+        !favoriteKeys.has(taskIdentityKey(task)),
+    );
 
   useEffect(() => {
     const focusSearch = (event: KeyboardEvent) => {
@@ -154,16 +159,21 @@ export function TaskDiscovery({
   return (
     <div className="task-discovery" aria-label="Task discovery">
       <div className="task-search">
-        <label className="task-search-label" htmlFor="task-search-input">
-          Search tasks
-        </label>
+        <div className="task-search-heading">
+          <label className="task-search-label" htmlFor="task-search-input">
+            Find a task
+          </label>
+          <span className="task-search-count">
+            {normalizedQuery ? filteredTasks.length + ' of ' + tasks.length : tasks.length} task{tasks.length === 1 ? '' : 's'}
+          </span>
+        </div>
         <span className="task-search-row">
           <input
             ref={searchRef}
             id="task-search-input"
             type="search"
             value={query}
-            placeholder="Task name or description"
+            placeholder="Task, pack, tool, or command"
             aria-describedby="task-search-help"
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -176,7 +186,7 @@ export function TaskDiscovery({
             Clear
           </button>
         </span>
-        <small id="task-search-help">Search also matches technical pack, tool, and command identifiers. Press / to focus search.</small>
+        <small id="task-search-help">Press / to focus. Search matches task names, descriptions, packs, tools, and command identifiers.</small>
       </div>
 
       {filteredTasks.length === 0 && normalizedQuery.length > 0 ? (
@@ -184,30 +194,48 @@ export function TaskDiscovery({
           <strong>No tasks match “{query.trim()}”.</strong>
           <p>Try a task name or description. Technical identifiers are also searchable.</p>
         </div>
-      ) : (
+      ) : normalizedQuery ? (
         <div className="task-discovery-sections">
           <TaskSection
-            title="Favorites"
-            section="favorites"
-            tasks={favoriteTasks}
+            title="Search results"
+            section="all"
+            tasks={filteredTasks}
             selectedTaskKey={selectedTaskKey}
             favoriteKeys={favoriteKeys}
             disabled={disabled}
-            emptyText={normalizedQuery ? 'No favorites match this search.' : 'No favorites yet.'}
+            emptyText="No safe tasks are available."
             onSelect={onSelect}
             onToggleFavorite={onToggleFavorite}
           />
-          <TaskSection
-            title="Recently used"
-            section="recent"
-            tasks={recentTasks}
-            selectedTaskKey={selectedTaskKey}
-            favoriteKeys={favoriteKeys}
-            disabled={disabled}
-            emptyText={normalizedQuery ? 'No recent tasks match this search.' : 'No recently used tasks yet.'}
-            onSelect={onSelect}
-            onToggleFavorite={onToggleFavorite}
-          />
+        </div>
+      ) : (
+        <div className="task-discovery-sections">
+          {favoriteTasks.length > 0 && (
+            <TaskSection
+              title="Favorites"
+              section="favorites"
+              tasks={favoriteTasks}
+              selectedTaskKey={selectedTaskKey}
+              favoriteKeys={favoriteKeys}
+              disabled={disabled}
+              emptyText="No favorites yet."
+              onSelect={onSelect}
+              onToggleFavorite={onToggleFavorite}
+            />
+          )}
+          {recentTasks.length > 0 && (
+            <TaskSection
+              title="Recently used"
+              section="recent"
+              tasks={recentTasks}
+              selectedTaskKey={selectedTaskKey}
+              favoriteKeys={favoriteKeys}
+              disabled={disabled}
+              emptyText="No recently used tasks yet."
+              onSelect={onSelect}
+              onToggleFavorite={onToggleFavorite}
+            />
+          )}
           <TaskSection
             title="All tasks"
             section="all"

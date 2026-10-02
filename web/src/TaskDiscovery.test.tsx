@@ -85,6 +85,10 @@ describe('TaskDiscovery', () => {
 
     const search = screen.getByRole('searchbox', { name: 'Search tasks' });
     fireEvent.change(search, { target: { value: 'conjur' } });
+    expect(screen.getByRole('heading', { name: 'Search results' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Favorites' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Recently used' })).not.toBeInTheDocument();
+    expect(screen.getByText('1 of 3 tasks')).toBeInTheDocument();
     expect(screen.getAllByText('Inspect resource')).toHaveLength(1);
     expect(screen.queryByText('Check another catalog')).not.toBeInTheDocument();
 
@@ -94,6 +98,23 @@ describe('TaskDiscovery', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
     expect(search).toHaveValue('');
     expect(screen.getAllByText('Inspect resource').length).toBeGreaterThan(1);
+  });
+
+  test('omits empty shortcut sections until they contain useful entries', () => {
+    render(
+      <TaskDiscovery
+        tasks={tasks}
+        selectedTaskKey=""
+        preferences={{ favorites: [], recent: [] }}
+        onSelect={vi.fn()}
+        onToggleFavorite={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('heading', { name: 'Favorites' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Recently used' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'All tasks' })).toBeInTheDocument();
+    expect(screen.getByText('3 tasks')).toBeInTheDocument();
   });
 
   test('slash focuses search without stealing the key while typing', () => {
