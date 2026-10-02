@@ -949,7 +949,7 @@ export function App() {
               <div className="runtime-copy">
                 <p className="runtime-state">Authenticated local runtime</p>
                 <h2 id="runtime-heading">
-                  {route === 'tasks' ? 'Choose, verify, and run' : 'Resolve tool readiness'}
+                  {route === 'tasks' ? 'Choose, verify, and run' : 'Tool readiness and setup'}
                 </h2>
                 <p>
                   {route === 'tasks'
@@ -985,36 +985,16 @@ export function App() {
                   </div>
                 ) : (
                   <form onSubmit={startRun}>
-                    {route === 'tasks' ? (
-                      <TaskDiscovery
-                        tasks={state.tasks}
-                        selectedTaskKey={selectedTaskKey}
-                        preferences={taskPreferences}
-                        disabled={run?.snapshot.status === 'running'}
-                        onSelect={(key) => selectTaskByKey(key, state.tasks)}
-                        onToggleFavorite={(task) =>
-                          updateTaskPreferences((current) => toggleFavoriteTask(current, task))
-                        }
-                      />
-                    ) : (
-                      <label className="field">
-                        <span>Available task</span>
-                        <select
-                          value={selectedTaskKey}
-                          onChange={(event) => selectTaskByKey(event.target.value, state.tasks)}
-                          disabled={run?.snapshot.status === 'running'}
-                        >
-                          {state.tasks.map((task) => {
-                            const key = task.packId + '/' + task.commandId;
-                            return (
-                              <option key={key} value={key}>
-                                {task.packName} — {task.name}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </label>
-                    )}
+                    <TaskDiscovery
+                      tasks={state.tasks}
+                      selectedTaskKey={selectedTaskKey}
+                      preferences={taskPreferences}
+                      disabled={run?.snapshot.status === 'running'}
+                      onSelect={(key) => selectTaskByKey(key, state.tasks)}
+                      onToggleFavorite={(task) =>
+                        updateTaskPreferences((current) => toggleFavoriteTask(current, task))
+                      }
+                    />
 
                     {selectedTask !== undefined && (
                       <>
