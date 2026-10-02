@@ -512,46 +512,95 @@ func TestConjurCredentialCapabilityDoesNotInventVendorLoginForUnsupportedModes(t
 	}
 }
 
-func TestConjurVendorOwnedLoginLaunchesOnlyVerifiedConjurLoginArgv(t *testing.T) {
-	executable := filepath.Join(t.TempDir(), "conjur")
-	if err := os.WriteFile(executable, []byte("fixture"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	identity, err := discovery.CaptureExecutableIdentity(executable)
-	if err != nil {
-		t.Fatal(err)
+func TestConjurVendorOwnedLoginUsesModeAppropriatePresentationAndFixedArgv(t *testing.T) {
+	cases := []struct {
+		name       string
+		mutate     func(*conjurapi.Config)
+		wantHidden bool
+	}{
+		{
+			name: "oidc-hidden",
+			mutate: func(c *conjurapi.Config) {
+				c.AuthnType = "oidc"
+				c.ServiceID = "corp-oidc"
+			},
+			wantHidden: true,
+		},
+		{
+			name: "jwt-hidden",
+			mutate: func(c *conjurapi.Config) {
+				c.AuthnType = "jwt"
+				c.ServiceID = "corp-jwt"
+				c.JWTFilePath = "current-user-jwt"
+			},
+			wantHidden: true,
+		},
+		{
+			name: "saas-cloud-terminal",
+			mutate: func(c *conjurapi.Config) {
+				c.AuthnType = "cloud"
+				c.Environment = conjurapi.EnvironmentSaaS
+			},
+		},
 	}
 
-	service := newConjurCredentialLoginService(readyConjurSnapshot())
-	service.toolPath = executable
-	service.toolIdentity = identity
-	service.interactiveSupported = func() bool { return true }
-	config := supportedConjurConfig()
-	config.AuthnType = "oidc"
-	config.ServiceID = "corp-oidc"
-	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			executable := filepath.Join(t.TempDir(), "conjur")
+			if err := os.WriteFile(executable, []byte("fixture"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			identity, err := discovery.CaptureExecutableIdentity(executable)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	calls := 0
-	service.launchInteractive = func(gotExecutable string, gotArgs []string) error {
-		calls++
-		if gotExecutable != executable {
-			t.Fatalf("executable = %q, want %q", gotExecutable, executable)
-		}
-		if !reflect.DeepEqual(gotArgs, []string{"login"}) {
-			t.Fatalf("argv = %#v, want [login]", gotArgs)
-		}
-		return nil
-	}
+			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service.toolPath = executable
+			service.toolIdentity = identity
+			service.interactiveSupported = func() bool { return true }
+			config := supportedConjurConfig()
+			tc.mutate(&config)
+			service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
 
-	err = service.LaunchInteractive(context.Background(), server.CredentialInteractiveLoginRequest{
-		PackID: conjurCredentialPackID,
-		ToolID: conjurCredentialToolID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if calls != 1 {
-		t.Fatalf("launch calls = %d, want 1", calls)
+			terminalCalls := 0
+			hiddenCalls := 0
+			assertLaunch := func(gotExecutable string, gotArgs []string) {
+				t.Helper()
+				if gotExecutable != executable {
+					t.Fatalf("executable = %q, want %q", gotExecutable, executable)
+				}
+				if !reflect.DeepEqual(gotArgs, []string{"login"}) {
+					t.Fatalf("argv = %#v, want [login]", gotArgs)
+				}
+			}
+			service.launchInteractive = func(gotExecutable string, gotArgs []string) error {
+				terminalCalls++
+				assertLaunch(gotExecutable, gotArgs)
+				return nil
+			}
+			service.launchBackground = func(gotExecutable string, gotArgs []string) error {
+				hiddenCalls++
+				assertLaunch(gotExecutable, gotArgs)
+				return nil
+			}
+
+			err = service.LaunchInteractive(context.Background(), server.CredentialInteractiveLoginRequest{
+				PackID: conjurCredentialPackID,
+				ToolID: conjurCredentialToolID,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if tc.wantHidden {
+				if hiddenCalls != 1 || terminalCalls != 0 {
+					t.Fatalf("hidden/terminal launch calls = %d/%d, want 1/0", hiddenCalls, terminalCalls)
+				}
+			} else if hiddenCalls != 0 || terminalCalls != 1 {
+				t.Fatalf("hidden/terminal launch calls = %d/%d, want 0/1", hiddenCalls, terminalCalls)
+			}
+		})
 	}
 }
 
@@ -577,6 +626,10 @@ func TestConjurVendorOwnedLoginRevalidatesExecutableIdentity(t *testing.T) {
 	config.ServiceID = "corp-oidc"
 	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
 	service.launchInteractive = func(string, []string) error {
+		t.Fatal("replaced executable must not be launched")
+		return nil
+	}
+	service.launchBackground = func(string, []string) error {
 		t.Fatal("replaced executable must not be launched")
 		return nil
 	}

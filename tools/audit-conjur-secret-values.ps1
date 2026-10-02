@@ -11,7 +11,8 @@ printed, logged, or written to the report.
 The script does not mutate Conjur. It invokes only:
   conjur --version
   conjur whoami --output json
-  conjur list --kind variable --limit=-1 --output json
+  conjur list --kind variable --count --output json
+  conjur list --kind variable --limit <page-size> --offset <offset> --output json
   conjur variable get --id <variable> --output json
 
 Exit codes:
@@ -32,6 +33,10 @@ param(
     [int]$ProcessTimeoutSeconds = 120,
     [ValidateRange(1, 1000000)]
     [int]$MaxVariables = 50000,
+    [ValidateRange(1, 10000)]
+    [int]$ListPageSize = 500,
+    [ValidateRange(4096, 16777216)]
+    [int]$MaxSecretOutputChars = 1048576,
     [ValidateSet('High', 'Medium')]
     [string]$MinimumConfidence = 'Medium',
     [switch]$AllowUnsupportedVersion,
@@ -121,7 +126,11 @@ function Invoke-ConjurProcess {
         [Parameter(Mandatory = $true)]
         [string[]]$Arguments,
         [Parameter(Mandatory = $true)]
-        [int]$TimeoutSeconds
+        [int]$TimeoutSeconds,
+        [ValidateRange(1024, 67108864)]
+        [int]$MaxStdoutChars = 8388608,
+        [ValidateRange(1024, 8388608)]
+        [int]$MaxStderrChars = 524288
     )
 
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
@@ -165,10 +174,24 @@ function Invoke-ConjurProcess {
 
         $process.WaitForExit()
 
+        $stdout = $stdoutTask.Result
+        $stderr = $stderrTask.Result
+        $stdoutLimitExceeded = $stdout.Length -gt $MaxStdoutChars
+        $stderrLimitExceeded = $stderr.Length -gt $MaxStderrChars
+
+        if ($stdoutLimitExceeded) {
+            $stdout = ''
+        }
+        if ($stderrLimitExceeded) {
+            $stderr = ''
+        }
+
         return [pscustomobject][ordered]@{
-            ExitCode = $process.ExitCode
-            Stdout   = $stdoutTask.Result
-            Stderr   = $stderrTask.Result
+            ExitCode            = $process.ExitCode
+            Stdout              = $stdout
+            Stderr              = $stderr
+            StdoutLimitExceeded = $stdoutLimitExceeded
+            StderrLimitExceeded = $stderrLimitExceeded
         }
     }
     finally {
@@ -197,11 +220,82 @@ function ConvertFrom-ConjurJson {
     }
 }
 
+function ConvertFrom-ConjurCountJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Json
+    )
+
+    $countObject = ConvertFrom-ConjurJson -Json $Json -Context 'conjur list --count'
+    if ($null -eq $countObject) {
+        throw "Conjur variable count returned an unexpected JSON shape."
+    }
+
+    $countProperties = @($countObject.PSObject.Properties)
+    $countProperty = $countObject.PSObject.Properties['count']
+    if (
+        $countObject.GetType().FullName -ne 'System.Management.Automation.PSCustomObject' -or
+        $countProperties.Count -ne 1 -or
+        $null -eq $countProperty -or
+        ($countProperty.Value -isnot [int] -and $countProperty.Value -isnot [long])
+    ) {
+        throw "Conjur variable count returned an unexpected JSON shape."
+    }
+
+    $count = [int64]$countProperty.Value
+    if ($count -lt 0) {
+        throw "Conjur variable count returned an invalid count."
+    }
+    return $count
+}
+
+function ConvertFrom-ConjurSecretJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Json
+    )
+
+    $secretObject = ConvertFrom-ConjurJson -Json $Json -Context 'conjur variable get'
+    if ($null -eq $secretObject) {
+        throw "Conjur variable get returned an unexpected JSON shape."
+    }
+
+    $secretProperties = @($secretObject.PSObject.Properties)
+    $valueProperty = $secretObject.PSObject.Properties['value']
+    if (
+        $secretObject.GetType().FullName -ne 'System.Management.Automation.PSCustomObject' -or
+        $secretProperties.Count -ne 1 -or
+        $null -eq $valueProperty -or
+        $valueProperty.Value -isnot [string]
+    ) {
+        throw "Conjur variable get returned an unexpected JSON shape."
+    }
+
+    return [string]$valueProperty.Value
+}
+
 function ConvertFrom-ResourceIdToVariableId {
     param(
         [Parameter(Mandatory = $true)]
         [string]$ResourceId
     )
+
+    if ($ResourceId.Length -gt 2048) {
+        throw "Conjur returned an invalid variable identifier."
+    }
+    foreach ($character in $ResourceId.ToCharArray()) {
+        $code = [int]$character
+        $category = [System.Char]::GetUnicodeCategory($character)
+        if (
+            $code -le 0x1f -or
+            ($code -ge 0x7f -and $code -le 0x9f) -or
+            $category -eq [System.Globalization.UnicodeCategory]::Format -or
+            $category -eq [System.Globalization.UnicodeCategory]::LineSeparator -or
+            $category -eq [System.Globalization.UnicodeCategory]::ParagraphSeparator
+        ) {
+            throw "Conjur returned an invalid variable identifier."
+        }
+    }
 
     $marker = ':variable:'
     $index = $ResourceId.IndexOf($marker, [System.StringComparison]::Ordinal)
@@ -214,6 +308,93 @@ function ConvertFrom-ResourceIdToVariableId {
         throw "Conjur returned an empty variable identifier."
     }
     return $variableId
+}
+
+function Get-ConjurVariableCount {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Executable,
+        [Parameter(Mandatory = $true)]
+        [int]$HttpTimeoutSeconds,
+        [Parameter(Mandatory = $true)]
+        [int]$ProcessTimeoutSeconds
+    )
+
+    $countResult = Invoke-ConjurProcess -Executable $Executable -Arguments @(
+        '--timeout', ([string]$HttpTimeoutSeconds),
+        'list', '--kind', 'variable', '--count', '--output', 'json'
+    ) -TimeoutSeconds $ProcessTimeoutSeconds
+
+    if ($countResult.ExitCode -ne 0 -or $countResult.StdoutLimitExceeded -or $countResult.StderrLimitExceeded) {
+        throw "Conjur variable count failed."
+    }
+
+    return ConvertFrom-ConjurCountJson -Json $countResult.Stdout
+}
+
+function Get-ConjurVariableResourceIds {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Executable,
+        [Parameter(Mandatory = $true)]
+        [int64]$ExpectedCount,
+        [Parameter(Mandatory = $true)]
+        [int]$PageSize,
+        [Parameter(Mandatory = $true)]
+        [int]$HttpTimeoutSeconds,
+        [Parameter(Mandatory = $true)]
+        [int]$ProcessTimeoutSeconds
+    )
+
+    $resourceIds = New-OrdinalStringSet
+    $offset = 0
+
+    while ($offset -lt $ExpectedCount) {
+        $limit = [Math]::Min($PageSize, [int]($ExpectedCount - $offset))
+        $listResult = Invoke-ConjurProcess -Executable $Executable -Arguments @(
+            '--timeout', ([string]$HttpTimeoutSeconds),
+            'list', '--kind', 'variable',
+            '--limit', ([string]$limit),
+            '--offset', ([string]$offset),
+            '--output', 'json'
+        ) -TimeoutSeconds $ProcessTimeoutSeconds
+
+        if ($listResult.ExitCode -ne 0 -or $listResult.StdoutLimitExceeded -or $listResult.StderrLimitExceeded) {
+            throw "Conjur variable enumeration failed."
+        }
+
+        $listed = ConvertFrom-ConjurJson -Json $listResult.Stdout -Context 'conjur list'
+        $page = @($listed)
+        if ($page.Count -eq 0 -or $page.Count -gt $limit) {
+            throw "Conjur variable inventory changed during enumeration; refusing a partial audit."
+        }
+
+        foreach ($resource in $page) {
+            if ($null -eq $resource -or $resource -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$resource)) {
+                throw "Conjur list returned an unexpected variable identifier shape; refusing a partial audit."
+            }
+
+            # Conjur CLI 9.x list output is a JSON array of resource-ID strings
+            # unless --inspect is requested. Avoid --inspect so annotations and
+            # other resource metadata never enter the audit process.
+            $resourceId = [string]$resource
+            $null = ConvertFrom-ResourceIdToVariableId -ResourceId $resourceId
+            if (-not $resourceIds.Add($resourceId)) {
+                throw "Conjur variable inventory changed or contained duplicate identifiers; refusing a partial audit."
+            }
+        }
+
+        $offset += $page.Count
+        if ($page.Count -lt $limit -and $offset -lt $ExpectedCount) {
+            throw "Conjur variable inventory changed during enumeration; refusing a partial audit."
+        }
+    }
+
+    if ($resourceIds.Count -ne $ExpectedCount) {
+        throw "Conjur variable inventory changed during enumeration; refusing a partial audit."
+    }
+
+    return ,$resourceIds
 }
 
 function Normalize-ReferenceShape {
@@ -252,14 +433,26 @@ function Test-SecretValueShape {
         }
     }
 
+    $secretFieldSuffix = '(password|passwd|pwd|username|user|token|api[-_]?key|secret|client[-_]?secret|private[-_]?key|access[-_]?key|credential|credentials)'
     $normalizedCandidate = Normalize-ReferenceShape -Value $candidate
     if (
         ($candidate.Contains('/') -or $candidate.Contains('\') -or $candidate.Contains('.')) -and
         -not [string]::IsNullOrEmpty($normalizedCandidate) -and
         $KnownNormalizedReferences.Contains($normalizedCandidate)
     ) {
+        # Dot-only values are ambiguous with ordinary host/domain-like values.
+        # Keep those at Medium unless the final segment is explicitly
+        # credential-like; slash/backslash notation is strong path evidence.
+        $confidence = 'Medium'
+        if (
+            $candidate.Contains('/') -or
+            $candidate.Contains('\') -or
+            $candidate -match ('(?:^|\.)' + $secretFieldSuffix + '$')
+        ) {
+            $confidence = 'High'
+        }
         return [pscustomobject][ordered]@{
-            Confidence = 'High'
+            Confidence = $confidence
             Reason     = 'normalized_known_variable_reference'
         }
     }
@@ -292,7 +485,6 @@ function Test-SecretValueShape {
         return $null
     }
 
-    $secretFieldSuffix = '(password|passwd|pwd|username|user|token|api[-_]?key|secret|client[-_]?secret|private[-_]?key|access[-_]?key|credential|credentials)'
     $dotReferencePattern = '^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2,}(?:[\\/][A-Za-z0-9_.@-]+(?:[\\/][A-Za-z0-9_.@-]+)*)?$'
     if ($candidate -match $dotReferencePattern) {
         if (
@@ -342,6 +534,41 @@ function Test-MeetsMinimumConfidence {
     return $Confidence -eq 'High' -or $Confidence -eq 'Medium'
 }
 
+function Invoke-ProcessLauncherSelfTest {
+    if ($env:OS -ne 'Windows_NT') {
+        return
+    }
+
+    $powershell = Get-Command -Name 'powershell.exe' -CommandType Application -ErrorAction Stop | Select-Object -First 1
+    $probe = Invoke-ConjurProcess -Executable $powershell.Source -Arguments @(
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "[Console]::Out.Write('launcher value with spaces')"
+    ) -TimeoutSeconds 15
+
+    if (
+        $probe.ExitCode -ne 0 -or
+        $probe.StdoutLimitExceeded -or
+        $probe.StderrLimitExceeded -or
+        $probe.Stdout -ne 'launcher value with spaces' -or
+        -not [string]::IsNullOrEmpty($probe.Stderr)
+    ) {
+        throw "Self-test process launcher failed."
+    }
+
+    $limitProbe = Invoke-ConjurProcess -Executable $powershell.Source -Arguments @(
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "[Console]::Out.Write(('x' * 2048))"
+    ) -TimeoutSeconds 15 -MaxStdoutChars 1024
+
+    if (-not $limitProbe.StdoutLimitExceeded -or -not [string]::IsNullOrEmpty($limitProbe.Stdout)) {
+        throw "Self-test process output limit failed."
+    }
+}
+
 function Invoke-ClassifierSelfTest {
     $references = New-OrdinalStringSet
     $normalizedReferences = New-OrdinalStringSet
@@ -349,7 +576,8 @@ function Invoke-ClassifierSelfTest {
     foreach ($reference in @(
         'prod/service/password',
         'RH/value/value/value/password',
-        'acme:variable:prod/service/token'
+        'acme:variable:prod/service/token',
+        'team/app/database/name'
     )) {
         [void]$references.Add($reference)
         [void]$normalizedReferences.Add((Normalize-ReferenceShape -Value $reference))
@@ -358,6 +586,7 @@ function Invoke-ClassifierSelfTest {
     $cases = @(
         [pscustomobject]@{ Name = 'exact known path'; Value = 'prod/service/password'; Confidence = 'High'; Reason = 'exact_known_variable_reference' },
         [pscustomobject]@{ Name = 'normalized dot path'; Value = 'RH.value.value.value/password'; Confidence = 'High'; Reason = 'normalized_known_variable_reference' },
+        [pscustomobject]@{ Name = 'ambiguous dot-only known path'; Value = 'team.app.database.name'; Confidence = 'Medium'; Reason = 'normalized_known_variable_reference' },
         [pscustomobject]@{ Name = 'reference URI'; Value = 'conjur://prod/service/password'; Confidence = 'High'; Reason = 'secret_reference_uri' },
         [pscustomobject]@{ Name = 'dot slash notation shape'; Value = 'other.team.database/password'; Confidence = 'Medium'; Reason = 'dot_notation_reference_shape' },
         [pscustomobject]@{ Name = 'dot credential suffix'; Value = 'other.team.database.password'; Confidence = 'Medium'; Reason = 'dot_notation_reference_shape' },
@@ -391,7 +620,66 @@ function Invoke-ClassifierSelfTest {
         }
     }
 
-    Write-Host "Self-test passed: $($cases.Count) classifier cases."
+    if ((ConvertFrom-ResourceIdToVariableId -ResourceId 'acct:variable:prod/service/password') -ne 'prod/service/password') {
+        throw "Self-test resource ID parsing failed."
+    }
+    foreach ($unsafeResourceId in @(
+        "acct:variable:bad`nidentifier",
+        "acct:variable:spoof$([char]0x202e)txt"
+    )) {
+        try {
+            $null = ConvertFrom-ResourceIdToVariableId -ResourceId $unsafeResourceId
+            throw "Self-test unsafe resource ID was unexpectedly accepted."
+        }
+        catch {
+            if ($_.Exception.Message -eq 'Self-test unsafe resource ID was unexpectedly accepted.') {
+                throw
+            }
+        }
+    }
+
+    if ((ConvertFrom-ConjurCountJson -Json '{"count":3}') -ne 3) {
+        throw "Self-test Conjur count JSON parsing failed."
+    }
+    foreach ($invalidCountJson in @(
+        '[]',
+        '{"count":"3"}',
+        '{"count":3,"extra":1}',
+        '{"count":-1}'
+    )) {
+        try {
+            $null = ConvertFrom-ConjurCountJson -Json $invalidCountJson
+            throw "Self-test invalid count JSON was unexpectedly accepted."
+        }
+        catch {
+            if ($_.Exception.Message -eq 'Self-test invalid count JSON was unexpectedly accepted.') {
+                throw
+            }
+        }
+    }
+
+    if ((ConvertFrom-ConjurSecretJson -Json '{"value":"fixture"}') -ne 'fixture') {
+        throw "Self-test Conjur secret JSON parsing failed."
+    }
+    foreach ($invalidSecretJson in @(
+        '[]',
+        '{"value":3}',
+        '{"value":"fixture","extra":1}',
+        '{"other":"fixture"}'
+    )) {
+        try {
+            $null = ConvertFrom-ConjurSecretJson -Json $invalidSecretJson
+            throw "Self-test invalid secret JSON was unexpectedly accepted."
+        }
+        catch {
+            if ($_.Exception.Message -eq 'Self-test invalid secret JSON was unexpectedly accepted.') {
+                throw
+            }
+        }
+    }
+
+    Invoke-ProcessLauncherSelfTest
+    Write-Host "Self-test passed: $($cases.Count) classifier cases plus JSON-contract and process-launch/output-bound checks."
 }
 
 if ($SelfTest) {
@@ -407,8 +695,8 @@ try {
     $resolvedConjur = Resolve-ConjurExecutable -Path $ConjurPath
 
     $versionResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--version') -TimeoutSeconds $ProcessTimeoutSeconds
-    if ($versionResult.ExitCode -ne 0) {
-        throw "Unable to read the Conjur CLI version."
+    if ($versionResult.ExitCode -ne 0 -or $versionResult.StdoutLimitExceeded -or $versionResult.StderrLimitExceeded) {
+        throw "Unable to read the Conjur CLI version safely."
     }
 
     $versionMatch = [System.Text.RegularExpressions.Regex]::Match($versionResult.Stdout, '(?<![0-9])([0-9]+)\.([0-9]+)\.([0-9]+)')
@@ -422,44 +710,23 @@ try {
     }
 
     $sessionResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--timeout', $HttpTimeout, 'whoami', '--output', 'json') -TimeoutSeconds $ProcessTimeoutSeconds
-    if ($sessionResult.ExitCode -ne 0) {
+    if ($sessionResult.ExitCode -ne 0 -or $sessionResult.StdoutLimitExceeded -or $sessionResult.StderrLimitExceeded) {
         throw "Conjur session verification failed. Authenticate with the approved vendor flow before auditing."
     }
     $null = ConvertFrom-ConjurJson -Json $sessionResult.Stdout -Context 'conjur whoami'
 
-    $listResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--timeout', $HttpTimeout, 'list', '--kind', 'variable', '--limit=-1', '--output', 'json') -TimeoutSeconds $ProcessTimeoutSeconds
-    if ($listResult.ExitCode -ne 0) {
-        throw "Conjur variable enumeration failed."
+    # Enforce the inventory bound before any bulk listing or secret retrieval.
+    $expectedVariableCount = Get-ConjurVariableCount -Executable $resolvedConjur -HttpTimeoutSeconds $HttpTimeout -ProcessTimeoutSeconds $ProcessTimeoutSeconds
+    if ($expectedVariableCount -gt $MaxVariables) {
+        throw "Conjur reports $expectedVariableCount visible variables, exceeding MaxVariables=$MaxVariables. Increase -MaxVariables deliberately to audit the full set."
     }
 
-    $listed = ConvertFrom-ConjurJson -Json $listResult.Stdout -Context 'conjur list'
-    if ($null -eq $listed) {
-        $resources = @()
-    }
-    else {
-        $resources = @($listed)
-    }
-
+    $resourceIds = Get-ConjurVariableResourceIds -Executable $resolvedConjur -ExpectedCount $expectedVariableCount -PageSize $ListPageSize -HttpTimeoutSeconds $HttpTimeout -ProcessTimeoutSeconds $ProcessTimeoutSeconds
     $records = New-Object 'System.Collections.Generic.List[object]'
-    $resourceIds = New-OrdinalStringSet
     $knownReferences = New-OrdinalStringSet
     $knownNormalizedReferences = New-OrdinalStringSet
 
-    foreach ($resource in $resources) {
-        if ($null -eq $resource) {
-            throw "Conjur list returned a null variable entry; refusing a partial audit."
-        }
-
-        $idProperty = $resource.PSObject.Properties['id']
-        if ($null -eq $idProperty -or [string]::IsNullOrWhiteSpace([string]$idProperty.Value)) {
-            throw "Conjur list returned a variable entry without an id; refusing a partial audit."
-        }
-
-        $resourceId = [string]$idProperty.Value
-        if (-not $resourceIds.Add($resourceId)) {
-            continue
-        }
-
+    foreach ($resourceId in $resourceIds) {
         $variableId = ConvertFrom-ResourceIdToVariableId -ResourceId $resourceId
         [void]$knownReferences.Add($resourceId)
         [void]$knownReferences.Add($variableId)
@@ -473,9 +740,6 @@ try {
     }
 
     $orderedRecords = @($records | Sort-Object -Property VariableId, ResourceId)
-    if ($orderedRecords.Count -gt $MaxVariables) {
-        throw "Conjur returned $($orderedRecords.Count) visible variables, exceeding MaxVariables=$MaxVariables. Increase -MaxVariables deliberately to audit the full set."
-    }
 
     $findings = New-Object 'System.Collections.Generic.List[object]'
     $failures = New-Object 'System.Collections.Generic.List[object]'
@@ -491,11 +755,19 @@ try {
         Write-Progress -Activity 'Auditing Conjur variable values' -Status "$position of $($orderedRecords.Count)" -PercentComplete $percent
 
         $getResult = $null
-        $secretObject = $null
         $secretValue = $null
 
         try {
-            $getResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--timeout', $HttpTimeout, 'variable', 'get', '--id', $record.VariableId, '--output', 'json') -TimeoutSeconds $ProcessTimeoutSeconds
+            $getResult = Invoke-ConjurProcess -Executable $resolvedConjur -Arguments @('--timeout', $HttpTimeout, 'variable', 'get', '--id', $record.VariableId, '--output', 'json') -TimeoutSeconds $ProcessTimeoutSeconds -MaxStdoutChars $MaxSecretOutputChars
+            if ($getResult.StdoutLimitExceeded -or $getResult.StderrLimitExceeded) {
+                $failures.Add([pscustomobject][ordered]@{
+                    VariableId = $record.VariableId
+                    ResourceId = $record.ResourceId
+                    ErrorCode  = 'output_limit_exceeded'
+                    ExitCode   = $getResult.ExitCode
+                })
+                continue
+            }
             if ($getResult.ExitCode -ne 0) {
                 $failures.Add([pscustomobject][ordered]@{
                     VariableId = $record.VariableId
@@ -507,7 +779,7 @@ try {
             }
 
             try {
-                $secretObject = ConvertFrom-ConjurJson -Json $getResult.Stdout -Context 'conjur variable get'
+                $secretValue = ConvertFrom-ConjurSecretJson -Json $getResult.Stdout
             }
             catch {
                 $failures.Add([pscustomobject][ordered]@{
@@ -519,18 +791,6 @@ try {
                 continue
             }
 
-            $valueProperty = $secretObject.PSObject.Properties['value']
-            if ($null -eq $valueProperty) {
-                $failures.Add([pscustomobject][ordered]@{
-                    VariableId = $record.VariableId
-                    ResourceId = $record.ResourceId
-                    ErrorCode  = 'missing_value_field'
-                    ExitCode   = $getResult.ExitCode
-                })
-                continue
-            }
-
-            $secretValue = [string]$valueProperty.Value
             $inspected++
 
             $classification = Test-SecretValueShape -Value $secretValue -KnownReferences $knownReferences -KnownNormalizedReferences $knownNormalizedReferences
@@ -544,13 +804,31 @@ try {
             }
         }
         finally {
+            # Managed strings cannot be reliably zeroized, but drop every
+            # reference we control as soon as this variable has been classified.
+            if ($null -ne $getResult) {
+                $getResult.Stdout = ''
+                $getResult.Stderr = ''
+            }
             $secretValue = $null
-            $secretObject = $null
+            $classification = $null
             $getResult = $null
         }
     }
 
     Write-Progress -Activity 'Auditing Conjur variable values' -Completed
+
+    # The audit is not a server-side transaction. Revalidate the visible ID set
+    # after value reads so additions/deletions/replacements during a long audit
+    # do not silently produce a report that claims a stable full inventory.
+    $endingVariableCount = Get-ConjurVariableCount -Executable $resolvedConjur -HttpTimeoutSeconds $HttpTimeout -ProcessTimeoutSeconds $ProcessTimeoutSeconds
+    if ($endingVariableCount -ne $expectedVariableCount) {
+        throw "Conjur variable inventory changed during the audit; rerun against a stable inventory."
+    }
+    $endingResourceIds = Get-ConjurVariableResourceIds -Executable $resolvedConjur -ExpectedCount $endingVariableCount -PageSize $ListPageSize -HttpTimeoutSeconds $HttpTimeout -ProcessTimeoutSeconds $ProcessTimeoutSeconds
+    if (-not $resourceIds.SetEquals($endingResourceIds)) {
+        throw "Conjur variable inventory changed during the audit; rerun against a stable inventory."
+    }
 
     $report = [pscustomobject][ordered]@{
         SchemaVersion     = 1
@@ -562,6 +840,8 @@ try {
         RetrievalFailures = $failures.Count
         MinimumConfidence = $MinimumConfidence
         MaxVariables      = $MaxVariables
+        ListPageSize      = $ListPageSize
+        MaxSecretOutputChars = $MaxSecretOutputChars
         Findings          = @($findings)
         Failures          = @($failures)
     }

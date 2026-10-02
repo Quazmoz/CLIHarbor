@@ -106,7 +106,7 @@ Implemented:
 - explicit **Session check unavailable** behavior for vendor-session tools such as kubectl that do not have a reliable generic auth probe;
 - Conjur password-style `authn`/LDAP handoff through the pinned vendor API without password argv/history/persistence;
 - first-run Conjur connection setup using exact reviewed `init self-hosted` argv;
-- Windows vendor-owned Conjur login launch for reviewed OIDC, JWT, and SaaS/cloud modes using the identity-verified executable plus fixed `login` argv, with no shell or credential capture;
+- Windows vendor-owned Conjur login launch for reviewed OIDC, JWT, and SaaS/cloud modes using the identity-verified executable plus fixed `login` argv: OIDC/JWT avoid an unnecessary console, while SaaS/cloud retains a vendor terminal for genuinely interactive challenges; no shell or credential capture;
 - the existing Conjur `whoami` check remains authoritative after either sign-in path.
 
 Potential deliverables, only when justified by real operator needs:

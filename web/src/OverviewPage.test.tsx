@@ -193,8 +193,8 @@ describe('OverviewPage', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Sign in from CLIHarbor' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Open official Conjur sign-in' }));
-    expect(await screen.findByText('Official Conjur sign-in opened.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Start official Conjur sign-in' }));
+    expect(await screen.findByText('Official Conjur sign-in started.')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
