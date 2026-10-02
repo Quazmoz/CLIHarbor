@@ -75,7 +75,7 @@ Each task shows:
 - auth requirement;
 - optional tags.
 
-Search should match task names, descriptions, and CLI terminology.
+Search should match task names, descriptions, and CLI terminology. While a query is active, the browser shows one non-duplicated Search results section instead of repeating the same match under Favorites, Recently used, and All tasks. Empty Favorites/Recently used groups stay hidden until they contain useful shortcuts, and a catalog count keeps the operator oriented without exposing execution authority.
 
 ## 6. Task form
 
@@ -89,6 +89,8 @@ A task page contains:
 - risk/side-effect explanation;
 - sanitized command preview;
 - Run button.
+
+The implemented task workbench presents the normal path as four explicit operator steps: **1 · Select**, **2 · Configure**, **3 · Verify**, **4 · Result**. The result panel remains beside the task form on desktop and stacks below it on narrower layouts; on desktop it stays sticky while the operator moves through longer task forms. This is presentation-only—planner/executor authority and run lifecycle semantics are unchanged.
 
 The command preview is valuable for power users but must not expose secret fields. The normal UI now says **See what CLIHarbor will run** and confirms that validation succeeded first. Exact executable-name + argv text remains available under **Show exact command** rather than dominating the form.
 

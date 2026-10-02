@@ -93,7 +93,7 @@ describe('App', () => {
     expect(await screen.findByText('1.2.3-test')).toBeInTheDocument();
     expect(screen.getByText('Authenticated local runtime')).toBeInTheDocument();
     expect(screen.getByText('Local only')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Local runtime active' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Choose, verify, and run' })).toBeInTheDocument();
     expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -159,7 +159,7 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retry status check' }));
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Local runtime active' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Choose, verify, and run' })).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
@@ -1006,7 +1006,7 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Ready for curated local work' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Choose, verify, and run' })).toBeInTheDocument();
     expect(screen.queryByText(/Run curated CLI tasks without handing execution authority/i)).not.toBeInTheDocument();
     expect(screen.getByText('Read-only safe task')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'No active run' })).toBeInTheDocument();
@@ -1045,7 +1045,7 @@ describe('App shell accessibility', () => {
     );
 
     render(<App />);
-    await screen.findByRole('heading', { name: 'Local runtime active' });
+    await screen.findByRole('heading', { name: 'Choose, verify, and run' });
 
     expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
     expect(document.getElementById('main-content')).toHaveAttribute('tabindex', '-1');
@@ -1110,7 +1110,7 @@ describe('App routing', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
     expect(window.location.pathname).toBe('/tasks');
-    expect(await screen.findByRole('heading', { name: 'Run a safe task' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Choose a safe task' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('link', { name: 'Runs' }));
     expect(window.location.pathname).toBe('/runs');

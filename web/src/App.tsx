@@ -879,7 +879,10 @@ export function App() {
                 navigate(item.route);
               }}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {item.route === 'runs' && activeRunID !== null && (
+                <span className="nav-activity" aria-label="Task running">Live</span>
+              )}
             </a>
           ))}
         </nav>
@@ -946,11 +949,12 @@ export function App() {
               <div className="runtime-copy">
                 <p className="runtime-state">Authenticated local runtime</p>
                 <h2 id="runtime-heading">
-                  {state.tasks.length > 0 ? 'Ready for curated local work' : 'Local runtime active'}
+                  {route === 'tasks' ? 'Choose, verify, and run' : 'Tool readiness and setup'}
                 </h2>
                 <p>
-                  Execution remains server-owned and loopback-only. The browser can select only safe tasks exposed by the
-                  authenticated runtime.
+                  {route === 'tasks'
+                    ? 'Select an approved workflow, enter only the values it requests, verify the local command boundary, then review the result without leaving the operator workspace.'
+                    : 'Review each configured CLI, fix setup or version issues, and keep authentication separate from executable readiness.'}
                 </p>
               </div>
               <dl className="runtime-facts" aria-label="Runtime summary">
@@ -972,8 +976,8 @@ export function App() {
             {route === 'tasks' && (
               <section className="workspace-grid">
               <article className="panel task-panel" aria-labelledby="task-heading">
-                <p className="status-label">Task</p>
-                <h2 id="task-heading">Run a safe task</h2>
+                <p className="status-label">1 · Select</p>
+                <h2 id="task-heading">Choose a safe task</h2>
                 {state.tasks.length === 0 ? (
                   <div className="empty-state">
                     <strong>No safe tasks are available.</strong>
@@ -981,40 +985,21 @@ export function App() {
                   </div>
                 ) : (
                   <form onSubmit={startRun}>
-                    {route === 'tasks' ? (
-                      <TaskDiscovery
-                        tasks={state.tasks}
-                        selectedTaskKey={selectedTaskKey}
-                        preferences={taskPreferences}
-                        disabled={run?.snapshot.status === 'running'}
-                        onSelect={(key) => selectTaskByKey(key, state.tasks)}
-                        onToggleFavorite={(task) =>
-                          updateTaskPreferences((current) => toggleFavoriteTask(current, task))
-                        }
-                      />
-                    ) : (
-                      <label className="field">
-                        <span>Available task</span>
-                        <select
-                          value={selectedTaskKey}
-                          onChange={(event) => selectTaskByKey(event.target.value, state.tasks)}
-                          disabled={run?.snapshot.status === 'running'}
-                        >
-                          {state.tasks.map((task) => {
-                            const key = task.packId + '/' + task.commandId;
-                            return (
-                              <option key={key} value={key}>
-                                {task.packName} — {task.name}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </label>
-                    )}
+                    <TaskDiscovery
+                      tasks={state.tasks}
+                      selectedTaskKey={selectedTaskKey}
+                      preferences={taskPreferences}
+                      disabled={run?.snapshot.status === 'running'}
+                      onSelect={(key) => selectTaskByKey(key, state.tasks)}
+                      onToggleFavorite={(task) =>
+                        updateTaskPreferences((current) => toggleFavoriteTask(current, task))
+                      }
+                    />
 
                     {selectedTask !== undefined && (
                       <>
                         <div className="task-context">
+                          <p className="task-step-label">2 · Configure</p>
                           <div className="task-context-header">
                             <strong>{selectedTask.name}</strong>
                             <span className="safety-chip">Read-only safe task</span>
@@ -1060,7 +1045,7 @@ export function App() {
                         <div className="command-preview" aria-live="polite" aria-busy={previewing}>
                           <div className="command-preview-header">
                             <div>
-                              <span className="status-label">Before you run</span>
+                              <span className="status-label">3 · Verify</span>
                               <strong>See what CLIHarbor will run</strong>
                             </div>
                             <button
@@ -1104,7 +1089,7 @@ export function App() {
               </article>
 
               <article className={"panel run-panel" + (run !== null ? " run-panel--engaged" : "")} aria-labelledby="run-heading">
-                <p className="status-label">Run</p>
+                <p className="status-label">4 · Result</p>
                 <div className={"run-state run-state--" + (run === null ? "idle" : run.retained ? runOutcomeTone(run.snapshot.status, run.snapshot.exitCode) : "unavailable")} role="status" aria-live="polite" aria-atomic="true">
                   <h2 id="run-heading">{run === null ? 'No active run' : run.retained ? runOutcomeHeading(run.snapshot.status, run.snapshot.exitCode) : 'Run no longer retained'}</h2>
                   <p>{run === null ? 'Start a safe task to stream its output here.' : runStatusDescription(run, cancelRequested)}</p>
