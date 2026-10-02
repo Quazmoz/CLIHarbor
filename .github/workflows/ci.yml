@@ -40,7 +40,7 @@ jobs:
       - name: Conjur secret-value audit classifier self-test
         if: matrix.os == 'windows-latest'
         shell: powershell
-        run: .\\tools\\audit-conjur-secret-values.ps1 -SelfTest
+        run: .\tools\audit-conjur-secret-values.ps1 -SelfTest
       - name: Frontend production build
         run: npm run build --prefix web
       - name: Generate embedded frontend
