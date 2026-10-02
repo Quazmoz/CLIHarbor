@@ -21,6 +21,7 @@ import { AuthenticationPage } from './AuthenticationPage';
 import { RunsPage } from './RunsPage';
 import { OverviewPage } from './OverviewPage';
 import { TaskDiscovery } from './TaskDiscovery';
+import { StructuredResultView } from './StructuredResultView';
 import { describeToolReadiness, inputGuidance, runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
   loadTaskPreferences,
@@ -1170,14 +1171,7 @@ export function App() {
                       <section className="structured-result" aria-labelledby="structured-result-heading">
                         <h3 id="structured-result-heading">Structured result</h3>
                         {run.snapshot.structured.status === 'available' ? (
-                          <dl className="structured-grid">
-                            {(run.snapshot.structured.fields ?? []).map((field) => (
-                              <div key={field.key} className="structured-card">
-                                <dt>{field.label}</dt>
-                                <dd>{field.present ? field.value : 'Not provided'}</dd>
-                              </div>
-                            ))}
-                          </dl>
+                          <StructuredResultView fields={run.snapshot.structured.fields ?? []} />
                         ) : (
                           <p className="parser-warning">
                             {structuredFailureMessage(run.snapshot.structured.error)}
