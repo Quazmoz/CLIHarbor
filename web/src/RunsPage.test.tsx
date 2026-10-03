@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { RunsPage } from './RunsPage';
 import type { Task } from './api/tasks';
@@ -37,6 +37,7 @@ const tasks: Task[] = [
 ];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -148,6 +149,67 @@ describe('RunsPage', () => {
 
     expect(await screen.findByText(/invalid or unsupported local response/i)).toBeInTheDocument();
     expect(screen.queryByText(/must-not-be-accepted/i)).not.toBeInTheDocument();
+  });
+
+  test('refreshes active history only while visible and stops once the run is terminal', async () => {
+    let listCalls = 0;
+    let intervalCallback: (() => void) | undefined;
+    let visibilityState: DocumentVisibilityState = 'hidden';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibilityState);
+    vi.spyOn(window, 'setInterval').mockImplementation(((callback: TimerHandler) => {
+      intervalCallback = callback as () => void;
+      return 1;
+    }) as typeof window.setInterval);
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path !== '/api/v1/runs') {
+        return Promise.resolve(response(404, {}));
+      }
+      listCalls += 1;
+      return Promise.resolve(
+        response(200, {
+          runs: [
+            {
+              runId: '55555555555555555555555555555555',
+              packId: 'fixture',
+              commandId: 'inspect',
+              toolId: 'fixture',
+              toolVersion: '1.2.3',
+              status: listCalls === 1 ? 'running' : 'exited',
+              startedAt: '2026-09-25T15:00:00Z',
+              ...(listCalls === 1
+                ? {}
+                : {
+                    endedAt: '2026-09-25T15:00:02Z',
+                    exitCode: 0,
+                  }),
+            },
+          ],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<RunsPage tasks={tasks} />);
+
+    expect(await screen.findByText('Running')).toBeInTheDocument();
+    await waitFor(() => expect(intervalCallback).toBeDefined());
+
+    await act(async () => {
+      intervalCallback?.();
+    });
+    expect(fetchMock.mock.calls.filter(([input]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs')).toHaveLength(1);
+
+    visibilityState = 'visible';
+    await act(async () => {
+      intervalCallback?.();
+    });
+
+    expect(await screen.findByText('Succeeded')).toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(([input]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs')).toHaveLength(2);
+    await waitFor(() => expect(clearIntervalSpy).toHaveBeenCalledWith(1));
   });
 
   test('keeps list state usable when a selected retained run has already been evicted', async () => {
