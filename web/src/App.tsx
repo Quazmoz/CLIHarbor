@@ -230,6 +230,37 @@ function isTaskFieldFailure(task: Task | undefined, failure: AppErrorDetail | nu
   return task.inputs.some((input) => failure.field === `values.${input.id}`);
 }
 
+// Copy is explicit and session-only; there is deliberately no download because
+// packs declare raw output as not persisted (persistRawOutput: false).
+function OutputStream({ name, text }: { name: 'stdout' | 'stderr'; text: string }) {
+  // The notice belongs to the text it copied, so new streamed output clears it.
+  const [notice, setNotice] = useState<{ text: string; message: string } | null>(null);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice({ text, message: `Copied ${name}.` });
+    } catch {
+      setNotice({ text, message: `Could not copy ${name}. Clipboard access is unavailable in this browser.` });
+    }
+  };
+  return (
+    <section aria-labelledby={name + '-heading'}>
+      <div className="output-heading">
+        <h3 id={name + '-heading'}>{name}</h3>
+        <button type="button" className="structured-copy-button" disabled={text === ''} onClick={() => void copy()}>
+          Copy {name}
+        </button>
+      </div>
+      <pre tabIndex={0}>{text || `No ${name} yet.`}</pre>
+      {notice?.text === text && (
+        <p className="structured-copy-status" role="status">
+          {notice.message}
+        </p>
+      )}
+    </section>
+  );
+}
+
 function FailureNotice({ title, failure }: { title: string; failure: AppErrorDetail }) {
   return (
     <div className="failure-notice" role="alert">
@@ -1200,14 +1231,8 @@ export function App() {
                         <span className="raw-output-note">stdout and stderr remain separate</span>
                       </summary>
                       <div className="output-grid">
-                        <section aria-labelledby="stdout-heading">
-                          <h3 id="stdout-heading">stdout</h3>
-                          <pre tabIndex={0}>{run.stdout || 'No stdout yet.'}</pre>
-                        </section>
-                        <section aria-labelledby="stderr-heading">
-                          <h3 id="stderr-heading">stderr</h3>
-                          <pre tabIndex={0}>{run.stderr || 'No stderr yet.'}</pre>
-                        </section>
+                        <OutputStream name="stdout" text={run.stdout} />
+                        <OutputStream name="stderr" text={run.stderr} />
                       </div>
                     </details>
                   </>

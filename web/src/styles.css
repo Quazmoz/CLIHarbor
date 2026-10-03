@@ -944,8 +944,16 @@ main {
   margin-top: var(--space-4);
 }
 
+.output-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: 0.4rem;
+}
+
 .output-grid h3 {
-  margin: 0 0 0.4rem;
+  margin: 0;
   color: #b7c9ce;
   font-size: 0.82rem;
   letter-spacing: 0.05em;
@@ -1764,6 +1772,17 @@ footer p {
 .task-discovery-sections {
   display: grid;
   gap: var(--space-4);
+  /* Keep Configure/Run within reach however many packs are loaded. */
+  max-height: min(30rem, 60vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.35rem;
+  border-radius: var(--radius-sm);
+}
+
+.task-discovery-sections:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
 }
 
 .task-discovery-section {

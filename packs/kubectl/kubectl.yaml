@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: kubectl-cli
   name: Kubernetes kubectl
-  version: 0.2.0
+  version: 0.3.0
   description: >-
     Narrow read-only Kubernetes inventory pack derived from the official kubectl
     reference. It exposes context visibility and selected metadata-only get
@@ -18,6 +18,8 @@ runtime:
       versionProbe:
         args: [version, --client=true]
         parser: semver-text
+        # kubectl >=1.24 also prints "Kustomize Version: v5.x"; read only the client token.
+        prefix: "Client Version:"
         timeoutMillis: 2000
 commands:
   context:

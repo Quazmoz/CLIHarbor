@@ -150,7 +150,7 @@ func (r *Resolver) resolveTool(ctx context.Context, state ToolState, tool packs.
 		state.Message = "resolved executable changed during version probe"
 		return state, nil
 	}
-	version, err := parseVersion(tool.VersionProbe.Parser, output)
+	version, err := parseVersion(*tool.VersionProbe, output)
 	if err != nil {
 		state.Status = StatusProbeFailed
 		state.Message = err.Error()

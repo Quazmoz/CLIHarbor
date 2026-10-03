@@ -202,6 +202,39 @@ func TestDiscoverFailsClosedOnAmbiguousVersionOutput(t *testing.T) {
 	}
 }
 
+func TestDiscoverVersionPrefixSelectsLabelledToken(t *testing.T) {
+	output := "Client Version: v1.36.1\nKustomize Version: v5.8.1\n"
+	for _, tc := range []struct {
+		prefix, output, want string
+	}{
+		{"Client Version:", output, "1.36.1"},
+		{"aws-cli/", "aws-cli/2.15.0 Python/3.11.6 Darwin/23.0.0", "2.15.0"},
+		{"Client Version:", "Client Version: v1.2.3\nClient Version: v1.2.4", ""}, // still fails closed
+		{"Server Version:", output, ""},
+	} {
+		dir := t.TempDir()
+		createExecutable(t, dir, platformExecutableName("fixture"))
+		resolver := NewResolver(Config{GOOS: runtime.GOOS, PathValue: dir, ProbeRunner: &fakeProbeRunner{output: tc.output}})
+		snapshot, err := resolver.Discover(context.Background(), testRegistry(t, packs.Tool{
+			ExecutableNames: []string{"fixture"},
+			VersionProbe:    &packs.VersionProbe{Parser: packs.VersionParserSemverText, Prefix: tc.prefix},
+		}), nil)
+		if err != nil {
+			t.Fatalf("Discover() error = %v", err)
+		}
+		state, _ := snapshot.Find(ToolRef{PackID: "demo", ToolID: "fixture"})
+		if tc.want == "" {
+			if state.Status != StatusProbeFailed {
+				t.Fatalf("prefix %q output %q: state = %#v, want probe failure", tc.prefix, tc.output, state)
+			}
+			continue
+		}
+		if state.Version != tc.want {
+			t.Fatalf("prefix %q: version = %q (state %#v), want %q", tc.prefix, state.Version, state, tc.want)
+		}
+	}
+}
+
 func TestDiscoverFailsClosedWhenExecutableChangesDuringVersionProbe(t *testing.T) {
 	dir := t.TempDir()
 	createExecutable(t, dir, platformExecutableName("fixture"))

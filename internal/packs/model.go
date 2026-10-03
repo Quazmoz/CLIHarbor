@@ -107,9 +107,13 @@ type SessionCheck struct {
 }
 
 type VersionProbe struct {
-	Args          []string `json:"args,omitempty"`
-	Parser        string   `json:"parser"`
-	TimeoutMillis int      `json:"timeoutMillis,omitempty"`
+	Args   []string `json:"args,omitempty"`
+	Parser string   `json:"parser"`
+	// Prefix, when set, limits version parsing to the token that immediately
+	// follows this literal label, e.g. "Client Version:" for CLIs that also
+	// print bundled component versions.
+	Prefix        string `json:"prefix,omitempty"`
+	TimeoutMillis int    `json:"timeoutMillis,omitempty"`
 }
 
 // HelpProbe is an operator-invoked, fixed, read-only evidence probe. The

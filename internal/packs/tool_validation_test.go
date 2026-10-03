@@ -38,3 +38,10 @@ func TestVersionProbeRejectsUnknownParser(t *testing.T) {
 	_, err := Parse([]byte(pack))
 	assertCode(t, err, ErrSchema)
 }
+
+func TestVersionProbePrefixRejectsMultiline(t *testing.T) {
+	pack := strings.Replace(minimalPack, "      executableNames: [fixture-cli]\n", "      executableNames: [fixture-cli]\n      versionProbe:\n        parser: semver-text\n        prefix: \"Client\\nVersion:\"\n", 1)
+	if _, err := Parse([]byte(pack)); err == nil {
+		t.Fatal("Parse() unexpectedly accepted a multi-line versionProbe prefix")
+	}
+}

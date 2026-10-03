@@ -129,12 +129,30 @@ func (b *boundedBuffer) String() string { return b.buf.String() }
 
 var semverToken = regexp.MustCompile(`(?i)\bv?([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)\b`)
 
-func parseVersion(parser, output string) (*semver.Version, error) {
-	if parser != packs.VersionParserSemverText {
+var prefixedSemverToken = regexp.MustCompile(`^[ \t]*` + semverToken.String())
+
+func parseVersion(probe packs.VersionProbe, output string) (*semver.Version, error) {
+	if probe.Parser != packs.VersionParserSemverText {
 		return nil, fmt.Errorf("unsupported version parser")
 	}
 
-	matches := semverToken.FindAllStringSubmatch(output, -1)
+	var matches [][]string
+	if probe.Prefix == "" {
+		matches = semverToken.FindAllStringSubmatch(output, -1)
+	} else {
+		// Only the token right after each declared label counts; every other
+		// version in the output (bundled components, build tools) is ignored.
+		for rest := output; ; {
+			index := strings.Index(rest, probe.Prefix)
+			if index < 0 {
+				break
+			}
+			rest = rest[index+len(probe.Prefix):]
+			if match := prefixedSemverToken.FindStringSubmatch(rest); match != nil {
+				matches = append(matches, match)
+			}
+		}
+	}
 	versions := make(map[string]*semver.Version)
 	for _, match := range matches {
 		version, err := semver.StrictNewVersion(match[1])

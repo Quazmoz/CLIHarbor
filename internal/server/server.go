@@ -316,11 +316,17 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	if s.bootstrapConsumed {
-		http.Error(w, "bootstrap token already used", http.StatusGone)
+		// A refreshed or restored launch tab in the browser that already holds
+		// the session just continues into the workspace.
+		if cookie, err := r.Cookie(sessionCookieName); err == nil && constantTimeEqual(cookie.Value, s.sessionToken) {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+		http.Error(w, "This one-time CLIHarbor launch link was already used. Return to the browser tab CLIHarbor opened, or restart CLIHarbor to get a new link.", http.StatusGone)
 		return
 	}
 	if !s.now().Before(s.bootstrapExpires) {
-		http.Error(w, "bootstrap token expired", http.StatusGone)
+		http.Error(w, "This CLIHarbor launch link expired. Restart CLIHarbor to get a new link.", http.StatusGone)
 		return
 	}
 	if !constantTimeEqual(provided, s.bootstrapToken) {

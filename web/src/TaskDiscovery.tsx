@@ -195,7 +195,7 @@ export function TaskDiscovery({
           <p>Try a task name or description. Technical identifiers are also searchable.</p>
         </div>
       ) : normalizedQuery ? (
-        <div className="task-discovery-sections">
+        <div className="task-discovery-sections" role="region" aria-label="Task catalog" tabIndex={0}>
           <TaskSection
             title="Search results"
             section="all"
@@ -209,7 +209,7 @@ export function TaskDiscovery({
           />
         </div>
       ) : (
-        <div className="task-discovery-sections">
+        <div className="task-discovery-sections" role="region" aria-label="Task catalog" tabIndex={0}>
           {favoriteTasks.length > 0 && (
             <TaskSection
               title="Favorites"

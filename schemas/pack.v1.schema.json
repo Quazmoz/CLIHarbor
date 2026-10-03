@@ -190,6 +190,12 @@
         "parser": {
           "const": "semver-text"
         },
+        "prefix": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[^\\r\\n]+$"
+        },
         "timeoutMillis": {
           "type": "integer",
           "minimum": 100,

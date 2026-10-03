@@ -547,6 +547,14 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
     expect(document.querySelector('script')).toBeNull();
     expect(source?.closed).toBe(true);
+
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    expect(screen.getByRole('button', { name: 'Copy stderr' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy stdout' }));
+    expect(await screen.findByText('Copied stdout.')).toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledWith('<script>alert(1)</script>');
+    Reflect.deleteProperty(navigator, 'clipboard');
     expect(
       fetchMock.mock.calls.some(
         ([input]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',

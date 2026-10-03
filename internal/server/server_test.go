@@ -66,6 +66,16 @@ func TestBootstrapIsSingleUseAndEstablishesSession(t *testing.T) {
 	if second.StatusCode != http.StatusGone {
 		t.Fatalf("second bootstrap status = %d, want %d", second.StatusCode, http.StatusGone)
 	}
+
+	// The browser that already holds the session (refresh/restored tab) continues into the app.
+	again, err := client.Get(s.BootstrapURL())
+	if err != nil {
+		t.Fatalf("session-holding bootstrap request: %v", err)
+	}
+	again.Body.Close()
+	if again.StatusCode != http.StatusOK || again.Request.URL.Path != "/" {
+		t.Fatalf("session-holding bootstrap = %s status=%d, want / with 200", again.Request.URL.String(), again.StatusCode)
+	}
 }
 
 func TestBootstrapExpires(t *testing.T) {

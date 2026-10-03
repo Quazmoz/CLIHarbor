@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 
 	semver "github.com/Masterminds/semver/v3"
 )
@@ -33,6 +34,9 @@ func (t *Tool) UnmarshalJSON(data []byte) error {
 			if strings.ContainsRune(arg, '\x00') {
 				return fmt.Errorf("versionProbe args cannot contain NUL")
 			}
+		}
+		if strings.IndexFunc(decoded.VersionProbe.Prefix, unicode.IsControl) >= 0 {
+			return fmt.Errorf("versionProbe prefix cannot contain control characters")
 		}
 	}
 	for id, probe := range decoded.HelpProbes {
