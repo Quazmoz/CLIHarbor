@@ -151,15 +151,16 @@ describe('RunsPage', () => {
     expect(screen.queryByText(/must-not-be-accepted/i)).not.toBeInTheDocument();
   });
 
-  test('refreshes active history while visible and stops once the run is terminal', async () => {
+  test('refreshes active history only while visible and stops once the run is terminal', async () => {
     let listCalls = 0;
     let intervalCallback: (() => void) | undefined;
-    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    let visibilityState: DocumentVisibilityState = 'hidden';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibilityState);
     vi.spyOn(window, 'setInterval').mockImplementation(((callback: TimerHandler) => {
       intervalCallback = callback as () => void;
       return 1;
     }) as typeof window.setInterval);
-    vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
 
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
@@ -199,9 +200,16 @@ describe('RunsPage', () => {
     await act(async () => {
       intervalCallback?.();
     });
+    expect(fetchMock.mock.calls.filter(([input]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs')).toHaveLength(1);
+
+    visibilityState = 'visible';
+    await act(async () => {
+      intervalCallback?.();
+    });
 
     expect(await screen.findByText('Succeeded')).toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([input]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs')).toHaveLength(2);
+    await waitFor(() => expect(clearIntervalSpy).toHaveBeenCalledWith(1));
   });
 
   test('keeps list state usable when a selected retained run has already been evicted', async () => {
