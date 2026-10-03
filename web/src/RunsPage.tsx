@@ -16,6 +16,8 @@ interface RunsPageProps {
   tasks: Task[];
 }
 
+const ACTIVE_RUN_REFRESH_MS = 2000;
+
 function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
@@ -107,6 +109,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
     void fetchRuns(controller.signal).then(
       (runs) => {
         setSummaries(runs);
+        setListFailure(null);
         setListLoading(false);
       },
       (error: unknown) => {
@@ -129,6 +132,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
     void fetchRun(selectedRunID, controller.signal).then(
       (snapshot) => {
         setDetail(snapshot);
+        setDetailFailure(null);
         setDetailLoading(false);
       },
       (error: unknown) => {
@@ -147,6 +151,27 @@ export function RunsPage({ tasks }: RunsPageProps) {
     () => summaries.find((summary) => summary.runId === selectedRunID),
     [selectedRunID, summaries],
   );
+  const hasActiveRun =
+    summaries.some((summary) => summary.status === 'running') || detail?.status === 'running';
+
+  useEffect(() => {
+    if (!hasActiveRun) {
+      return;
+    }
+
+    const refreshActiveRuns = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      setListRefresh((value) => value + 1);
+      if (selectedRunID !== null) {
+        setDetailRefresh((value) => value + 1);
+      }
+    };
+
+    const intervalID = window.setInterval(refreshActiveRuns, ACTIVE_RUN_REFRESH_MS);
+    return () => window.clearInterval(intervalID);
+  }, [hasActiveRun, selectedRunID]);
 
   const refresh = () => {
     setListLoading(true);
@@ -185,7 +210,8 @@ export function RunsPage({ tasks }: RunsPageProps) {
           <p className="status-label">Local run history</p>
           <h2 id="runs-heading">Recent runs</h2>
           <p>
-            Review bounded run metadata from this CLIHarbor process. Restarting CLIHarbor clears this in-memory history.
+            Review bounded run metadata from this CLIHarbor process. Active runs refresh automatically while this page is
+            visible. Restarting CLIHarbor clears this in-memory history.
           </p>
         </div>
         <button type="button" className="secondary-button" disabled={listLoading} onClick={refresh}>
