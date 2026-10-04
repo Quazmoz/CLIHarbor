@@ -43,8 +43,9 @@ type PackDraftConfig struct {
 }
 
 // DraftPack extracts candidate command names and bounded summaries from captured
-// help text, but never turns those untrusted hints into executable pack commands. Candidates are
-// emitted only as YAML comments beside a valid discovery-only scaffold. A human
+// help text, but never turns those untrusted hints into executable pack commands.
+// Candidates are emitted only as YAML comments beside a valid discovery-only
+// scaffold. A human
 // must add reviewed command definitions before the pack can execute anything.
 func DraftPack(options Options, config PackDraftConfig) error {
 	if options.Out == nil {
