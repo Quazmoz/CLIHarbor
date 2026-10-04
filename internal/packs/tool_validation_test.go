@@ -46,7 +46,6 @@ func TestVersionProbePrefixRejectsMultiline(t *testing.T) {
 	}
 }
 
-
 func validPortableInstallPack() string {
 	return strings.Replace(minimalPack, "      executableNames: [fixture-cli]\n", `      executableNames: [fixture-cli]
       versionProbe:
