@@ -14,11 +14,20 @@ import (
 )
 
 const (
-	maxDraftHelpBytes   = 1 << 20
-	maxDraftSubcommands = 128
+	maxDraftHelpBytes    = 1 << 20
+	maxDraftSubcommands  = 128
+	maxDraftSummaryRunes = 240
 )
 
-var draftSubcommandPattern = regexp.MustCompile("^[a-z][a-z0-9-]{0,62}$")
+var (
+	draftSubcommandPattern = regexp.MustCompile("^[a-z][a-z0-9-]{0,62}$")
+	draftSummarySeparator  = regexp.MustCompile("(?: {2,}|\\t+)")
+)
+
+type draftSubcommandCandidate struct {
+	Name    string
+	Summary string
+}
 
 // PackDraftConfig describes a reviewable, discovery-only draft synthesized from
 // captured vendor help output. Drafting never executes an executable, help
@@ -61,12 +70,12 @@ func DraftPack(options Options, config PackDraftConfig) error {
 	if err != nil {
 		return err
 	}
-	subcommands := parseSubcommands(helpText)
-	if len(subcommands) == 0 {
+	candidates := parseSubcommandCandidates(helpText)
+	if len(candidates) == 0 {
 		return fmt.Errorf("pack draft found no candidate subcommands in %s; capture the vendor's command listing with its --help output", filepath.Base(config.HelpPath))
 	}
-	if len(subcommands) > maxDraftSubcommands {
-		return fmt.Errorf("pack draft detected %d subcommands, exceeding the %d-command limit; draft focused packs from narrower help output", len(subcommands), maxDraftSubcommands)
+	if len(candidates) > maxDraftSubcommands {
+		return fmt.Errorf("pack draft detected %d subcommands, exceeding the %d-command limit; draft focused packs from narrower help output", len(candidates), maxDraftSubcommands)
 	}
 
 	document := packScaffoldDocument{
@@ -94,8 +103,12 @@ func DraftPack(options Options, config PackDraftConfig) error {
 	data = append(data, []byte("\n# Candidate subcommands parsed from captured help.\n")...)
 	data = append(data, []byte("# These comments are non-authoritative and are never executable.\n")...)
 	data = append(data, []byte("# Review vendor documentation, then add only deterministic commands with the correct risk, inputs, argv, and output contract.\n")...)
-	for _, subcommand := range subcommands {
-		data = append(data, []byte("# - "+subcommand+"\n")...)
+	for _, candidate := range candidates {
+		line := "# - " + candidate.Name
+		if candidate.Summary != "" {
+			line += " — " + candidate.Summary
+		}
+		data = append(data, []byte(line+"\n")...)
 	}
 
 	if _, err := packs.Parse(data); err != nil {
@@ -145,7 +158,7 @@ func DraftPack(options Options, config PackDraftConfig) error {
 		options.Out,
 		"Generated discovery-only draft pack %s with %d candidate subcommand(s) for %s/%s from captured help output.\nNo executable, help probe, version probe, or runnable command was generated. Review vendor documentation before adding command authority.\n",
 		filepath.Base(absolute),
-		len(subcommands),
+		len(candidates),
 		config.ID,
 		config.ToolID,
 	)
@@ -180,12 +193,12 @@ func readDraftHelpFile(path string) (string, error) {
 	return string(data), nil
 }
 
-// parseSubcommands extracts candidate identifiers from captured help text.
-// Captured vendor output is untrusted: these names are authoring hints only and
-// never become executable commands without an explicit human-authored pack edit.
-func parseSubcommands(helpText string) []string {
-	seen := make(map[string]struct{})
-	ordered := make([]string, 0)
+// parseSubcommandCandidates extracts bounded authoring hints from captured help
+// text. Captured vendor output is untrusted: names and summaries are comments
+// only and never become executable commands without an explicit human-authored
+// pack edit.
+func parseSubcommandCandidates(helpText string) []draftSubcommandCandidate {
+	summaries := make(map[string]string)
 	inSection := false
 	for _, rawLine := range strings.Split(helpText, "\n") {
 		line := strings.TrimRight(rawLine, "\r")
@@ -210,18 +223,51 @@ func parseSubcommands(helpText string) []string {
 		if len(fields) == 0 {
 			continue
 		}
-		candidate := strings.SplitN(fields[0], ",", 2)[0]
-		if !draftSubcommandPattern.MatchString(candidate) {
+		name := strings.SplitN(fields[0], ",", 2)[0]
+		if !draftSubcommandPattern.MatchString(name) {
 			continue
 		}
-		if _, exists := seen[candidate]; exists {
-			continue
+		summary := parseDraftSummary(trimmed)
+		previous, exists := summaries[name]
+		if !exists || (previous == "" && summary != "") {
+			summaries[name] = summary
 		}
-		seen[candidate] = struct{}{}
-		ordered = append(ordered, candidate)
 	}
-	sort.Strings(ordered)
-	return ordered
+
+	names := make([]string, 0, len(summaries))
+	for name := range summaries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	candidates := make([]draftSubcommandCandidate, 0, len(names))
+	for _, name := range names {
+		candidates = append(candidates, draftSubcommandCandidate{Name: name, Summary: summaries[name]})
+	}
+	return candidates
+}
+
+// parseSubcommands remains the name-only view used by earlier authoring tests
+// and callers. Richer summaries stay inert draft metadata.
+func parseSubcommands(helpText string) []string {
+	candidates := parseSubcommandCandidates(helpText)
+	names := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		names = append(names, candidate.Name)
+	}
+	return names
+}
+
+func parseDraftSummary(trimmed string) string {
+	separator := draftSummarySeparator.FindStringIndex(trimmed)
+	if separator == nil {
+		return ""
+	}
+	summary := strings.TrimSpace(trimmed[separator[1]:])
+	if summary == "" || utf8.RuneCountInString(summary) > maxDraftSummaryRunes || containsTerminalControl(summary) {
+		return ""
+	}
+	return summary
 }
 
 func isCommandsHeader(trimmed string) bool {
