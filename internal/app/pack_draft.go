@@ -42,8 +42,8 @@ type PackDraftConfig struct {
 	OutputPath     string
 }
 
-// DraftPack extracts candidate command names from captured help text, but never
-// turns those untrusted names into executable pack commands. Candidates are
+// DraftPack extracts candidate command names and bounded summaries from captured
+// help text, but never turns those untrusted hints into executable pack commands. Candidates are
 // emitted only as YAML comments beside a valid discovery-only scaffold. A human
 // must add reviewed command definitions before the pack can execute anything.
 func DraftPack(options Options, config PackDraftConfig) error {
@@ -85,7 +85,7 @@ func DraftPack(options Options, config PackDraftConfig) error {
 			ID:          config.ID,
 			Name:        config.Name,
 			Version:     "0.1.0",
-			Description: "Discovery-only draft generated from captured help output. Candidate command names are comments only and grant no runtime authority.",
+			Description: "Discovery-only draft generated from captured help output. Candidate command names and summaries are comments only and grant no runtime authority.",
 		},
 		Runtime: packScaffoldRuntime{
 			Platforms: platforms,
