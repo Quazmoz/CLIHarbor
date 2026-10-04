@@ -216,6 +216,14 @@ go run ./cmd/cliharbor pack lint ./acme.yaml
 
 Lint diagnostics have stable severity/code/source/object-path identities. Lint errors fail the command; warnings identify reviewable quality or coverage gaps without making valid future-gated pack metadata unusable. Lint never performs tool discovery, runs probes/tasks, reads authentication/session state, downloads dependencies, or uses an LLM. Ordinary shell metacharacters are not blanket-rejected merely for appearing inside trusted static argv because CLIHarbor executes the selected binary directly without a shell.
 
+Inspect the pack's declared compatibility metadata without touching the current machine or vendor CLI:
+
+```bash
+go run ./cmd/cliharbor pack compatibility ./acme.yaml
+```
+
+The compatibility matrix is deterministic static authoring output. It reports pack/tool, declared OS, version constraint, managed-install version, and exact managed artifact keys when present. It does not discover executables, run version/help probes or tasks, access vendor sessions, perform network I/O, or install anything. A platform row with no managed artifact does **not** imply CPU-architecture support; it only means the pack expects an existing reviewed vendor CLI for that declared platform.
+
 Generate a deterministic starter contract fixture from a validated pack without launching the declared CLI:
 
 ```bash
