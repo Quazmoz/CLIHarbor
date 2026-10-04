@@ -74,10 +74,10 @@ func TestReportPackCompatibilityIsDeterministicAndStatic(t *testing.T) {
 
 	output := first.String()
 	for _, want := range []string{
-		"SOURCE\tPACK\tTOOL\tPLATFORM\tVERSION_CONSTRAINT\tMANAGED_VERSION\tMANAGED_ARTIFACTS",
-		"alpha.yaml\talpha\talpha\tlinux\t\">=1.2.0 <2.0.0\"\t1.4.0\tnone",
-		"alpha.yaml\talpha\talpha\twindows\t\">=1.2.0 <2.0.0\"\t1.4.0\twindows-amd64",
-		"beta.yaml\tbeta\tbeta\tdarwin\t<none>\t<none>\tnone",
+		"SOURCE\tPACK\tPACK_VERSION\tTOOL\tPLATFORM\tVERSION_CONSTRAINT\tMANAGED_VERSION\tMANAGED_ARTIFACTS",
+		"\"alpha.yaml\"\talpha\t1.0.0\talpha\tlinux\t\">=1.2.0 <2.0.0\"\t<none>\tnone",
+		"\"alpha.yaml\"\talpha\t1.0.0\talpha\twindows\t\">=1.2.0 <2.0.0\"\t1.4.0\twindows-amd64",
+		"\"beta.yaml\"\tbeta\t1.0.0\tbeta\tdarwin\t<none>\t<none>\tnone",
 		"Static pack metadata only; no executable, discovery, probe, task, network, install, or authentication/session state was accessed.",
 		"does not imply CPU-architecture support",
 	} {
