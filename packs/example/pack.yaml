@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: example
   name: Synthetic Example Pack
-  version: 0.1.0
+  version: 0.2.0
   description: Non-production fixture metadata for exercising CLIHarbor's pack and discovery model.
 runtime:
   platforms: [windows, linux, darwin]
@@ -18,7 +18,7 @@ runtime:
 commands:
   inspect:
     name: Inspect fixture data
-    description: Synthetic read-only command shape; no fixture executable is shipped with CLIHarbor.
+    description: Inspect synthetic data from the local testing CLI without reading files or credentials.
     tool: fixture
     risk: read
     inputs:
@@ -56,9 +56,63 @@ commands:
             detailed: --detailed-mode
     output:
       mode: json
+      renderer: cards
+      structured:
+        fields:
+          - key: platform
+            label: Operating system
+            type: string
+            required: true
+          - key: mode
+            label: Output detail
+            type: string
+            required: true
+          - key: count
+            label: Result count
+            type: integer
+            required: true
+          - key: ok
+            label: Successful
+            type: boolean
+            required: true
       sensitivity:
         containsSecrets: false
         persistRawOutput: false
         revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  wait:
+    name: Stream test output
+    description: Stream one line per second; use Cancel to test local process cleanup.
+    tool: fixture
+    risk: read
+    inputs:
+      - id: seconds
+        type: integer
+        label: Duration in seconds
+        validation:
+          min: 1
+          max: 60
+    argv:
+      - literal: wait
+      - flag:
+          name: --seconds
+          valueFrom: seconds
+          omitWhenEmpty: true
+    output:
+      mode: raw
+    requirements:
+      requiresAuth: false
+
+  fail:
+    name: Test a failed command
+    description: Return deliberate exit code 42 with a separate stderr message.
+    tool: fixture
+    risk: read
+    argv:
+      - literal: fail
+    output:
+      mode: raw
     requirements:
       requiresAuth: false

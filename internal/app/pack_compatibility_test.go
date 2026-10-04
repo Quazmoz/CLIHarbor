@@ -28,13 +28,13 @@ runtime:
         artifacts:
           windows-arm64:
             url: https://downloads.example.com/alpha-arm64.exe
-            sha256: 1111111111111111111111111111111111111111111111111111111111111111
+            sha256: "1111111111111111111111111111111111111111111111111111111111111111"
             sizeBytes: 1235
             format: executable
             executableName: alpha.exe
           windows-amd64:
             url: https://downloads.example.com/alpha-amd64.exe
-            sha256: 0000000000000000000000000000000000000000000000000000000000000000
+            sha256: "0000000000000000000000000000000000000000000000000000000000000000"
             sizeBytes: 1234
             format: executable
             executableName: alpha.exe

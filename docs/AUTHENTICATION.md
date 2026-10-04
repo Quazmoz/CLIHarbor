@@ -190,3 +190,7 @@ Do not flatten every failure into a misleading generic success/failure state, an
 The discovery-only Phase 0 pack still performs no vendor login/logout and contains no credential authority. Version/help evidence probes are fixed read-only argv and receive no interactive stdin.
 
 Browser bootstrap/session/CSRF tokens are CLIHarbor-local credentials and remain excluded from Phase 0 evidence exports.
+
+## macOS boundary
+
+Existing vendor-session tasks, session checks, and the reviewed Conjur HTTPS authn/LDAP password/configuration bridge use the same runtime on macOS. The external vendor-login launcher remains Windows-only. On macOS, complete OIDC/JWT/SaaS or other interactive authentication with the approved official `conjur login` flow in your terminal, then use **Check session** in CLIHarbor. CLIHarbor does not create shell scripts or AppleScript command strings to emulate a vendor terminal.

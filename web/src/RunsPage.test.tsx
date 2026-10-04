@@ -156,8 +156,10 @@ describe('RunsPage', () => {
     let intervalCallback: (() => void) | undefined;
     let visibilityState: DocumentVisibilityState = 'hidden';
     vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibilityState);
-    vi.spyOn(window, 'setInterval').mockImplementation(((callback: TimerHandler) => {
-      intervalCallback = callback as () => void;
+    vi.spyOn(window, 'setInterval').mockImplementation(((callback: TimerHandler, delay?: number) => {
+      // Testing Library also creates polling intervals; capture only the
+      // application's two-second history refresh callback.
+      if (delay === 2000) intervalCallback = callback as () => void;
       return 1;
     }) as typeof window.setInterval);
     const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);

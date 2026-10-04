@@ -141,7 +141,7 @@ metadata:
   name: Browser E2E Conjur
   version: 0.2.0
 runtime:
-  platforms: [linux]
+  platforms: [linux, darwin]
   tools:
     conjur:
       executableNames: [conjur]
@@ -190,8 +190,8 @@ func TestProductionEmbeddedBrowserE2E(t *testing.T) {
 	if os.Getenv(browserE2EEnv) != "1" {
 		t.Skip("set CLIHARBOR_BROWSER_E2E=1 to run the real-browser production-runtime test")
 	}
-	if runtime.GOOS != "linux" {
-		t.Skip("the CI real-browser qualification currently runs on Linux")
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("the real-browser Conjur fixture requires macOS or Linux")
 	}
 	node, err := exec.LookPath("node")
 	if err != nil {

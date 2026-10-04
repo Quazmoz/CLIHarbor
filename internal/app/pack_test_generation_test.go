@@ -35,8 +35,8 @@ func TestGeneratePackTestsCreatesPassingZeroCoverageFixture(t *testing.T) {
 	if err := validatePackTestDocument(document); err != nil {
 		t.Fatalf("validate generated fixture: %v", err)
 	}
-	if len(document.Cases) != 5 {
-		t.Fatalf("generated case count = %d, want 5", len(document.Cases))
+	if len(document.Cases) != 9 {
+		t.Fatalf("generated case count = %d, want 9", len(document.Cases))
 	}
 
 	var testOut bytes.Buffer

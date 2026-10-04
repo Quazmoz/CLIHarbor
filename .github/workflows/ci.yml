@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -66,12 +66,24 @@ jobs:
       - name: Go tests
         run: go test -timeout 2m ./...
       - name: Production embedded browser E2E
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
         env:
           CLIHARBOR_BROWSER_E2E: '1'
         run: go test -timeout 90s -count=1 -run '^TestProductionEmbeddedBrowserE2E$' ./internal/app
       - name: Final embedded Go build
         run: go run ./tools/task go-build
+      - name: Build local testing CLI
+        run: go run ./tools/task fixture-build
+      - name: Upload unsigned macOS executable
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cliharbor-macos-${{ runner.arch }}-${{ github.sha }}
+          path: |
+            bin/cliharbor
+            bin/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
 
   security:
     name: Dependency vulnerability scan

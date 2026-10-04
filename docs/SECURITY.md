@@ -311,7 +311,7 @@ Before `change`/`destructive` execution is enabled, backend confirmation must be
 
 ### T12 — Long-running/noisy process denial of service
 
-Task execution has total deadlines, cancellation, per-stream output limits, WaitDelay protection, bounded active/retained runs/events and on Windows a Job Object so descendants cannot outlive the run.
+Task execution has total deadlines, cancellation, per-stream output limits, WaitDelay protection, bounded active/retained runs/events and on Windows a Job Object so descendants cannot outlive the run. On macOS/Linux, commands and probes run in a dedicated process group; cancellation, timeout, and normal teardown kill descendants that remain in that group. Deliberate process-group/session escape is outside this boundary and requires a stronger OS sandbox.
 
 SSE handlers/replay/reconnect are separately bounded.
 
@@ -485,3 +485,7 @@ The portable provisioner:
 Installation does not mutate the current runtime's discovery/execution authority. The UI reports that a restart is required. On restart, CLIHarbor may select only a still-byte-identical managed artifact as a backend-owned override, after which ordinary version probes, compatibility checks, executable identity capture, planner policy, and executor protections still apply.
 
 This is a convenience path, not an application-control bypass. Endpoint protection, allowlisting, vendor policy, or OS execution restrictions may still refuse the managed binary, in which case CLIHarbor fails closed.
+
+## macOS executable discovery
+
+After PATH has no match, macOS checks the bounded current-user Go/local/bin and Docker CLI directories, plus the standard `/opt/homebrew/bin` and `/usr/local/bin` locations. The same executable permission, resolved basename, ambiguity, version, and identity checks apply. These directories never supersede PATH or explicit overrides. No recursive scan, shell invocation, or inferred vendor command is added. The automatic Conjur download remains Windows amd64 only.

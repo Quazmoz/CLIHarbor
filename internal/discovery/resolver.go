@@ -259,11 +259,15 @@ func defaultUserSearchDirectories(goos, home string) []string {
 			filepath.Join(home, "bin"),
 		}
 	}
-	return []string{
+	directories := []string{
 		filepath.Join(home, "go", "bin"),
 		filepath.Join(home, ".local", "bin"),
 		filepath.Join(home, "bin"),
 	}
+	if goos == "darwin" {
+		directories = append(directories, filepath.Join(home, ".docker", "bin"), "/opt/homebrew/bin", "/usr/local/bin")
+	}
+	return directories
 }
 
 func (r *Resolver) inspectExecutable(path string) (string, bool) {

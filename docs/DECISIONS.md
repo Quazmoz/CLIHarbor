@@ -679,3 +679,21 @@ Mode-aware presentation removes unnecessary console flash without broadening the
 - Refines ADR-005: an external terminal remains preferred when terminal interaction is actually required; non-interactive vendor-owned modes no longer open one merely for presentation.
 - Complements ADR-025; the password bridge remains unchanged.
 
+
+## ADR-027 — Support Windows and macOS through the portable runtime
+
+**Date:** 2026-10-04
+
+**Status:** Accepted.
+
+**Supersedes:** ADR-008's Windows-only initial support scope. Windows enterprise evaluation remains first-class.
+
+**Requirement:** CLIHarbor must work on Windows and macOS and include a simple local CLI for macOS testing.
+
+**Decision:** Reuse the embedded frontend, existing darwin pack schema, executable discovery, planner, executor, run manager, and macOS browser launcher. Conjur pack 0.3.0 adds darwin without changing its reviewed command/version envelope; upstream v9.3.1 release configuration publishes darwin builds. Keep its automatic managed download and vendor-terminal launcher limited to their existing reviewed Windows contracts. Add bounded standard macOS CLI fallback directories and shared macOS/Linux process-group cleanup. Provide `cliharbor-fixture` plus the explicit example pack and one-command `demo` task.
+
+**Security impact:** No shell, credential persistence, remote listener, pack auto-trust, or new browser execution authority. POSIX groups are established before exec and killed on cancellation/timeout/normal cleanup; deliberate group/session escape is not Windows Job Object containment. Default product packs exclude the testing CLI.
+
+**Migration:** Pack schema stays v1. Conjur pack advances to 0.3.0; example pack advances to 0.2.0. Existing Windows startup/preflight remains compatible. On macOS, vendor CLI installation and unsupported interactive authentication remain external approved operations.
+
+**Verification:** Native macOS Go/real-browser checks, local fixture execution integration, descendant-cleanup regressions, Windows/macOS/Linux CI, and Windows evaluation gates. Building a Windows binary on macOS does not prove native Windows behavior. See [platform setup](CROSS_PLATFORM.md) for exact support boundaries.

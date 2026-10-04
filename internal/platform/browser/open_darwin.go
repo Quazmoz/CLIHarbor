@@ -8,7 +8,7 @@ import (
 )
 
 func openSystemBrowser(rawURL string) error {
-	cmd := exec.Command("open", rawURL)
+	cmd := exec.Command("/usr/bin/open", rawURL)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start default browser: %w", err)
 	}

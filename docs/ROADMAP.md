@@ -236,7 +236,7 @@ AI may help author **reviewable source artifacts**, but runtime execution must n
 ## Optional later work
 
 - embed CLIHarbor into an approved internal company CLI;
-- Linux/macOS qualification;
+- broader Linux runtime and managed-macOS vendor qualification;
 - signed/public pack ecosystem if adoption justifies the trust infrastructure;
 - asynchronous first-run setup UX if managed dependency download latency becomes materially confusing.
 
@@ -262,3 +262,7 @@ For each shipped workflow or managed dependency:
 3. capture confusing fields/errors and operational failures;
 4. add regressions for defects;
 5. generalize only when multiple real workflows require the same capability without weakening the security boundary.
+
+## Windows and macOS runtime
+
+The macOS runtime, Conjur pack platform declaration, process-group cleanup, native build path, local testing CLI/demo, and macOS quality/browser jobs are implemented. Windows remains the first enterprise evaluation target with its existing artifact/preflight contract. Broader macOS vendor/install/sign-in parity is not implied; see [Windows and macOS setup](CROSS_PLATFORM.md).

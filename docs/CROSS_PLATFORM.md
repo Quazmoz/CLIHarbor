@@ -1,0 +1,92 @@
+# Windows and macOS setup
+
+CLIHarbor uses the same Go runtime, embedded React UI, loopback security, trusted packs, typed forms, run history, and streaming on Windows and macOS. Native macOS builds support Apple Silicon (`arm64`) and Intel (`amd64`). Windows retains its existing x64 evaluation/preflight path.
+
+## Credential-free local demo
+
+From this checkout with Go installed:
+
+```bash
+go run ./tools/task demo
+```
+
+The task builds `bin/cliharbor` and `bin/cliharbor-fixture` (with `.exe` on Windows), then opens the local browser using only the explicit example pack. The embedded frontend is already in the checkout; Node is needed only when changing/rebuilding the frontend. The demo needs no vendor account, external service, CLI installation, or administrator rights.
+
+Open **Tasks** and try:
+
+1. **Inspect fixture data** — choose Safe or Detailed, optionally set a count (1–1000) and Verbose. Run to see scalar JSON cards, raw stdout, and separate stderr when Verbose is enabled.
+2. **Stream test output** — leave duration blank for 10 seconds, or choose 1–60 seconds. Run, watch output, and use Cancel.
+3. **Test a failed command** — observe deliberate exit code 42 and stderr, then inspect the retained run on **Runs**.
+
+The testing CLI reads no files, environment credentials, account data, or vendor sessions. It returns only synthetic values plus the OS name. It is not part of CLIHarbor's built-in product pack set.
+
+Build or run the CLI separately on macOS:
+
+```bash
+go run ./tools/task fixture-build
+./bin/cliharbor-fixture --version
+./bin/cliharbor-fixture inspect --limit 5 --verbose --detailed-mode
+./bin/cliharbor-fixture wait --seconds 3
+./bin/cliharbor-fixture fail
+```
+
+On Windows, use `bin\cliharbor-fixture.exe` with the same arguments. The `fail` command intentionally returns a non-zero exit.
+
+## Normal macOS startup
+
+```bash
+go run ./tools/task go-build
+./bin/cliharbor self-test
+./bin/cliharbor doctor
+./bin/cliharbor serve --no-auto-setup
+```
+
+`doctor` reports missing vendor tools with exit 1; CLIHarbor can still start and show their readiness. The built-in Conjur, Docker, and kubectl packs load automatically. Install an approved official vendor CLI separately on macOS. Conjur must satisfy `>=9.3.1-0 <10.0.0-0`. Its [pinned upstream release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) includes darwin builds.
+
+Discovery searches absolute PATH directories first. After PATH misses, macOS checks the bounded Go/local/bin and Docker directories under the user's home, plus `/opt/homebrew/bin` and `/usr/local/bin`. Multiple matches in a tier remain ambiguous. Pin one approved installation when needed:
+
+```bash
+./bin/cliharbor serve --tool-path "cyberark-conjur-v9/conjur=/absolute/path/to/conjur"
+```
+
+Executable permission, resolved basename, version, and identity checks apply. For OIDC/JWT/SaaS or other interactive Conjur modes, complete the official `conjur login` flow in your terminal and return to **Authentication → Check session**. The existing reviewed HTTPS authn/LDAP browser bridge is also available when the vendor configuration qualifies.
+
+## Platform boundaries
+
+| Capability | Windows | macOS |
+| --- | --- | --- |
+| Embedded browser UI, packs, read-only tasks, SSE, cancellation | Supported | Supported |
+| Conjur, Docker, kubectl installed-CLI discovery | Supported | Supported |
+| Credential-free fixture/demo | Supported | Supported |
+| Automatic pinned Conjur download | Windows amd64 only | Install an approved official CLI externally |
+| Reviewed Conjur authn/LDAP bridge and session checks | Supported | Supported |
+| Guided external Conjur OIDC/JWT/SaaS launcher | Supported | Use the official CLI in your terminal |
+| Descendant cleanup | Job Object | Dedicated process group |
+| Immutable evaluation preflight | Existing Windows amd64 bundle | Use native build/self-test |
+
+macOS/Linux groups clean up descendants that retain their process group on cancellation, timeout, and normal teardown. Deliberate process-group/session escape requires a stronger OS sandbox; it is not Job Object containment. The browser UI remains read-only and cannot select executables or arbitrary argv.
+
+## Builds and verification
+
+`go run ./tools/task go-build` builds for the native Go host and writes `bin/SHA256SUMS`. CI runs quality checks on Windows/macOS/Linux, the production Chrome browser gate on macOS/Linux, and the existing Windows evaluation qualification. The macOS quality job uploads an unsigned native executable plus its checksum as `cliharbor-macos-<runner-arch>-<commit-sha>`; it is not the Windows evaluation bundle.
+
+For an explicit Intel or Apple Silicon build from macOS:
+
+```bash
+GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o bin/cliharbor-macos-amd64 ./cmd/cliharbor
+GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o bin/cliharbor-macos-arm64 ./cmd/cliharbor
+```
+
+Cross-compilation proves build compatibility; native execution and enterprise vendor acceptance are separate checks. macOS signing/notarization and managed Windows application-control qualification remain external release requirements.
+
+Run the focused local checks:
+
+```bash
+go test -timeout 2m ./...
+go test -race -timeout 2m ./...
+CLIHARBOR_BROWSER_E2E=1 go test -timeout 90s -count=1 -run '^TestProductionEmbeddedBrowserE2E$' ./internal/app
+go run ./cmd/cliharbor pack lint --cases packs/example/packtest.json packs/example/pack.yaml
+go run ./cmd/cliharbor pack test --cases packs/example/packtest.json packs/example/pack.yaml
+```
+
+The browser command requires Chrome/Chromium and Node 24; on macOS it discovers the usual application path. `CLIHARBOR_E2E_CHROME=/absolute/path` can select a test browser explicitly. The current hermetic Conjur browser fixture requires macOS or Linux; Windows retains its native Go/UI and Job Object checks.

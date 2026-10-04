@@ -67,6 +67,61 @@
         "code": "invalid_input",
         "path": "values.mode"
       }
+    },
+    {
+      "name": "default streaming duration",
+      "packId": "example",
+      "commandId": "wait",
+      "values": {},
+      "expectArgs": [
+        "wait"
+      ]
+    },
+    {
+      "name": "bounded streaming duration",
+      "packId": "example",
+      "commandId": "wait",
+      "values": {
+        "seconds": 2
+      },
+      "expectArgs": [
+        "wait",
+        "--seconds",
+        "2"
+      ]
+    },
+    {
+      "name": "reject streaming duration below minimum",
+      "packId": "example",
+      "commandId": "wait",
+      "values": {
+        "seconds": 0
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.seconds"
+      }
+    },
+    {
+      "name": "reject streaming duration above maximum",
+      "packId": "example",
+      "commandId": "wait",
+      "values": {
+        "seconds": 61
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.seconds"
+      }
+    },
+    {
+      "name": "deliberate nonzero exit",
+      "packId": "example",
+      "commandId": "fail",
+      "values": {},
+      "expectArgs": [
+        "fail"
+      ]
     }
   ]
 }

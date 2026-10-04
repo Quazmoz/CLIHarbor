@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
@@ -81,6 +82,15 @@ function findChrome() {
   const explicit = process.env.CLIHARBOR_E2E_CHROME;
   if (explicit) {
     return explicit;
+  }
+  for (const candidate of [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    path.join(os.homedir(), 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
+  ]) {
+    if (process.platform === 'darwin' && existsSync(candidate)) {
+      return candidate;
+    }
   }
   for (const candidate of ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser']) {
     const found = spawnSync('which', [candidate], { encoding: 'utf8' });
@@ -199,7 +209,10 @@ class CDP {
         if (index >= 0) {
           this.waiters.splice(index, 1);
         }
-        reject(new Error('CDP event timed out: ' + method));
+        const failures = this.events
+          .filter((event) => event.method === 'Network.loadingFailed')
+          .map((event) => event.params?.errorText ?? 'unknown');
+        reject(new Error('CDP event timed out: ' + method + '; network failures: ' + failures.join(', ')));
       }, timeoutMs);
       this.waiters.push(waiter);
     });
@@ -421,7 +434,10 @@ async function waitHTTPStatus(page, requestId, timeoutMs = 15000) {
 }
 
 async function navigate(page, url) {
-  await page.call('Page.navigate', { url });
+  const result = await page.call('Page.navigate', { url });
+  if (result.errorText) {
+    throw new Error('Browser navigation failed: ' + result.errorText);
+  }
 }
 
 async function waitJS(page, label, expression, timeoutMs = 10000) {
@@ -697,12 +713,19 @@ async function main() {
       'Array.from(document.querySelectorAll("input")).some((element) => element.closest("label")?.textContent?.trim().startsWith("Query"))');
 
     stage('bootstrap replay');
-    const replay = await chrome.newPage();
-    pages.push(replay);
-    const replayResponse = replay.waitEvent('Network.responseReceived',
-      (params) => params.response?.url?.startsWith(baseURL + '/bootstrap?'));
-    await navigate(replay, bootstrapURL);
-    assert.equal((await replayResponse).response.status, 410, 'bootstrap token replay must fail closed');
+    // An already-authenticated browser is redirected to the app, regardless
+    // of bootstrap-token state. Test token replay with a fresh cookie profile.
+    const replayBrowser = await ChromeHarness.start();
+    try {
+      const replay = await replayBrowser.newPage();
+      const replayResponse = replay.waitEvent('Network.responseReceived',
+        (params) => params.response?.url?.startsWith(baseURL + '/bootstrap?'));
+      await navigate(replay, bootstrapURL);
+      assert.equal((await replayResponse).response.status, 410, 'bootstrap token replay must fail closed');
+      replay.close();
+    } finally {
+      await replayBrowser.close();
+    }
 
     stage('host and csrf rejection');
     const hostProbe = await chrome.newPage();

@@ -10,13 +10,25 @@ This path is designed for locked-down work laptops where user-context portable e
 
 # CLIHarbor
 
-A Windows-first local browser UI for safely exposing curated workflows from official command-line tools.
+A local browser UI for safely exposing curated workflows from official command-line tools on Windows and macOS.
 
 **Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation/lint/contract-test tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x read-only integration are implemented.
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
 > **Fastest path:** download the qualified Windows artifact, run preflight, then run the CLIHarbor EXE with no pack arguments. The trusted Conjur pack is embedded, and if Conjur is genuinely missing CLIHarbor can install the exact reviewed CyberArk CLI into the current user's cache without administrator credentials. See [QUICKSTART.md](QUICKSTART.md).
+
+## macOS and local testing
+
+From a checkout with Go installed, start a credential-free demo on macOS or Windows:
+
+```bash
+go run ./tools/task demo
+```
+
+This builds CLIHarbor with its embedded frontend and the small `cliharbor-fixture` testing CLI, then opens the browser with only the example pack. Try **Inspect fixture data**, **Stream test output** (and Cancel), and **Test a failed command**. It needs no vendor account, Docker daemon, cluster, or dependency download.
+
+For normal macOS use, build with `go run ./tools/task go-build` and run `./bin/cliharbor`. Conjur, Docker, and kubectl packs are embedded; install approved vendor CLIs separately on macOS. See [Windows and macOS setup](docs/CROSS_PLATFORM.md) for commands, Intel/Apple Silicon builds, and platform-specific authentication/install limits.
 
 ## One-download Windows startup
 
@@ -439,12 +451,13 @@ go test -timeout 2m ./...
 go test -race -timeout 2m ./...
 go run ./tools/task verify-web-sync
 go run ./tools/task go-build
+go run ./tools/task fixture-build
 go run ./tools/task windows-eval
 go run ./tools/task verify-windows-eval
 go run ./tools/task verify-windows-eval-repro
 ```
 
-CI additionally runs frontend checks, module verification, dependency/vulnerability scans, production browser E2E, Windows/Linux quality jobs, race detection and Windows evaluation smoke/preflight qualification.
+CI additionally runs frontend checks, module verification, dependency/vulnerability scans, production browser E2E, Windows/macOS/Linux quality jobs, race detection and Windows evaluation smoke/preflight qualification.
 
 ## Privacy-preserving diagnostics
 

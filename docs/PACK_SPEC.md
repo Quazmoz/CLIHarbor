@@ -586,3 +586,7 @@ trusted validated pack -> trusted discovered tool -> validated typed inputs -> d
 ```
 
 If a feature would turn the pack/browser into a generic shell or move credential/authorization authority into untrusted browser input, it does not belong in this contract.
+
+## Platform expansion and local testing packs
+
+The existing `cliharbor.dev/v1` schema already declares `darwin`; no schema change is needed. Conjur pack version `0.3.0` adds macOS using the existing reviewed Conjur 9.x command/version contracts; its managed artifact remains Windows amd64 only. Docker and kubectl already declare macOS. Example pack version `0.2.0` now pairs with `cmd/cliharbor-fixture`: scalar JSON cards, finite streaming/cancellation, and a deliberate non-zero exit. It is explicit-local testing configuration and is not in the built-in product pack set.

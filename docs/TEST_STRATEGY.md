@@ -434,3 +434,9 @@ Regression coverage for `cliharbor.diagnostics/v1` must prove:
 - diagnostic data never becomes pack, planner, executable, argv, browser, or workflow authority.
 
 These tests complement rather than replace local `doctor` and Phase 0 evidence tests because the three surfaces have intentionally different confidentiality/provenance contracts.
+
+## macOS and local testing CLI verification
+
+The quality matrix includes macOS, Windows, and Linux. The existing production embedded-browser harness accepts macOS Chrome paths and runs on macOS/Linux; its current hermetic Conjur fixture is POSIX-only. Native Go integration builds the local testing CLI into a Unicode/space-containing path, qualifies it through the real example pack and version probe, then verifies structured output, separate stderr, exit 42, streaming readiness, and cancellation through the real run manager. macOS/Linux process-controller tests verify descendant cleanup on cancellation, deadline expiry, normal root exit, and cancellation before lifecycle attachment. Platform permission/version/identity and ambiguity safeguards remain covered by discovery tests.
+
+Windows Job Object tests and evaluation qualification remain in CI. A macOS-only development machine cannot establish native Windows acceptance; cross-compilation is a separate check. Managed vendor sessions, browser handler policies, signing/notarization, and enterprise endpoint controls still require acceptance on the target host.

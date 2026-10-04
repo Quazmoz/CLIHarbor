@@ -449,3 +449,7 @@ Acceptance achieved:
 - regression coverage includes secret/path/environment/output sentinels and filesystem/concurrency failures.
 
 The remaining Phase 8 items should continue independently; this checkpoint does not authorize real vendor commands or secret-bearing workflows.
+
+## Windows and macOS runtime checkpoint
+
+macOS now participates in the quality matrix and production browser gate alongside the retained Windows/Linux checks. Built-in Conjur pack 0.3.0 adds darwin; Docker/kubectl were already portable. Shared macOS/Linux process-group cleanup supports tasks and probes. `fixture-build` and `demo` provide the small local testing CLI through example pack 0.2.0. Intel and Apple Silicon native builds use the same Go core; native runtime evidence and enterprise vendor acceptance remain distinct from cross-compilation. See [Windows and macOS setup](CROSS_PLATFORM.md).

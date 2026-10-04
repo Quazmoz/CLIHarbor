@@ -41,6 +41,10 @@ func main() {
 		err = check(root)
 	case "go-build":
 		err = goBuild(root)
+	case "fixture-build":
+		_, err = fixtureBuild(root)
+	case "demo":
+		err = demo(root)
 	case "windows-eval":
 		err = windowsEvalBuild(root)
 	case "verify-windows-eval":
@@ -61,7 +65,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|verify-web-sync|check|go-build|windows-eval|verify-windows-eval|verify-windows-eval-repro|build>")
+	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|verify-web-sync|check|go-build|fixture-build|demo|windows-eval|verify-windows-eval|verify-windows-eval-repro|build>")
 }
 
 func fatal(err error) {
@@ -173,6 +177,35 @@ func goBuild(root string) error {
 		return err
 	}
 	return writeSHA256Sums(artifact, checksum)
+}
+
+func fixtureBuild(root string) (string, error) {
+	name := "cliharbor-fixture"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	artifact := filepath.Join(root, "bin", name)
+	if err := os.MkdirAll(filepath.Dir(artifact), 0o755); err != nil {
+		return "", err
+	}
+	return artifact, run(root, "go", "build", "-trimpath", "-o", artifact, "./cmd/cliharbor-fixture")
+}
+
+func demo(root string) error {
+	if err := goBuild(root); err != nil {
+		return err
+	}
+	fixture, err := fixtureBuild(root)
+	if err != nil {
+		return err
+	}
+	name := "cliharbor"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return run(root, filepath.Join(root, "bin", name), "serve", "--no-default-packs", "--no-auto-setup",
+		"--pack-file", filepath.Join(root, "packs", "example", "pack.yaml"),
+		"--tool-path", "example/fixture="+fixture)
 }
 
 func windowsEvalBuild(root string) error {

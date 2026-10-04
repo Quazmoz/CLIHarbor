@@ -1,5 +1,7 @@
 # CLIHarbor Quickstart
 
+For macOS setup and a credential-free testing CLI on either platform, see [Windows and macOS setup](docs/CROSS_PLATFORM.md). From a checkout with Go installed, `go run ./tools/task demo` builds both executables and opens the local testing UI.
+
 The normal Windows path is intentionally simple: **download CLIHarbor once, extract it, run preflight, then start CLIHarbor with no pack or Conjur install arguments.** CLIHarbor carries its reviewed Conjur pack inside the executable and can provision the pinned official Conjur CLI for the current user when Conjur is genuinely missing.
 
 For full managed-device evidence and troubleshooting procedures, see [Work-Laptop Evaluation](docs/WORK_LAPTOP_EVALUATION.md).

@@ -3,6 +3,7 @@ package packs
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -19,8 +20,11 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if pack.Metadata.ID != "cyberark-conjur-v9" {
 		t.Fatalf("pack id = %q", pack.Metadata.ID)
 	}
-	if pack.Metadata.Version != "0.2.0" {
+	if pack.Metadata.Version != "0.3.0" {
 		t.Fatalf("pack version = %q", pack.Metadata.Version)
+	}
+	if !slices.Equal(pack.Runtime.Platforms, []string{"windows", "darwin"}) {
+		t.Fatalf("platforms = %v", pack.Runtime.Platforms)
 	}
 	tool, ok := pack.Runtime.Tools["conjur"]
 	if !ok {

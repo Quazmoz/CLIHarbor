@@ -3,14 +3,14 @@ kind: CliPack
 metadata:
   id: cyberark-conjur-v9
   name: CyberArk / Idira Secrets Manager CLI 9.x
-  version: 0.2.0
+  version: 0.3.0
   description: >-
     Read-only Conjur CLI workflows verified from the official cyberark/conjur-cli-go
     v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
     Secret-returning, interactive, mutating, deprecated, and environment-conditional
     commands are intentionally excluded from executable browser authority.
 runtime:
-  platforms: [windows]
+  platforms: [windows, darwin]
   tools:
     conjur:
       executableNames: [conjur]

@@ -431,7 +431,7 @@ func TestDefaultUserSearchDirectoriesIncludeDefaultGoBin(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "home")
 	want := filepath.Join(home, "go", "bin")
 
-	for _, goos := range []string{"windows", "linux"} {
+	for _, goos := range []string{"windows", "linux", "darwin"} {
 		t.Run(goos, func(t *testing.T) {
 			directories := defaultUserSearchDirectories(goos, home)
 			found := false
@@ -477,5 +477,21 @@ func TestDiscoverUsesDefaultGoBinFallback(t *testing.T) {
 	}
 	if state.Status != StatusReady || state.Path != executable {
 		t.Fatalf("state = %#v, want ready Go-bin fallback executable %q", state, executable)
+	}
+}
+
+func TestMacSearchDirectoriesIncludeBothHomebrewLocationsAndDocker(t *testing.T) {
+	home := t.TempDir()
+	directories := defaultUserSearchDirectories("darwin", home)
+	for _, want := range []string{"/opt/homebrew/bin", "/usr/local/bin", filepath.Join(home, ".docker", "bin")} {
+		found := false
+		for _, directory := range directories {
+			if directory == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("macOS fallback directories omit %q", want)
+		}
 	}
 }

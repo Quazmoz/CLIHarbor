@@ -2,7 +2,7 @@
 
 ## 1. Product summary
 
-CLIHarbor is a Windows-first local browser UI that turns approved command-line workflows into approachable, auditable graphical workflows without replacing the underlying vendor CLI.
+CLIHarbor is a local browser UI for Windows and macOS that turns approved command-line workflows into approachable, auditable graphical workflows without replacing the underlying vendor CLI.
 
 The first production vertical is Palo Alto Networks Idira / CyberArk tooling, specifically the official Conjur CLI. The broader product is a generic trusted-pack runtime for additional CLIs.
 
@@ -95,6 +95,10 @@ Users should receive:
 
 Conjur-specific command syntax belongs in a reviewed pack. Generic planner/executor code must remain vendor-agnostic. Additional explicit local packs may be loaded alongside the built-in first-party packs in one runtime; a second CLI should normally require another pack and, only if justified, a narrowly scoped adapter or separately reviewed bootstrapper.
 
+### G8 — Windows and macOS runtime
+
+The same embedded browser UI and pack engine shall run on Windows and macOS (Intel and Apple Silicon builds). A small credential-free local testing CLI shall exercise discovery, forms, structured/raw output, streaming, cancellation, and non-zero exit handling. Vendor installation and interactive authentication retain their explicit platform limits; see [Windows and macOS setup](CROSS_PLATFORM.md) and ADR-027.
+
 ## 5. Non-goals for the current product stage
 
 - Automatic support for every installed CLI.
@@ -110,7 +114,7 @@ Conjur-specific command syntax belongs in a reviewed pack. Generic planner/execu
 - Secret-returning browser workflows.
 - Change/destructive browser execution before dedicated confirmation/reconciliation design.
 - Full embedded terminal/PTY unless a future verified workflow genuinely requires it.
-- Cross-platform parity at launch. Windows is first.
+- Identical vendor installation and interactive sign-in capabilities across platforms.
 
 ## 6. Primary personas
 
@@ -167,7 +171,7 @@ Explicit `--pack-file` and `--pack-dir` sources shall augment the default built-
 
 ### FR-2 Tool discovery
 
-The runtime shall locate pack-declared executables from approved Windows PATH locations and backend-only explicit overrides.
+The runtime shall locate pack-declared executables from approved Windows/macOS PATH and bounded fallback locations and backend-only explicit overrides.
 
 It shall expose readiness/version information and fail closed on missing, ambiguous, incompatible, probe-failed, invalid-override, identity-failed, or unsupported-platform states as appropriate.
 
@@ -220,7 +224,7 @@ The runtime shall:
 - capture exit code and run status;
 - support cancellation;
 - enforce bounded execution time/output;
-- contain descendant processes on Windows through the established process-control boundary;
+- contain descendant processes on Windows through Job Objects and clean up the dedicated process group on macOS;
 - revalidate executable identity immediately before launch.
 
 ### FR-7 Authentication

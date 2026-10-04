@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"runtime"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
@@ -90,6 +91,11 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 
 	provisioner := options.ToolProvisioner
 	if provisioner == nil {
+		// The reviewed automatic artifact exists only for Windows amd64.
+		// Other hosts use discovery or explicit, pack-declared installation.
+		if runtime.GOOS != "windows" || runtime.GOARCH != "amd64" {
+			return state, nil
+		}
 		provisioner = toolbootstrap.NewConjurProvisioner()
 	}
 	changed := false

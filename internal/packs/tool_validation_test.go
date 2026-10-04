@@ -57,7 +57,7 @@ func validPortableInstallPack() string {
         artifacts:
           windows-amd64:
             url: https://downloads.example.com/fixture-cli.exe
-            sha256: 0000000000000000000000000000000000000000000000000000000000000000
+            sha256: "0000000000000000000000000000000000000000000000000000000000000000"
             sizeBytes: 1234
             format: executable
             executableName: fixture-cli.exe

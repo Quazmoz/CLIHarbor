@@ -2,7 +2,7 @@
 
 ## 1. Objective
 
-CLIHarbor is a thin, Windows-first local application that turns explicitly trusted CLI workflows into a guided browser experience without becoming a shell, credential manager, remote execution service, or replacement for the wrapped vendor CLI.
+CLIHarbor is a thin local application for Windows and macOS that turns explicitly trusted CLI workflows into a guided browser experience without becoming a shell, credential manager, remote execution service, or replacement for the wrapped vendor CLI.
 
 The wrapped CLI remains the operational authority. CLIHarbor owns the local orchestration boundary:
 
@@ -36,7 +36,7 @@ No daemon, Windows service, privileged helper, cloud backend, external database,
 
 ### Backend
 
-Go provides a self-contained Windows executable, standard-library HTTP/process/download primitives, embedded assets, and a portable core with narrow platform-specific process-control boundaries.
+Go provides a self-contained native executable on Windows and macOS, standard-library HTTP/process/download primitives, embedded assets, and a portable core with narrow platform-specific process-control boundaries.
 
 ### Frontend
 
@@ -273,13 +273,15 @@ requirements:
 
 Downloading a vendor executable is independent from authenticating it.
 
-## 14. Process execution and Windows lifecycle
+## 14. Process execution and platform lifecycle
 
 The executor starts the exact planned executable directly with `os/exec` and an argv slice. Ordinary execution never invokes CMD, PowerShell or POSIX shell command strings.
 
 Each run has a server-generated ID, neutral temporary working directory, execution deadline, bounded stdout/stderr, explicit cancellation, finite WaitDelay, and pre-launch executable identity revalidation.
 
 On Windows each run uses a Job Object. The target starts suspended, enters the Job Object before user code executes, then resumes. Cancellation/timeout tears down the contained process tree.
+
+On macOS/Linux, a dedicated process group is established before the child executes. Cancellation/timeout kills that group, and normal teardown removes surviving descendants within it. This covers descendants that retain the group; a deliberate `setsid`/process-group escape requires a stronger OS sandbox and is not equivalent to Windows Job Object containment.
 
 ## 15. Run state, streaming and structured output
 
@@ -327,7 +329,7 @@ Support diagnostics are allowlisted metadata rather than filesystem/environment 
 
 Production frontend assets and the first-party Conjur pack are embedded into the Go executable. The Windows evaluation artifact remains the primary user download.
 
-CI qualification includes frontend typecheck/lint/tests/build, generated-asset drift checks, Go formatting/vet/tests, race detection, module verification, dependency/vulnerability scans, production browser E2E, Windows/Linux quality jobs, deterministic Windows evaluation rebuilds, authoritative bundle verification, self-test, extracted-bundle preflight and Phase 0 evidence smoke.
+CI qualification includes frontend typecheck/lint/tests/build, generated-asset drift checks, Go formatting/vet/tests, race detection, module verification, dependency/vulnerability scans, production browser E2E, Windows/macOS/Linux quality jobs, deterministic Windows evaluation rebuilds, authoritative bundle verification, self-test, extracted-bundle preflight and Phase 0 evidence smoke.
 
 The evaluation checksum covers the CLIHarbor executable and external Phase 0 pack. Because the Conjur pack is embedded, its bytes are transitively part of the qualified executable. The optional Conjur vendor binary is downloaded later and independently verified against its own pinned upstream size/SHA before entering discovery.
 
@@ -376,3 +378,7 @@ trusted validated pack
 ```
 
 If a feature requires weakening that chain, it needs a new architecture/security decision rather than an ad hoc exception.
+
+## Windows and macOS development demo
+
+`go run ./tools/task demo` reuses the ordinary embedded executable build, builds `cmd/cliharbor-fixture`, and supplies the explicit example pack plus exact backend-only fixture path. It disables built-in packs and auto-setup for that process. The fixture returns synthetic scalar JSON, separate stderr, finite streaming output, and deliberate exit 42; it reads no vendor credentials or user files. The normal product pack set remains unchanged. See [Windows and macOS setup](CROSS_PLATFORM.md).
