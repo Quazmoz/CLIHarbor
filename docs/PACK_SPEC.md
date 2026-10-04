@@ -553,6 +553,8 @@ It does **not** grant shell, package-manager, arbitrary URL, arbitrary archive e
 
 A successful browser install deliberately requires a CLIHarbor restart before execution. Runtime discovery and execution authority stay immutable for the lifetime of the current server/run-manager instance.
 
+`cliharbor pack compatibility` renders these declarations together with each pack/tool platform and version constraint as static authoring metadata. It does not inspect the current host or infer CPU support from `runtime.platforms`; architecture appears only through exact managed artifact keys such as `windows-amd64`. The report performs no discovery, probe execution, network access, install, task execution, or vendor-session inspection.
+
 The browser may optionally request a custom install base directory. This is not arbitrary executable-path authority:
 
 - the base directory must be absolute and beneath the current user's home;

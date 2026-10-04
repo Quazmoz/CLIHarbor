@@ -136,7 +136,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Area | Implemented |
 | --- | --- |
 | Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
-| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, trusted fixed-probe `pack capture-help`, non-authoritative `pack draft`, non-executing `pack validate`, deterministic static `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
+| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, trusted fixed-probe `pack capture-help`, non-authoritative `pack draft`, non-executing `pack validate`, static `pack compatibility`, deterministic `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
 | First-party startup | Embedded reviewed Conjur, Docker, and kubectl read-only packs for zero-config `serve` and `doctor` |
 | Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
@@ -215,6 +215,14 @@ go run ./cmd/cliharbor pack lint ./acme.yaml
 ```
 
 Lint diagnostics have stable severity/code/source/object-path identities. Lint errors fail the command; warnings identify reviewable quality or coverage gaps without making valid future-gated pack metadata unusable. Lint never performs tool discovery, runs probes/tasks, reads authentication/session state, downloads dependencies, or uses an LLM. Ordinary shell metacharacters are not blanket-rejected merely for appearing inside trusted static argv because CLIHarbor executes the selected binary directly without a shell.
+
+Inspect the pack's declared compatibility metadata without touching the current machine or vendor CLI:
+
+```bash
+go run ./cmd/cliharbor pack compatibility ./acme.yaml
+```
+
+The compatibility matrix is deterministic static authoring output. It reports pack/tool, declared OS, version constraint, managed-install version, and exact managed artifact keys when present. It does not discover executables, run version/help probes or tasks, access vendor sessions, perform network I/O, or install anything. A platform row with no managed artifact does **not** imply CPU-architecture support; it only means the pack expects an existing reviewed vendor CLI for that declared platform.
 
 Generate a deterministic starter contract fixture from a validated pack without launching the declared CLI:
 

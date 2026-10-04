@@ -89,7 +89,7 @@ Commands:
   inventory     Collect bounded discovery-only Phase 0 evidence.
   self-test     Run vendor-free local runtime checks.
   version       Print build/version identity.
-  pack          Create, capture, validate, lint, test, or generate reviewed pack artifacts.
+  pack          Create, capture, summarize, validate, lint, test, or generate reviewed pack artifacts.
   evidence      Check or inspect exported Phase 0 evidence.
   diagnostics   Export privacy-preserving support metadata.
   evaluation    Verify an extracted Windows evaluation bundle.
@@ -156,7 +156,7 @@ Run vendor-free local runtime checks. Pack and tool override flags are intention
 Print CLIHarbor version, commit, and build identity.
 `,
 	"pack": `Usage:
-  cliharbor pack <init|draft|capture-help|validate|lint|test|generate-tests> ...
+  cliharbor pack <init|draft|capture-help|compatibility|validate|lint|test|generate-tests> ...
 
 Pack commands author and verify declarative reviewed CLI contracts. They do not grant arbitrary shell authority.
 
@@ -177,6 +177,12 @@ Draft reviewable command candidates from explicitly captured vendor help. Genera
 
 Execute exactly one fixed help probe already declared by an explicitly trusted pack and write sanitized output to a new file.
 The command never accepts arbitrary argv, never auto-provisions a tool, and the capture grants no runtime pack or command authority.
+`,
+	"pack compatibility": `Usage:
+  cliharbor pack compatibility <pack.yaml-or-directory> [...]
+
+Print deterministic declared platform/version/install metadata from validated packs.
+This is static authoring metadata only: no host discovery, executable, probe, task, network, or vendor-session state is accessed, and no installation is performed.
 `,
 	"pack validate": `Usage:
   cliharbor pack validate <pack.yaml-or-directory> [...]
@@ -361,7 +367,7 @@ func run(args []string) error {
 
 func runPackCommand(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: cliharbor pack <init|draft|capture-help|validate|lint|test|generate-tests> ...")
+		return fmt.Errorf("usage: cliharbor pack <init|draft|capture-help|compatibility|validate|lint|test|generate-tests> ...")
 	}
 	switch args[0] {
 	case "init":
@@ -447,6 +453,16 @@ func runPackCommand(args []string) error {
 			ProbeID:      *probeID,
 			OutputPath:   flags.Arg(0),
 		})
+	case "compatibility":
+		flags := flag.NewFlagSet("cliharbor pack compatibility", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() == 0 {
+			return fmt.Errorf("usage: cliharbor pack compatibility <pack.yaml-or-directory> [...]")
+		}
+		return app.ReportPackCompatibility(app.Options{Out: os.Stdout}, flags.Args())
 	case "validate":
 		flags := flag.NewFlagSet("cliharbor pack validate", flag.ContinueOnError)
 		flags.SetOutput(io.Discard)
