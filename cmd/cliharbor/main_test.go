@@ -306,8 +306,9 @@ func TestPrintHelpProvidesPackCompatibilitySafetyBoundary(t *testing.T) {
 	for _, want := range []string{
 		"declared platform/version/install metadata",
 		"static authoring metadata only",
-		"no discovery",
+		"no host discovery",
 		"vendor-session state",
+		"no installation is performed",
 	} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("pack compatibility help missing %q:\n%s", want, output.String())
