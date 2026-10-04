@@ -281,6 +281,8 @@ Packs remain privileged configuration even after validation.
 
 Only fixed pack-authored version/help probe argv is supported. Probes are shell-free, time/output bounded, lifecycle-contained and executable-identity checked. Raw version-probe text is not retained in normal discovery state.
 
+The pack-authoring `capture-help` command reuses this same boundary: it requires an explicitly supplied trusted pack, selects one existing `helpProbes` entry, accepts no arbitrary argv, performs no automatic tool provisioning, sanitizes bounded output, and writes only a new no-clobber authoring file. Captured text remains untrusted evidence and cannot itself grant pack, command, executable, or argv authority.
+
 ### T10 — Destructive command confusion
 
 The current planner/executor reject every risk class except `read`.

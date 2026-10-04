@@ -127,6 +127,8 @@ func TestPackCommandShapeFailsClosed(t *testing.T) {
 		{"pack"},
 		{"pack", "unknown"},
 		{"pack", "init"},
+		{"pack", "capture-help"},
+		{"pack", "capture-help", "--tool", "demo/tool", "--probe", "root", "capture.txt"},
 		{"pack", "validate"},
 		{"pack", "lint"},
 		{"pack", "test"},
@@ -215,6 +217,7 @@ func TestHelpRequestRecognizesOperatorHelpAtUsefulPositions(t *testing.T) {
 		{name: "command after option", args: []string{"serve", "--no-auto-setup", "--help"}, want: []string{"serve"}},
 		{name: "command with top-level option first", args: []string{"--no-auto-setup", "--help"}, want: nil},
 		{name: "nested command", args: []string{"pack", "init", "--help"}, want: []string{"pack", "init"}},
+		{name: "nested capture command", args: []string{"pack", "capture-help", "--help"}, want: []string{"pack", "capture-help"}},
 		{name: "nested command after options", args: []string{"pack", "init", "--id", "demo", "--help"}, want: []string{"pack", "init"}},
 		{name: "diagnostics nested", args: []string{"diagnostics", "export", "--pack-file", "demo.yaml", "--help"}, want: []string{"diagnostics", "export"}},
 	}
@@ -266,6 +269,23 @@ func TestPrintHelpProvidesNestedUsage(t *testing.T) {
 	}
 	if !strings.Contains(output.String(), "discovery-only pack scaffold") {
 		t.Fatalf("nested help missing safety scope:\n%s", output.String())
+	}
+}
+
+func TestPrintHelpProvidesPackCaptureHelpSafetyBoundary(t *testing.T) {
+	var output strings.Builder
+	if err := printHelp(&output, []string{"pack", "capture-help"}); err != nil {
+		t.Fatalf("printHelp(pack capture-help): %v", err)
+	}
+	for _, want := range []string{
+		"fixed help probe",
+		"explicitly trusted pack",
+		"never accepts arbitrary argv",
+		"grants no runtime pack or command authority",
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("pack capture-help help missing %q:\n%s", want, output.String())
+		}
 	}
 }
 

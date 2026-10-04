@@ -30,6 +30,10 @@ The built-in Docker and kubectl packs are covered without requiring Docker Engin
 
 `internal/app` and CLI coverage for `pack generate-tests` verifies that generated `cliharbor.packtest/v1` fixtures self-verify through the production planner, close the checked-in example pack's lint coverage, and also pass against the real reviewed Conjur pack without executing a vendor binary. Coverage includes deterministic success argv, boolean-switch activation, enum-map branches, integer min/max rejection, enum rejection, positional leading-dash rejection, no-clobber output, discovery-only/no-command refusal, and fail-closed behavior when bounded deterministic string synthesis cannot satisfy a declared pattern. Generated fixtures remain authoring scaffolds and require review against authoritative vendor evidence before adoption.
 
+### Stage 10 trusted help-capture checkpoint
+
+`internal/app` and CLI coverage for `pack capture-help` must prove that the authoring path executes only an explicitly trusted pack's fixed `helpProbes` argv through the existing discovery/identity/read-only-probe boundary. Regression coverage includes explicit-pack-source enforcement, exact `pack/tool` + probe selection, no arbitrary argv input, no auto-provisioning, bounded sanitized output, no-clobber publication, unknown tool/probe refusal, and a real helper-process round trip whose capture can feed `pack draft` while the resulting draft still contains zero executable commands. Captured help remains untrusted authoring evidence rather than pack authority.
+
 ### Phase 3 checkpoint
 
 `internal/discovery`, pack version-probe tests, app doctor tests, and CLI flag tests cover:

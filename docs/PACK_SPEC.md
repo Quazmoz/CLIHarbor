@@ -176,6 +176,8 @@ These are not browser tasks. An operator invokes one explicitly through the Phas
 
 Evidence probe execution is shell-free, non-interactive, time/output bounded, lifecycle-contained, and revalidates the discovered executable identity immediately before execution.
 
+For pack authoring, `cliharbor pack capture-help` may execute exactly one of these already-declared help probes from an explicitly supplied trusted pack and write its sanitized bounded output to a new no-clobber file. The authoring command does not accept arbitrary argv, does not load default packs implicitly, does not auto-provision tools, and does not convert captured text into runtime authority. Captured help remains untrusted evidence; `pack draft` can use it only to emit non-executable candidate comments that require human review.
+
 ## 9. Risk classes
 
 Declared risk values are:
