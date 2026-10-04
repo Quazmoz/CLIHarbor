@@ -26,8 +26,14 @@ runtime:
       install:
         version: 1.4.0
         artifacts:
+          windows-arm64:
+            url: https://downloads.example.com/alpha-arm64.exe
+            sha256: 1111111111111111111111111111111111111111111111111111111111111111
+            sizeBytes: 1235
+            format: executable
+            executableName: alpha.exe
           windows-amd64:
-            url: https://downloads.example.com/alpha.exe
+            url: https://downloads.example.com/alpha-amd64.exe
             sha256: 0000000000000000000000000000000000000000000000000000000000000000
             sizeBytes: 1234
             format: executable
@@ -76,7 +82,7 @@ func TestReportPackCompatibilityIsDeterministicAndStatic(t *testing.T) {
 	for _, want := range []string{
 		"SOURCE\tPACK\tPACK_VERSION\tTOOL\tPLATFORM\tVERSION_CONSTRAINT\tMANAGED_VERSION\tMANAGED_ARTIFACTS",
 		"\"alpha.yaml\"\talpha\t1.0.0\talpha\tlinux\t\">=1.2.0 <2.0.0\"\t<none>\tnone",
-		"\"alpha.yaml\"\talpha\t1.0.0\talpha\twindows\t\">=1.2.0 <2.0.0\"\t1.4.0\twindows-amd64",
+		"\"alpha.yaml\"\talpha\t1.0.0\talpha\twindows\t\">=1.2.0 <2.0.0\"\t1.4.0\twindows-amd64,windows-arm64",
 		"\"beta.yaml\"\tbeta\t1.0.0\tbeta\tdarwin\t<none>\t<none>\tnone",
 		"Static pack metadata only; no executable, host discovery, probe, task, network, or authentication/session state was accessed, and no installation was performed.",
 		"does not imply CPU-architecture support",
