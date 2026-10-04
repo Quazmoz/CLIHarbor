@@ -537,6 +537,8 @@ install:
 
 ZIP artifacts additionally declare one exact `archivePath`, the extracted executable SHA-256, and extracted executable size. Redirect hosts must be explicitly declared when the authoritative release endpoint redirects to another download origin.
 
+Pack validation rejects portable-install metadata before it can enter runtime authority when the artifact platform is outside `runtime.platforms`, the HTTPS source/redirect host shape is unsafe, the declared executable does not match the tool, format-specific fields are inconsistent, or a pinned install version falls outside the tool's declared `versionConstraint`.
+
 Install metadata grants only this narrow authority:
 
 - download one HTTPS artifact declared by a trusted pack;
