@@ -129,6 +129,7 @@ func TestPackCommandShapeFailsClosed(t *testing.T) {
 		{"pack", "init"},
 		{"pack", "capture-help"},
 		{"pack", "capture-help", "--tool", "demo/tool", "--probe", "root", "capture.txt"},
+		{"pack", "compatibility"},
 		{"pack", "validate"},
 		{"pack", "lint"},
 		{"pack", "test"},
@@ -182,6 +183,13 @@ func TestPackGenerateTestsCommand(t *testing.T) {
 	}
 }
 
+func TestPackCompatibilityCommand(t *testing.T) {
+	packPath := filepath.Join("..", "..", "packs", "example", "pack.yaml")
+	if err := run([]string{"pack", "compatibility", packPath}); err != nil {
+		t.Fatalf("run(pack compatibility) error = %v", err)
+	}
+}
+
 func TestPackLintCommand(t *testing.T) {
 	packPath := filepath.Join("..", "..", "packs", "example", "pack.yaml")
 	casesPath := filepath.Join("..", "..", "packs", "example", "packtest.json")
@@ -218,6 +226,7 @@ func TestHelpRequestRecognizesOperatorHelpAtUsefulPositions(t *testing.T) {
 		{name: "command with top-level option first", args: []string{"--no-auto-setup", "--help"}, want: nil},
 		{name: "nested command", args: []string{"pack", "init", "--help"}, want: []string{"pack", "init"}},
 		{name: "nested capture command", args: []string{"pack", "capture-help", "--help"}, want: []string{"pack", "capture-help"}},
+		{name: "nested compatibility command", args: []string{"pack", "compatibility", "--help"}, want: []string{"pack", "compatibility"}},
 		{name: "nested command after options", args: []string{"pack", "init", "--id", "demo", "--help"}, want: []string{"pack", "init"}},
 		{name: "diagnostics nested", args: []string{"diagnostics", "export", "--pack-file", "demo.yaml", "--help"}, want: []string{"diagnostics", "export"}},
 	}
@@ -288,6 +297,24 @@ func TestPrintHelpProvidesPackCaptureHelpSafetyBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestPrintHelpProvidesPackCompatibilitySafetyBoundary(t *testing.T) {
+	var output strings.Builder
+	if err := printHelp(&output, []string{"pack", "compatibility"}); err != nil {
+		t.Fatalf("printHelp(pack compatibility): %v", err)
+	}
+	for _, want := range []string{
+		"declared platform/version/install metadata",
+		"static authoring metadata only",
+		"no discovery",
+		"vendor-session state",
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("pack compatibility help missing %q:\n%s", want, output.String())
+		}
+	}
+}
+
 
 func TestPrintHelpRejectsUnknownTopicActionably(t *testing.T) {
 	var output strings.Builder
