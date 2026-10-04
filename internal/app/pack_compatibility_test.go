@@ -78,7 +78,7 @@ func TestReportPackCompatibilityIsDeterministicAndStatic(t *testing.T) {
 		"\"alpha.yaml\"\talpha\t1.0.0\talpha\tlinux\t\">=1.2.0 <2.0.0\"\t<none>\tnone",
 		"\"alpha.yaml\"\talpha\t1.0.0\talpha\twindows\t\">=1.2.0 <2.0.0\"\t1.4.0\twindows-amd64",
 		"\"beta.yaml\"\tbeta\t1.0.0\tbeta\tdarwin\t<none>\t<none>\tnone",
-		"Static pack metadata only; no executable, discovery, probe, task, network, install, or authentication/session state was accessed.",
+		"Static pack metadata only; no executable, host discovery, probe, task, network, or authentication/session state was accessed, and no installation was performed.",
 		"does not imply CPU-architecture support",
 	} {
 		if !strings.Contains(output, want) {
