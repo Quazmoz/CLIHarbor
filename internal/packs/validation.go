@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Quazmoz/CLIHarbor/schemas"
+	semver "github.com/Masterminds/semver/v3"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"gopkg.in/yaml.v3"
 )
@@ -335,6 +336,9 @@ func validateSemantics(pack Pack) error {
 				return validationError(ErrUnsafeExecutable, fmt.Sprintf("runtime.tools.%s.executableNames[%d]", toolID, i), "tool executable names must be basenames, not paths")
 			}
 		}
+		if err := validateToolInstall(pack, toolID, tool); err != nil {
+			return err
+		}
 	}
 
 	commandIDs := sortedKeys(pack.Commands)
@@ -410,6 +414,19 @@ func validateToolInstall(pack Pack, toolID string, tool Tool) error {
 	}
 
 	path := "runtime.tools." + toolID + ".install"
+	if tool.VersionConstraint != "" {
+		constraint, err := semver.NewConstraint(tool.VersionConstraint)
+		if err != nil {
+			return validationError(ErrSemantic, "runtime.tools."+toolID+".versionConstraint", "tool version constraint is invalid")
+		}
+		version, err := semver.NewVersion(tool.Install.Version)
+		if err != nil {
+			return validationError(ErrSemantic, path+".version", "managed install version is not valid semantic version data")
+		}
+		if !constraint.Check(version) {
+			return validationError(ErrSemantic, path+".version", "managed install version does not satisfy the tool versionConstraint")
+		}
+	}
 	platforms := make(map[string]struct{}, len(pack.Runtime.Platforms))
 	for _, platform := range pack.Runtime.Platforms {
 		platforms[platform] = struct{}{}
