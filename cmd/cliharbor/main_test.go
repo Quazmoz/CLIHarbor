@@ -316,7 +316,6 @@ func TestPrintHelpProvidesPackCompatibilitySafetyBoundary(t *testing.T) {
 	}
 }
 
-
 func TestPrintHelpRejectsUnknownTopicActionably(t *testing.T) {
 	var output strings.Builder
 	err := printHelp(&output, []string{"pack", "unknown"})
