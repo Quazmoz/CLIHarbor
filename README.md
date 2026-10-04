@@ -136,7 +136,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Area | Implemented |
 | --- | --- |
 | Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
-| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, non-executing `pack validate`, deterministic static `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
+| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, trusted fixed-probe `pack capture-help`, non-authoritative `pack draft`, non-executing `pack validate`, deterministic static `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
 | First-party startup | Embedded reviewed Conjur, Docker, and kubectl read-only packs for zero-config `serve` and `doctor` |
 | Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
@@ -176,6 +176,31 @@ go run ./cmd/cliharbor pack init \
 ```
 
 The scaffold intentionally contains **zero commands, zero help probes, and zero version probes**. CLIHarbor does not guess vendor syntax or silently turn discovered executables into browser actions.
+
+If authoritative vendor documentation establishes a safe fixed help invocation, add that argv explicitly under the tool's `helpProbes` metadata. CLIHarbor can then capture exactly that reviewed probe without accepting arbitrary argv:
+
+```bash
+go run ./cmd/cliharbor pack capture-help \
+  --pack-file ./acme.yaml \
+  --tool acme-cli/acme \
+  --probe root \
+  --tool-path acme-cli/acme=/absolute/path/to/acme \
+  ./acme-root-help.txt
+```
+
+The capture is sanitized, bounded, no-clobber authoring evidence only. It does not become trusted runtime input and does not add executable commands. You may feed it into the existing discovery-only draft helper:
+
+```bash
+go run ./cmd/cliharbor pack draft \
+  --id acme-cli-draft \
+  --name "Acme CLI Draft" \
+  --tool acme \
+  --executable acme \
+  --help-file ./acme-root-help.txt \
+  ./acme-draft.yaml
+```
+
+Candidate subcommands produced by `pack draft` remain comments only until a human reviews and authors deterministic command contracts.
 
 After adding only reviewed command definitions from authoritative documentation or captured evidence, validate the pack without executing the CLI:
 
