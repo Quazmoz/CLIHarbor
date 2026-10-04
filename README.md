@@ -200,7 +200,7 @@ go run ./cmd/cliharbor pack draft \
   ./acme-draft.yaml
 ```
 
-Candidate subcommands produced by `pack draft` remain comments only until a human reviews and authors deterministic command contracts.
+Candidate subcommand names and short safe descriptions produced by `pack draft` remain comments only until a human reviews and authors deterministic command contracts. Control-bearing or oversized descriptions are omitted rather than echoed into the draft.
 
 After adding only reviewed command definitions from authoritative documentation or captured evidence, validate the pack without executing the CLI:
 

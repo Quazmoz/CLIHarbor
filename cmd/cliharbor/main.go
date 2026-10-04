@@ -170,7 +170,7 @@ Create a discovery-only pack scaffold. No vendor commands or probes are guessed.
 	"pack draft": `Usage:
   cliharbor pack draft --id <id> --name <name> --tool <tool-id> --executable <basename> --help-file <captured-help.txt> [--platform <os>] <output.yaml>
 
-Draft reviewable command candidates from explicitly captured vendor help. Generated content still requires human review.
+Draft reviewable command names and bounded safe summaries from explicitly captured vendor help. Generated content remains comments only and still requires human review.
 `,
 	"pack capture-help": `Usage:
   cliharbor pack capture-help --pack-file <pack.yaml> [--pack-file <pack.yaml> ...] [--pack-dir <dir>] --tool <pack/tool> --probe <probe-id> [--tool-path <pack/tool=/absolute/path>] <output.txt>

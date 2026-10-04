@@ -34,6 +34,10 @@ The built-in Docker and kubectl packs are covered without requiring Docker Engin
 
 `internal/app` and CLI coverage for `pack capture-help` must prove that the authoring path executes only an explicitly trusted pack's fixed `helpProbes` argv through the existing discovery/identity/read-only-probe boundary. Regression coverage includes explicit-pack-source enforcement, exact `pack/tool` + probe selection, no arbitrary argv input, no auto-provisioning, bounded sanitized output, no-clobber publication, unknown tool/probe refusal, and a real helper-process round trip whose capture can feed `pack draft` while the resulting draft still contains zero executable commands. Captured help remains untrusted authoring evidence rather than pack authority.
 
+### Stage 10 richer-draft checkpoint
+
+`internal/app` coverage for `pack draft` verifies that candidate names and short help summaries remain YAML comments beside a valid `commands: {}` scaffold; aliases do not become additional authority; invalid command identifiers are ignored; descriptions with terminal controls or more than the bounded summary length are omitted; and generated drafts still declare no version/help probes or runnable commands. Captured help remains untrusted text even when its descriptions are preserved for human review.
+
 ### Stage 10 compatibility-matrix checkpoint
 
 `internal/app` and CLI coverage for `pack compatibility` verifies deterministic source-order-independent rows across validated packs/tools/platforms; exact version-constraint and managed-artifact reporting; explicit `none` behavior when a platform has no CLIHarbor-managed artifact; no inference of CPU-architecture compatibility from a platform declaration; and fail-closed handling for missing/invalid authoring sources. The command is static authoring inspection only and must not invoke discovery, executables, probes, tasks, network access, installation, or authentication/session state.

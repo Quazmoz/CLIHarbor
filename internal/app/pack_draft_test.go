@@ -75,17 +75,17 @@ func TestDraftPackGeneratesDiscoveryOnlyDraft(t *testing.T) {
 	for _, want := range []string{
 		"# Candidate subcommands parsed from captured help.",
 		"# These comments are non-authoritative and are never executable.",
-		"# - delete",
-		"# - describe",
-		"# - get",
-		"# - help",
-		"# - list",
+		"# - delete — Delete a resource",
+		"# - describe — Show details of a specific resource",
+		"# - get — Display one or many resources",
+		"# - help — Help about any command",
+		"# - list — List resources in a namespace",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("draft file missing %q:\n%s", want, text)
 		}
 	}
-	for _, rejected := range []string{"# - Weird", "# - status", "# - usage", "# - acme", "# - -h"} {
+	for _, rejected := range []string{"# - Weird", "# - ls", "# - status", "# - usage", "# - acme", "# - -h"} {
 		if strings.Contains(text, rejected) {
 			t.Fatalf("draft unexpectedly captured rejected candidate %q:\n%s", rejected, text)
 		}
@@ -105,5 +105,30 @@ func TestDraftPackGeneratesDiscoveryOnlyDraft(t *testing.T) {
 
 	if err := DraftPack(Options{Out: &bytes.Buffer{}}, config); err == nil {
 		t.Fatal("DraftPack() unexpectedly overwrote an existing draft")
+	}
+}
+
+func TestParseSubcommandCandidatesDropsUnsafeOrOversizedSummaries(t *testing.T) {
+	helpText := "Commands:\n" +
+		"  safe      Short safe summary\n" +
+		"  escaped   \x1b[31mterminal control\n" +
+		"  huge      " + strings.Repeat("x", maxDraftSummaryRunes+1) + "\n"
+
+	candidates := parseSubcommandCandidates(helpText)
+	if len(candidates) != 3 {
+		t.Fatalf("candidate count = %d, want 3: %#v", len(candidates), candidates)
+	}
+	got := make(map[string]string, len(candidates))
+	for _, candidate := range candidates {
+		got[candidate.Name] = candidate.Summary
+	}
+	if got["safe"] != "Short safe summary" {
+		t.Fatalf("safe summary = %q", got["safe"])
+	}
+	if got["escaped"] != "" {
+		t.Fatalf("control-bearing summary was retained: %q", got["escaped"])
+	}
+	if got["huge"] != "" {
+		t.Fatalf("oversized summary was retained: %q", got["huge"])
 	}
 }
