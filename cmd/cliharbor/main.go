@@ -182,7 +182,7 @@ The command never accepts arbitrary argv, never auto-provisions a tool, and the 
   cliharbor pack compatibility <pack.yaml-or-directory> [...]
 
 Print deterministic declared platform/version/install metadata from validated packs.
-This is static authoring metadata only: no discovery, executable, probe, task, network, install, or vendor-session state is accessed.
+This is static authoring metadata only: no host discovery, executable, probe, task, network, or vendor-session state is accessed, and no installation is performed.
 `,
 	"pack validate": `Usage:
   cliharbor pack validate <pack.yaml-or-directory> [...]
