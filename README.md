@@ -136,7 +136,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Area | Implemented |
 | --- | --- |
 | Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
-| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, trusted fixed-probe `pack capture-help`, non-authoritative `pack draft`, non-executing `pack validate`, deterministic static `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
+| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, trusted fixed-probe `pack capture-help`, non-authoritative `pack draft`, non-executing `pack validate`, static `pack compatibility`, deterministic `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
 | First-party startup | Embedded reviewed Conjur, Docker, and kubectl read-only packs for zero-config `serve` and `doctor` |
 | Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
