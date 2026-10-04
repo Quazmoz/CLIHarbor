@@ -215,6 +215,8 @@ Exit condition: Conjur, Docker, and kubectl execute approved read-only workflows
 Implemented:
 
 - `cliharbor pack init` discovery-only scaffolding for arbitrary approved executable basenames;
+- `cliharbor pack capture-help` for bounded sanitized capture of one explicitly trusted, pack-declared fixed help probe with no arbitrary argv or runtime-authority generation;
+- `cliharbor pack draft` for discovery-only candidate extraction from captured help; candidates remain YAML comments and are never runnable until reviewed command contracts are authored;
 - `cliharbor pack validate` hardened schema/semantic/security validation without executable execution;
 - `cliharbor pack lint` deterministic static security/quality diagnostics, with optional explicit contract-fixture coverage analysis and no executable/probe/session access;
 - `cliharbor pack test` bounded declarative contract cases through the production planner without executable/probe execution;
@@ -226,8 +228,8 @@ Implemented:
 Remaining candidates:
 
 - schema-aware editor;
-- help-tree capture;
-- draft generation from authoritative help/source;
+- multi-level help-tree traversal/capture beyond individually reviewed fixed probes;
+- richer draft generation from authoritative source while preserving non-executable output;
 - compatibility matrix.
 
 AI may help author **reviewable source artifacts**, but runtime execution must not depend on an LLM inventing security-sensitive commands.
