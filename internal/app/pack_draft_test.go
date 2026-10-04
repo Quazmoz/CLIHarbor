@@ -108,7 +108,6 @@ func TestDraftPackGeneratesDiscoveryOnlyDraft(t *testing.T) {
 	}
 }
 
-
 func TestParseSubcommandCandidatesDropsUnsafeOrOversizedSummaries(t *testing.T) {
 	helpText := "Commands:\n" +
 		"  safe      Short safe summary\n" +
