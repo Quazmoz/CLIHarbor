@@ -210,7 +210,7 @@ Exit condition: Conjur, Docker, and kubectl execute approved read-only workflows
 
 ## Stage 10 — Pack authoring tooling
 
-**Status: safe onboarding, static linting, planner-contract testing, and deterministic fixture generation implemented.**
+**Status: safe onboarding, static linting, declared compatibility reporting, planner-contract testing, and deterministic fixture generation implemented.**
 
 Implemented:
 
@@ -219,6 +219,7 @@ Implemented:
 - `cliharbor pack draft` for discovery-only candidate extraction from captured help; candidates remain YAML comments and are never runnable until reviewed command contracts are authored;
 - `cliharbor pack validate` hardened schema/semantic/security validation without executable execution;
 - `cliharbor pack lint` deterministic static security/quality diagnostics, with optional explicit contract-fixture coverage analysis and no executable/probe/session access;
+- `cliharbor pack compatibility` deterministic declared platform/version/managed-artifact reporting with no host discovery, probes, network, install, task, or vendor-session access and no inferred CPU support;
 - `cliharbor pack test` bounded declarative contract cases through the production planner without executable/probe execution;
 - `cliharbor pack generate-tests` bounded, no-clobber planner-contract fixture scaffolding with production-planner self-verification and no executable/probe/session access;
 - multi-source validation with duplicate-pack conflict detection;
@@ -230,7 +231,6 @@ Remaining candidates:
 - schema-aware editor;
 - multi-level help-tree traversal/capture beyond individually reviewed fixed probes;
 - richer draft generation from authoritative source while preserving non-executable output;
-- compatibility matrix.
 
 AI may help author **reviewable source artifacts**, but runtime execution must not depend on an LLM inventing security-sensitive commands.
 
