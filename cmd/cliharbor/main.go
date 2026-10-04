@@ -89,7 +89,7 @@ Commands:
   inventory     Collect bounded discovery-only Phase 0 evidence.
   self-test     Run vendor-free local runtime checks.
   version       Print build/version identity.
-  pack          Create, validate, lint, test, or generate reviewed pack artifacts.
+  pack          Create, capture, validate, lint, test, or generate reviewed pack artifacts.
   evidence      Check or inspect exported Phase 0 evidence.
   diagnostics   Export privacy-preserving support metadata.
   evaluation    Verify an extracted Windows evaluation bundle.
@@ -156,7 +156,7 @@ Run vendor-free local runtime checks. Pack and tool override flags are intention
 Print CLIHarbor version, commit, and build identity.
 `,
 	"pack": `Usage:
-  cliharbor pack <init|draft|validate|lint|test|generate-tests> ...
+  cliharbor pack <init|draft|capture-help|validate|lint|test|generate-tests> ...
 
 Pack commands author and verify declarative reviewed CLI contracts. They do not grant arbitrary shell authority.
 
@@ -171,6 +171,12 @@ Create a discovery-only pack scaffold. No vendor commands or probes are guessed.
   cliharbor pack draft --id <id> --name <name> --tool <tool-id> --executable <basename> --help-file <captured-help.txt> [--platform <os>] <output.yaml>
 
 Draft reviewable command candidates from explicitly captured vendor help. Generated content still requires human review.
+`,
+	"pack capture-help": `Usage:
+  cliharbor pack capture-help --pack-file <pack.yaml> [--pack-file <pack.yaml> ...] [--pack-dir <dir>] --tool <pack/tool> --probe <probe-id> [--tool-path <pack/tool=/absolute/path>] <output.txt>
+
+Execute exactly one fixed help probe already declared by an explicitly trusted pack and write sanitized output to a new file.
+The command never accepts arbitrary argv, never auto-provisions a tool, and the capture grants no runtime pack or command authority.
 `,
 	"pack validate": `Usage:
   cliharbor pack validate <pack.yaml-or-directory> [...]
@@ -355,7 +361,7 @@ func run(args []string) error {
 
 func runPackCommand(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: cliharbor pack <init|draft|validate|lint|test|generate-tests> ...")
+		return fmt.Errorf("usage: cliharbor pack <init|draft|capture-help|validate|lint|test|generate-tests> ...")
 	}
 	switch args[0] {
 	case "init":
@@ -405,6 +411,41 @@ func runPackCommand(args []string) error {
 			Platforms:      append([]string(nil), platforms...),
 			HelpPath:       *helpFile,
 			OutputPath:     flags.Arg(0),
+		})
+	case "capture-help":
+		flags := flag.NewFlagSet("cliharbor pack capture-help", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		packDirectory := flags.String("pack-dir", "", "explicit trusted directory containing pack YAML files")
+		toolSelector := flags.String("tool", "", "trusted tool selector as pack/tool")
+		probeID := flags.String("probe", "", "pack-declared help probe id")
+		var packFiles stringList
+		var toolPaths stringList
+		flags.Var(&packFiles, "pack-file", "explicit trusted pack YAML file (repeatable)")
+		flags.Var(&toolPaths, "tool-path", "tool override as pack/tool=/absolute/path (repeatable)")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() != 1 || flags.Arg(0) == "" || *toolSelector == "" || *probeID == "" {
+			return fmt.Errorf("usage: cliharbor pack capture-help --pack-file <pack.yaml> [--pack-file <pack.yaml> ...] [--pack-dir <dir>] --tool <pack/tool> --probe <probe-id> [--tool-path <pack/tool=/absolute/path>] <output.txt>")
+		}
+		if len(packFiles) == 0 && *packDirectory == "" {
+			return fmt.Errorf("pack capture-help requires at least one explicit --pack-file or --pack-dir trust source")
+		}
+		overrides, err := parseToolOverrides(toolPaths)
+		if err != nil {
+			return err
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return app.CapturePackHelp(ctx, app.Options{
+			Out:           os.Stdout,
+			PackFiles:     append([]string(nil), packFiles...),
+			PackDirectory: *packDirectory,
+			ToolOverrides: overrides,
+		}, app.PackHelpCaptureConfig{
+			ToolSelector: *toolSelector,
+			ProbeID:      *probeID,
+			OutputPath:   flags.Arg(0),
 		})
 	case "validate":
 		flags := flag.NewFlagSet("cliharbor pack validate", flag.ContinueOnError)
