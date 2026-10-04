@@ -85,7 +85,7 @@ func TestDraftPackGeneratesDiscoveryOnlyDraft(t *testing.T) {
 			t.Fatalf("draft file missing %q:\n%s", want, text)
 		}
 	}
-	for _, rejected := range []string{"# - Weird", "# - status", "# - usage", "# - acme", "# - -h"} {
+	for _, rejected := range []string{"# - Weird", "# - ls", "# - status", "# - usage", "# - acme", "# - -h"} {
 		if strings.Contains(text, rejected) {
 			t.Fatalf("draft unexpectedly captured rejected candidate %q:\n%s", rejected, text)
 		}
