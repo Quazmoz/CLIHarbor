@@ -13,6 +13,7 @@ import (
 type packCompatibilityRow struct {
 	source            string
 	packID            string
+	packVersion       string
 	toolID            string
 	platform          string
 	versionConstraint string
@@ -36,7 +37,7 @@ func ReportPackCompatibility(options Options, paths []string) error {
 
 	if _, err := fmt.Fprintln(
 		options.Out,
-		"SOURCE\tPACK\tTOOL\tPLATFORM\tVERSION_CONSTRAINT\tMANAGED_VERSION\tMANAGED_ARTIFACTS",
+		"SOURCE\tPACK\tPACK_VERSION\tTOOL\tPLATFORM\tVERSION_CONSTRAINT\tMANAGED_VERSION\tMANAGED_ARTIFACTS",
 	); err != nil {
 		return err
 	}
@@ -55,9 +56,10 @@ func ReportPackCompatibility(options Options, paths []string) error {
 		}
 		if _, err := fmt.Fprintf(
 			options.Out,
-			"%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			filepath.Base(row.source),
+			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			strconv.Quote(filepath.Base(row.source)),
 			row.packID,
+			row.packVersion,
 			row.toolID,
 			row.platform,
 			constraint,
@@ -97,12 +99,12 @@ func collectPackCompatibilityRows(registry *packs.Registry) []packCompatibilityR
 				row := packCompatibilityRow{
 					source:            loaded.Source.Name,
 					packID:            pack.Metadata.ID,
+					packVersion:       pack.Metadata.Version,
 					toolID:            namedTool.ID,
 					platform:          platform,
 					versionConstraint: namedTool.Tool.VersionConstraint,
 				}
 				if namedTool.Tool.Install != nil {
-					row.managedVersion = namedTool.Tool.Install.Version
 					prefix := platform + "-"
 					for key := range namedTool.Tool.Install.Artifacts {
 						if strings.HasPrefix(key, prefix) {
@@ -110,6 +112,9 @@ func collectPackCompatibilityRows(registry *packs.Registry) []packCompatibilityR
 						}
 					}
 					sort.Strings(row.managedArtifacts)
+					if len(row.managedArtifacts) != 0 {
+						row.managedVersion = namedTool.Tool.Install.Version
+					}
 				}
 				rows = append(rows, row)
 			}
