@@ -72,7 +72,7 @@ func ReportPackCompatibility(options Options, paths []string) error {
 
 	if _, err := fmt.Fprintf(
 		options.Out,
-		"Reported %d declared compatibility row(s) from %d pack(s). Static pack metadata only; no executable, discovery, probe, task, network, install, or authentication/session state was accessed.\n",
+		"Reported %d declared compatibility row(s) from %d pack(s). Static pack metadata only; no executable, host discovery, probe, task, network, or authentication/session state was accessed, and no installation was performed.\n",
 		len(rows),
 		len(registry.Packs()),
 	); err != nil {
