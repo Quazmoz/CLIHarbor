@@ -35,6 +35,7 @@ function searchableText(task: Task): string {
     task.packId,
     task.toolId,
     task.commandId,
+    task.risk,
   ]
     .join(' ')
     .toLocaleLowerCase();
@@ -79,6 +80,9 @@ function TaskSection({
                   <span className="task-row-title">{task.name}</span>
                   <span className="task-row-meta">{task.packName}</span>
                   {task.description && <span className="task-row-description">{task.description}</span>}
+                  <span className={"task-risk-badge task-risk-badge--" + task.risk}>
+                    {task.risk === 'read' ? 'Read' : task.risk === 'change' ? 'Change · approval required' : 'Destructive · approval required'}
+                  </span>
                   {task.requiresAuth && <span className="task-auth-badge">Sign-in required</span>}
                 </button>
                 <button
