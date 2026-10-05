@@ -11,6 +11,7 @@ const tasks: Task[] = [
     name: 'Inspect resource',
     description: 'Read metadata for a resource',
     toolId: 'conjur',
+    risk: 'read',
     requiresAuth: true,
     inputs: [],
   },
@@ -21,6 +22,7 @@ const tasks: Task[] = [
     name: 'Inspect resource',
     description: 'Check another catalog',
     toolId: 'idsec',
+    risk: 'read',
     inputs: [],
   },
   {
@@ -30,6 +32,7 @@ const tasks: Task[] = [
     name: '<img id="pwn" onerror="alert(1)">',
     description: '<script>window.pwned=true</script>',
     toolId: 'idsec',
+    risk: 'read',
     inputs: [],
   },
 ];

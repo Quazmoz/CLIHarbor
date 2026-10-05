@@ -359,6 +359,19 @@ func validateSemantics(pack Pack) error {
 			}
 			inputs[input.ID] = input
 		}
+		switch command.Risk {
+		case RiskChange, RiskDestructive:
+			if command.Impact == nil {
+				return validationError(ErrSemantic, path+".impact", "change and destructive commands require explicit mutation impact metadata")
+			}
+			if err := validateImpact(*command.Impact, inputs, path+".impact"); err != nil {
+				return err
+			}
+		case RiskRead, RiskCredentialSensitive, RiskInteractive:
+			if command.Impact != nil {
+				return validationError(ErrSemantic, path+".impact", "mutation impact metadata is only valid for change or destructive commands")
+			}
+		}
 		for index, arg := range command.Argv {
 			if err := validateArgument(arg, inputs, fmt.Sprintf("%s.argv[%d]", path, index)); err != nil {
 				return err
@@ -403,6 +416,41 @@ func validateSemantics(pack Pack) error {
 		}
 		if err := validateSessionCheck(pack, toolID, *tool.SessionCheck); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func validateImpact(impact Impact, inputs map[string]Input, path string) error {
+	input, ok := inputs[impact.TargetInput]
+	if !ok {
+		return validationError(ErrSemantic, path+".targetInput", "impact target references an undeclared input")
+	}
+	if !input.Required {
+		return validationError(ErrSemantic, path+".targetInput", "impact target input must be required")
+	}
+	switch input.Type {
+	case InputString, InputEnum, InputInteger:
+	default:
+		return validationError(ErrSemantic, path+".targetInput", "impact target must be a scalar string, enum, or integer input")
+	}
+	if impact.Scope != ImpactScopeSingle && impact.Scope != ImpactScopeMultiple {
+		return validationError(ErrSemantic, path+".scope", "impact scope must be single or multiple")
+	}
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "targetLabel", value: impact.TargetLabel},
+		{name: "effect", value: impact.Effect},
+	} {
+		if strings.TrimSpace(field.value) != field.value || field.value == "" {
+			return validationError(ErrSemantic, path+"."+field.name, "impact display text must be non-empty without leading or trailing whitespace")
+		}
+		for _, character := range field.value {
+			if character <= 0x1f || character == 0x7f {
+				return validationError(ErrSemantic, path+"."+field.name, "impact display text must not contain control characters")
+			}
 		}
 	}
 	return nil

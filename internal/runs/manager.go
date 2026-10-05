@@ -45,11 +45,13 @@ const (
 type ErrorCode string
 
 const (
-	ErrInvalidRequest  ErrorCode = "invalid_request"
-	ErrToolUnavailable ErrorCode = "tool_unavailable"
-	ErrToolChanged     ErrorCode = "tool_changed"
-	ErrPolicyBlocked   ErrorCode = "policy_blocked"
-	ErrCapacity        ErrorCode = "capacity"
+	ErrInvalidRequest     ErrorCode = "invalid_request"
+	ErrToolUnavailable    ErrorCode = "tool_unavailable"
+	ErrToolChanged        ErrorCode = "tool_changed"
+	ErrPolicyBlocked      ErrorCode = "policy_blocked"
+	ErrContextUnavailable ErrorCode = "context_unavailable"
+	ErrApprovalRequired   ErrorCode = "approval_required"
+	ErrCapacity           ErrorCode = "capacity"
 	ErrNotFound        ErrorCode = "not_found"
 	ErrClosed          ErrorCode = "closed"
 	ErrInvalidCursor   ErrorCode = "invalid_cursor"
@@ -68,17 +70,22 @@ type Request struct {
 	PackID    string
 	CommandID string
 	Values    map[string]json.RawMessage
+	Approval  *ApprovalSubmission
 }
 
 // Preview is a non-executable representation of the exact trusted plan.
 // It deliberately omits executable paths and filesystem identity.
 type Preview struct {
-	PackID         string   `json:"packId"`
-	CommandID      string   `json:"commandId"`
-	ToolID         string   `json:"toolId"`
-	ToolVersion    string   `json:"toolVersion,omitempty"`
-	ExecutableName string   `json:"executableName"`
-	Args           []string `json:"args"`
+	PackID         string            `json:"packId"`
+	CommandID      string            `json:"commandId"`
+	ToolID         string            `json:"toolId"`
+	ToolVersion    string            `json:"toolVersion,omitempty"`
+	ExecutableName string            `json:"executableName"`
+	Args           []string          `json:"args"`
+	Risk           packs.Risk        `json:"risk"`
+	Impact         *MutationImpact   `json:"impact,omitempty"`
+	Context        *ExecutionContext `json:"context,omitempty"`
+	Approval       *ApprovalChallenge `json:"approval,omitempty"`
 }
 
 type Event struct {
@@ -137,7 +144,12 @@ type Config struct {
 	MaxOutputBytesPerStream int64
 	MaxEventBytesPerRun     int64
 	MaxEventsPerRun         int
+	ApprovalTTL             time.Duration
+	MaxApprovals            int
+	Now                     func() time.Time
 	NewRunID                func() (string, error)
+	NewApprovalID           func() (string, error)
+	ResolveExecutionContext func(planner.Plan) (ExecutionContext, error)
 }
 
 type Manager struct {
@@ -151,6 +163,7 @@ type Manager struct {
 	mu        sync.Mutex
 	runs      map[string]*record
 	order     []string
+	approvals map[string]approvalRecord
 	active    int
 	closed    bool
 	waitGroup sync.WaitGroup
@@ -216,12 +229,24 @@ func NewManager(parent context.Context, registry *packs.Registry, snapshot disco
 	if config.MaxEventsPerRun <= 0 {
 		config.MaxEventsPerRun = defaultMaxEvents
 	}
+	if config.ApprovalTTL <= 0 {
+		config.ApprovalTTL = defaultApprovalTTL
+	}
+	if config.MaxApprovals <= 0 {
+		config.MaxApprovals = defaultMaxApprovals
+	}
+	if config.Now == nil {
+		config.Now = time.Now
+	}
 	minEventBytes := config.MaxOutputBytesPerStream * 2
 	if config.MaxEventBytesPerRun < minEventBytes {
 		return nil, fmt.Errorf("max event bytes per run must cover both output streams")
 	}
 	if config.NewRunID == nil {
 		config.NewRunID = randomRunID
+	}
+	if config.NewApprovalID == nil {
+		config.NewApprovalID = randomRunID
 	}
 
 	ctx, cancel := context.WithCancel(parent)
@@ -232,6 +257,7 @@ func NewManager(parent context.Context, registry *packs.Registry, snapshot disco
 		ctx:       ctx,
 		cancel:    cancel,
 		runs:      make(map[string]*record),
+		approvals: make(map[string]approvalRecord),
 	}, nil
 }
 
@@ -256,14 +282,29 @@ func (m *Manager) Preview(request Request) (Preview, error) {
 		return Preview{}, classifyPlannerError(err)
 	}
 
-	return Preview{
+	preview := Preview{
 		PackID:         plan.PackID,
 		CommandID:      plan.CommandID,
 		ToolID:         plan.ToolID,
 		ToolVersion:    plan.ToolVersion,
 		ExecutableName: plan.ExecutableName,
 		Args:           append([]string(nil), plan.Args...),
-	}, nil
+		Risk:           plan.Risk,
+		Impact:         mutationImpact(plan),
+	}
+	if requiresApproval(plan) {
+		context, err := m.executionContextFor(plan)
+		if err != nil {
+			return Preview{}, err
+		}
+		approval, err := m.issueApproval(plan, context)
+		if err != nil {
+			return Preview{}, err
+		}
+		preview.Context = &context
+		preview.Approval = approval
+	}
+	return preview, nil
 }
 
 func (m *Manager) Start(request Request) (Snapshot, error) {
@@ -290,6 +331,18 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 		return Snapshot{}, classifyPlannerError(err)
 	}
 
+	var approvalFingerprintValue [32]byte
+	if requiresApproval(plan) {
+		context, err := m.executionContextFor(plan)
+		if err != nil {
+			return Snapshot{}, err
+		}
+		approvalFingerprintValue, err = approvalFingerprint(plan, context)
+		if err != nil {
+			return Snapshot{}, fmt.Errorf("fingerprint mutation approval")
+		}
+	}
+
 	runID, err := m.config.NewRunID()
 	if err != nil || !validRunID(runID) {
 		return Snapshot{}, fmt.Errorf("generate run identifier")
@@ -311,6 +364,12 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 	if _, exists := m.runs[runID]; exists {
 		m.mu.Unlock()
 		return Snapshot{}, fmt.Errorf("generated duplicate run identifier")
+	}
+	if requiresApproval(plan) {
+		if err := m.consumeApprovalLocked(approvalFingerprintValue, request.Approval, m.config.Now()); err != nil {
+			m.mu.Unlock()
+			return Snapshot{}, err
+		}
 	}
 
 	runCtx, cancel := context.WithCancel(m.ctx)
@@ -470,6 +529,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		m.closed = true
 		m.cancel()
 	}
+	clear(m.approvals)
 	m.mu.Unlock()
 
 	done := make(chan struct{})

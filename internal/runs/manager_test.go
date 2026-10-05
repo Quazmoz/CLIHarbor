@@ -312,7 +312,7 @@ func TestManagerFailsClosedOnPlannerPolicyAndOutputLimit(t *testing.T) {
 		NewRunID:                fixedRunIDs(strings.Repeat("1", 32)),
 	})
 
-	_, err := manager.Start(Request{PackID: "fixture", CommandID: "change"})
+	_, err := manager.Start(Request{PackID: "fixture", CommandID: "blocked"})
 	assertRunCode(t, err, ErrPolicyBlocked)
 
 	run, err := manager.Start(Request{PackID: "fixture", CommandID: "flood"})
@@ -584,6 +584,40 @@ func managerFixture(t *testing.T) (*packs.Registry, discovery.Snapshot) {
 			},
 			"change": {
 				Name: "Change", Tool: "fixture", Risk: packs.RiskChange,
+				Impact: &packs.Impact{
+					TargetInput: "target", TargetLabel: "Target", Effect: "Changes one fixture target.", Scope: packs.ImpactScopeSingle,
+				},
+				Inputs: []packs.Input{{
+					ID: "target", Type: packs.InputString, Label: "Target", Required: true,
+					Validation: packs.InputValidation{MaxLength: &maxLength, DisallowLeadingDash: true},
+				}},
+				Argv: []packs.Argument{
+					{Literal: "-test.run=^TestManagerHelperProcess$"},
+					{Literal: "--"},
+					{Literal: "echo"},
+					{Flag: &packs.FlagArgument{Name: "--query", ValueFrom: "target"}},
+				},
+				Output: packs.Output{Mode: packs.OutputRaw},
+			},
+			"bulk-delete": {
+				Name: "Bulk delete", Tool: "fixture", Risk: packs.RiskDestructive,
+				Impact: &packs.Impact{
+					TargetInput: "target", TargetLabel: "Target group", Effect: "Deletes multiple fixture relationships.", Scope: packs.ImpactScopeMultiple,
+				},
+				Inputs: []packs.Input{{
+					ID: "target", Type: packs.InputString, Label: "Target", Required: true,
+					Validation: packs.InputValidation{MaxLength: &maxLength, DisallowLeadingDash: true},
+				}},
+				Argv: []packs.Argument{
+					{Literal: "-test.run=^TestManagerHelperProcess$"},
+					{Literal: "--"},
+					{Literal: "echo"},
+					{Flag: &packs.FlagArgument{Name: "--query", ValueFrom: "target"}},
+				},
+				Output: packs.Output{Mode: packs.OutputRaw},
+			},
+			"blocked": {
+				Name: "Blocked", Tool: "fixture", Risk: packs.RiskCredentialSensitive,
 				Argv:   []packs.Argument{{Literal: "never-executed"}},
 				Output: packs.Output{Mode: packs.OutputRaw},
 			},

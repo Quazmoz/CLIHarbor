@@ -233,8 +233,8 @@ func TestBuildBlocksPoliciesNotImplementedYet(t *testing.T) {
 		secret       bool
 		code         ErrorCode
 	}{
-		{name: "change", risk: packs.RiskChange, code: ErrRiskPolicy},
-		{name: "destructive", risk: packs.RiskDestructive, code: ErrRiskPolicy},
+		{name: "change without impact", risk: packs.RiskChange, code: ErrInvalidPlanState},
+		{name: "destructive without impact", risk: packs.RiskDestructive, code: ErrInvalidPlanState},
 		{name: "interactive", risk: packs.RiskInteractive, code: ErrRiskPolicy},
 		{name: "credential sensitive", risk: packs.RiskCredentialSensitive, code: ErrRiskPolicy},
 		{name: "auth required", risk: packs.RiskRead, requiresAuth: true, code: ErrAuthPolicy},

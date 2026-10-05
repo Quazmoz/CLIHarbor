@@ -33,6 +33,7 @@ const tasks: Task[] = [
     commandId: 'whoami',
     name: 'Current identity',
     toolId: 'conjur',
+    risk: 'read',
     toolVersion: '9.3.1',
     requiresAuth: true,
     inputs: [],
@@ -43,6 +44,7 @@ const tasks: Task[] = [
     commandId: 'containers',
     name: 'List containers',
     toolId: 'docker',
+    risk: 'read',
     inputs: [],
   },
 ];

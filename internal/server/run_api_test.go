@@ -234,6 +234,34 @@ func TestRunAPIFailsClosedOnExecutionAuthorityFieldsAndMalformedJSON(t *testing.
 	}
 }
 
+func TestRunAPICarriesOnlyStructuredApprovalFieldsToBackend(t *testing.T) {
+	service := &fakeRunService{
+		snapshot: runs.Snapshot{RunID: strings.Repeat("e", 32), Status: runs.StatusRunning},
+	}
+	s := newTestServer(t, Config{Runs: service})
+	client := sessionClient(t)
+	bootstrap(t, client, s)
+	csrf := fetchStatus(t, client, s).CSRFToken
+
+	body := []byte(`{"packId":"fixture","commandId":"delete","values":{"target":"ops"},"approval":{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","confirmation":"DELETE MULTIPLE: ops"}}`)
+	response := doAuthorizedRunPost(t, client, s, csrf, "/api/v1/runs", body)
+	response.Body.Close()
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusAccepted)
+	}
+	request := service.lastRequest()
+	if request.Approval == nil || request.Approval.ID != strings.Repeat("a", 32) || request.Approval.Confirmation != "DELETE MULTIPLE: ops" {
+		t.Fatalf("approval request = %#v", request.Approval)
+	}
+
+	malformed := []byte(`{"packId":"fixture","commandId":"delete","approval":{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","confirmation":"DELETE MULTIPLE: ops","executablePath":"C:\\evil.exe"}}`)
+	response = doAuthorizedRunPost(t, client, s, csrf, "/api/v1/runs", malformed)
+	response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("nested approval authority status = %d, want %d", response.StatusCode, http.StatusBadRequest)
+	}
+}
+
 func TestRunAPIRejectsMalformedUTF8BeforePlanning(t *testing.T) {
 	service := &fakeRunService{
 		snapshot: runs.Snapshot{RunID: strings.Repeat("d", 32), Status: runs.StatusRunning},
@@ -287,6 +315,8 @@ func TestRunAPIMapsStableOperatorErrorsWithoutInternalDetails(t *testing.T) {
 		{name: "tool unavailable", runErr: &runs.Error{Code: runs.ErrToolUnavailable}, wantStatus: http.StatusConflict, wantCode: apperror.CodeToolUnavailable},
 		{name: "tool changed", runErr: &runs.Error{Code: runs.ErrToolChanged}, wantStatus: http.StatusConflict, wantCode: apperror.CodeToolChanged},
 		{name: "policy blocked", runErr: &runs.Error{Code: runs.ErrPolicyBlocked}, wantStatus: http.StatusForbidden, wantCode: apperror.CodeCommandBlocked},
+		{name: "approval required", runErr: &runs.Error{Code: runs.ErrApprovalRequired}, wantStatus: http.StatusConflict, wantCode: apperror.CodeApprovalRequired},
+		{name: "context unavailable", runErr: &runs.Error{Code: runs.ErrContextUnavailable}, wantStatus: http.StatusConflict, wantCode: apperror.CodeExecutionContextUnavailable},
 		{name: "capacity", runErr: &runs.Error{Code: runs.ErrCapacity}, wantStatus: http.StatusTooManyRequests, wantCode: apperror.CodeRunCapacity},
 		{name: "closed", runErr: &runs.Error{Code: runs.ErrClosed}, wantStatus: http.StatusServiceUnavailable, wantCode: apperror.CodeRuntimeClosed},
 	} {
@@ -386,6 +416,10 @@ func (f *fakeRunService) Start(request runs.Request) (runs.Snapshot, error) {
 		PackID:    request.PackID,
 		CommandID: request.CommandID,
 		Values:    make(map[string]json.RawMessage, len(request.Values)),
+	}
+	if request.Approval != nil {
+		approval := *request.Approval
+		cloned.Approval = &approval
 	}
 	for key, value := range request.Values {
 		cloned.Values[key] = append(json.RawMessage(nil), value...)

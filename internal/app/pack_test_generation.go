@@ -318,8 +318,14 @@ func generatePackTestDocument(registry *packs.Registry) (packTestDocument, error
 	return document, nil
 }
 
+// plannerAdmitsRisk mirrors planner.Build: change/destructive plans are built
+// but still need a backend approval before the run manager executes them.
+func plannerAdmitsRisk(risk packs.Risk) bool {
+	return risk == packs.RiskRead || risk == packs.RiskChange || risk == packs.RiskDestructive
+}
+
 func generatedPolicyRejection(command packs.Command) (planner.ErrorCode, bool) {
-	if command.Risk != packs.RiskRead {
+	if !plannerAdmitsRisk(command.Risk) {
 		return planner.ErrRiskPolicy, true
 	}
 	if command.Requirements.RequiresAuth && command.Requirements.AuthMode != packs.AuthModeVendorSession {

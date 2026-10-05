@@ -23,6 +23,7 @@ const tasks: Task[] = [
     commandId: 'inspect',
     name: 'Inspect resources',
     toolId: 'fixture',
+    risk: 'read',
     toolVersion: '1.2.3',
     inputs: [],
   },
@@ -32,6 +33,7 @@ const tasks: Task[] = [
     commandId: 'older',
     name: 'Older task',
     toolId: 'fixture',
+    risk: 'read',
     inputs: [],
   },
 ];

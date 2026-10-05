@@ -10,6 +10,7 @@ type taskCatalog struct {
 	tasks                     []server.Task
 	tools                     []server.ToolDiagnostic
 	credentialLoginCapability func() (string, string, server.CredentialLoginCapability, bool)
+	taskAvailability          func(string, string) bool
 }
 
 func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *taskCatalog {
@@ -76,8 +77,17 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 				Description:  command.Description,
 				ToolID:       command.Tool,
 				ToolVersion:  tool.Version,
+				Risk:         string(command.Risk),
 				RequiresAuth: command.Requirements.RequiresAuth,
 				Inputs:       make([]server.TaskInput, len(command.Inputs)),
+			}
+			if command.Impact != nil {
+				task.Impact = &server.TaskImpact{
+					TargetInput: command.Impact.TargetInput,
+					TargetLabel: command.Impact.TargetLabel,
+					Effect:      command.Impact.Effect,
+					Scope:       string(command.Impact.Scope),
+				}
 			}
 			for i, input := range command.Inputs {
 				task.Inputs[i] = server.TaskInput{
@@ -103,7 +113,12 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 }
 
 func commandBrowserRunnable(command packs.Command) bool {
-	if command.Risk != packs.RiskRead || command.Output.Sensitivity.ContainsSecrets {
+	if command.Output.Sensitivity.ContainsSecrets {
+		return false
+	}
+	switch command.Risk {
+	case packs.RiskRead, packs.RiskChange, packs.RiskDestructive:
+	default:
 		return false
 	}
 	return !command.Requirements.RequiresAuth || command.Requirements.AuthMode == packs.AuthModeVendorSession
@@ -136,20 +151,34 @@ func (c *taskCatalog) ListTasks() []server.Task {
 	if c == nil {
 		return nil
 	}
-	out := make([]server.Task, len(c.tasks))
-	for i, task := range c.tasks {
-		out[i] = task
-		out[i].Inputs = make([]server.TaskInput, len(task.Inputs))
-		for j, input := range task.Inputs {
-			out[i].Inputs[j] = input
-			out[i].Inputs[j].Validation.Min = cloneInt64Pointer(input.Validation.Min)
-			out[i].Inputs[j].Validation.Max = cloneInt64Pointer(input.Validation.Max)
-			out[i].Inputs[j].Validation.MinLength = cloneIntPointer(input.Validation.MinLength)
-			out[i].Inputs[j].Validation.MaxLength = cloneIntPointer(input.Validation.MaxLength)
-			out[i].Inputs[j].Validation.Enum = append([]string(nil), input.Validation.Enum...)
+	out := make([]server.Task, 0, len(c.tasks))
+	for _, task := range c.tasks {
+		if c.taskAvailability != nil && !c.taskAvailability(task.PackID, task.CommandID) {
+			continue
 		}
+		cloned := task
+		if task.Impact != nil {
+			impact := *task.Impact
+			cloned.Impact = &impact
+		}
+		cloned.Inputs = make([]server.TaskInput, len(task.Inputs))
+		for j, input := range task.Inputs {
+			cloned.Inputs[j] = input
+			cloned.Inputs[j].Validation.Min = cloneInt64Pointer(input.Validation.Min)
+			cloned.Inputs[j].Validation.Max = cloneInt64Pointer(input.Validation.Max)
+			cloned.Inputs[j].Validation.MinLength = cloneIntPointer(input.Validation.MinLength)
+			cloned.Inputs[j].Validation.MaxLength = cloneIntPointer(input.Validation.MaxLength)
+			cloned.Inputs[j].Validation.Enum = append([]string(nil), input.Validation.Enum...)
+		}
+		out = append(out, cloned)
 	}
 	return out
+}
+
+func (c *taskCatalog) setTaskAvailabilityProvider(provider func(string, string) bool) {
+	if c != nil {
+		c.taskAvailability = provider
+	}
 }
 
 func (c *taskCatalog) setCredentialLoginCapabilityProvider(provider func() (string, string, server.CredentialLoginCapability, bool)) {

@@ -22,16 +22,25 @@ type TaskInput struct {
 	Validation TaskInputValidation `json:"validation,omitempty"`
 }
 
+type TaskImpact struct {
+	TargetInput string `json:"targetInput"`
+	TargetLabel string `json:"targetLabel"`
+	Effect      string `json:"effect"`
+	Scope       string `json:"scope"`
+}
+
 type Task struct {
-	PackID       string      `json:"packId"`
-	PackName     string      `json:"packName"`
-	CommandID    string      `json:"commandId"`
-	Name         string      `json:"name"`
-	Description  string      `json:"description,omitempty"`
-	ToolID       string      `json:"toolId"`
-	ToolVersion  string      `json:"toolVersion,omitempty"`
-	RequiresAuth bool        `json:"requiresAuth,omitempty"`
-	Inputs       []TaskInput `json:"inputs"`
+	PackID       string       `json:"packId"`
+	PackName     string       `json:"packName"`
+	CommandID    string       `json:"commandId"`
+	Name         string       `json:"name"`
+	Description  string       `json:"description,omitempty"`
+	ToolID       string       `json:"toolId"`
+	ToolVersion  string       `json:"toolVersion,omitempty"`
+	Risk         string       `json:"risk"`
+	Impact       *TaskImpact  `json:"impact,omitempty"`
+	RequiresAuth bool         `json:"requiresAuth,omitempty"`
+	Inputs       []TaskInput  `json:"inputs"`
 }
 
 type TaskService interface {

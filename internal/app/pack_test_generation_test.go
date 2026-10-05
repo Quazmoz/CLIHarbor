@@ -133,7 +133,7 @@ commands:
     name: Mutate
     description: Test-only planner policy boundary.
     tool: blocked
-    risk: change
+    risk: interactive
     argv:
       - literal: mutate
     output:

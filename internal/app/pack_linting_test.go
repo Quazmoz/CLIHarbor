@@ -67,7 +67,7 @@ commands:
     name: Shared command
     description: Intentionally future-gated command.
     tool: fixture
-    risk: change
+    risk: interactive
     argv:
       - literal: change
     output:

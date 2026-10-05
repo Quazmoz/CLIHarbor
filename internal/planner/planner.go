@@ -50,6 +50,13 @@ type Request struct {
 	Values    map[string]json.RawMessage
 }
 
+type MutationImpact struct {
+	TargetLabel string
+	Target      string
+	Effect      string
+	Scope       packs.ImpactScope
+}
+
 type Plan struct {
 	PackID             string
 	PackVersion        string
@@ -61,12 +68,17 @@ type Plan struct {
 	ToolVersion        string
 	Args               []string
 	Risk               packs.Risk
+	Impact             *MutationImpact
 	Output             packs.Output
 	Requirements       packs.Requirements
 }
 
 func (p Plan) Clone() Plan {
 	p.Args = append([]string(nil), p.Args...)
+	if p.Impact != nil {
+		impact := *p.Impact
+		p.Impact = &impact
+	}
 	if p.Output.Structured != nil {
 		structured := *p.Output.Structured
 		structured.Fields = append([]packs.StructuredField(nil), p.Output.Structured.Fields...)
@@ -96,8 +108,16 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 	if !ok {
 		return zero, &Error{Code: ErrUnknownCommand, Path: "commandId", Message: "command is not declared by the configured pack"}
 	}
-	if command.Risk != packs.RiskRead {
-		return zero, &Error{Code: ErrRiskPolicy, Path: "commandId", Message: "this execution milestone permits read-only commands only"}
+	switch command.Risk {
+	case packs.RiskRead:
+	case packs.RiskChange, packs.RiskDestructive:
+		// Admitted here only to construct an exact plan. Change/destructive
+		// execution still requires a matching backend approval in the run manager.
+		if command.Impact == nil {
+			return zero, &Error{Code: ErrInvalidPlanState, Path: "commandId", Message: "mutation command is missing trusted impact metadata"}
+		}
+	default:
+		return zero, &Error{Code: ErrRiskPolicy, Path: "commandId", Message: "this risk class is not permitted for browser execution"}
 	}
 	if command.Requirements.RequiresAuth && command.Requirements.AuthMode != packs.AuthModeVendorSession {
 		return zero, &Error{Code: ErrAuthPolicy, Path: "commandId", Message: "authenticated commands require the explicit vendor-session auth mode"}
@@ -150,6 +170,11 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 			return zero, err
 		}
 		values[input.ID] = parsed
+	}
+
+	impact, err := deriveMutationImpact(command, values)
+	if err != nil {
+		return zero, err
 	}
 
 	args := make([]string, 0, len(command.Argv)*2)
@@ -210,8 +235,34 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 		ToolVersion:        toolState.Version,
 		Args:               args,
 		Risk:               command.Risk,
+		Impact:             impact,
 		Output:             command.Output,
 		Requirements:       command.Requirements,
+	}, nil
+}
+
+func deriveMutationImpact(command packs.Command, values map[string]value) (*MutationImpact, error) {
+	if command.Impact == nil {
+		return nil, nil
+	}
+	current, ok := values[command.Impact.TargetInput]
+	if !ok || !current.present || current.argument == "" {
+		return nil, &Error{Code: ErrInvalidPlanState, Path: "commandId", Message: "validated mutation impact target is unavailable"}
+	}
+	target := current.argument
+	if strings.TrimSpace(target) != target {
+		return nil, &Error{Code: ErrInvalidInput, Path: "values." + command.Impact.TargetInput, Message: "mutation target cannot have leading or trailing whitespace"}
+	}
+	for _, character := range target {
+		if character <= 0x1f || character == 0x7f {
+			return nil, &Error{Code: ErrInvalidInput, Path: "values." + command.Impact.TargetInput, Message: "mutation target cannot contain control characters"}
+		}
+	}
+	return &MutationImpact{
+		TargetLabel: command.Impact.TargetLabel,
+		Target:      target,
+		Effect:      command.Impact.Effect,
+		Scope:       command.Impact.Scope,
 	}, nil
 }
 

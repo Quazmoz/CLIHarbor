@@ -375,8 +375,16 @@ func (s *streamState) err() error {
 }
 
 func validatePlan(plan planner.Plan) error {
-	if plan.Risk != packs.RiskRead {
-		return &Error{Code: ErrInvalidPlan, Message: "executor accepts read-only plans only"}
+	switch plan.Risk {
+	case packs.RiskRead:
+	case packs.RiskChange, packs.RiskDestructive:
+		// The run manager (the only caller) consumes a single-use backend
+		// approval bound to this exact plan before execution reaches here.
+		if plan.Impact == nil {
+			return &Error{Code: ErrInvalidPlan, Message: "mutation plans require trusted impact metadata"}
+		}
+	default:
+		return &Error{Code: ErrInvalidPlan, Message: "executor does not accept this risk class"}
 	}
 	if plan.Requirements.RequiresAuth && plan.Requirements.AuthMode != packs.AuthModeVendorSession {
 		return &Error{Code: ErrInvalidPlan, Message: "auth-required plans require vendor-session mode"}

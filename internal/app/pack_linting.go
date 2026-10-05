@@ -212,7 +212,7 @@ func lintLoadedPack(registry *packs.Registry, loaded packs.LoadedPack, collector
 		if nameCounts[command.Name] > 1 {
 			collector.add(PackLintWarning, "PACK_COMMAND_NAME_DUPLICATE", source, commandPath+".name", "browser-visible command name is shared by another command in this pack")
 		}
-		if command.Risk != packs.RiskRead {
+		if !plannerAdmitsRisk(command.Risk) {
 			collector.add(PackLintWarning, "PACK_COMMAND_RISK_BLOCKED", source, commandPath+".risk", "current planner will reject this command risk class")
 		}
 		if command.Requirements.RequiresAuth && command.Requirements.AuthMode != packs.AuthModeVendorSession {

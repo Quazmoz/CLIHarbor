@@ -42,6 +42,6 @@ func TestManagerPreviewFailsClosedOnExecutionPolicy(t *testing.T) {
 	registry, snapshot := managerFixture(t)
 	manager := newTestManager(t, registry, snapshot, Config{})
 
-	_, err := manager.Preview(Request{PackID: "fixture", CommandID: "change"})
+	_, err := manager.Preview(Request{PackID: "fixture", CommandID: "blocked"})
 	assertRunCode(t, err, ErrPolicyBlocked)
 }

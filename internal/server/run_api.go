@@ -55,10 +55,16 @@ type runSummary struct {
 	ExitCode    *int        `json:"exitCode,omitempty"`
 }
 
+type runApprovalRequest struct {
+	ID           string `json:"id"`
+	Confirmation string `json:"confirmation,omitempty"`
+}
+
 type createRunRequest struct {
 	PackID    string                     `json:"packId"`
 	CommandID string                     `json:"commandId"`
 	Values    map[string]json.RawMessage `json:"values,omitempty"`
+	Approval  *runApprovalRequest        `json:"approval,omitempty"`
 }
 
 func (s *Server) handleRunPreview(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +91,10 @@ func (s *Server) handleRunPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if request.Approval != nil {
+		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
+		return
+	}
 	preview, err := previewer.Preview(runs.Request{
 		PackID:    request.PackID,
 		CommandID: request.CommandID,
@@ -113,10 +123,18 @@ func (s *Server) handleRuns(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		var approval *runs.ApprovalSubmission
+		if request.Approval != nil {
+			approval = &runs.ApprovalSubmission{
+				ID:           request.Approval.ID,
+				Confirmation: request.Approval.Confirmation,
+			}
+		}
 		snapshot, err := s.runs.Start(runs.Request{
 			PackID:    request.PackID,
 			CommandID: request.CommandID,
 			Values:    request.Values,
+			Approval:  approval,
 		})
 		if err != nil {
 			writeRunError(w, err)
@@ -560,6 +578,10 @@ func writeRunError(w http.ResponseWriter, err error) {
 		writeAPIError(w, http.StatusConflict, apperror.CodeToolChanged)
 	case runs.ErrPolicyBlocked:
 		writeAPIError(w, http.StatusForbidden, apperror.CodeCommandBlocked)
+	case runs.ErrApprovalRequired:
+		writeAPIError(w, http.StatusConflict, apperror.CodeApprovalRequired)
+	case runs.ErrContextUnavailable:
+		writeAPIError(w, http.StatusConflict, apperror.CodeExecutionContextUnavailable)
 	case runs.ErrCapacity:
 		writeAPIError(w, http.StatusTooManyRequests, apperror.CodeRunCapacity)
 	case runs.ErrNotFound:

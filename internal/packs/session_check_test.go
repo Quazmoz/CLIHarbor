@@ -69,8 +69,22 @@ commands:
 		{
 			name:         "change risk",
 			sessionCheck: "      sessionCheck:\n        commandId: status\n",
-			commands:     strings.Replace(validCommand, "risk: read", "risk: change", 1),
-			path:         "sessionCheck.commandId",
+			commands: strings.Replace(validCommand, "    risk: read\n", `    risk: change
+    impact:
+      targetInput: target
+      targetLabel: Target
+      effect: Changes the target.
+      scope: single
+    inputs:
+      - id: target
+        type: string
+        label: Target
+        required: true
+        validation:
+          maxLength: 64
+          disallowLeadingDash: true
+`, 1),
+			path: "sessionCheck.commandId",
 		},
 		{
 			name:         "browser input",
