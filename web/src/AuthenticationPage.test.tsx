@@ -71,7 +71,6 @@ const readyTool: ToolDiagnostic = {
   packName: 'CyberArk / Idira Secrets Manager CLI 9.x',
   packVersion: '0.1.2',
   toolId: 'conjur',
-  risk: 'read',
   status: 'ready',
   version: '9.3.1',
   versionConstraint: '>=9.3.1-0 <10.0.0-0',
@@ -134,7 +133,6 @@ describe('AuthenticationPage', () => {
     vi.stubGlobal('EventSource', FakeEventSource);
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(response(200, {
       runId, packId: whoamiTask.packId, commandId: 'whoami', toolId: 'conjur',
-      risk: 'read',
       status: requestPath(input) === '/api/v1/runs' ? 'running' : 'exited', exitCode: 0, events: [evidence],
     }))));
     renderAuth();
@@ -160,7 +158,6 @@ describe('AuthenticationPage', () => {
               packId: 'cyberark-conjur-v9',
               commandId: 'whoami',
               toolId: 'conjur',
-              risk: 'read',
               status: 'exited',
               exitCode: 0,
               events: [
@@ -205,7 +202,6 @@ describe('AuthenticationPage', () => {
               packId: 'cyberark-conjur-v9',
               commandId: 'whoami',
               toolId: 'conjur',
-              risk: 'read',
               status: 'exited',
               exitCode: 1,
               events: [
@@ -225,7 +221,6 @@ describe('AuthenticationPage', () => {
             packId: 'cyberark-conjur-v9',
             commandId: 'whoami',
             toolId: 'conjur',
-            risk: 'read',
             status: 'exited',
             exitCode: 1,
             events: [
@@ -282,7 +277,6 @@ describe('AuthenticationPage', () => {
             packId: 'cyberark-conjur-v9',
             commandId: 'whoami',
             toolId: 'conjur',
-            risk: 'read',
             status: attempts === 1 ? 'failed' : 'exited',
             exitCode: attempts === 1 ? undefined : 0,
             failure:
@@ -335,7 +329,6 @@ describe('AuthenticationPage', () => {
         packId: 'cyberark-conjur-v9',
         commandId: 'whoami',
         toolId: 'conjur',
-        risk: 'read',
         status: 'exited',
         exitCode: 0,
       }),
@@ -356,7 +349,6 @@ describe('AuthenticationPage', () => {
             packId: 'cyberark-conjur-v9',
             commandId: 'whoami',
             toolId: 'conjur',
-            risk: 'read',
             status: 'running',
           }),
         );
@@ -368,7 +360,6 @@ describe('AuthenticationPage', () => {
             packId: 'cyberark-conjur-v9',
             commandId: 'whoami',
             toolId: 'conjur',
-            risk: 'read',
             status: 'exited',
             exitCode: 2,
             events: [],
@@ -381,7 +372,6 @@ describe('AuthenticationPage', () => {
           packId: 'cyberark-conjur-v9',
           commandId: 'whoami',
           toolId: 'conjur',
-          risk: 'read',
           status: 'cancelled',
         }),
       );
@@ -429,7 +419,6 @@ describe('AuthenticationPage', () => {
             packId: 'cyberark-conjur-v9',
             commandId: 'whoami',
             toolId: 'conjur',
-            risk: 'read',
             status: 'running',
           }),
         );
@@ -441,7 +430,6 @@ describe('AuthenticationPage', () => {
             packId: 'cyberark-conjur-v9',
             commandId: 'whoami',
             toolId: 'conjur',
-            risk: 'read',
             status: 'cancelled',
           }),
         );
@@ -482,7 +470,6 @@ describe('AuthenticationPage', () => {
       packName: 'Custom Auth CLI',
       packVersion: '1.0.0',
       toolId: 'custom',
-      risk: 'read',
       status: 'ready',
       version: '2.0.0',
       requiresVendorSession: true,
@@ -500,7 +487,6 @@ describe('AuthenticationPage', () => {
               packId: 'custom-auth',
               commandId: 'session-status',
               toolId: 'custom',
-              risk: 'read',
               status: 'exited',
               exitCode: 0,
             }),
@@ -524,7 +510,6 @@ describe('AuthenticationPage', () => {
       packName: 'Kubernetes kubectl',
       packVersion: '0.1.0',
       toolId: 'kubectl',
-      risk: 'read',
       status: 'ready',
       version: '1.34.0',
       requiresVendorSession: true,
@@ -546,7 +531,6 @@ describe('AuthenticationPage', () => {
       packName: 'Kubernetes kubectl',
       packVersion: '0.1.0',
       toolId: 'kubectl',
-      risk: 'read',
       status: 'ready',
       version: '1.34.0',
       requiresVendorSession: true,
@@ -604,7 +588,6 @@ describe('AuthenticationPage', () => {
               packId: 'cyberark-conjur-v9',
               commandId: 'whoami',
               toolId: 'conjur',
-              risk: 'read',
               status: 'exited',
               exitCode: 0,
             }),
@@ -681,7 +664,6 @@ describe('AuthenticationPage', () => {
               packId: 'cyberark-conjur-v9',
               commandId: 'whoami',
               toolId: 'conjur',
-              risk: 'read',
               status: 'exited',
               exitCode: 0,
             }),
