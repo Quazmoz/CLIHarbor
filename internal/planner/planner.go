@@ -109,9 +109,13 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 		return zero, &Error{Code: ErrUnknownCommand, Path: "commandId", Message: "command is not declared by the configured pack"}
 	}
 	switch command.Risk {
-	case packs.RiskRead, packs.RiskChange, packs.RiskDestructive:
+	case packs.RiskRead:
+	case packs.RiskChange, packs.RiskDestructive:
 		// Admitted here only to construct an exact plan. Change/destructive
 		// execution still requires a matching backend approval in the run manager.
+		if command.Impact == nil {
+			return zero, &Error{Code: ErrInvalidPlanState, Path: "commandId", Message: "mutation command is missing trusted impact metadata"}
+		}
 	default:
 		return zero, &Error{Code: ErrRiskPolicy, Path: "commandId", Message: "this risk class is not permitted for browser execution"}
 	}
