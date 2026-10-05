@@ -126,7 +126,7 @@ The preferred architecture remains vendor-owned credentials/session storage. Gen
 Implemented:
 
 - Conjur resource inventory uses an explicit bounded page-size contract for kind/search/offset/role/inspect listing; count, role-membership, and permitted-role queries use dedicated read-only tasks so list pagination cannot be bypassed;
-- Windows evaluation CI qualifies those Conjur flags against the exact pinned CyberArk Conjur CLI v9.3.1 `list --help` surface before the evaluation artifact can pass;
+- Windows evaluation CI still qualifies the exact pinned CyberArk Conjur CLI v9.3.1 `list --help` surface, including legacy relationship flags as vendor-contract evidence, even though CLIHarbor routes those relationship operations through dedicated browser tasks;
 - Docker adds non-verbose `system df` summary output and a one-shot `container stats --no-stream` resource snapshot with a fixed cross-platform field projection;
 - kubectl adds metadata-only StatefulSet, DaemonSet, and Job status inventory using fixed custom columns;
 - kubectl adds one-shot node and cross-namespace pod CPU/memory usage through `kubectl top`, with Metrics API availability treated as an external runtime dependency;
