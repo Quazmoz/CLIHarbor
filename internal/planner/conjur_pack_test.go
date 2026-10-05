@@ -2,6 +2,7 @@ package planner
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -18,22 +19,18 @@ func TestConjurPackBuildsDocumentedArgv(t *testing.T) {
 		PackID:    "cyberark-conjur-v9",
 		CommandID: "list-resources",
 		Values: map[string]json.RawMessage{
-			"kind":            rawJSON(t, "user"),
-			"search":          rawJSON(t, "prod"),
-			"limit":           rawJSON(t, int64(5)),
-			"offset":          rawJSON(t, int64(10)),
-			"role":            rawJSON(t, "account:group:ops"),
-			"members-of":      rawJSON(t, "account:layer:apps"),
-			"permitted-roles": rawJSON(t, "account:variable:apps/prod/password"),
-			"privilege":       rawJSON(t, "read"),
-			"inspect":         rawJSON(t, true),
-			"count":           rawJSON(t, false),
+			"kind":    rawJSON(t, "user"),
+			"search":  rawJSON(t, "prod"),
+			"limit":   rawJSON(t, "25"),
+			"offset":  rawJSON(t, int64(10)),
+			"role":    rawJSON(t, "account:group:ops"),
+			"inspect": rawJSON(t, true),
 		},
 	})
 	if err != nil {
 		t.Fatalf("Build(list-resources) error = %v", err)
 	}
-	want := []string{"list", "--kind", "user", "--search", "prod", "--limit", "5", "--offset", "10", "--role", "account:group:ops", "--members-of", "account:layer:apps", "--permitted-roles", "account:variable:apps/prod/password", "--privilege", "read", "--inspect", "--output", "json"}
+	want := []string{"list", "--kind", "user", "--search", "prod", "--limit", "25", "--offset", "10", "--role", "account:group:ops", "--inspect", "--output", "json"}
 	if !reflect.DeepEqual(plan.Args, want) {
 		t.Fatalf("list args = %#v, want %#v", plan.Args, want)
 	}
@@ -55,6 +52,55 @@ func TestConjurPackBuildsDocumentedArgv(t *testing.T) {
 	want = []string{"resource", "permitted-roles", "account:variable:apps/prod/password", "read", "--output", "json"}
 	if !reflect.DeepEqual(plan.Args, want) {
 		t.Fatalf("resource args = %#v, want %#v", plan.Args, want)
+	}
+}
+
+func TestConjurListResourcesRequiresBoundedPageSize(t *testing.T) {
+	registry, snapshot := conjurPlannerFixture(t)
+
+	_, err := Build(registry, snapshot, Request{
+		PackID:    "cyberark-conjur-v9",
+		CommandID: "list-resources",
+		Values:    map[string]json.RawMessage{},
+	})
+	var plannerErr *Error
+	if !errors.As(err, &plannerErr) || plannerErr.Code != ErrMissingInput || plannerErr.Path != "values.limit" {
+		t.Fatalf("Build(list-resources without limit) error = %T %v", err, err)
+	}
+
+	_, err = Build(registry, snapshot, Request{
+		PackID:    "cyberark-conjur-v9",
+		CommandID: "list-resources",
+		Values: map[string]json.RawMessage{
+			"limit": rawJSON(t, "10000"),
+		},
+	})
+	if !errors.As(err, &plannerErr) || plannerErr.Code != ErrInvalidInput || plannerErr.Path != "values.limit" {
+		t.Fatalf("Build(list-resources with unsafe limit) error = %T %v", err, err)
+	}
+}
+
+func TestConjurCountResourcesDoesNotUseListPagination(t *testing.T) {
+	registry, snapshot := conjurPlannerFixture(t)
+
+	plan, err := Build(registry, snapshot, Request{
+		PackID:    "cyberark-conjur-v9",
+		CommandID: "count-resources",
+		Values: map[string]json.RawMessage{
+			"kind":   rawJSON(t, "variable"),
+			"search": rawJSON(t, "prod"),
+			"role":   rawJSON(t, "account:group:ops"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build(count-resources) error = %v", err)
+	}
+	want := []string{"list", "--kind", "variable", "--search", "prod", "--role", "account:group:ops", "--count", "--output", "json"}
+	if !reflect.DeepEqual(plan.Args, want) {
+		t.Fatalf("count args = %#v, want %#v", plan.Args, want)
+	}
+	if plan.Output.Structured == nil || len(plan.Output.Structured.Fields) != 1 || plan.Output.Structured.Fields[0].Key != "count" {
+		t.Fatalf("count structured output = %#v", plan.Output.Structured)
 	}
 }
 

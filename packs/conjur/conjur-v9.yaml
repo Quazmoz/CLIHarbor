@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: cyberark-conjur-v9
   name: CyberArk / Idira Secrets Manager CLI 9.x
-  version: 0.3.0
+  version: 0.3.1
   description: >-
     Read-only Conjur CLI workflows verified from the official cyberark/conjur-cli-go
     v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
@@ -67,7 +67,10 @@ commands:
 
   list-resources:
     name: List resources
-    description: List resources visible to the current Conjur identity with optional server-side filters.
+    description: >-
+      List a bounded page of resources visible to the current Conjur identity.
+      Page size is required so the browser never falls back to Conjur's much
+      larger implicit list limit; use Result offset to fetch subsequent pages.
     tool: conjur
     risk: read
     inputs:
@@ -84,11 +87,12 @@ commands:
           maxLength: 512
           disallowLeadingDash: true
       - id: limit
-        type: integer
-        label: Maximum results (-1 for unlimited)
+        type: enum
+        label: Page size
+        required: true
         validation:
-          min: -1
-          max: 1000000
+          enum: ["25", "50", "100"]
+          disallowLeadingDash: true
       - id: offset
         type: integer
         label: Result offset
@@ -101,30 +105,9 @@ commands:
         validation:
           maxLength: 2048
           disallowLeadingDash: true
-      - id: members-of
-        type: string
-        label: Members of role ID
-        validation:
-          maxLength: 2048
-          disallowLeadingDash: true
-      - id: permitted-roles
-        type: string
-        label: Permitted roles for resource ID
-        validation:
-          maxLength: 2048
-          disallowLeadingDash: true
-      - id: privilege
-        type: string
-        label: Privilege
-        validation:
-          maxLength: 64
-          disallowLeadingDash: true
       - id: inspect
         type: boolean
         label: Include resource metadata
-      - id: count
-        type: boolean
-        label: Return count only
     argv:
       - literal: list
       - flag:
@@ -138,7 +121,6 @@ commands:
       - flag:
           name: --limit
           valueFrom: limit
-          omitWhenEmpty: true
       - flag:
           name: --offset
           valueFrom: offset
@@ -147,29 +129,68 @@ commands:
           name: --role
           valueFrom: role
           omitWhenEmpty: true
-      - flag:
-          name: --members-of
-          valueFrom: members-of
-          omitWhenEmpty: true
-      - flag:
-          name: --permitted-roles
-          valueFrom: permitted-roles
-          omitWhenEmpty: true
-      - flag:
-          name: --privilege
-          valueFrom: privilege
-          omitWhenEmpty: true
       - switch:
           name: --inspect
           enabledFrom: inspect
-      - switch:
-          name: --count
-          enabledFrom: count
       - literal: --output
       - literal: json
     output:
       mode: json
       renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  count-resources:
+    name: Count resources
+    description: Count resources visible to the current Conjur identity with optional server-side filters.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: kind
+        type: enum
+        label: Resource kind
+        validation:
+          enum: [user, host, layer, group, policy, variable, webservice, host_factory]
+          disallowLeadingDash: true
+      - id: search
+        type: string
+        label: Search text
+        validation:
+          maxLength: 512
+          disallowLeadingDash: true
+      - id: role
+        type: string
+        label: Role ID
+        validation:
+          maxLength: 2048
+          disallowLeadingDash: true
+    argv:
+      - literal: list
+      - flag:
+          name: --kind
+          valueFrom: kind
+          omitWhenEmpty: true
+      - flag:
+          name: --search
+          valueFrom: search
+          omitWhenEmpty: true
+      - flag:
+          name: --role
+          valueFrom: role
+          omitWhenEmpty: true
+      - literal: --count
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: cards
+      structured:
+        fields:
+          - key: count
+            label: Count
+            type: integer
+            required: true
     requirements:
       requiresAuth: true
       authMode: vendor-session

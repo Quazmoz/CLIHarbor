@@ -25,7 +25,7 @@ CyberArk release binaries render the reviewed release as `9.3.1-<commit>`. That 
 
 ## Zero-config startup
 
-Pack version `0.3.0` supports installed Conjur on Windows and macOS using the same reviewed 9.x argv/version contract. The upstream [v9.3.1 release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) publishes darwin builds. The automatic pinned fallback and guided external vendor-login launcher remain Windows-specific; on macOS, install an approved official CLI and complete interactive login in your terminal. See [Windows and macOS setup](CROSS_PLATFORM.md).
+Pack version `0.3.1` supports installed Conjur on Windows and macOS using the same reviewed 9.x argv/version contract. The upstream [v9.3.1 release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) publishes darwin builds. The automatic pinned fallback and guided external vendor-login launcher remain Windows-specific; on macOS, install an approved official CLI and complete interactive login in your terminal. See [Windows and macOS setup](CROSS_PLATFORM.md).
 
 Normal Windows startup is:
 
@@ -117,7 +117,8 @@ The current pack exposes only commands that are both documented and inside CLIHa
 | CLIHarbor command | Conjur argv shape | Notes |
 | --- | --- | --- |
 | `whoami` | `conjur whoami --output json` | Current authenticated identity |
-| `list-resources` | `conjur list [approved flags] --output json` | Kind/search/pagination plus role, members-of, permitted-roles, privilege, inspect, and count filters |
+| `list-resources` | `conjur list [approved filters] --limit <25|50|100> [--offset N] --output json` | Bounded resource pages; page size is required and defaults to 25 in the browser. Relationship queries use their dedicated tasks. |
+| `count-resources` | `conjur list [approved filters] --count --output json` | Count-only query with no resource payload or pagination limit. |
 | `resource-exists` | `conjur resource exists <resource-id> --output json` | Structured boolean card |
 | `resource-show` | `conjur resource show <resource-id> --output json` | Resource metadata |
 | `resource-permitted-roles` | `conjur resource permitted-roles <resource-id> <privilege> --output json` | Permission relationship query |
@@ -125,6 +126,12 @@ The current pack exposes only commands that are both documented and inside CLIHa
 | `role-show` | `conjur role show <role-id> --output json` | Role metadata |
 | `role-members` | `conjur role members <role-id> [--verbose] --output json` | Member list/details |
 | `role-memberships` | `conjur role memberships <role-id> --output json` | Parent-role memberships |
+
+### Bounded resource listing
+
+The upstream Conjur 9.3.1 `list` command defaults to as many as 10,000 resources when `--limit` is omitted. That vendor default is appropriate for a terminal but can exceed CLIHarbor's deliberately bounded in-memory browser output. CLIHarbor therefore does not rely on the vendor default: `list-resources` requires one reviewed page size (`25`, `50`, or `100`) and retains `offset` for explicit pagination. The browser selects `25` initially because required enum inputs initialize to their first reviewed value.
+
+The deprecated list compatibility flags for role membership/permitted-role queries are no longer exposed through `list-resources`; the existing `role-members` and `resource-permitted-roles` tasks are the authoritative browser workflows for those operations. Counting is likewise a separate `count-resources` task so a pagination cap cannot silently change count semantics. The executor's output limit remains a final safety boundary rather than being enlarged or disabled.
 
 All user-controlled positional identifiers are represented by CLIHarbor's constrained positional primitive: one validated scalar becomes exactly one argv element. CLIHarbor does not split it, template it, reinterpret it as a shell command, or allow a leading `-` that could become an undeclared flag.
 

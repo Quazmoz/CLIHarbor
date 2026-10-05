@@ -20,7 +20,7 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if pack.Metadata.ID != "cyberark-conjur-v9" {
 		t.Fatalf("pack id = %q", pack.Metadata.ID)
 	}
-	if pack.Metadata.Version != "0.3.0" {
+	if pack.Metadata.Version != "0.3.1" {
 		t.Fatalf("pack version = %q", pack.Metadata.Version)
 	}
 	if !slices.Equal(pack.Runtime.Platforms, []string{"windows", "darwin"}) {
@@ -46,6 +46,7 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	}
 
 	wantCommands := []string{
+		"count-resources",
 		"list-resources",
 		"resource-exists",
 		"resource-permitted-roles",
@@ -73,6 +74,24 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 		if !command.Requirements.RequiresAuth || command.Requirements.AuthMode != AuthModeVendorSession {
 			t.Fatalf("command %q auth = %#v", id, command.Requirements)
 		}
+	}
+
+	listCommand := pack.Commands["list-resources"]
+	var listLimit *Input
+	for i := range listCommand.Inputs {
+		input := &listCommand.Inputs[i]
+		if input.ID == "limit" {
+			listLimit = input
+		}
+		if slices.Contains([]string{"members-of", "permitted-roles", "privilege", "count"}, input.ID) {
+			t.Fatalf("list-resources still exposes unbounded/deprecated compatibility input %q", input.ID)
+		}
+	}
+	if listLimit == nil {
+		t.Fatal("list-resources limit input missing")
+	}
+	if listLimit.Type != InputEnum || !listLimit.Required || !slices.Equal(listLimit.Validation.Enum, []string{"25", "50", "100"}) {
+		t.Fatalf("list-resources bounded page-size contract = %#v", *listLimit)
 	}
 }
 

@@ -155,7 +155,7 @@ supported version: >=9.3.1-0 <10.0.0-0
 Current browser workflows:
 
 - authenticated identity (`whoami`);
-- list resources with approved filters;
+- list resources in bounded 25/50/100-item pages with approved filters, plus a separate count-only workflow;
 - resource exists/show/permitted roles;
 - role exists/show/members/memberships.
 
