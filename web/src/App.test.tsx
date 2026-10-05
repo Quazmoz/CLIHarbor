@@ -412,7 +412,7 @@ describe('App', () => {
     first.onerror?.(new Event('error'));
     first.onerror?.(new Event('error'));
     first.onopen?.(new Event('open'));
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
       first.onerror?.(new Event('error'));
     }
     expect(first.closed).toBe(false);
@@ -813,6 +813,8 @@ describe('App', () => {
     expect(screen.getByText(/no longer available in local retention/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Retry live stream' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run task' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Preview command' })).toBeEnabled();
   });
 
   test('announces live connection and timeout states without color-only semantics', async () => {
@@ -1185,7 +1187,7 @@ describe('App routing', () => {
       exitCode: 1,
     });
 
-    expect(await screen.findByText(/Re-check Authentication before assuming the tool is still signed in/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Check Authentication to verify the session is still usable/i)).toBeInTheDocument();
     const reviewButtons = screen.getAllByRole('button', { name: 'Review authentication' });
     fireEvent.click(reviewButtons[reviewButtons.length - 1]);
     expect(window.location.pathname).toBe('/authentication');

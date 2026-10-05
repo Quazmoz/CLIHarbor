@@ -139,16 +139,19 @@ function evidenceFromSnapshot(
   snapshot: RunSnapshot,
   stdoutRef: { current: string },
   stderrRef: { current: string },
+  decoders: { current: { stdout: TextDecoder; stderr: TextDecoder } },
 ): void {
+  stdoutRef.current = '';
+  stderrRef.current = '';
+  decoders.current = { stdout: new TextDecoder(), stderr: new TextDecoder() };
   for (const event of snapshot.events ?? []) {
     if (event.dataBase64 === undefined) {
       continue;
     }
-    const text = decodeBase64Text(event.dataBase64);
     if (event.type === 'stdout.chunk') {
-      stdoutRef.current = appendBounded(stdoutRef.current, text);
+      stdoutRef.current = appendBounded(stdoutRef.current, decodeBase64Text(event.dataBase64, decoders.current.stdout, true));
     } else if (event.type === 'stderr.chunk') {
-      stderrRef.current = appendBounded(stderrRef.current, text);
+      stderrRef.current = appendBounded(stderrRef.current, decodeBase64Text(event.dataBase64, decoders.current.stderr, true));
     }
   }
 }
@@ -167,6 +170,7 @@ export function VendorSessionCard({
   const closeStreamRef = useRef<(() => void) | null>(null);
   const stdoutRef = useRef('');
   const stderrRef = useRef('');
+  const decodersRef = useRef({ stdout: new TextDecoder(), stderr: new TextDecoder() });
   const [credentialIdentity, setCredentialIdentity] = useState('');
   const [credentialSecret, setCredentialSecret] = useState('');
   const [credentialSubmitting, setCredentialSubmitting] = useState(false);
@@ -225,6 +229,8 @@ export function VendorSessionCard({
     closeStreamRef.current?.();
     closeStreamRef.current = null;
     activeRunRef.current = null;
+    stdoutRef.current = appendBounded(stdoutRef.current, decodersRef.current.stdout.decode());
+    stderrRef.current = appendBounded(stderrRef.current, decodersRef.current.stderr.decode());
     const checkedAt = new Date().toISOString();
 
     if (runStatus === 'exited' && exitCode === 0) {
@@ -260,14 +266,13 @@ export function VendorSessionCard({
   };
 
   const recordEvent = (attempt: number, event: RunEvent) => {
-    if (attempt !== attemptRef.current || event.dataBase64 === undefined) {
+    if (attempt !== attemptRef.current || event.runId !== activeRunRef.current || event.dataBase64 === undefined) {
       return;
     }
-    const text = decodeBase64Text(event.dataBase64);
     if (event.type === 'stdout.chunk') {
-      stdoutRef.current = appendBounded(stdoutRef.current, text);
+      stdoutRef.current = appendBounded(stdoutRef.current, decodeBase64Text(event.dataBase64, decodersRef.current.stdout, true));
     } else if (event.type === 'stderr.chunk') {
-      stderrRef.current = appendBounded(stderrRef.current, text);
+      stderrRef.current = appendBounded(stderrRef.current, decodeBase64Text(event.dataBase64, decodersRef.current.stderr, true));
     }
   };
 
@@ -278,7 +283,7 @@ export function VendorSessionCard({
           return;
         }
         try {
-          evidenceFromSnapshot(snapshot, stdoutRef, stderrRef);
+          evidenceFromSnapshot(snapshot, stdoutRef, stderrRef, decodersRef);
         } catch (error) {
           closeStreamRef.current?.();
           closeStreamRef.current = null;
@@ -347,7 +352,7 @@ export function VendorSessionCard({
       }
 
       activeRunRef.current = snapshot.runId;
-      evidenceFromSnapshot(snapshot, stdoutRef, stderrRef);
+      evidenceFromSnapshot(snapshot, stdoutRef, stderrRef, decodersRef);
 
       if (snapshot.status !== 'running') {
         finishAttempt(attempt, snapshot.status, snapshot.exitCode, snapshot.failure);
@@ -367,6 +372,8 @@ export function VendorSessionCard({
           }
           reconcileAfterStreamFailure(attempt, snapshot.runId, error.detail);
         },
+        undefined,
+        snapshot.events?.at(-1)?.sequence ?? 0,
       );
     } catch (error) {
       if (attempt !== attemptRef.current) {

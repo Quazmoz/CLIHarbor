@@ -112,7 +112,15 @@ export function TaskDiscovery({
   onToggleFavorite,
 }: TaskDiscoveryProps) {
   const [query, setQuery] = useState('');
+  const [catalogOpen, setCatalogOpen] = useState(true);
+  const catalogRef = useRef<HTMLDetailsElement>(null);
+  const summaryRef = useRef<HTMLElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const select = (key: string) => {
+    setCatalogOpen(false);
+    summaryRef.current?.focus();
+    onSelect(key);
+  };
 
   const byIdentity = useMemo(
     () => new Map(tasks.map((task) => [taskIdentityKey(task), task] as const)),
@@ -145,11 +153,13 @@ export function TaskDiscovery({
       const target = event.target;
       if (
         target instanceof HTMLElement &&
-        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName))
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
       ) {
         return;
       }
       event.preventDefault();
+      setCatalogOpen(true);
+      if (catalogRef.current) catalogRef.current.open = true;
       searchRef.current?.focus();
     };
     document.addEventListener('keydown', focusSearch);
@@ -157,13 +167,18 @@ export function TaskDiscovery({
   }, []);
 
   return (
-    <div className="task-discovery" aria-label="Task discovery">
+    <details ref={catalogRef} className="task-discovery" aria-label="Task discovery" open={catalogOpen} onToggle={(event) => setCatalogOpen(event.currentTarget.open)}>
+      <summary ref={summaryRef} className="task-catalog-summary">
+        <span>{catalogOpen ? 'Browse approved tasks' : 'Change task'}</span>
+        <span className="task-catalog-selection">{catalogOpen ? `${tasks.length} available` : tasks.find((task) => taskKey(task) === selectedTaskKey)?.name ?? 'Select a task'}</span>
+      </summary>
+      <div className="task-catalog-body">
       <div className="task-search">
         <div className="task-search-heading">
           <label className="task-search-label" htmlFor="task-search-input">
             Find a task
           </label>
-          <span className="task-search-count">
+          <span className="task-search-count" role="status" aria-live="polite" aria-atomic="true">
             {normalizedQuery ? filteredTasks.length + ' of ' + tasks.length : tasks.length} task{tasks.length === 1 ? '' : 's'}
           </span>
         </div>
@@ -181,12 +196,15 @@ export function TaskDiscovery({
             type="button"
             className="secondary-button"
             disabled={query.length === 0}
-            onClick={() => setQuery('')}
+            onClick={() => {
+              setQuery('');
+              searchRef.current?.focus();
+            }}
           >
             Clear
           </button>
         </span>
-        <small id="task-search-help">Press / to focus. Search matches task names, descriptions, packs, tools, and command identifiers.</small>
+        <small id="task-search-help">Press / to search names, descriptions, packs, tools, or commands.</small>
       </div>
 
       {filteredTasks.length === 0 && normalizedQuery.length > 0 ? (
@@ -204,7 +222,7 @@ export function TaskDiscovery({
             favoriteKeys={favoriteKeys}
             disabled={disabled}
             emptyText="No safe tasks are available."
-            onSelect={onSelect}
+            onSelect={select}
             onToggleFavorite={onToggleFavorite}
           />
         </div>
@@ -219,7 +237,7 @@ export function TaskDiscovery({
               favoriteKeys={favoriteKeys}
               disabled={disabled}
               emptyText="No favorites yet."
-              onSelect={onSelect}
+              onSelect={select}
               onToggleFavorite={onToggleFavorite}
             />
           )}
@@ -232,7 +250,7 @@ export function TaskDiscovery({
               favoriteKeys={favoriteKeys}
               disabled={disabled}
               emptyText="No recently used tasks yet."
-              onSelect={onSelect}
+              onSelect={select}
               onToggleFavorite={onToggleFavorite}
             />
           )}
@@ -244,11 +262,12 @@ export function TaskDiscovery({
             favoriteKeys={favoriteKeys}
             disabled={disabled}
             emptyText="No safe tasks are available."
-            onSelect={onSelect}
+            onSelect={select}
             onToggleFavorite={onToggleFavorite}
           />
         </div>
       )}
-    </div>
+      </div>
+    </details>
   );
 }

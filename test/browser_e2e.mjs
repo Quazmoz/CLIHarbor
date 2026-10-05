@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -446,6 +446,7 @@ async function waitJS(page, label, expression, timeoutMs = 10000) {
 
 async function chooseTask(page, value) {
   const expression = '(() => {' +
+    'const catalog = document.querySelector(".task-discovery"); if (catalog && !catalog.open) catalog.querySelector("summary").click();' +
     'const button = Array.from(document.querySelectorAll("button[data-task-action=select]")).find((element) => element.dataset.taskKey === ' + JSON.stringify(value) + ');' +
     'if (!button || button.disabled) return false;' +
     'button.click();' +
@@ -491,9 +492,17 @@ async function main() {
   const chrome = await ChromeHarness.start();
   let attackerServer;
   const pages = [];
+  const screenshotDirectory = process.env.CLIHARBOR_E2E_SCREENSHOT_DIR;
+  const capture = async (name) => {
+    if (!screenshotDirectory) return;
+    await mkdir(screenshotDirectory, { recursive: true });
+    const screenshot = await page.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    await writeFile(path.join(screenshotDirectory, name + '.png'), Buffer.from(screenshot.data, 'base64'));
+  };
+  let page;
 
   try {
-    const page = await chrome.newPage();
+    page = await chrome.newPage();
     pages.push(page);
 
     stage('bootstrap and authenticated shell');
@@ -518,6 +527,7 @@ async function main() {
     assert.equal(overviewSurface.hasGuidedSignIn, true, 'overview must expose the reviewed guided CLI sign-in surface');
     assert.equal(overviewSurface.hasConjurSetup, true, 'first-run Conjur connection setup must be actionable from overview');
     assert.equal(overviewSurface.horizontalOverflow, false, 'overview must fit the default browser viewport horizontally');
+    await capture('overview');
 
     const bootstrapState = await page.evaluate('(async () => {' +
       'const status = await fetch("/api/v1/status", { credentials: "same-origin" }).then((response) => response.json());' +
@@ -552,6 +562,7 @@ async function main() {
     assert.equal(authSurface.passwordInputs, 0, 'authentication route must not contain password inputs');
     assert.equal(authSurface.horizontalOverflow, false, 'authentication route must fit the 1366px enterprise viewport horizontally');
     assert.equal(authSurface.hasAuthLink, true, 'authentication route must remain in primary navigation');
+    await capture('authentication');
 
     stage('staged Conjur GUI authentication');
     assert.equal(
@@ -665,7 +676,7 @@ async function main() {
     assert.match(taskDiscoverySurface.taskCount, /task/, 'task discovery should keep catalog size visible');
 
     stage('responsive operator workflow widths');
-    for (const width of [1440, 1024, 768, 390]) {
+    for (const width of [1440, 1024, 768, 390, 320]) {
       await page.call('Emulation.setDeviceMetricsOverride', {
         width,
         height: width <= 390 ? 844 : 900,
@@ -678,6 +689,7 @@ async function main() {
         'window.innerWidth === ' + width + ' && document.documentElement.scrollWidth <= window.innerWidth',
         5000,
       );
+      await capture('tasks-' + width);
     }
     await page.call('Emulation.setDeviceMetricsOverride', {
       width: 1366,
@@ -711,6 +723,27 @@ async function main() {
     assert.equal(selectFavorite, true, 'favorite task should feed the existing task form');
     await waitJS(page, 'favorite-selected inspect query field',
       'Array.from(document.querySelectorAll("input")).some((element) => element.closest("label")?.textContent?.trim().startsWith("Query"))');
+    assert.equal(await page.evaluate('document.querySelector(".task-discovery").open'), false, 'selection should bring configuration into reach');
+    assert.equal(await page.evaluate('document.querySelector(".task-catalog-selection").textContent'), 'Inspect fixture argv', 'collapsed catalog must identify the selected task');
+    assert.equal(await page.evaluate('document.activeElement?.closest(".task-context") !== null'), true, 'selection should focus configuration');
+    await capture('selected-task');
+
+    stage('native validation and input reset');
+    await clickButton(page, 'Preview command');
+    assert.equal(await page.evaluate('document.querySelector("#task-input-query").validity.valueMissing'), true);
+    assert.equal(await page.evaluate('document.activeElement?.id'), 'task-input-query');
+    await setTextInput(page, 'Query', 'preview-only');
+    await clickButton(page, 'Preview command');
+    await waitJS(page, 'validated preview', 'document.querySelector(".preview-confirmation") !== null');
+    await clickButton(page, 'Reset inputs');
+    assert.equal(await page.evaluate('document.querySelector("#task-input-query").value'), '');
+    assert.equal(await page.evaluate('document.querySelector(".preview-confirmation") === null'), true);
+
+    stage('navigation focus and page titles');
+    await page.evaluate('Array.from(document.querySelectorAll("nav a")).find((link) => link.textContent.trim() === "Diagnostics").click(); true');
+    await waitJS(page, 'diagnostics navigation', 'location.pathname === "/diagnostics" && document.title === "Diagnostics · CLIHarbor" && document.activeElement?.id === "main-content"');
+    await page.evaluate('Array.from(document.querySelectorAll("nav a")).find((link) => link.textContent.trim() === "Tasks").click(); true');
+    await waitJS(page, 'tasks navigation', 'location.pathname === "/tasks" && document.title === "Tasks · CLIHarbor" && document.activeElement?.id === "main-content"');
 
     stage('bootstrap replay');
     // An already-authenticated browser is redirected to the app, regardless
@@ -776,6 +809,8 @@ async function main() {
     }
 
     await waitJS(page, 'fixture run completion', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "Succeeded"');
+    assert.equal(await page.evaluate('document.activeElement?.id'), 'run-heading', 'accepted execution should focus its result');
+    await capture('completed-run');
     const firstRunID = await page.evaluate('document.querySelector(".run-meta dd")?.textContent?.trim()');
     assert.match(firstRunID, /^[0-9a-f]{32}$/);
 
@@ -799,6 +834,7 @@ async function main() {
     assert.equal(shortcutDeduplication.recentDuplicate, false, 'Favorites must not be duplicated in Recently used');
 
     const unfavoriteInspect = await page.evaluate('(() => {' +
+      'const catalog = document.querySelector(".task-discovery"); if (!catalog.open) catalog.querySelector("summary").click();' +
       'const button = document.querySelector("[data-task-section=favorites][data-task-action=favorite][data-task-key=\\\"integration/inspect\\\"]");' +
       'if (!button || button.disabled) return false; button.click(); return true;' +
     '})()');

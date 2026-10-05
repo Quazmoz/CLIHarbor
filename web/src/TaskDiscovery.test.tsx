@@ -35,6 +35,23 @@ const tasks: Task[] = [
 ];
 
 describe('TaskDiscovery', () => {
+  test('collapses the catalog after selection and slash reopens it with search focused', () => {
+    const onSelect = vi.fn();
+    const { container } = render(
+      <TaskDiscovery tasks={tasks} selectedTaskKey="alpha/inspect" preferences={{ favorites: [], recent: [] }} onSelect={onSelect} onToggleFavorite={vi.fn()} />,
+    );
+    const summary = container.querySelector('summary')!;
+    fireEvent.click(container.querySelector('[data-task-action="select"][data-task-key="alpha/inspect"]')!);
+    expect(container.querySelector('details')).not.toHaveAttribute('open');
+    expect(summary).toHaveFocus();
+    expect(summary).toHaveTextContent('Change task');
+    expect(summary).toHaveTextContent('Inspect resource');
+    fireEvent.keyDown(summary, { key: '/' });
+    expect(container.querySelector('details')).toHaveAttribute('open');
+    expect(screen.getByRole('searchbox', { name: 'Find a task' })).toHaveFocus();
+    expect(onSelect).toHaveBeenCalledWith('alpha/inspect');
+  });
+
   test('distinguishes favorites, recent tasks, and the full catalog with safe auth wording', () => {
     const onSelect = vi.fn();
     const onToggleFavorite = vi.fn();
@@ -97,6 +114,7 @@ describe('TaskDiscovery', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
     expect(search).toHaveValue('');
+    expect(search).toHaveFocus();
     expect(screen.getAllByText('Inspect resource').length).toBeGreaterThan(1);
   });
 

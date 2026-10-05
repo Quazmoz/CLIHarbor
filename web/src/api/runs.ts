@@ -480,10 +480,12 @@ export function subscribeRunEvents(
   onComplete: (complete: RunComplete) => void,
   onError: (error: AppError) => void,
   onOpen?: () => void,
+  afterSequence = 0,
 ): () => void {
   const source = new EventSource(`/api/v1/runs/${encodeURIComponent(runId)}/events`);
   let failures = 0;
   let closed = false;
+  let lastSequence = afterSequence;
 
   const failClosed = (error: unknown) => {
     closed = true;
@@ -492,15 +494,24 @@ export function subscribeRunEvents(
   };
 
   const handleEvent = (raw: Event) => {
+    if (closed) return;
     try {
-      onEvent(parseEvent(JSON.parse((raw as MessageEvent<string>).data)));
+      const event = parseEvent(JSON.parse((raw as MessageEvent<string>).data));
+      if (event.runId !== runId) throw clientError('invalid_response');
+      if (event.sequence <= lastSequence) return;
+      onEvent(event);
+      lastSequence = event.sequence;
+      failures = 0;
     } catch (error) {
       failClosed(error);
     }
   };
   const handleComplete = (raw: Event) => {
+    if (closed) return;
     try {
-      onComplete(parseComplete(JSON.parse((raw as MessageEvent<string>).data)));
+      const complete = parseComplete(JSON.parse((raw as MessageEvent<string>).data));
+      if (complete.runId !== runId || complete.sequence < lastSequence || complete.status === 'running') throw clientError('invalid_response');
+      onComplete(complete);
     } catch (error) {
       onError(error instanceof Error && error.name === 'AppError' ? (error as AppError) : clientError('invalid_response'));
     } finally {
@@ -512,7 +523,9 @@ export function subscribeRunEvents(
   source.addEventListener('run-event', handleEvent);
   source.addEventListener('run-complete', handleComplete);
   source.onopen = () => {
-    failures = 0;
+    if (closed) return;
+    // Opening a connection is not evidence of progress; empty reconnects must
+    // still exhaust the retry budget.
     onOpen?.();
   };
   source.onerror = () => {
@@ -520,7 +533,8 @@ export function subscribeRunEvents(
       return;
     }
     failures += 1;
-    if (failures < maxStreamFailures) {
+    // A CLOSED EventSource cannot reconnect, so reconcile immediately.
+    if (source.readyState !== 2 && failures < maxStreamFailures) {
       return;
     }
     closed = true;
@@ -534,8 +548,19 @@ export function subscribeRunEvents(
   };
 }
 
-export function decodeBase64Text(value: string): string {
+export function decodeBase64Text(value: string, decoder = new TextDecoder(), stream = false): string {
   const binary = atob(value);
   const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  return decoder.decode(bytes, { stream });
+}
+
+export function decodeRunOutput(snapshot: RunSnapshot, stream: 'stdout.chunk' | 'stderr.chunk'): string {
+  const decoder = new TextDecoder();
+  let output = '';
+  for (const event of snapshot.events ?? []) {
+    if (event.type === stream && event.dataBase64 !== undefined) {
+      output += decodeBase64Text(event.dataBase64, decoder, true);
+    }
+  }
+  return output + (snapshot.status === 'running' ? '' : decoder.decode());
 }

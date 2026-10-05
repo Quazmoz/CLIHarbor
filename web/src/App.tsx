@@ -6,7 +6,7 @@ import { fetchTools, installTool, type ToolDiagnostic } from './api/tools';
 import {
   cancelRun,
   createRun,
-  decodeBase64Text,
+  decodeRunOutput,
   fetchRun,
   previewRun,
   subscribeRunEvents,
@@ -48,8 +48,6 @@ interface RetryRun {
 
 interface RunView {
   snapshot: RunSnapshot;
-  stdout: string;
-  stderr: string;
   streamState: StreamState;
   streamFailure?: AppErrorDetail;
   retained: boolean;
@@ -105,6 +103,9 @@ function requestValues(task: Task, formValues: Record<string, FormValue>): Recor
       continue;
     }
     const text = typeof value === 'string' ? value : '';
+    if (input.required && (text.length === 0 || (input.type === 'integer' && text.trim().length === 0))) {
+      throw invalidInputError(`values.${input.id}`);
+    }
     if (!input.required && text.length === 0) {
       continue;
     }
@@ -149,20 +150,9 @@ function appendRunEvent(current: RunView, event: RunEvent): RunView {
   if (event.runId !== current.snapshot.runId || event.sequence <= current.lastSequence) {
     return current;
   }
-  let stdout = current.stdout;
-  let stderr = current.stderr;
-  if (event.dataBase64 !== undefined) {
-    const text = decodeBase64Text(event.dataBase64);
-    if (event.type === 'stdout.chunk') {
-      stdout += text;
-    } else if (event.type === 'stderr.chunk') {
-      stderr += text;
-    }
-  }
   return {
     ...current,
-    stdout,
-    stderr,
+    snapshot: { ...current.snapshot, events: [...(current.snapshot.events ?? []), event] },
     lastSequence: event.sequence,
   };
 }
@@ -175,22 +165,14 @@ function reconcileRunSnapshot(current: RunView, snapshot: RunSnapshot): RunView 
     return current;
   }
 
-  let reconciled: RunView = {
-    ...current,
-    snapshot,
-    retained: true,
-  };
-  for (const event of snapshot.events ?? []) {
-    reconciled = appendRunEvent(reconciled, {
-      ...event,
-      runId: snapshot.runId,
-    });
-  }
+  const lastSequence = snapshot.events?.at(-1)?.sequence ?? 0;
+  if (snapshot.status === 'running' && lastSequence < current.lastSequence) return current;
 
   const running = snapshot.status === 'running';
   return {
-    ...reconciled,
-    snapshot,
+    ...current,
+    snapshot: { ...snapshot, events: snapshot.events ?? current.snapshot.events },
+    lastSequence: Math.max(current.lastSequence, lastSequence),
     streamState: running ? current.streamState : 'idle',
     streamFailure: running ? current.streamFailure : undefined,
   };
@@ -506,6 +488,7 @@ function routeFromPath(pathname: string): AppRoute {
 
 export function App() {
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
+  const [runtimeAttempt, setRuntimeAttempt] = useState(0);
   const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
   const [selectedTaskKey, setSelectedTaskKey] = useState('');
   const [taskPreferences, setTaskPreferences] = useState<TaskPreferences>(() => loadTaskPreferences());
@@ -523,6 +506,14 @@ export function App() {
   const [toolInstallRoots, setToolInstallRoots] = useState<Record<string, string>>({});
   const runtimeErrorRef = useRef<HTMLElement>(null);
   const taskErrorRef = useRef<HTMLDivElement>(null);
+  const resultHeadingRef = useRef<HTMLHeadingElement>(null);
+  const configurationHeadingRef = useRef<HTMLHeadingElement>(null);
+  const focusConfigurationRef = useRef(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const taskFormRef = useRef<HTMLFormElement>(null);
+  const previousRouteRef = useRef(route);
+  const startingRef = useRef(false);
+  const displayedRunIDRef = useRef<string | null>(null);
   const previewRequestRef = useRef(0);
 
   const updateTaskPreferences = useCallback((update: (current: TaskPreferences) => TaskPreferences) => {
@@ -610,30 +601,37 @@ export function App() {
 
   const retryStatus = () => {
     setState({ kind: 'loading' });
-    void loadRuntime().then(
-      ({ status, tasks, tools }) => acceptRuntime(status, tasks, tools),
-      (error: unknown) => loadFailure(error),
-    );
+    setRuntimeAttempt((current) => current + 1);
   };
 
   useEffect(() => {
     const controller = new AbortController();
     void loadRuntime(controller.signal).then(
-      ({ status, tasks, tools }) => acceptRuntime(status, tasks, tools),
+      ({ status, tasks, tools }) => {
+        if (!controller.signal.aborted) acceptRuntime(status, tasks, tools);
+      },
       (error: unknown) => {
-        if (!isAbort(error)) {
+        if (!controller.signal.aborted && !isAbort(error)) {
           loadFailure(error);
         }
       },
     );
     return () => controller.abort();
-  }, [acceptRuntime, loadFailure]);
+  }, [acceptRuntime, loadFailure, runtimeAttempt]);
 
   useEffect(() => {
     const handlePopState = () => setRoute(routeFromPath(window.location.pathname));
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    document.title = `${navigationItems.find((item) => item.route === route)?.label} · CLIHarbor`;
+    if (previousRouteRef.current !== route) {
+      mainRef.current?.focus();
+      previousRouteRef.current = route;
+    }
+  }, [route]);
 
   useEffect(() => {
     if (state.kind === 'error') {
@@ -655,13 +653,26 @@ export function App() {
     taskErrorRef.current?.focus();
   }, [taskFailure, selectedTask]);
 
+  useEffect(() => {
+    if (focusConfigurationRef.current) {
+      configurationHeadingRef.current?.focus();
+      focusConfigurationRef.current = false;
+    }
+  }, [formValues]);
+
   const activeRunID =
     run !== null && run.retained && run.snapshot.status === 'running' ? run.snapshot.runId : null;
+  const displayedRunID = run?.snapshot.runId;
+
+  useEffect(() => {
+    if (displayedRunID !== undefined) resultHeadingRef.current?.focus();
+  }, [displayedRunID]);
 
   useEffect(() => {
     if (activeRunID === null) {
       return;
     }
+    const controller = new AbortController();
     const close = subscribeRunEvents(
       activeRunID,
       (event) => setRun((current) => (current === null ? current : appendRunEvent(current, event))),
@@ -676,14 +687,16 @@ export function App() {
             ? current
             : { ...current, streamFailure: failure, streamState: 'stopped' },
         );
-        void fetchRun(activeRunID).then(
+        void fetchRun(activeRunID, controller.signal).then(
           (snapshot) => {
+            if (controller.signal.aborted) return;
             if (snapshot.status !== 'running') {
               setCancelRequested(false);
             }
             setRun((current) => (current === null ? current : reconcileRunSnapshot(current, snapshot)));
           },
           (fetchError: unknown) => {
+            if (controller.signal.aborted) return;
             const reconcileFailure = normalizeError(fetchError).detail;
             setRun((current) => {
               if (current === null || current.snapshot.runId !== activeRunID) {
@@ -713,7 +726,10 @@ export function App() {
             : { ...current, streamState: 'connected', streamFailure: undefined },
         ),
     );
-    return close;
+    return () => {
+      controller.abort();
+      close();
+    };
   }, [activeRunID, streamAttempt]);
 
   const executeRun = async (
@@ -722,9 +738,10 @@ export function App() {
     request: CreateRunRequest,
     failureTarget: 'task' | 'run',
   ) => {
-    if (state.kind !== 'ready') {
+    if (state.kind !== 'ready' || startingRef.current || activeRunID !== null) {
       return;
     }
+    startingRef.current = true;
     setStarting(true);
     if (failureTarget === 'task') {
       setTaskFailure(null);
@@ -732,13 +749,12 @@ export function App() {
     setRunActionFailure(null);
     try {
       const snapshot = await createRun(state.status.csrfToken, request);
+      displayedRunIDRef.current = snapshot.runId;
       setRun({
         snapshot,
-        stdout: '',
-        stderr: '',
         streamState: snapshot.status === 'running' ? 'connecting' : 'idle',
         retained: true,
-        lastSequence: 0,
+        lastSequence: snapshot.events?.at(-1)?.sequence ?? 0,
         retry: {
           taskKey: task.packId + '/' + task.commandId,
           formValues: cloneFormValues(formSnapshot),
@@ -756,6 +772,7 @@ export function App() {
         setRunActionFailure(failure);
       }
     } finally {
+      startingRef.current = false;
       setStarting(false);
     }
   };
@@ -783,6 +800,7 @@ export function App() {
     if (state.kind !== 'ready' || selectedTask === undefined || previewing || starting) {
       return;
     }
+    if (!taskFormRef.current?.reportValidity()) return;
     const requestID = previewRequestRef.current + 1;
     previewRequestRef.current = requestID;
     setPreviewing(true);
@@ -862,13 +880,16 @@ export function App() {
     }
     setRunActionFailure(null);
     setCancelRequested(true);
+    const requestedRunID = run.snapshot.runId;
     try {
-      const snapshot = await cancelRun(state.status.csrfToken, run.snapshot.runId);
+      const snapshot = await cancelRun(state.status.csrfToken, requestedRunID);
+      if (displayedRunIDRef.current !== requestedRunID) return;
       setRun((current) => (current === null ? current : reconcileRunSnapshot(current, snapshot)));
       if (snapshot.status !== 'running') {
         setCancelRequested(false);
       }
     } catch (error) {
+      if (displayedRunIDRef.current !== requestedRunID) return;
       const failure = normalizeError(error).detail;
       setRunActionFailure(failure);
       setCancelRequested(false);
@@ -879,6 +900,13 @@ export function App() {
   };
 
   const taskHasFieldFailure = isTaskFieldFailure(selectedTask, taskFailure);
+  const runSnapshot = run?.snapshot;
+  // ponytail: decode the bounded retained event log once per update; use an
+  // incremental decoder if larger output retention is ever supported.
+  const output = useMemo(() => runSnapshot === undefined ? { stdout: '', stderr: '' } : {
+    stdout: decodeRunOutput(runSnapshot, 'stdout.chunk'),
+    stderr: decodeRunOutput(runSnapshot, 'stderr.chunk'),
+  }, [runSnapshot]);
   const runTaskRequiresAuth =
     state.kind === 'ready' &&
     run !== null &&
@@ -932,7 +960,7 @@ export function App() {
         </div>
       </header>
 
-      <main id="main-content" tabIndex={-1} aria-busy={state.kind === 'loading'}>
+      <main ref={mainRef} id="main-content" tabIndex={-1} aria-busy={state.kind === 'loading'}>
         {state.kind === 'loading' && (
           <section className="panel" role="status" aria-live="polite" aria-busy="true">
             <h2>Checking runtime</h2>
@@ -994,7 +1022,7 @@ export function App() {
                 </h2>
                 <p>
                   {route === 'tasks'
-                    ? 'Select an approved workflow, enter only the values it requests, verify the local command boundary, then review the result without leaving the operator workspace.'
+                    ? 'Choose an approved task, check its inputs, and review the result.'
                     : 'Review each configured CLI, fix setup or version issues, and keep authentication separate from executable readiness.'}
                 </p>
               </div>
@@ -1025,13 +1053,16 @@ export function App() {
                     <p>CLIHarbor is still local-only. Load an explicitly trusted pack and resolve its tool readiness, then refresh this runtime.</p>
                   </div>
                 ) : (
-                  <form onSubmit={startRun}>
+                  <form ref={taskFormRef} onSubmit={startRun}>
                     <TaskDiscovery
                       tasks={state.tasks}
                       selectedTaskKey={selectedTaskKey}
                       preferences={taskPreferences}
-                      disabled={run?.snapshot.status === 'running'}
-                      onSelect={(key) => selectTaskByKey(key, state.tasks)}
+                      disabled={starting || activeRunID !== null}
+                      onSelect={(key) => {
+                        focusConfigurationRef.current = true;
+                        selectTaskByKey(key, state.tasks);
+                      }}
                       onToggleFavorite={(task) =>
                         updateTaskPreferences((current) => toggleFavoriteTask(current, task))
                       }
@@ -1042,11 +1073,11 @@ export function App() {
                         <div className="task-context">
                           <p className="task-step-label">2 · Configure</p>
                           <div className="task-context-header">
-                            <strong>{selectedTask.name}</strong>
+                            <h3 ref={configurationHeadingRef} tabIndex={-1}>{selectedTask.name}</h3>
                             <span className="safety-chip">Read-only safe task</span>
                           </div>
                           {selectedTask.description && <p>{selectedTask.description}</p>}
-                          <p>Enter only the values this task asks for. CLIHarbor validates them before the local runtime builds the command.</p>
+                          {selectedTask.inputs.length === 0 && <p>This task has no inputs. Run it when you are ready.</p>}
                           <details className="technical-details task-technical-details">
                             <summary>Technical task details</summary>
                             <p>
@@ -1064,7 +1095,8 @@ export function App() {
                             </div>
                           )}
                         </div>
-                        <div className="form-stack">
+                        <fieldset className="form-stack" disabled={starting || activeRunID !== null}>
+                          <legend className="visually-hidden">Task inputs</legend>
                           {selectedTask.inputs.map((input) => (
                             <InputControl
                               key={input.id}
@@ -1082,7 +1114,7 @@ export function App() {
                               }}
                             />
                           ))}
-                        </div>
+                        </fieldset>
                         <div className="command-preview" aria-live="polite" aria-busy={previewing}>
                           <div className="command-preview-header">
                             <div>
@@ -1092,7 +1124,7 @@ export function App() {
                             <button
                               type="button"
                               className="secondary-button"
-                              disabled={previewing || starting || run?.snapshot.status === 'running'}
+                              disabled={previewing || starting || activeRunID !== null}
                               onClick={() => void previewSelectedTask()}
                             >
                               {previewing ? 'Checking…' : 'Preview command'}
@@ -1114,8 +1146,16 @@ export function App() {
                           )}
                         </div>
                         <div className="task-actions">
-                          <button type="submit" disabled={starting || run?.snapshot.status === 'running'}>
+                          <button type="submit" disabled={starting || activeRunID !== null}>
                             {starting ? 'Starting…' : 'Run task'}
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            disabled={starting || activeRunID !== null || JSON.stringify(formValues) === JSON.stringify(initialValues(selectedTask))}
+                            onClick={() => selectTaskByKey(selectedTask.packId + '/' + selectedTask.commandId, state.tasks)}
+                          >
+                            Reset inputs
                           </button>
                         </div>
                       </>
@@ -1132,11 +1172,12 @@ export function App() {
               <article className={"panel run-panel" + (run !== null ? " run-panel--engaged" : "")} aria-labelledby="run-heading">
                 <p className="status-label">4 · Result</p>
                 <div className={"run-state run-state--" + (run === null ? "idle" : run.retained ? runOutcomeTone(run.snapshot.status, run.snapshot.exitCode) : "unavailable")} role="status" aria-live="polite" aria-atomic="true">
-                  <h2 id="run-heading">{run === null ? 'No active run' : run.retained ? runOutcomeHeading(run.snapshot.status, run.snapshot.exitCode) : 'Run no longer retained'}</h2>
+                  <h2 ref={resultHeadingRef} id="run-heading" tabIndex={-1}>{run === null ? 'No active run' : run.retained ? runOutcomeHeading(run.snapshot.status, run.snapshot.exitCode) : 'Run no longer retained'}</h2>
                   <p>{run === null ? 'Start a safe task to stream its output here.' : runStatusDescription(run, cancelRequested)}</p>
                 </div>
                 {run !== null && (
                   <>
+                    <p className="run-task-name">{state.tasks.find((task) => task.packId + '/' + task.commandId === run.retry.taskKey)?.name ?? run.snapshot.commandId}</p>
                     <details className="technical-details run-technical-details">
                       <summary>Run technical details</summary>
                       <dl className="run-meta">
@@ -1201,7 +1242,7 @@ export function App() {
                       run.snapshot.exitCode !== undefined &&
                       run.snapshot.exitCode !== 0 && (
                         <div className="task-auth-callout task-auth-callout--run">
-                          <span>This signed-in task failed. Re-check Authentication before assuming the tool is still signed in.</span>
+                          <span>This task requires a vendor session and failed. Check Authentication to verify the session is still usable.</span>
                           <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
                             Review authentication
                           </button>
@@ -1231,8 +1272,8 @@ export function App() {
                         <span className="raw-output-note">stdout and stderr remain separate</span>
                       </summary>
                       <div className="output-grid">
-                        <OutputStream name="stdout" text={run.stdout} />
-                        <OutputStream name="stderr" text={run.stderr} />
+                        <OutputStream name="stdout" text={output.stdout} />
+                        <OutputStream name="stderr" text={output.stderr} />
                       </div>
                     </details>
                   </>

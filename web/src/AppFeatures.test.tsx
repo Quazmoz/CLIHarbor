@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
 
@@ -54,6 +54,124 @@ afterEach(() => {
 });
 
 describe('command preview and retry workflows', () => {
+  test('a late cancellation failure cannot evict a subsequently accepted run', async () => {
+    const firstID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const secondID = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    class Stream extends EventTarget {
+      static latest: Stream;
+      constructor() { super(); Stream.latest = this; }
+      close() {}
+    }
+    vi.stubGlobal('EventSource', Stream);
+    let resolveCancel: (response: Response) => void = () => undefined;
+    const pendingCancel = new Promise<Response>((resolve) => { resolveCancel = resolve; });
+    let starts = 0;
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      const base = baseRuntimeResponse(path);
+      if (base) return Promise.resolve(base);
+      if (path.endsWith('/cancel')) return pendingCancel;
+      starts += 1;
+      return Promise.resolve(response(202, {
+        runId: starts === 1 ? firstID : secondID, packId: 'fixture', commandId: 'inspect', toolId: 'fixture', status: 'running',
+      }));
+    }));
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Query' }), { target: { value: 'example' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel run' }));
+    await act(async () => Stream.latest.dispatchEvent(new MessageEvent('run-complete', {
+      data: JSON.stringify({ runId: firstID, sequence: 0, status: 'exited', exitCode: 0 }),
+    })));
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await screen.findByText(secondID);
+    await act(async () => resolveCancel(response(404, { error: {
+      code: 'run_not_found', category: 'lifecycle', message: 'This run is no longer available in local retention.', retryable: false,
+    } })));
+    expect(screen.getByRole('heading', { name: 'Running' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel run' })).toBeEnabled();
+    expect(screen.queryByRole('heading', { name: 'Run no longer retained' })).not.toBeInTheDocument();
+  });
+
+  test('renders output captured by a run that already completed before subscription', async () => {
+    const source = vi.fn();
+    vi.stubGlobal('EventSource', source);
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(
+      baseRuntimeResponse(requestPath(input)) ?? response(202, {
+        runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', packId: 'fixture', commandId: 'inspect', toolId: 'fixture',
+        status: 'exited', exitCode: 0,
+        events: [
+          { sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-05T10:00:00Z', dataBase64: btoa('fast result') },
+          { sequence: 2, type: 'stderr.chunk', timestamp: '2026-10-05T10:00:00Z', dataBase64: btoa('separate warning') },
+        ],
+      }),
+    )));
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Query' }), { target: { value: 'example' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    expect(await screen.findByText('fast result')).toBeInTheDocument();
+    expect(screen.getByText('separate warning')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Succeeded' })).toHaveFocus();
+    expect(source).not.toHaveBeenCalled();
+  });
+
+  test('validates required inputs before preview and resets values and preview together', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => Promise.resolve(
+      baseRuntimeResponse(requestPath(input)) ?? response(200, {
+        packId: 'fixture', commandId: 'inspect', toolId: 'fixture', executableName: 'fixture', args: ['inspect'],
+      }),
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    const query = await screen.findByRole('textbox', { name: 'Query' });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview command' }));
+    expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs/preview')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Reset inputs' })).toBeDisabled();
+    fireEvent.change(query, { target: { value: 'example' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview command' }));
+    expect(await screen.findByText('fixture inspect')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reset inputs' }));
+    expect(query).toHaveValue('');
+    expect(screen.queryByText('fixture inspect')).not.toBeInTheDocument();
+  });
+
+  test('allows only one start and locks task inputs while the request is pending', async () => {
+    let resolveRun: (response: Response) => void = () => undefined;
+    const pendingRun = new Promise<Response>((resolve) => { resolveRun = resolve; });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const base = baseRuntimeResponse(requestPath(input));
+      return base === undefined ? pendingRun : Promise.resolve(base);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    const query = await screen.findByRole('textbox', { name: 'Query' });
+    fireEvent.change(query, { target: { value: 'example' } });
+    const form = query.closest('form')!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(query).toBeDisabled();
+    expect(fetchMock.mock.calls.filter(([input]) => requestPath(input) === '/api/v1/runs')).toHaveLength(1);
+    await act(async () => resolveRun(response(202, {
+      runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', packId: 'fixture', commandId: 'inspect', toolId: 'fixture', status: 'exited', exitCode: 0,
+    })));
+    expect(query).not.toBeDisabled();
+  });
+
+  test('updates page title and moves focus to main on navigation and browser back', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(baseRuntimeResponse(requestPath(input)) ?? response(404, {}))));
+    render(<App />);
+    await screen.findByRole('textbox', { name: 'Query' });
+    expect(document.title).toBe('Tasks · CLIHarbor');
+    fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
+    expect(document.title).toBe('Diagnostics · CLIHarbor');
+    expect(screen.getByRole('main')).toHaveFocus();
+    window.history.replaceState({}, '', '/tasks');
+    fireEvent.popState(window);
+    expect(document.title).toBe('Tasks · CLIHarbor');
+    expect(screen.getByRole('main')).toHaveFocus();
+  });
+
   test('renders planner-backed argv preview without executable path authority', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = requestPath(input);

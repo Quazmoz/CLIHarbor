@@ -4,6 +4,7 @@
   color: #e6edf0;
   background: #0b1115;
   font-synthesis: none;
+  color-scheme: dark;
   text-rendering: optimizeLegibility;
 
   --bg: #0b1115;
@@ -407,6 +408,14 @@ main {
   overflow-wrap: anywhere;
 }
 
+.task-context-header h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+  scroll-margin-top: 10rem;
+}
+
 .task-context p {
   margin: 0;
 }
@@ -427,6 +436,36 @@ main {
   display: grid;
   gap: var(--space-4);
   margin: var(--space-5) 0;
+  padding: 0;
+  min-width: 0;
+  border: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:where(a, button, input, select, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.field input:disabled,
+.field select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.run-task-name {
+  margin: 0.75rem 0 0;
+  color: var(--text-strong) !important;
+  font-weight: 650;
+  overflow-wrap: anywhere;
 }
 
 .field-group {
@@ -555,6 +594,7 @@ main {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  scroll-margin-top: 10rem;
 }
 
 .run-state h2::before {
@@ -1099,7 +1139,7 @@ footer p {
   margin: 0;
 }
 
-@media (min-width: 901px) {
+@media (min-width: 981px) {
   .run-panel {
     position: sticky;
     top: 6.25rem;
@@ -1713,9 +1753,53 @@ footer p {
 
 
 .task-discovery {
+  margin-bottom: var(--space-4);
+}
+
+.task-catalog-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  list-style: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  color: var(--text-strong);
+  background: var(--surface-3);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.task-catalog-summary::-webkit-details-marker {
+  display: none;
+}
+
+.task-catalog-summary::before {
+  content: '›';
+  color: var(--accent);
+}
+
+.task-discovery[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.task-catalog-summary > span:first-of-type {
+  flex: 0 0 auto;
+}
+
+.task-catalog-selection {
+  min-width: 0;
+  margin-left: auto;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.task-catalog-body {
   display: grid;
   gap: var(--space-4);
-  margin-bottom: var(--space-4);
+  padding-top: var(--space-4);
 }
 
 .task-search {
@@ -1773,7 +1857,7 @@ footer p {
   display: grid;
   gap: var(--space-4);
   /* Keep Configure/Run within reach however many packs are loaded. */
-  max-height: min(30rem, 60vh);
+  max-height: min(20rem, 35vh);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 0.35rem;
@@ -1836,7 +1920,6 @@ footer p {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
   min-width: 0;
-  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-3);
@@ -1848,7 +1931,7 @@ footer p {
   min-width: 0;
   min-height: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   padding: 0.65rem 0.75rem;
   text-align: left;
   background: transparent;
@@ -1913,7 +1996,7 @@ footer p {
   min-height: 0;
   border: 0;
   border-left: 1px solid var(--border);
-  border-radius: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   padding: 0.55rem 0.7rem;
   color: var(--text-muted);
   background: transparent;
@@ -1945,6 +2028,14 @@ footer p {
   .task-discovery-row {
     grid-template-columns: 1fr;
   }
+
+  .runtime-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .runtime-facts > div { padding: 0.6rem 0.45rem; }
+  .runtime-facts dd { font-size: 0.8rem; }
 
   .favorite-toggle {
     justify-content: flex-start;

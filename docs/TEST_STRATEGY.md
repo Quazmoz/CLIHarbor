@@ -291,6 +291,10 @@ Once run APIs exist prove read tasks do not require destructive confirmation, de
 
 ## 14. UI and accessibility tests
 
+Run-output regressions cover every byte split in multibyte UTF-8 text, independent interleaved streams, incomplete bytes during execution, terminal decoding, fast completion before subscription, and snapshot/live replay overlap. Stream tests cover wrong-run payload refusal, duplicate/out-of-order suppression, completion at the last cursor, empty reconnect exhaustion, progress-based retry reset, and callbacks queued after unsubscribe. Authentication tests prove replay/reconciliation does not duplicate identity evidence.
+
+Workbench/history regressions cover duplicate start suppression, native preview validation, input/preview reset, eviction recovery, loading states, stale detail responses, repeated selection, and slow polling without request starvation. Navigation tests verify page titles and focus. The production Chrome harness verifies native validation/reset and route/result focus, and exercises widths down to 320 CSS pixels. Set `CLIHARBOR_E2E_SCREENSHOT_DIR` to an explicit temporary directory for optional screenshots of hermetic fixture pages; screenshots are not product output or a persisted run-history feature.
+
 Current component coverage exercises authenticated status loading and typed failure/retry states, server and client input validation, focus movement to invalid controls, `aria-invalid`/description association, inert hostile-looking text, unknown error-code fallback, bounded SSE exhaustion/reconciliation, retained-run eviction, live connection status, timeout text, and keyboard-focusable raw-output regions. The application uses native keyboard-operable controls and targeted live regions so raw stdout/stderr are not continuously announced.
 
 Continue coverage as auth/risk/confirmation surfaces arrive: auth gating, destructive warnings, dialogs, confirmation focus return, reduced motion where motion is introduced, responsive overflow, and no color-only state.

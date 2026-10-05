@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { normalizeError, type AppErrorDetail } from './api/errors';
 import {
-  decodeBase64Text,
+  decodeRunOutput,
   fetchRun,
   fetchRuns,
   type RunSnapshot,
@@ -68,16 +68,6 @@ function formatDuration(startedAt?: string, endedAt?: string): string {
   return String(minutes) + 'm ' + String(seconds) + 's';
 }
 
-function outputFor(snapshot: RunSnapshot, stream: 'stdout.chunk' | 'stderr.chunk'): string {
-  let output = '';
-  for (const event of snapshot.events ?? []) {
-    if (event.type === stream && event.dataBase64 !== undefined) {
-      output += decodeBase64Text(event.dataBase64);
-    }
-  }
-  return output;
-}
-
 function FailureNotice({ failure }: { failure: AppErrorDetail }) {
   return (
     <div className="failure-notice" role="alert">
@@ -103,24 +93,33 @@ export function RunsPage({ tasks }: RunsPageProps) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailFailure, setDetailFailure] = useState<AppErrorDetail | null>(null);
   const [detailRefresh, setDetailRefresh] = useState(0);
+  const listRequestRef = useRef<AbortController | null>(null);
+  const detailRequestRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
+    listRequestRef.current = controller;
     void fetchRuns(controller.signal).then(
       (runs) => {
+        if (controller.signal.aborted) return;
         setSummaries(runs);
         setListFailure(null);
         setListLoading(false);
       },
       (error: unknown) => {
-        if (isAbort(error)) {
+        if (controller.signal.aborted || isAbort(error)) {
           return;
         }
         setListFailure(normalizeError(error).detail);
         setListLoading(false);
       },
-    );
-    return () => controller.abort();
+    ).finally(() => {
+      if (listRequestRef.current === controller) listRequestRef.current = null;
+    });
+    return () => {
+      controller.abort();
+      if (listRequestRef.current === controller) listRequestRef.current = null;
+    };
   }, [listRefresh]);
 
   useEffect(() => {
@@ -129,33 +128,41 @@ export function RunsPage({ tasks }: RunsPageProps) {
     }
 
     const controller = new AbortController();
+    detailRequestRef.current = controller;
     void fetchRun(selectedRunID, controller.signal).then(
       (snapshot) => {
+        if (controller.signal.aborted) return;
         setDetail(snapshot);
         setDetailFailure(null);
         setDetailLoading(false);
       },
       (error: unknown) => {
-        if (isAbort(error)) {
+        if (controller.signal.aborted || isAbort(error)) {
           return;
         }
-        setDetail(null);
-        setDetailFailure(normalizeError(error).detail);
+        const failure = normalizeError(error).detail;
+        if (failure.code === 'run_not_found') setDetail(null);
+        setDetailFailure(failure);
         setDetailLoading(false);
       },
-    );
-    return () => controller.abort();
+    ).finally(() => {
+      if (detailRequestRef.current === controller) detailRequestRef.current = null;
+    });
+    return () => {
+      controller.abort();
+      if (detailRequestRef.current === controller) detailRequestRef.current = null;
+    };
   }, [detailRefresh, selectedRunID]);
 
   const selectedSummary = useMemo(
     () => summaries.find((summary) => summary.runId === selectedRunID),
     [selectedRunID, summaries],
   );
-  const hasActiveRun =
-    summaries.some((summary) => summary.status === 'running') || detail?.status === 'running';
+  const refreshList = summaries.some((summary) => summary.status === 'running') && listFailure?.retryable !== false;
+  const refreshDetail = detail?.status === 'running' && detailFailure?.retryable !== false;
 
   useEffect(() => {
-    if (!hasActiveRun) {
+    if (!refreshList && !refreshDetail) {
       return;
     }
 
@@ -163,15 +170,19 @@ export function RunsPage({ tasks }: RunsPageProps) {
       if (document.visibilityState !== 'visible') {
         return;
       }
-      setListRefresh((value) => value + 1);
-      if (selectedRunID !== null) {
+      if (refreshList && listRequestRef.current === null) setListRefresh((value) => value + 1);
+      if (refreshDetail && selectedRunID !== null && detailRequestRef.current === null) {
         setDetailRefresh((value) => value + 1);
       }
     };
 
     const intervalID = window.setInterval(refreshActiveRuns, ACTIVE_RUN_REFRESH_MS);
-    return () => window.clearInterval(intervalID);
-  }, [hasActiveRun, selectedRunID]);
+    document.addEventListener('visibilitychange', refreshActiveRuns);
+    return () => {
+      window.clearInterval(intervalID);
+      document.removeEventListener('visibilitychange', refreshActiveRuns);
+    };
+  }, [refreshList, refreshDetail, selectedRunID]);
 
   const refresh = () => {
     setListLoading(true);
@@ -185,6 +196,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
   };
 
   const selectRun = (runID: string) => {
+    if (runID === selectedRunID) return;
     setSelectedRunID(runID);
     setDetail(null);
     setDetailFailure(null);
@@ -200,8 +212,10 @@ export function RunsPage({ tasks }: RunsPageProps) {
     setDetailRefresh((value) => value + 1);
   };
 
-  const stdout = detail === null ? '' : outputFor(detail, 'stdout.chunk');
-  const stderr = detail === null ? '' : outputFor(detail, 'stderr.chunk');
+  const output = useMemo(() => detail === null ? { stdout: '', stderr: '' } : {
+    stdout: decodeRunOutput(detail, 'stdout.chunk'),
+    stderr: decodeRunOutput(detail, 'stderr.chunk'),
+  }, [detail]);
 
   return (
     <section className="runs-page" aria-labelledby="runs-heading">
@@ -220,7 +234,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
       </div>
 
       <div className="run-history-layout">
-        <article className="panel run-history-list-panel" aria-labelledby="run-history-list-heading">
+        <article className="panel run-history-list-panel" aria-labelledby="run-history-list-heading" aria-busy={listLoading}>
           <div className="panel-heading-row">
             <div>
               <p className="status-label">Retained</p>
@@ -230,6 +244,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
           </div>
 
           {listFailure !== null && <FailureNotice failure={listFailure} />}
+          {listLoading && summaries.length === 0 && <p role="status">Loading retained runs…</p>}
 
           {!listLoading && listFailure === null && summaries.length === 0 && (
             <div className="empty-state">
@@ -268,7 +283,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
           )}
         </article>
 
-        <article className="panel run-history-detail-panel" aria-labelledby="run-history-detail-heading">
+        <article className="panel run-history-detail-panel" aria-labelledby="run-history-detail-heading" aria-busy={detailLoading}>
           <p className="status-label">Run detail</p>
           {selectedRunID === null ? (
             <div className="empty-state run-history-detail-empty">
@@ -298,6 +313,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
               </div>
 
               {detailFailure !== null && <FailureNotice failure={detailFailure} />}
+              {detailLoading && detail === null && <p role="status">Loading run evidence…</p>}
 
               {detail !== null && (
                 <>
@@ -356,11 +372,11 @@ export function RunsPage({ tasks }: RunsPageProps) {
                     <div className="output-grid">
                       <section aria-labelledby="history-stdout-heading">
                         <h3 id="history-stdout-heading">stdout</h3>
-                        <pre tabIndex={0}>{stdout || 'No stdout retained.'}</pre>
+                        <pre tabIndex={0}>{output.stdout || 'No stdout retained.'}</pre>
                       </section>
                       <section aria-labelledby="history-stderr-heading">
                         <h3 id="history-stderr-heading">stderr</h3>
-                        <pre tabIndex={0}>{stderr || 'No stderr retained.'}</pre>
+                        <pre tabIndex={0}>{output.stderr || 'No stderr retained.'}</pre>
                       </section>
                     </div>
                   </details>

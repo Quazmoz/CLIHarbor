@@ -42,6 +42,91 @@ afterEach(() => {
 });
 
 describe('RunsPage', () => {
+  test('keeps completed evidence readable through refresh failure and does not poll it for another active run', async () => {
+    const completedID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    let intervalCallback: (() => void) | undefined;
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    vi.spyOn(window, 'setInterval').mockImplementation(((callback: TimerHandler, delay?: number) => {
+      if (delay === 2000) intervalCallback = callback as () => void;
+      return 1;
+    }) as typeof window.setInterval);
+    vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+    let detailCalls = 0;
+    const completed = { runId: completedID, commandId: 'inspect', packId: 'fixture', toolId: 'fixture', status: 'exited', exitCode: 0 };
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      if (requestPath(input) === '/api/v1/runs') return Promise.resolve(response(200, { runs: [
+        completed, { ...completed, runId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', commandId: 'older', status: 'running' },
+      ] }));
+      detailCalls += 1;
+      if (detailCalls > 1) return Promise.reject(new TypeError('network unavailable'));
+      return Promise.resolve(response(200, { ...completed, events: [
+        { sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-05T10:00:00Z', dataBase64: btoa('retained evidence') },
+      ] }));
+    }));
+    render(<RunsPage tasks={tasks} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Inspect resources/i }));
+    await screen.findByText('retained evidence');
+    await act(async () => intervalCallback?.());
+    expect(detailCalls).toBe(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh run' }));
+    await screen.findByRole('alert');
+    expect(screen.getByText('retained evidence')).toBeInTheDocument();
+  });
+
+  test('ignores a late detail response after selecting another run and keeps repeated selection usable', async () => {
+    const first = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const second = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const summary = (runId: string, commandId: string) => ({ runId, commandId, packId: 'fixture', toolId: 'fixture', status: 'exited', exitCode: 0 });
+    let resolveOld: (response: Response) => void = () => undefined;
+    const oldRequest = new Promise<Response>((resolve) => { resolveOld = resolve; });
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/runs') return Promise.resolve(response(200, { runs: [summary(first, 'inspect'), summary(second, 'older')] }));
+      if (path.endsWith(first)) return oldRequest;
+      return Promise.resolve(response(200, {
+        ...summary(second, 'older'),
+        events: [{ sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-05T10:00:00Z', dataBase64: btoa('new result') }],
+      }));
+    }));
+    render(<RunsPage tasks={tasks} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Inspect resources/i }));
+    expect(screen.getByText('Loading run evidence…')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Older task/i }));
+    expect(await screen.findByText('new result')).toBeInTheDocument();
+    await act(async () => resolveOld(response(200, {
+      ...summary(first, 'inspect'),
+      events: [{ sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-05T10:00:00Z', dataBase64: btoa('old result') }],
+    })));
+    expect(screen.queryByText('old result')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Older task/i }));
+    expect(screen.getByText('new result')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh run' })).toBeEnabled();
+  });
+
+  test('does not abort a slow background poll on each timer tick', async () => {
+    let intervalCallback: (() => void) | undefined;
+    vi.spyOn(window, 'setInterval').mockImplementation(((callback: TimerHandler, delay?: number) => {
+      if (delay === 2000) intervalCallback = callback as () => void;
+      return 1;
+    }) as typeof window.setInterval);
+    vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    let resolvePoll: (response: Response) => void = () => undefined;
+    const slowPoll = new Promise<Response>((resolve) => { resolvePoll = resolve; });
+    const summary = { runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', packId: 'fixture', commandId: 'inspect', toolId: 'fixture' };
+    const fetchMock = vi.fn().mockResolvedValueOnce(response(200, { runs: [{ ...summary, status: 'running' }] })).mockReturnValue(slowPoll);
+    vi.stubGlobal('fetch', fetchMock);
+    render(<RunsPage tasks={tasks} />);
+    await screen.findByText('Running');
+    await act(async () => intervalCallback?.());
+    await act(async () => intervalCallback?.());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const signal = fetchMock.mock.calls[1][1].signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    await act(async () => resolvePoll(response(200, { runs: [{ ...summary, status: 'exited', exitCode: 0 }] })));
+    expect(await screen.findByText('Succeeded')).toBeInTheDocument();
+  });
+
   test('renders metadata-only history and loads retained evidence only after explicit selection', async () => {
     const secretMarker = 'LIST_MUST_NOT_INCLUDE_THIS_OUTPUT';
     const hostile = '<img id="history-pwn" src=x onerror="document.body.dataset.pwned=1">';

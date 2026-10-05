@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { AuthenticationPage } from './AuthenticationPage';
 import type { RuntimeStatus } from './api/status';
@@ -101,6 +101,50 @@ afterEach(() => {
 });
 
 describe('AuthenticationPage', () => {
+  test('preserves split Unicode identity and skips replay overlapping the create snapshot', async () => {
+    const runId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const bytes = new TextEncoder().encode(JSON.stringify({ account: 'café 🚢' }));
+    const split = bytes.indexOf(0xc3) + 1;
+    const event = (sequence: number, part: Uint8Array) => ({
+      sequence, type: 'stdout.chunk', timestamp: '2026-10-05T10:00:00Z', dataBase64: btoa(String.fromCharCode(...part)),
+    });
+    const first = event(1, bytes.slice(0, split));
+    vi.stubGlobal('EventSource', FakeEventSource);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(202, {
+      runId, packId: whoamiTask.packId, commandId: 'whoami', toolId: 'conjur', status: 'running', events: [first],
+    })));
+    renderAuth();
+    fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    await act(async () => {
+      const stream = FakeEventSource.instances[0];
+      stream.emit('run-event', { ...first, runId });
+      stream.emit('run-event', { ...event(2, bytes.slice(split)), runId });
+      stream.emit('run-complete', { runId, sequence: 2, status: 'exited', exitCode: 0 });
+    });
+    expect(await screen.findByText('café 🚢')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+  });
+
+  test('replaces streamed evidence with the authoritative reconciliation snapshot', async () => {
+    const runId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const evidence = { sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-05T10:00:00Z', dataBase64: btoa('{"account":"engineering"}') };
+    vi.stubGlobal('EventSource', FakeEventSource);
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(response(200, {
+      runId, packId: whoamiTask.packId, commandId: 'whoami', toolId: 'conjur',
+      status: requestPath(input) === '/api/v1/runs' ? 'running' : 'exited', exitCode: 0, events: [evidence],
+    }))));
+    renderAuth();
+    fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    await act(async () => {
+      const stream = FakeEventSource.instances[0];
+      stream.emit('run-event', { ...evidence, runId });
+      for (let i = 0; i < 5; i += 1) stream.onerror?.(new Event('error'));
+    });
+    expect(await screen.findByText('engineering')).toBeInTheDocument();
+  });
+
   test('verifies an authenticated session and renders only allowlisted identity context as inert text', async () => {
     const hostileIdentity = '<img id="auth-pwn" src=x onerror="document.body.dataset.pwned=1">';
     vi.stubGlobal(
