@@ -123,11 +123,29 @@ type HelpProbe struct {
 	TimeoutMillis int      `json:"timeoutMillis,omitempty"`
 }
 
+type ImpactScope string
+
+const (
+	ImpactScopeSingle   ImpactScope = "single"
+	ImpactScopeMultiple ImpactScope = "multiple"
+)
+
+// Impact is trusted pack-authored mutation metadata. It never grants execution
+// authority by itself; the planner derives the exact target from validated
+// input and the run manager binds it into a short-lived backend approval.
+type Impact struct {
+	TargetInput string      `json:"targetInput"`
+	TargetLabel string      `json:"targetLabel"`
+	Effect      string      `json:"effect"`
+	Scope       ImpactScope `json:"scope"`
+}
+
 type Command struct {
 	Name         string       `json:"name"`
 	Description  string       `json:"description,omitempty"`
 	Tool         string       `json:"tool"`
 	Risk         Risk         `json:"risk"`
+	Impact       *Impact      `json:"impact,omitempty"`
 	Inputs       []Input      `json:"inputs,omitempty"`
 	Argv         []Argument   `json:"argv"`
 	Output       Output       `json:"output"`
