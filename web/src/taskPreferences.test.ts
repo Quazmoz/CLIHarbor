@@ -18,6 +18,7 @@ function task(packId: string, commandId: string): Task {
     commandId,
     name: commandId,
     toolId: 'tool',
+    risk: 'read',
     inputs: [],
   };
 }
