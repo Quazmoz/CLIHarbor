@@ -1,3 +1,4 @@
+import type { TaskImpactScope, TaskRisk } from './tasks';
 import {
   clientError,
   errorFromResponse,
@@ -90,10 +91,39 @@ export interface RunSummary {
   exitCode?: number;
 }
 
+export interface RunApprovalSubmission {
+  id: string;
+  confirmation?: string;
+}
+
 export interface CreateRunRequest {
   packId: string;
   commandId: string;
   values: Record<string, unknown>;
+  approval?: RunApprovalSubmission;
+}
+
+export interface RunMutationImpact {
+  targetLabel: string;
+  target: string;
+  effect: string;
+  scope: TaskImpactScope;
+}
+
+export interface RunExecutionContextField {
+  label: string;
+  value: string;
+}
+
+export interface RunExecutionContext {
+  fields: RunExecutionContextField[];
+}
+
+export interface RunApprovalChallenge {
+  id: string;
+  expiresAt: string;
+  mode: 'explicit' | 'typed';
+  requiredText?: string;
 }
 
 export interface RunPreview {
@@ -103,6 +133,10 @@ export interface RunPreview {
   toolVersion?: string;
   executableName: string;
   args: string[];
+  risk: TaskRisk;
+  impact?: RunMutationImpact;
+  context?: RunExecutionContext;
+  approval?: RunApprovalChallenge;
 }
 
 const structuredErrorCodes = new Set<StructuredErrorCode>([
@@ -323,11 +357,22 @@ function parsePreview(value: unknown): RunPreview {
   if (!isRecord(value)) {
     invalidResponse();
   }
-  const allowed = new Set(['packId', 'commandId', 'toolId', 'toolVersion', 'executableName', 'args']);
+  const allowed = new Set([
+    'packId',
+    'commandId',
+    'toolId',
+    'toolVersion',
+    'executableName',
+    'args',
+    'risk',
+    'impact',
+    'context',
+    'approval',
+  ]);
   if (Object.keys(value).some((key) => !allowed.has(key))) {
     invalidResponse();
   }
-  const { packId, commandId, toolId, toolVersion, executableName, args } = value;
+  const { packId, commandId, toolId, toolVersion, executableName, args, risk, impact, context, approval } = value;
   if (
     typeof packId !== 'string' ||
     typeof commandId !== 'string' ||
@@ -338,10 +383,87 @@ function parsePreview(value: unknown): RunPreview {
     executableName.length > 128 ||
     !Array.isArray(args) ||
     args.length > 256 ||
-    args.some((arg) => typeof arg !== 'string' || arg.length > 4096)
+    args.some((arg) => typeof arg !== 'string' || arg.length > 4096) ||
+    (risk !== undefined && !['read', 'change', 'destructive'].includes(String(risk)))
   ) {
     invalidResponse();
   }
+
+  const parsedRisk = (risk ?? 'read') as TaskRisk;
+  let parsedImpact: RunMutationImpact | undefined;
+  if (impact !== undefined) {
+    if (!isRecord(impact) || Object.keys(impact).some((key) => !['targetLabel', 'target', 'effect', 'scope'].includes(key))) {
+      invalidResponse();
+    }
+    const { targetLabel, target, effect, scope } = impact;
+    if (
+      typeof targetLabel !== 'string' ||
+      typeof target !== 'string' ||
+      typeof effect !== 'string' ||
+      !['single', 'multiple'].includes(String(scope))
+    ) {
+      invalidResponse();
+    }
+    parsedImpact = { targetLabel, target, effect, scope: scope as TaskImpactScope };
+  }
+
+  let parsedContext: RunExecutionContext | undefined;
+  if (context !== undefined) {
+    if (!isRecord(context) || Object.keys(context).some((key) => key !== 'fields') || !Array.isArray(context.fields)) {
+      invalidResponse();
+    }
+    if (context.fields.length < 1 || context.fields.length > 8) {
+      invalidResponse();
+    }
+    parsedContext = {
+      fields: context.fields.map((field) => {
+        if (!isRecord(field) || Object.keys(field).some((key) => !['label', 'value'].includes(key))) {
+          invalidResponse();
+        }
+        const { label, value: fieldValue } = field;
+        if (typeof label !== 'string' || typeof fieldValue !== 'string' || label.length === 0 || label.length > 80 || fieldValue.length === 0 || fieldValue.length > 2048) {
+          invalidResponse();
+        }
+        return { label, value: fieldValue };
+      }),
+    };
+  }
+
+  let parsedApproval: RunApprovalChallenge | undefined;
+  if (approval !== undefined) {
+    if (!isRecord(approval) || Object.keys(approval).some((key) => !['id', 'expiresAt', 'mode', 'requiredText'].includes(key))) {
+      invalidResponse();
+    }
+    const { id, expiresAt, mode, requiredText } = approval;
+    if (
+      typeof id !== 'string' ||
+      !/^[0-9a-f]{32}$/u.test(id) ||
+      typeof expiresAt !== 'string' ||
+      Number.isNaN(Date.parse(expiresAt)) ||
+      !['explicit', 'typed'].includes(String(mode)) ||
+      (requiredText !== undefined && typeof requiredText !== 'string')
+    ) {
+      invalidResponse();
+    }
+    if ((mode === 'typed') !== (typeof requiredText === 'string' && requiredText.length > 0 && requiredText.length <= 4096)) {
+      invalidResponse();
+    }
+    parsedApproval = {
+      id,
+      expiresAt,
+      mode: mode as 'explicit' | 'typed',
+      requiredText,
+    };
+  }
+
+  const mutation = parsedRisk === 'change' || parsedRisk === 'destructive';
+  if (mutation !== (parsedImpact !== undefined && parsedContext !== undefined && parsedApproval !== undefined)) {
+    invalidResponse();
+  }
+  if (!mutation && (parsedImpact !== undefined || parsedContext !== undefined || parsedApproval !== undefined)) {
+    invalidResponse();
+  }
+
   return {
     packId,
     commandId,
@@ -349,6 +471,10 @@ function parsePreview(value: unknown): RunPreview {
     toolVersion,
     executableName,
     args: [...args] as string[],
+    risk: parsedRisk,
+    impact: parsedImpact,
+    context: parsedContext,
+    approval: parsedApproval,
   };
 }
 
