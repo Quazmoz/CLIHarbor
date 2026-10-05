@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { normalizeError, invalidInputError, type AppErrorDetail } from './api/errors';
+import { clientError, normalizeError, invalidInputError, type AppErrorDetail } from './api/errors';
 import { fetchRuntimeStatus, type RuntimeStatus } from './api/status';
 import { fetchTasks, type Task, type TaskInput } from './api/tasks';
 import { fetchTools, installTool, type ToolDiagnostic } from './api/tools';
@@ -497,6 +497,7 @@ export function App() {
   const [taskFailure, setTaskFailure] = useState<AppErrorDetail | null>(null);
   const [runActionFailure, setRunActionFailure] = useState<AppErrorDetail | null>(null);
   const [commandPreview, setCommandPreview] = useState<RunPreview | null>(null);
+  const [approvalConfirmation, setApprovalConfirmation] = useState('');
   const [previewing, setPreviewing] = useState(false);
   const [starting, setStarting] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
@@ -533,6 +534,7 @@ export function App() {
     setFormValues(initialValues(task));
     previewRequestRef.current += 1;
     setCommandPreview(null);
+    setApprovalConfirmation('');
     setPreviewing(false);
     setTaskFailure(null);
   }, []);
@@ -550,6 +552,7 @@ export function App() {
     setState({ kind: 'ready', status, tasks, tools });
     previewRequestRef.current += 1;
     setCommandPreview(null);
+    setApprovalConfirmation('');
     setPreviewing(false);
     const reconciledPreferences = reconcileTaskPreferences(loadTaskPreferences(), tasks);
     setTaskPreferences(reconciledPreferences);
@@ -790,6 +793,30 @@ export function App() {
         commandId: selectedTask.commandId,
         values: requestValues(selectedTask, formSnapshot),
       };
+      if (selectedTask.risk !== 'read') {
+        const approval = commandPreview?.approval;
+        if (
+          commandPreview === null ||
+          commandPreview.packId !== selectedTask.packId ||
+          commandPreview.commandId !== selectedTask.commandId ||
+          commandPreview.risk !== selectedTask.risk ||
+          approval === undefined ||
+          (approval.mode === 'typed' && approvalConfirmation !== approval.requiredText)
+        ) {
+          setTaskFailure({
+            code: 'approval_required',
+            category: 'policy',
+            message: 'This change requires a fresh explicit approval.',
+            remediation: 'Review the exact target and environment below, then complete the required approval.',
+            retryable: false,
+          });
+          return;
+        }
+        request.approval = {
+          id: approval.id,
+          ...(approval.mode === 'typed' ? { confirmation: approvalConfirmation } : {}),
+        };
+      }
       await executeRun(selectedTask, formSnapshot, request, 'task');
     } catch (error) {
       setTaskFailure(normalizeError(error).detail);
@@ -812,8 +839,16 @@ export function App() {
         values: requestValues(selectedTask, formValues),
       };
       const preview = await previewRun(state.status.csrfToken, request);
+      if (
+        preview.packId !== selectedTask.packId ||
+        preview.commandId !== selectedTask.commandId ||
+        preview.risk !== selectedTask.risk
+      ) {
+        throw clientError('invalid_response');
+      }
       if (previewRequestRef.current === requestID) {
         setCommandPreview(preview);
+        setApprovalConfirmation('');
       }
     } catch (error) {
       if (previewRequestRef.current === requestID) {
@@ -847,8 +882,14 @@ export function App() {
     setFormValues(formSnapshot);
     previewRequestRef.current += 1;
     setCommandPreview(null);
+    setApprovalConfirmation('');
     setPreviewing(false);
     setTaskFailure(null);
+    if (task.risk !== 'read') {
+      focusConfigurationRef.current = true;
+      setRunActionFailure(null);
+      return;
+    }
     await executeRun(task, formSnapshot, cloneRunRequest(retry.request), 'run');
   };
 
@@ -900,6 +941,22 @@ export function App() {
   };
 
   const taskHasFieldFailure = isTaskFieldFailure(selectedTask, taskFailure);
+  const mutationTask = selectedTask !== undefined && selectedTask.risk !== 'read';
+  const mutationApprovalReady =
+    mutationTask &&
+    commandPreview !== null &&
+    commandPreview.packId === selectedTask?.packId &&
+    commandPreview.commandId === selectedTask?.commandId &&
+    commandPreview.risk === selectedTask?.risk &&
+    commandPreview.approval !== undefined &&
+    (commandPreview.approval.mode === 'explicit' ||
+      approvalConfirmation === commandPreview.approval.requiredText);
+  const runTask =
+    state.kind === 'ready' && run !== null
+      ? state.tasks.find(
+          (task) => task.packId === run.snapshot.packId && task.commandId === run.snapshot.commandId,
+        )
+      : undefined;
   const runSnapshot = run?.snapshot;
   // ponytail: decode the bounded retained event log once per update; use an
   // incremental decoder if larger output retention is ever supported.
@@ -1074,9 +1131,31 @@ export function App() {
                           <p className="task-step-label">2 · Configure</p>
                           <div className="task-context-header">
                             <h3 ref={configurationHeadingRef} tabIndex={-1}>{selectedTask.name}</h3>
-                            <span className="safety-chip">Read-only safe task</span>
+                            <span className={"safety-chip safety-chip--" + selectedTask.risk}>
+                              {selectedTask.risk === 'read'
+                                ? 'Read-only safe task'
+                                : selectedTask.risk === 'change'
+                                  ? 'Change task · approval required'
+                                  : 'Destructive task · approval required'}
+                            </span>
                           </div>
                           {selectedTask.description && <p>{selectedTask.description}</p>}
+                          {selectedTask.impact && (
+                            <div
+                              className={"task-impact-warning task-impact-warning--" + selectedTask.risk}
+                              role={selectedTask.risk === 'destructive' ? 'alert' : 'note'}
+                            >
+                              <strong>
+                                {selectedTask.risk === 'destructive' ? 'High-impact destructive operation' : 'This task changes vendor state'}
+                              </strong>
+                              <p>{selectedTask.impact.effect}</p>
+                              <p>
+                                Scope: {selectedTask.impact.scope === 'multiple'
+                                  ? 'may change multiple records or access relationships; explicit typed approval is required'
+                                  : 'one declared target; explicit approval is required'}.
+                              </p>
+                            </div>
+                          )}
                           {selectedTask.inputs.length === 0 && <p>This task has no inputs. Run it when you are ready.</p>}
                           <details className="technical-details task-technical-details">
                             <summary>Technical task details</summary>
@@ -1107,6 +1186,7 @@ export function App() {
                                 setFormValues((current) => ({ ...current, [input.id]: value }));
                                 previewRequestRef.current += 1;
                                 setCommandPreview(null);
+                                setApprovalConfirmation('');
                                 setPreviewing(false);
                                 if (taskFailure?.field === `values.${input.id}`) {
                                   setTaskFailure(null);
@@ -1127,14 +1207,78 @@ export function App() {
                               disabled={previewing || starting || activeRunID !== null}
                               onClick={() => void previewSelectedTask()}
                             >
-                              {previewing ? 'Checking…' : 'Preview command'}
+                              {previewing
+                                ? 'Checking…'
+                                : mutationTask
+                                  ? selectedTask.risk === 'destructive'
+                                    ? 'Review destructive change'
+                                    : 'Review change'
+                                  : 'Preview command'}
                             </button>
                           </div>
                           {commandPreview === null ? (
-                            <p>Preview the validated command before running when you want an extra confirmation.</p>
+                            <p>
+                              {mutationTask
+                                ? 'Review is mandatory before this task can change vendor state.'
+                                : 'Preview the validated command before running when you want an extra confirmation.'}
+                            </p>
                           ) : (
                             <>
-                              <p className="preview-confirmation">The local runtime validated the task inputs and command boundary.</p>
+                              <p className="preview-confirmation">
+                                The local runtime validated the task inputs and command boundary.
+                              </p>
+                              {commandPreview.impact && commandPreview.context && commandPreview.approval && (
+                                <section className="mutation-approval" aria-labelledby="mutation-approval-heading">
+                                  <div className="mutation-approval-heading">
+                                    <span className="status-label">Approval checkpoint</span>
+                                    <strong id="mutation-approval-heading">
+                                      Verify the exact target and environment
+                                    </strong>
+                                  </div>
+                                  <dl className="mutation-review">
+                                    <div>
+                                      <dt>{commandPreview.impact.targetLabel}</dt>
+                                      <dd>{commandPreview.impact.target}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Effect</dt>
+                                      <dd>{commandPreview.impact.effect}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Scope</dt>
+                                      <dd>{commandPreview.impact.scope === 'multiple' ? 'Multiple records / relationships' : 'Single declared target'}</dd>
+                                    </div>
+                                    {commandPreview.context.fields.map((field) => (
+                                      <div key={field.label}>
+                                        <dt>{field.label}</dt>
+                                        <dd>{field.value}</dd>
+                                      </div>
+                                    ))}
+                                  </dl>
+                                  {commandPreview.approval.mode === 'typed' ? (
+                                    <label className="typed-approval">
+                                      <span>Type this exactly to approve:</span>
+                                      <code>{commandPreview.approval.requiredText}</code>
+                                      <input
+                                        type="text"
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        value={approvalConfirmation}
+                                        onChange={(event) => setApprovalConfirmation(event.target.value)}
+                                        disabled={starting || activeRunID !== null}
+                                        aria-label="Typed approval"
+                                      />
+                                    </label>
+                                  ) : (
+                                    <p className="approval-note">
+                                      Selecting Approve and run below is the explicit approval for this exact reviewed plan.
+                                    </p>
+                                  )}
+                                  <p className="approval-expiry">
+                                    Approval is short-lived, single-use, and bound by the backend to this exact command, target, inputs, executable, and environment context.
+                                  </p>
+                                </section>
+                              )}
                               <details className="technical-details command-technical-details">
                                 <summary>Show exact command</summary>
                                 <code className="invocation-preview">{formatInvocation(commandPreview)}</code>
@@ -1146,8 +1290,17 @@ export function App() {
                           )}
                         </div>
                         <div className="task-actions">
-                          <button type="submit" disabled={starting || activeRunID !== null}>
-                            {starting ? 'Starting…' : 'Run task'}
+                          <button
+                            type="submit"
+                            disabled={starting || activeRunID !== null || (mutationTask && !mutationApprovalReady)}
+                          >
+                            {starting
+                              ? 'Starting…'
+                              : mutationTask
+                                ? selectedTask.risk === 'destructive'
+                                  ? 'Approve destructive change and run'
+                                  : 'Approve change and run'
+                                : 'Run task'}
                           </button>
                           <button
                             type="button"
@@ -1227,7 +1380,11 @@ export function App() {
                             disabled={starting}
                             onClick={() => void retryWithInputs()}
                           >
-                            {starting ? 'Starting…' : 'Retry with inputs'}
+                            {starting
+                              ? 'Starting…'
+                              : runTask?.risk !== undefined && runTask.risk !== 'read'
+                                ? 'Review before retry'
+                                : 'Retry with inputs'}
                           </button>
                         </div>
                       )}
