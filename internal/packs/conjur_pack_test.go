@@ -20,7 +20,7 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if pack.Metadata.ID != "cyberark-conjur-v9" {
 		t.Fatalf("pack id = %q", pack.Metadata.ID)
 	}
-	if pack.Metadata.Version != "0.3.1" {
+	if pack.Metadata.Version != "0.4.0" {
 		t.Fatalf("pack version = %q", pack.Metadata.Version)
 	}
 	if !slices.Equal(pack.Runtime.Platforms, []string{"windows", "darwin"}) {
@@ -39,7 +39,7 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if tool.SessionCheck == nil || tool.SessionCheck.CommandID != "whoami" || tool.SessionCheck.UnauthenticatedStderrContains != "please login again" {
 		t.Fatalf("session check = %#v", tool.SessionCheck)
 	}
-	for _, probe := range []string{"root", "list", "resource", "role", "whoami"} {
+	for _, probe := range []string{"root", "list", "resource", "role", "issuer", "authn-ldap", "whoami"} {
 		if _, ok := tool.HelpProbes[probe]; !ok {
 			t.Fatalf("help probe %q missing", probe)
 		}
@@ -47,6 +47,13 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 
 	wantCommands := []string{
 		"count-resources",
+		"issuer-delete",
+		"ldap-group-create",
+		"ldap-group-delete",
+		"ldap-group-show",
+		"ldap-user-create",
+		"ldap-user-delete",
+		"ldap-user-show",
 		"list-resources",
 		"resource-exists",
 		"resource-permitted-roles",
@@ -65,8 +72,11 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 		if !ok {
 			t.Fatalf("command %q missing", id)
 		}
-		if command.Risk != RiskRead {
+		if command.Risk != RiskRead && command.Risk != RiskChange && command.Risk != RiskDestructive {
 			t.Fatalf("command %q risk = %q", id, command.Risk)
+		}
+		if (command.Risk == RiskChange || command.Risk == RiskDestructive) && command.Impact == nil {
+			t.Fatalf("mutation command %q missing impact", id)
 		}
 		if command.Output.Sensitivity.ContainsSecrets {
 			t.Fatalf("command %q unexpectedly secret-bearing", id)
@@ -92,6 +102,13 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	}
 	if listLimit.Type != InputEnum || !listLimit.Required || !slices.Equal(listLimit.Validation.Enum, []string{"25", "50", "100"}) {
 		t.Fatalf("list-resources bounded page-size contract = %#v", *listLimit)
+	}
+
+	for _, id := range []string{"issuer-delete", "ldap-group-create", "ldap-group-delete", "ldap-user-create", "ldap-user-delete"} {
+		command := pack.Commands[id]
+		if command.Impact == nil || command.Impact.Scope != ImpactScopeMultiple {
+			t.Fatalf("%s impact = %#v, want explicit multiple-record scope", id, command.Impact)
+		}
 	}
 }
 
