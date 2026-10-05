@@ -9,11 +9,13 @@ import (
 	"github.com/cyberark/conjur-api-go/conjurapi"
 )
 
+var loadMutationConjurConfig = conjurapi.LoadConfig
+
 func mutationTaskAvailable(packID, commandID string) bool {
 	if packID != conjurCredentialPackID || !strings.HasPrefix(commandID, "ldap-") {
 		return true
 	}
-	config, err := conjurapi.LoadConfig()
+	config, err := loadMutationConjurConfig()
 	if err != nil {
 		return false
 	}
@@ -28,7 +30,7 @@ func resolveMutationExecutionContext(plan planner.Plan) (runs.ExecutionContext, 
 		return runs.ExecutionContext{}, fmt.Errorf("no reviewed mutation context resolver for %s/%s", plan.PackID, plan.ToolID)
 	}
 
-	config, err := conjurapi.LoadConfig()
+	config, err := loadMutationConjurConfig()
 	if err != nil ||
 		!validConjurHTTPSURL(config.ApplianceURL) ||
 		!validConjurConfigScalar(config.Account) {
