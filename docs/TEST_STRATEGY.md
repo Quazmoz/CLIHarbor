@@ -273,6 +273,8 @@ Current tests already cover local pack path redaction, secret-output metadata co
 
 Once auth orchestration exists, use a fixture CLI for signed-out/login/signed-in, cancellation, non-zero login failure, expiry, logout, status unavailable, and MFA-style interactive behavior without CLIHarbor capturing credentials. Verify actual vendor flow separately.
 
+Windows terminal tests exercise the actual native console host with a credential-free test executable and assert real stdin/stdout/stderr console handles, fixed login execution, paths containing spaces/Unicode, modified executable refusal, malformed handoff refusal, and immediate non-zero hidden-login detection. These tests must run on Windows; cross-compilation alone does not qualify them. Browser/component acceptance covers grouped sidebar links, Sign in navigation/focus, mobile Menu behavior, tool-category filtering of search/favorites/recent tasks, form reset across categories, and responsive page overflow.
+
 ## 12. Parser resilience
 
 The Phase 5 fixture/parser suite now covers valid reordered scalar JSON, optional/missing fields, malformed JSON, wrong primitive types, unknown fields, duplicate keys, nested objects/arrays, boundary and oversized strings/output, invalid UTF-8, signed-integer overflow, floating-point/NaN-equivalent invalid integer input, ANSI/control characters, markup-like strings, Unicode, stdout+stderr, non-zero exit with structured-looking stdout, cancellation, and secret-like/sensitive-field refusal.

@@ -504,6 +504,7 @@ async function main() {
   try {
     page = await chrome.newPage();
     pages.push(page);
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
 
     stage('bootstrap and authenticated shell');
     await navigate(page, bootstrapURL);
@@ -527,6 +528,14 @@ async function main() {
     assert.equal(overviewSurface.hasGuidedSignIn, true, 'overview must expose the reviewed guided CLI sign-in surface');
     assert.equal(overviewSurface.hasConjurSetup, true, 'first-run Conjur connection setup must be actionable from overview');
     assert.equal(overviewSurface.horizontalOverflow, false, 'overview must fit the default browser viewport horizontally');
+    const shell = await page.evaluate('(() => ({' +
+      'sidebarOnLeft: document.querySelector(".sidebar").getBoundingClientRect().width > 0 && document.querySelector(".sidebar").getBoundingClientRect().right <= document.querySelector("main").getBoundingClientRect().left,' +
+      'signInOnRight: document.querySelector(".sign-in-button").getBoundingClientRect().right > innerWidth - 80,' +
+      'groups: Array.from(document.querySelectorAll(".primary-nav .nav-group-label")).map((element) => element.textContent)' +
+    '}))()');
+    assert.equal(shell.sidebarOnLeft, true, 'desktop navigation must be a left sidebar');
+    assert.equal(shell.signInOnRight, true, 'Sign in must be reachable at the top right');
+    assert.deepEqual(shell.groups, ['Workspace', 'Security', 'Manage']);
     await capture('overview');
 
     const bootstrapState = await page.evaluate('(async () => {' +
@@ -545,6 +554,8 @@ async function main() {
     assert.equal(bootstrapState.csrfInStorage, false, 'CSRF token must not enter browser storage');
 
     stage('direct authentication route and enterprise viewport');
+    await clickButton(page, 'Sign in');
+    await waitJS(page, 'top-right sign-in navigation', 'location.pathname === "/authentication" && document.activeElement?.id === "main-content"');
     await page.call('Emulation.setDeviceMetricsOverride', {
       width: 1366,
       height: 768,
@@ -675,6 +686,13 @@ async function main() {
     assert.equal(taskDiscoverySurface.hasAll, true);
     assert.match(taskDiscoverySurface.taskCount, /task/, 'task discovery should keep catalog size visible');
 
+    stage('tool category filtering');
+    await page.evaluate('(() => { const select = document.querySelector(".task-category-filter select"); select.value = "integration"; select.dispatchEvent(new Event("change", { bubbles: true })); })()');
+    await waitJS(page, 'fixture category', 'document.querySelector(".task-category-filter select").value === "integration" && document.querySelector(".task-discovery").open');
+    assert.equal(await page.evaluate('Array.from(document.querySelectorAll("[data-task-action=select]")).every((button) => button.dataset.taskKey.startsWith("integration/"))'), true, 'category rows must belong to the selected tool');
+    await page.evaluate('(() => { const select = document.querySelector(".task-category-filter select"); select.value = ""; select.dispatchEvent(new Event("change", { bubbles: true })); })()');
+    await waitJS(page, 'all tool categories restored', 'document.querySelector(".task-category-filter select").value === "" && document.querySelector(".task-catalog-selection").textContent.includes("4 available")');
+
     stage('responsive operator workflow widths');
     for (const width of [1440, 1024, 768, 390, 320]) {
       await page.call('Emulation.setDeviceMetricsOverride', {
@@ -689,6 +707,13 @@ async function main() {
         'window.innerWidth === ' + width + ' && document.documentElement.scrollWidth <= window.innerWidth',
         5000,
       );
+      if (width <= 390) {
+        assert.equal(await page.evaluate('document.querySelector(".sidebar").getBoundingClientRect().width === 0'), true, 'mobile sidebar starts collapsed');
+        await clickButton(page, 'Menu');
+        await waitJS(page, 'mobile menu open', 'document.querySelector(".navigation-toggle").getAttribute("aria-expanded") === "true" && document.querySelector(".sidebar").getBoundingClientRect().width > 0');
+        assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'open mobile menu must fit the viewport');
+        await clickButton(page, 'Menu');
+      }
       await capture('tasks-' + width);
     }
     await page.call('Emulation.setDeviceMetricsOverride', {
@@ -1046,6 +1071,17 @@ async function main() {
     assert.equal(eviction.error, '');
     assert.equal(eviction.created, 33);
     assert.equal(eviction.firstStatus, 404, 'oldest completed run must be evicted at the bounded retention limit');
+
+    stage('responsive operator pages');
+    for (const width of [1024, 390, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      for (const route of ['/', '/authentication', '/runs', '/diagnostics', '/secret-audit']) {
+        await navigate(page, baseURL + route);
+        await waitJS(page, route + ' ready', 'document.querySelector("main").getAttribute("aria-busy") === "false" && document.querySelector("main h2") !== null');
+        assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, route + ' must fit at ' + width + 'px');
+        await capture((route === '/' ? 'overview' : route.slice(1)) + '-' + width);
+      }
+    }
 
     stage('complete');
     console.log('CLIHarbor production browser E2E passed');

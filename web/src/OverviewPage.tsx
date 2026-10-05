@@ -90,11 +90,10 @@ export function OverviewPage({
     <section className="overview-page" aria-labelledby="overview-heading">
       <div className="panel overview-hero">
         <div className="overview-hero-copy">
-          <p className="status-label">Operator home</p>
+          <p className="status-label">Your workspace</p>
           <h2 id="overview-heading">{workflowReady ? 'Ready for local operator work' : 'Local runtime is active'}</h2>
           <p>
-            Check whether your tools are ready, sign in only when a task requires it, then choose and run an approved task.
-            Technical execution details remain available when you need them.
+            Your command-line tools, with a simpler way to work. Choose a task, review the inputs, and run it locally.
           </p>
         </div>
         {/* The primary action lives once, in "Recommended next step" below. */}
@@ -106,32 +105,6 @@ export function OverviewPage({
           </div>
         )}
       </div>
-
-      {vendorSessionTools.length > 0 && (
-        <section className="overview-login" aria-labelledby="overview-login-heading">
-          <div className="route-heading">
-            <p className="status-label">CLI sign-in</p>
-            <h2 id="overview-login-heading">{hasGuidedCredentialLogin ? 'Sign in from CLIHarbor' : 'CLI authentication'}</h2>
-            <p>
-              CLIHarbor keeps detected vendor-session CLIs visible independently from sign-in method. Supported password
-              configurations use the local credential bridge; supported OIDC/JWT/SaaS configurations open the verified vendor
-              login flow. In both cases credentials stay out of task argv and run history, and the reviewed session check remains authoritative.
-            </p>
-          </div>
-          <div className="auth-layout">
-            {vendorSessionTools.map((tool) => (
-              <VendorSessionCard
-                key={tool.packId + '/' + tool.toolId + '/' + tool.packVersion}
-                status={status}
-                tasks={tasks}
-                tool={tool}
-                onOpenTasks={() => onNavigate('tasks')}
-                onOpenDiagnostics={() => onNavigate('diagnostics')}
-              />
-            ))}
-          </div>
-        </section>
-      )}
 
       <div className="overview-metrics" aria-label="Workspace summary">
         <div className="overview-metric">
@@ -151,7 +124,7 @@ export function OverviewPage({
         <div className="overview-metric">
           <span>Execution boundary</span>
           <strong>Local only</strong>
-          <p>Browser choices stay inside the authenticated loopback runtime and reviewed pack authority.</p>
+          <p>Your tools run on this computer. Credentials remain in vendor-owned storage.</p>
         </div>
       </div>
 
@@ -199,37 +172,29 @@ export function OverviewPage({
         </article>
       </div>
 
-      <section className="panel" aria-labelledby="workflow-heading">
-        <p className="status-label">Normal workflow</p>
-        <h2 id="workflow-heading">From readiness to evidence</h2>
-        <p>Each step has one job. Use the dedicated surface instead of hunting through one overloaded page.</p>
-        <ol className="workflow-steps">
-          <li className="workflow-step">
-            <button type="button" onClick={() => onNavigate('diagnostics')}>
-              <strong>Tools</strong>
-              <span>{readyToolCount}/{tools.length} configured tools ready</span>
-            </button>
-          </li>
-          <li className="workflow-step">
-            <button type="button" onClick={() => onNavigate('authentication')}>
-              <strong>Authentication</strong>
-              <span>{vendorSessionTaskCount > 0 ? vendorSessionTaskCount + ' task' + (vendorSessionTaskCount === 1 ? ' needs' : 's need') + ' sign-in before use' : 'No available task currently requires sign-in'}</span>
-            </button>
-          </li>
-          <li className="workflow-step">
-            <button type="button" onClick={() => onNavigate('tasks')}>
-              <strong>Tasks</strong>
-              <span>{tasks.length} reviewed browser-safe task{tasks.length === 1 ? '' : 's'} available</span>
-            </button>
-          </li>
-          <li className="workflow-step">
-            <button type="button" onClick={() => onNavigate('runs')}>
-              <strong>Runs</strong>
-              <span>Inspect bounded process-local history and retained evidence</span>
-            </button>
-          </li>
-        </ol>
-      </section>
+      {vendorSessionTools.length > 0 && (
+        <section className="overview-login" aria-labelledby="overview-login-heading">
+          <div className="route-heading">
+            <p className="status-label">CLI sign-in</p>
+            <h2 id="overview-login-heading">{hasGuidedCredentialLogin ? 'Sign in from CLIHarbor' : 'CLI authentication'}</h2>
+            <p>
+              Connect your tools using their supported sign-in method, then check the session before running authenticated tasks.
+            </p>
+          </div>
+          <div className="auth-layout">
+            {vendorSessionTools.map((tool) => (
+              <VendorSessionCard
+                key={tool.packId + '/' + tool.toolId + '/' + tool.packVersion}
+                status={status}
+                tasks={tasks}
+                tool={tool}
+                onOpenTasks={() => onNavigate('tasks')}
+                onOpenDiagnostics={() => onNavigate('diagnostics')}
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </section>
   );
 }

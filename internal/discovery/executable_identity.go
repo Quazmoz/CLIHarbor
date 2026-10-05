@@ -34,6 +34,12 @@ func (i ExecutableIdentity) Valid() bool {
 	return i.info != nil
 }
 
+// ContentSHA256 returns content evidence for a local child-process handoff.
+// It is not a replacement for Matches, and is never browser-visible.
+func (i ExecutableIdentity) ContentSHA256() [sha256.Size]byte {
+	return i.digest
+}
+
 func (i ExecutableIdentity) Matches(path string) bool {
 	if i.info == nil {
 		return false

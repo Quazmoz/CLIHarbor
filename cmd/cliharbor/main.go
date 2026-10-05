@@ -13,6 +13,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/app"
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
+	"github.com/Quazmoz/CLIHarbor/internal/platform/terminal"
 )
 
 var (
@@ -262,6 +263,9 @@ func main() {
 }
 
 func run(args []string) error {
+	if len(args) > 0 && args[0] == "_conjur-login-console" {
+		return terminal.RunConjurLoginConsole(args[1:])
+	}
 	if path, ok := helpRequest(args); ok {
 		return printHelp(os.Stdout, path)
 	}

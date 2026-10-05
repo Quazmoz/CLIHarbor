@@ -35,6 +35,25 @@ const tasks: Task[] = [
 ];
 
 describe('TaskDiscovery', () => {
+  test('tool categories constrain search, favorites, and recently used tasks', () => {
+    const props = {
+      tasks, selectedTaskKey: 'beta/inspect',
+      preferences: { favorites: [{ packId: 'alpha', commandId: 'inspect' }], recent: [{ packId: 'beta', commandId: 'inspect' }] },
+      onSelect: vi.fn(), onToggleFavorite: vi.fn(), onFilterChange: vi.fn(),
+    };
+    const { container, rerender } = render(<TaskDiscovery {...props} packFilter="beta" />);
+    expect(screen.queryByRole('heading', { name: 'Favorites' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Recently used' })).toBeInTheDocument();
+    expect(container.querySelector('[data-task-key="alpha/inspect"]')).toBeNull();
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'conjur' } });
+    expect(screen.getByText('No tasks match “conjur”.')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tool category' }), { target: { value: '' } });
+    expect(props.onFilterChange).toHaveBeenCalledWith('');
+    rerender(<TaskDiscovery {...props} packFilter="" />);
+    expect(screen.getByRole('heading', { name: 'Search results' })).toBeInTheDocument();
+    expect(container.querySelector('[data-task-key="alpha/inspect"]')).not.toBeNull();
+  });
+
   test('collapses the catalog after selection and slash reopens it with search focused', () => {
     const onSelect = vi.fn();
     const { container } = render(

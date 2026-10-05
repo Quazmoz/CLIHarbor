@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 )
 
 var ErrUnsupported = errors.New("external vendor terminal is unsupported on this platform")
@@ -15,16 +17,33 @@ func Supported() bool {
 	return platformSupported()
 }
 
-// Launch starts the exact executable with the supplied argv in a separate
-// vendor-owned terminal. It never invokes a command shell.
-func Launch(executable string, args []string) error {
+// Launch hosts the identity-checked Conjur login in a separate console with
+// explicit terminal handles and a dismissible result. It never invokes a shell.
+func Launch(executable string, args []string, identity discovery.ExecutableIdentity) error {
 	if err := validateLaunch(executable, args); err != nil {
 		return err
 	}
 	if !platformSupported() {
 		return ErrUnsupported
 	}
-	return launchPlatform(executable, args)
+	if !identity.Matches(executable) {
+		return fmt.Errorf("vendor executable identity changed")
+	}
+	return launchPlatform(executable, args, identity)
+}
+
+// RunConjurLoginConsole is the private console-host entry point. The host never
+// accepts arbitrary commands: only the identity-checked Conjur login flow.
+func RunConjurLoginConsole(args []string) error {
+	if len(args) != 2 || validateLaunch(args[0], []string{"login"}) != nil ||
+		!strings.EqualFold(filepath.Base(args[0]), "conjur.exe") {
+		return fmt.Errorf("invalid Conjur console handoff")
+	}
+	identity, err := discovery.CaptureExecutableIdentity(args[0])
+	if err != nil || args[1] != fmt.Sprintf("%x", identity.ContentSHA256()) {
+		return fmt.Errorf("Conjur console executable identity changed")
+	}
+	return runConjurLoginConsolePlatform(args[0], identity)
 }
 
 // LaunchHidden starts the exact executable with the supplied argv without a

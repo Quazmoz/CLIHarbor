@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -30,5 +31,21 @@ func TestValidateLaunchRequiresAbsoluteExecutableAndBoundedArgs(t *testing.T) {
 				t.Fatalf("validateLaunch() error = %v, wantError %t", err, tc.wantError)
 			}
 		})
+	}
+}
+
+func TestConjurConsoleHandoffFailsClosed(t *testing.T) {
+	executable := filepath.Join(t.TempDir(), "conjur.exe")
+	if err := os.WriteFile(executable, []byte("fixture"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		nil, {executable}, {executable, "wrong-digest"},
+		{executable, "wrong-digest", "--password"}, {"conjur.exe", "wrong-digest"},
+		{filepath.Join(t.TempDir(), "cmd.exe"), "wrong-digest"},
+	} {
+		if err := RunConjurLoginConsole(args); err == nil {
+			t.Fatal("unsafe console handoff was accepted")
+		}
 	}
 }

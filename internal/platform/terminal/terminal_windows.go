@@ -11,6 +11,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"golang.org/x/sys/windows"
 )
 
@@ -18,12 +19,19 @@ func platformSupported() bool {
 	return true
 }
 
-func launchPlatform(executable string, args []string) error {
-	applicationName, err := windows.UTF16PtrFromString(executable)
+func launchPlatform(executable string, args []string, identity discovery.ExecutableIdentity) error {
+	if len(args) != 1 || args[0] != "login" {
+		return fmt.Errorf("unsupported vendor console command")
+	}
+	host, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolve vendor console host: %w", err)
+	}
+	applicationName, err := windows.UTF16PtrFromString(host)
 	if err != nil {
 		return fmt.Errorf("encode vendor executable path: %w", err)
 	}
-	commandLine := windows.ComposeCommandLine(append([]string{executable}, args...))
+	commandLine := windows.ComposeCommandLine([]string{host, "_conjur-login-console", executable, fmt.Sprintf("%x", identity.ContentSHA256())})
 	commandLinePtr, err := windows.UTF16PtrFromString(commandLine)
 	if err != nil {
 		return fmt.Errorf("encode vendor command line: %w", err)
@@ -54,12 +62,64 @@ func launchPlatform(executable string, args []string) error {
 	); err != nil {
 		return fmt.Errorf("launch vendor terminal: %w", err)
 	}
-	// The external terminal/process is intentionally vendor/operator owned after
-	// launch. Closing our handles prevents CLIHarbor from retaining process
-	// authority while the vendor CLI owns prompts, browser handoff, and session storage.
+	// The host owns only console setup and dismissal. The vendor owns every
+	// credential interaction; none is redirected through the browser/backend.
 	_ = windows.CloseHandle(processInfo.Thread)
-	_ = windows.CloseHandle(processInfo.Process)
+	defer windows.CloseHandle(processInfo.Process)
+	// Catch a broken handoff without holding the HTTP request open for login.
+	wait, err := windows.WaitForSingleObject(processInfo.Process, 500)
+	if err != nil {
+		return nil // The process already started; do not suggest a duplicate launch.
+	}
+	if wait == windows.WAIT_OBJECT_0 {
+		var code uint32
+		if windows.GetExitCodeProcess(processInfo.Process, &code) == nil && code != 0 {
+			return fmt.Errorf("vendor console host exited before login")
+		}
+	}
 	return nil
+}
+
+func runConjurLoginConsolePlatform(executable string, identity discovery.ExecutableIdentity) error {
+	// Explicit console devices prevent GUI-launcher/null standard handles from
+	// making vendor password/MFA prompts fail as non-interactive input.
+	input, err := os.OpenFile("CONIN$", os.O_RDWR, 0)
+	if err != nil {
+		return fmt.Errorf("open vendor console input: %w", err)
+	}
+	defer input.Close()
+	output, err := os.OpenFile("CONOUT$", os.O_RDWR, 0)
+	if err != nil {
+		return fmt.Errorf("open vendor console output: %w", err)
+	}
+	defer output.Close()
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return fmt.Errorf("resolve vendor console working directory")
+	}
+	if !identity.Matches(executable) {
+		return fmt.Errorf("vendor executable identity changed")
+	}
+	cmd := exec.Command(executable, "login")
+	cmd.Dir = home
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = input, output, output
+	// The vendor attaches to this real console. No shell, pipes, credential
+	// buffering, or keystroke injection are involved.
+	err = cmd.Run()
+	if err != nil {
+		fmt.Fprintln(output, "\nConjur sign-in did not complete. Review the vendor message above.")
+	} else {
+		fmt.Fprintln(output, "\nConjur login finished. Return to CLIHarbor and check your session.")
+	}
+	fmt.Fprintln(output, "Close this window when you are ready to return to CLIHarbor.")
+	waitForConsoleClose()
+	return err
+}
+
+var waitForConsoleClose = func() {
+	// Native window close terminates the host. Never read console input here,
+	// including any credential keystrokes left buffered after the vendor exits.
+	_, _ = windows.WaitForSingleObject(windows.CurrentProcess(), windows.INFINITE)
 }
 
 // hiddenLoginTimeout bounds an abandoned hidden login (for example an OIDC
@@ -108,15 +168,15 @@ func launchHiddenPlatform(executable string, args []string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launch hidden vendor login: %w", err)
 	}
-	// Start succeeding is the authoritative launch event. Supervision below only
-	// reaps or bounds the vendor-owned process; it never reports back as a launch
-	// failure because that could duplicate an already-running authentication flow.
+	// Report a fast non-zero exit, without capturing vendor output or waiting
+	// for the browser interaction. A live flow is acknowledged only once.
 	done := make(chan struct{})
+	var waitErr error
 	hiddenLogin.process = cmd.Process
 	hiddenLogin.done = done
 	go func() {
 		timer := time.AfterFunc(hiddenLoginTimeout, func() { _ = cmd.Process.Kill() })
-		_ = cmd.Wait()
+		waitErr = cmd.Wait()
 		timer.Stop()
 		close(done)
 		hiddenLogin.Lock()
@@ -125,5 +185,12 @@ func launchHiddenPlatform(executable string, args []string) error {
 		}
 		hiddenLogin.Unlock()
 	}()
+	select {
+	case <-done:
+		if waitErr != nil {
+			return fmt.Errorf("vendor login exited before authentication")
+		}
+	case <-time.After(500 * time.Millisecond):
+	}
 	return nil
 }

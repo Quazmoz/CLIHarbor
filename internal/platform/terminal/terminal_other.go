@@ -2,11 +2,17 @@
 
 package terminal
 
+import "github.com/Quazmoz/CLIHarbor/internal/discovery"
+
 func platformSupported() bool {
 	return false
 }
 
-func launchPlatform(string, []string) error {
+func launchPlatform(string, []string, discovery.ExecutableIdentity) error {
+	return ErrUnsupported
+}
+
+func runConjurLoginConsolePlatform(string, discovery.ExecutableIdentity) error {
 	return ErrUnsupported
 }
 

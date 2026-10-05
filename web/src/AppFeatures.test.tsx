@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
 
@@ -54,6 +54,39 @@ afterEach(() => {
 });
 
 describe('command preview and retry workflows', () => {
+  test('sidebar categories select a matching task and Sign in opens authentication', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [
+        { packId: 'alpha', packName: 'Alpha', commandId: 'inspect', name: 'Inspect alpha', toolId: 'alpha',
+          inputs: [{ id: 'query', type: 'string', label: 'Query', required: true, validation: {} }] },
+        { packId: 'beta', packName: 'Beta', commandId: 'inspect', name: 'Inspect beta', toolId: 'beta', inputs: [] },
+      ] }));
+      return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
+    }));
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Query' }), { target: { value: 'old input' } });
+    const categories = screen.getByRole('navigation', { name: 'Task categories' });
+    fireEvent.click(within(categories).getByRole('button', { name: /Beta/ }));
+    expect(screen.getByRole('heading', { name: 'Inspect beta' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Query' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Tool category' })).toHaveValue('beta');
+    expect(within(categories).getByRole('button', { name: /Beta/ })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
+    expect(screen.getByRole('textbox', { name: 'Query' })).toHaveValue('');
+    fireEvent.click(screen.getByRole('button', { name: /^Inspect beta/ }));
+    fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
+    expect(screen.getByRole('heading', { name: 'Inspect beta' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(window.location.pathname).toBe('/authentication');
+    expect(screen.getByRole('heading', { name: 'Authentication' })).toBeInTheDocument();
+    expect(screen.getByRole('main')).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
   test('a late cancellation failure cannot evict a subsequently accepted run', async () => {
     const firstID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     const secondID = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';

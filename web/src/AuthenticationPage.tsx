@@ -542,7 +542,7 @@ export function VendorSessionCard({
 
   let primaryHeading = 'Authentication not verified';
   let primaryDetail =
-    label + ' is ready, but CLIHarbor has not yet checked whether the vendor-owned session is authenticated.';
+    'Check this tool’s session to see whether you are signed in.';
   let primaryClass = 'auth-state--neutral';
   let primarySymbol = '?';
 
@@ -689,9 +689,8 @@ export function VendorSessionCard({
               <div>
                 <p className="credential-step-label">Step 1 of 2 · Connection</p>
                 <p className="credential-login-help" id={headingID + '-connection-help'}>
-                  Enter the HTTPS Conjur server and account your organization gave you. CLIHarbor asks the reviewed Conjur CLI
-                  to create its normal current-user connection configuration. No password is requested or sent until this step
-                  succeeds, and insecure or self-signed bypass flags are never accepted.
+                  Enter the HTTPS server and account provided by your organization. Save the connection first;
+                  you’ll enter your credentials in the next step.
                 </p>
               </div>
               <div className="credential-login-fields">
@@ -864,10 +863,8 @@ export function VendorSessionCard({
             <span className="safety-chip">Credentials stay vendor-owned</span>
           </div>
           <p className="credential-login-help">
-            CLIHarbor starts the exact verified Conjur CLI with only the reviewed <code>login</code> argument. OIDC and
-            JWT run without a CLIHarbor console; OIDC may open the vendor browser flow. Idira SaaS/cloud may open a
-            separate vendor-owned terminal when interactive challenges are required. CLIHarbor does not receive or record
-            credentials from this flow.
+            Continue in Conjur’s browser or terminal to complete sign-in. Password and MFA prompts stay in the
+            vendor terminal. When login finishes, the result stays visible until you close the window.
           </p>
           {credentialFailure !== null && (
             <div className="credential-login-error" role="alert">
@@ -880,7 +877,7 @@ export function VendorSessionCard({
               <strong>Official Conjur sign-in started.</strong>
               <span>
                 Complete any vendor browser or terminal flow. CLIHarbor re-checks the session when you return to this tab, or
-                select Check session.
+                select Check session. If login fails, review the message in the terminal before closing it.
               </span>
             </div>
           )}
@@ -952,9 +949,8 @@ export function AuthenticationPage({
         <p className="status-label">Sign-in status</p>
         <h2 id="authentication-heading">Authentication</h2>
         <p>
-          Check whether approved tools are signed in and use the built-in Conjur form when password sign-in is supported. On a
-          new computer, CLIHarbor can also guide the reviewed Conjur CLI through its normal connection setup before signing in.
-          Other authentication modes continue to use your organization’s approved vendor flow.
+          Sign in to your tools and verify their sessions. Choose the supported Conjur form or continue with
+          your organization’s vendor sign-in flow.
         </p>
       </div>
 
@@ -989,9 +985,8 @@ export function AuthenticationPage({
       </div>
 
       {tools.some((tool) => tool.credentialLogin !== undefined) && (
-      <article className="panel auth-guidance" aria-labelledby="authentication-guidance-heading">
-        <p className="status-label">Approved flow</p>
-        <h3 id="authentication-guidance-heading">Sign in safely, then verify</h3>
+      <details className="panel auth-guidance">
+        <summary>How sign-in works</summary>
         <p>
           CLIHarbor never persists the password you enter. For supported Conjur password authentication, the browser submits it
           only to the authenticated loopback backend, which hands it directly to the pinned vendor API. The resulting vendor
@@ -1007,7 +1002,7 @@ export function AuthenticationPage({
           CLIHarbor’s local browser session is a separate trust boundary from vendor sessions. A successful sign-in still does
           not bypass backend task policy, and the session check remains the authoritative browser-visible evidence.
         </p>
-      </article>
+      </details>
       )}
     </section>
   );

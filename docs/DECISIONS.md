@@ -700,7 +700,7 @@ Mode-aware presentation removes unnecessary console flash without broadening the
 
 ## ADR-028 — Run the Conjur secret-value reference audit from the browser without returning values
 
-**Date:** 2026-10-05  
+**Date:** 2026-10-05
 **Status:** Accepted.
 
 ### Context
@@ -733,3 +733,17 @@ Secret values now transit backend memory during an operator-initiated audit. Go 
 ### Verification
 
 Go tests cover classifier parity, value/metadata non-echo in the serialized snapshot, batch→per-variable fallback, failure codes, drift detection, and session failure. Server tests cover CSRF/Origin, unknown/duplicate fields, and threshold validation. Frontend tests cover acknowledgement gating, the exact request body/CSRF, redacted rendering, and rejection of unsafe server text.
+
+
+## ADR-029 — Preserve native console input and visible Conjur login results
+
+**Date:** 2026-10-05
+**Status:** Accepted; Windows runtime and managed-tenant qualification remain release requirements.
+
+The previous console launcher detached from Conjur immediately after process creation. A vendor failure could close the window before the operator could read it, while the browser displayed a launch acknowledgement. Inherited/null standard handles are also unsuitable for the vendor’s password/MFA terminal prompts.
+
+Retain ADR-026’s mode selection. For SaaS/cloud, launch a private CLIHarbor console host that accepts only the approved Conjur executable and discovery-time SHA-256 content evidence. Revalidate the handoff, connect the vendor directly to native console devices, execute fixed `login` argv, wait for the vendor, and keep the result visible until the operator closes the native window. The host never reads credential interaction, captures vendor output, or invokes a shell. OIDC/JWT retain hidden vendor execution; a bounded startup check rejects immediate non-zero exits without capturing output.
+
+The extra local process exists solely to provide terminal handles and preserve the vendor result. No browser-supplied executable, command, fingerprint, credential, or environment is accepted. The ordinary executable identity checks and `whoami` session verification remain authoritative. The private helper’s fingerprint is content evidence across a local process boundary, not a serialization of executable authority or a new public API.
+
+Qualification includes actual Windows console-handle tests with a credential-free helper executable, paths containing spaces/Unicode, changed-content refusal, malformed handoff refusal, immediate hidden-process failure, and real managed-tenant sign-in. Compiling Windows tests on another OS is not Windows runtime qualification.

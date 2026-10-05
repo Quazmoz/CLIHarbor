@@ -262,7 +262,7 @@ describe('OverviewPage', () => {
       />,
     );
 
-    expect(screen.getByText('1 task needs sign-in before use')).toBeInTheDocument();
+    expect(screen.getByText('1 task requires sign-in before use.')).toBeInTheDocument();
     expect(screen.queryByText(/^Authenticated$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Signed in$/i)).not.toBeInTheDocument();
   });

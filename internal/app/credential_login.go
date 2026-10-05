@@ -53,12 +53,14 @@ func newConjurCredentialLoginService(snapshot discovery.Snapshot) *conjurCredent
 		},
 		runInit:              runConjurConnectionInit,
 		interactiveSupported: terminal.Supported,
-		launchInteractive:    terminal.Launch,
 		launchBackground:     terminal.LaunchHidden,
 	}
 	if ok {
 		service.toolPath = state.Path
 		service.toolIdentity = state.ExecutableIdentity
+	}
+	service.launchInteractive = func(executable string, args []string) error {
+		return terminal.Launch(executable, args, service.toolIdentity)
 	}
 	return service
 }

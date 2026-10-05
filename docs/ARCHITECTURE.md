@@ -283,6 +283,8 @@ On Windows each run uses a Job Object. The target starts suspended, enters the J
 
 On macOS/Linux, a dedicated process group is established before the child executes. Cancellation/timeout kills that group, and normal teardown removes surviving descendants within it. This covers descendants that retain the group; a deliberate `setsid`/process-group escape requires a stronger OS sandbox and is not equivalent to Windows Job Object containment.
 
+The separate Windows SaaS/cloud sign-in path uses a private CLIHarbor console host to attach fixed, identity-checked Conjur login to native console devices and retain the vendor result until dismissal. Only the approved path and discovery-time SHA-256 content fingerprint cross this local process boundary; no credential I/O is captured. OIDC/JWT retain hidden vendor-owned launch with a bounded fast-failure check. See ADR-029 and [Authentication](AUTHENTICATION.md).
+
 ## 15. Run state, streaming and structured output
 
 The run manager owns bounded in-memory state; there is no persisted run database.

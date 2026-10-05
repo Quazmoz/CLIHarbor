@@ -8,18 +8,19 @@ The UI should preserve the transparency and precision of a CLI while reducing me
 
 ## 2. Core navigation
 
-Suggested application shell:
+The application uses a persistent left sidebar grouped into Workspace, Security, and Manage:
 
 ```text
 CLIHarbor
-├─ Overview
-├─ Authentication
-├─ Tasks
-├─ Runs
-└─ Diagnostics
+├─ Workspace: Overview, Tasks, Runs
+├─ Security: Authentication, Secret audit (when Conjur is configured)
+├─ Manage: Diagnostics
+└─ Tools: categories from the authorized task catalog
 ```
 
-Pack-defined navigation must not obscure global runtime state such as active tool/profile/authentication.
+The top bar shows the current page, runtime connection state, and a **Sign in** button linking to Authentication. This button opens tool sign-in; it never claims a vendor session is authenticated. On narrow windows, **Menu** toggles the sidebar. Navigation preserves native links, page titles, and focus to main content.
+
+Tool categories filter only the current authorized catalog. Selecting a category resets the form to a task in that category, and **All tools** restores the full catalog. Search, Favorites, and Recently used obey the same category filter. Category changes are disabled while a task is starting or running. These filters are transient navigation state and create no execution authority.
 
 ## 3. Persistent context bar
 
@@ -42,7 +43,7 @@ Home answers four questions immediately:
 3. Am I authenticated?
 4. What should I do next?
 
-The implemented Overview is a dedicated operator dashboard rather than a second copy of the task runner. It summarizes tool readiness, task availability, and the local-only boundary; chooses a conservative next step from authoritative runtime/tool state; exposes one-click Favorites/Recently used task entry; and presents the normal Tools → Authentication → Tasks → Runs workflow without inventing an authentication verdict. Ready vendor-session CLIs remain visible on Overview independently from whether a browser credential adapter is currently available. When the backend advertises the reviewed Conjur password adapter, the same real sign-in card exposes browser login; otherwise the card still reports the detected CLI and allows the reviewed session check without misrepresenting a configuration/authentication limitation as failed CLI detection. Task configuration/execution lives on `/tasks`, diagnostics on `/diagnostics`, and retained history on `/runs`.
+The implemented Overview is a dedicated operator dashboard rather than a second copy of the task runner. It summarizes tool readiness, task availability, and the local-only boundary; chooses a conservative next step from authoritative runtime/tool state; exposes one-click Favorites/Recently used task entry; and keeps tool sign-in available below the readiness summary without inventing an authentication verdict. Ready vendor-session CLIs remain visible on Overview independently from whether a browser credential adapter is currently available. When the backend advertises the reviewed Conjur password adapter, the same real sign-in card exposes browser login; otherwise the card still reports the detected CLI and allows the reviewed session check without misrepresenting a configuration/authentication limitation as failed CLI detection. Task configuration/execution lives on `/tasks`, diagnostics on `/diagnostics`, and retained history on `/runs`.
 
 Example cards:
 
@@ -122,7 +123,7 @@ CLIHarbor exposes a dedicated Conjur sign-in card only when the backend advertis
 
 Connection metadata is non-secret and is sent only to the authenticated loopback configuration endpoint. The backend delegates it to the exact discovered Conjur CLI using a fixed reviewed `init self-hosted` argv; the UI cannot choose arbitrary flags or request insecure/self-signed bypasses. Identity/password are sent only to the authenticated loopback credential endpoint for that attempt, never enter command argv or run history, and are not persisted by CLIHarbor. The pinned vendor API owns credential exchange/storage behavior.
 
-For reviewed Conjur OIDC, JWT, and SaaS/cloud modes on Windows, the same card instead shows **Start official Conjur sign-in**. That action sends only pack/tool identity to the local backend. CLIHarbor revalidates the exact executable and starts fixed `conjur login` argv. OIDC/JWT avoid an unnecessary console window; OIDC may open the vendor browser flow. SaaS/cloud retains a vendor-owned terminal when interactive challenges require it. CLIHarbor does not capture credentials or vendor interaction. After the user completes the vendor flow, **Check session** remains the authoritative verification step. Certificate, IAM, Azure, GCP, and unknown modes stay on the organization's external flow rather than being guessed.
+For reviewed Conjur OIDC, JWT, and SaaS/cloud modes on Windows, the same card instead shows **Start official Conjur sign-in**. That action sends only pack/tool identity to the local backend. CLIHarbor revalidates the exact executable and starts fixed `conjur login` argv. OIDC/JWT avoid an unnecessary console window; OIDC may open the vendor browser flow. SaaS/cloud uses an isolated console host with explicit native console handles for vendor-owned challenges. The result stays visible until the operator closes the window after the vendor exits. Fast non-zero hidden-process exits are surfaced as sanitized launch failures. CLIHarbor does not capture credentials or vendor interaction. After the user completes the vendor flow, **Check session** remains the authoritative verification step. Certificate, IAM, Azure, GCP, and unknown modes stay on the organization's external flow rather than being guessed.
 
 CLIHarbor local browser-session state and vendor-owned CLI session state remain explicitly separate. A healthy executable is never displayed as proof of authentication.
 

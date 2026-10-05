@@ -504,13 +504,13 @@ const routePaths: Record<AppRoute, string> = {
 
 const conjurPackID = 'cyberark-conjur-v9';
 
-const navigationItems: Array<{ route: AppRoute; label: string }> = [
-  { route: 'overview', label: 'Overview' },
-  { route: 'authentication', label: 'Authentication' },
-  { route: 'tasks', label: 'Tasks' },
-  { route: 'runs', label: 'Runs' },
-  { route: 'secret-audit', label: 'Secret audit' },
-  { route: 'diagnostics', label: 'Diagnostics' },
+const navigationItems: Array<{ route: AppRoute; label: string; group: string; icon: string }> = [
+  { route: 'overview', label: 'Overview', group: 'Workspace', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
+  { route: 'tasks', label: 'Tasks', group: 'Workspace', icon: 'm5 6 5 6-5 6 M13 18h6' },
+  { route: 'runs', label: 'Runs', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
+  { route: 'authentication', label: 'Authentication', group: 'Security', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
+  { route: 'secret-audit', label: 'Secret audit', group: 'Security', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
+  { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
 ];
 
 function routeFromPath(pathname: string): AppRoute {
@@ -536,6 +536,8 @@ export function App() {
   const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
   const [selectedTaskKey, setSelectedTaskKey] = useState('');
   const [taskChosen, setTaskChosen] = useState(false);
+  const [taskPackFilter, setTaskPackFilter] = useState('');
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const [taskPreferences, setTaskPreferences] = useState<TaskPreferences>(() => loadTaskPreferences());
   const [formValues, setFormValues] = useState<Record<string, FormValue>>({});
   const [run, setRun] = useState<RunView | null>(null);
@@ -589,11 +591,13 @@ export function App() {
     if (state.kind !== 'ready') {
       return undefined;
     }
-    return state.tasks.find((task) => `${task.packId}/${task.commandId}` === selectedTaskKey) ?? state.tasks[0];
-  }, [selectedTaskKey, state]);
+    const tasks = state.tasks.filter((task) => taskPackFilter === '' || task.packId === taskPackFilter);
+    return tasks.find((task) => `${task.packId}/${task.commandId}` === selectedTaskKey) ?? tasks[0];
+  }, [selectedTaskKey, state, taskPackFilter]);
 
   const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[], tools: ToolDiagnostic[]) => {
     setState({ kind: 'ready', status, tasks, tools });
+    setTaskPackFilter('');
     previewRequestRef.current += 1;
     setCommandPreview(null);
     setPreviewing(false);
@@ -666,7 +670,10 @@ export function App() {
   }, [acceptRuntime, loadFailure, runtimeAttempt]);
 
   useEffect(() => {
-    const handlePopState = () => setRoute(routeFromPath(window.location.pathname));
+    const handlePopState = () => {
+      setNavigationOpen(false);
+      setRoute(routeFromPath(window.location.pathname));
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -713,7 +720,7 @@ export function App() {
 
   const displayedRunFinished = run !== null && run.snapshot.status !== 'running';
   // Also refocus when a run ends: the Cancel button that had focus disappears.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (displayedRunID !== undefined) resultHeadingRef.current?.focus();
   }, [displayedRunID, displayedRunFinished]);
 
@@ -990,40 +997,91 @@ export function App() {
       window.history.pushState({}, '', nextPath);
     }
     setRoute(nextRoute);
+    setNavigationOpen(false);
+    mainRef.current?.focus({ preventScroll: true });
   }, []);
+
+  const taskCategories = state.kind === 'ready'
+    ? Array.from(new Map(state.tasks.map((task) => [task.packId, task.packName])).entries())
+    : [];
+
+  const changeTaskCategory = (packId: string) => {
+    if (starting || activeRunID !== null || state.kind !== 'ready' || packId === taskPackFilter) return;
+    setTaskPackFilter(packId);
+    const first = state.tasks.find((task) => packId === '' || task.packId === packId);
+    if (first) selectTaskByKey(first.packId + '/' + first.commandId, state.tasks);
+    setTaskChosen(false);
+  };
 
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Skip to main content</a>
-      <header className="topbar">
+      <aside id="workspace-navigation" className={'sidebar' + (navigationOpen ? ' sidebar--open' : '')}>
         <div className="brand-block">
-          <span className="eyebrow">LOCAL OPERATOR WORKSPACE</span>
-          <h1>CLIHarbor</h1>
+          <span className="brand-mark" aria-hidden="true">&gt;_</span>
+          <div><h1>CLIHarbor</h1><span className="brand-caption">Your local CLI workspace</span></div>
         </div>
         <nav className="primary-nav" aria-label="Primary">
-          {navigationItems.filter((item) => item.route !== 'secret-audit' || hasConjurPack).map((item) => (
-            <a
-              key={item.route}
-              href={routePaths[item.route]}
-              aria-current={route === item.route ? 'page' : undefined}
-              onClick={(event) => {
-                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-                  return;
-                }
-                event.preventDefault();
-                navigate(item.route);
-              }}
-            >
-              <span>{item.label}</span>
-              {item.route === 'runs' && activeRunID !== null && (
-                <span className="nav-activity" aria-label="Task running">Live</span>
-              )}
-            </a>
+          {['Workspace', 'Security', 'Manage'].map((group) => (
+            <div className="nav-group" key={group}>
+              <p className="nav-group-label">{group}</p>
+              {navigationItems.filter((item) => item.group === group && (item.route !== 'secret-audit' || hasConjurPack)).map((item) => (
+                <a
+                  key={item.route}
+                  href={routePaths[item.route]}
+                  aria-current={route === item.route ? 'page' : undefined}
+                  onClick={(event) => {
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (item.route === 'tasks') changeTaskCategory('');
+                    navigate(item.route);
+                  }}
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
+                  <span>{item.label}</span>
+                  {item.route === 'runs' && activeRunID !== null && (
+                    <span className="nav-activity" aria-label="Task running">Live</span>
+                  )}
+                </a>
+              ))}
+            </div>
           ))}
         </nav>
-        <div className="topbar-context" aria-label="Runtime boundary">
+        {taskCategories.length > 0 && (
+          <nav className="tool-categories" aria-label="Task categories">
+            <p className="nav-group-label">Tools</p>
+            {taskCategories.map(([packId, name]) => (
+              <button type="button" key={packId} aria-pressed={route === 'tasks' && taskPackFilter === packId}
+                disabled={starting || activeRunID !== null}
+                onClick={() => { changeTaskCategory(packId); navigate('tasks'); }}>
+                <span className="tool-category-mark" aria-hidden="true">{name.slice(0, 1)}</span>
+                <span>{name}</span>
+                <span className="category-count">{state.kind === 'ready' ? state.tasks.filter((task) => task.packId === packId).length : 0}</span>
+              </button>
+            ))}
+          </nav>
+        )}
+        <div className="sidebar-footer" aria-label="Runtime boundary">
           <span className="local-badge">Local only</span>
+          <p>Runs on this computer</p>
           {state.kind === 'ready' && <span className="build-id">{/^\d/.test(state.status.version) ? 'v' : ''}{state.status.version}</span>}
+        </div>
+      </aside>
+      <header className="topbar">
+        <div className="topbar-location">
+          <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
+            onClick={() => setNavigationOpen((open) => !open)}>Menu</button>
+          <span className="workspace-label">Workspace</span><span className="breadcrumb-divider" aria-hidden="true">/</span>
+          <span className="current-page">{navigationItems.find((item) => item.route === route)?.label}</span>
+        </div>
+        <div className="topbar-context">
+          <span className="connection-label">{state.kind === 'ready' ? 'Runtime connected' : state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}</span>
+          <button type="button" className="sign-in-button" onClick={() => navigate('authentication')}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
+            Sign in
+          </button>
         </div>
       </header>
 
@@ -1081,6 +1139,7 @@ export function App() {
             preferences={taskPreferences}
             onNavigate={navigate}
             onOpenTask={(taskKey) => {
+              setTaskPackFilter('');
               selectTaskByKey(taskKey, state.tasks);
               navigate('tasks');
             }}
@@ -1130,10 +1189,13 @@ export function App() {
                 ) : (
                   <form ref={taskFormRef} onSubmit={startRun} noValidate>
                     <TaskDiscovery
+                      key={taskPackFilter}
                       tasks={state.tasks}
                       selectedTaskKey={selectedTaskKey}
                       preferences={taskPreferences}
                       collapsed={taskChosen}
+                      packFilter={taskPackFilter}
+                      onFilterChange={changeTaskCategory}
                       disabled={starting || activeRunID !== null}
                       onSelect={(key) => {
                         focusConfigurationRef.current = true;
