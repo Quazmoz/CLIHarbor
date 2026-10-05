@@ -3,12 +3,13 @@ kind: CliPack
 metadata:
   id: cyberark-conjur-v9
   name: CyberArk / Idira Secrets Manager CLI 9.x
-  version: 0.3.1
+  version: 0.4.0
   description: >-
-    Read-only Conjur CLI workflows verified from the official cyberark/conjur-cli-go
+    Reviewed Conjur CLI workflows verified from the official cyberark/conjur-cli-go
     v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
-    Secret-returning, interactive, mutating, deprecated, and environment-conditional
-    commands are intentionally excluded from executable browser authority.
+    Read operations plus a narrow set of non-secret change/destructive workflows
+    are exposed. Mutations require backend-bound explicit approval; secret-returning
+    and interactive commands remain excluded from executable browser authority.
 runtime:
   platforms: [windows, darwin]
   tools:
@@ -44,6 +45,12 @@ runtime:
           timeoutMillis: 3000
         role:
           args: [role, --help]
+          timeoutMillis: 3000
+        issuer:
+          args: [issuer, --help]
+          timeoutMillis: 3000
+        authn-ldap:
+          args: [authn-ldap, --help]
           timeoutMillis: 3000
         whoami:
           args: [whoami, --help]
@@ -410,6 +417,329 @@ commands:
       - literal: memberships
       - positional:
           valueFrom: role-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+
+  issuer-delete:
+    name: Delete issuer
+    description: Delete one dynamic-secret issuer. This can also delete dynamic secrets associated with that issuer unless Keep associated secrets is enabled.
+    tool: conjur
+    risk: destructive
+    impact:
+      targetInput: issuer-id
+      targetLabel: Issuer ID
+      effect: Deletes the issuer. Associated dynamic secrets may also be deleted unless Keep associated secrets is enabled.
+      scope: multiple
+    inputs:
+      - id: issuer-id
+        type: string
+        label: Issuer ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+      - id: keep-secrets
+        type: boolean
+        label: Keep associated dynamic secrets
+    argv:
+      - literal: issuer
+      - literal: delete
+      - flag:
+          name: --id
+          valueFrom: issuer-id
+      - switch:
+          name: --keep-secrets
+          enabledFrom: keep-secrets
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  ldap-group-show:
+    name: Show LDAP group mapping
+    description: Show the Conjur roles currently mapped to one LDAP group.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: group-name
+        type: string
+        label: LDAP group name
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+      - id: service-id
+        type: string
+        label: LDAP authenticator service ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+    argv:
+      - literal: authn-ldap
+      - literal: groups
+      - literal: show
+      - positional:
+          valueFrom: group-name
+      - flag:
+          name: --id
+          valueFrom: service-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  ldap-group-create:
+    name: Create LDAP group mapping
+    description: Map one LDAP group to one or more Conjur roles. This can grant access to multiple roles for every member of the LDAP group.
+    tool: conjur
+    risk: change
+    impact:
+      targetInput: group-name
+      targetLabel: LDAP group
+      effect: Creates a group-to-role mapping and may grant multiple Conjur role relationships to members of the LDAP group.
+      scope: multiple
+    inputs:
+      - id: group-name
+        type: string
+        label: LDAP group name
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+      - id: roles
+        type: string
+        label: Conjur roles (comma-separated)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: service-id
+        type: string
+        label: LDAP authenticator service ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+    argv:
+      - literal: authn-ldap
+      - literal: groups
+      - literal: create
+      - positional:
+          valueFrom: group-name
+      - flag:
+          name: --roles
+          valueFrom: roles
+      - flag:
+          name: --id
+          valueFrom: service-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  ldap-group-delete:
+    name: Delete LDAP group mapping
+    description: Delete an LDAP group mapping. Members of that LDAP group will stop receiving the mapped Conjur roles at login.
+    tool: conjur
+    risk: destructive
+    impact:
+      targetInput: group-name
+      targetLabel: LDAP group
+      effect: Deletes the LDAP group mapping and removes all role relationships granted through that mapping at future logins.
+      scope: multiple
+    inputs:
+      - id: group-name
+        type: string
+        label: LDAP group name
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+      - id: service-id
+        type: string
+        label: LDAP authenticator service ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+    argv:
+      - literal: authn-ldap
+      - literal: groups
+      - literal: delete
+      - positional:
+          valueFrom: group-name
+      - flag:
+          name: --id
+          valueFrom: service-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  ldap-user-show:
+    name: Show LDAP user mapping
+    description: Show the Conjur roles currently mapped directly to one LDAP user.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: username
+        type: string
+        label: LDAP username
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+      - id: service-id
+        type: string
+        label: LDAP authenticator service ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+    argv:
+      - literal: authn-ldap
+      - literal: users
+      - literal: show
+      - positional:
+          valueFrom: username
+      - flag:
+          name: --id
+          valueFrom: service-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  ldap-user-create:
+    name: Create LDAP user mapping
+    description: Map one LDAP user directly to one or more Conjur roles. This can grant multiple role relationships to that user.
+    tool: conjur
+    risk: change
+    impact:
+      targetInput: username
+      targetLabel: LDAP user
+      effect: Creates a direct user-to-role mapping and may grant multiple Conjur role relationships to this LDAP user.
+      scope: multiple
+    inputs:
+      - id: username
+        type: string
+        label: LDAP username
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+      - id: roles
+        type: string
+        label: Conjur roles (comma-separated)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: service-id
+        type: string
+        label: LDAP authenticator service ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+    argv:
+      - literal: authn-ldap
+      - literal: users
+      - literal: create
+      - positional:
+          valueFrom: username
+      - flag:
+          name: --roles
+          valueFrom: roles
+      - flag:
+          name: --id
+          valueFrom: service-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  ldap-user-delete:
+    name: Delete LDAP user mapping
+    description: Delete an LDAP user mapping. The user will stop receiving roles from this direct mapping at login.
+    tool: conjur
+    risk: destructive
+    impact:
+      targetInput: username
+      targetLabel: LDAP user
+      effect: Deletes the direct LDAP user mapping and removes all role relationships granted through that mapping at future logins.
+      scope: multiple
+    inputs:
+      - id: username
+        type: string
+        label: LDAP username
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+      - id: service-id
+        type: string
+        label: LDAP authenticator service ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+    argv:
+      - literal: authn-ldap
+      - literal: users
+      - literal: delete
+      - positional:
+          valueFrom: username
+      - flag:
+          name: --id
+          valueFrom: service-id
       - literal: --output
       - literal: json
     output:
