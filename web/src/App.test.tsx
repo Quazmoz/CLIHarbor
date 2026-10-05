@@ -65,6 +65,43 @@ afterEach(() => {
 });
 
 describe('App', () => {
+  test('tool navigation resets inputs and submits only the selected executable task in a multi-tool pack', async () => {
+    const tasks = ['first', 'second'].map((toolId) => ({
+      packId: 'suite', packName: 'CLI Suite', toolId, commandId: toolId,
+      name: 'Inspect ' + toolId, risk: 'read',
+      inputs: [{ id: 'target', type: 'string', label: 'Target ' + toolId, required: true }],
+    }));
+    const started: unknown[] = [];
+    vi.stubGlobal('EventSource', FakeEventSource);
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      switch (requestPath(input)) {
+        case '/api/v1/status':
+          return Promise.resolve(response(200, { name: 'CLIHarbor', version: 'test', session: 'active', csrfToken: 'test-csrf' }));
+        case '/api/v1/tools':
+          return Promise.resolve(response(200, { tools: [] }));
+        case '/api/v1/tasks':
+          return Promise.resolve(response(200, { tasks }));
+        case '/api/v1/runs':
+          started.push(JSON.parse(String(init?.body)));
+          return Promise.resolve(response(202, { runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', packId: 'suite', commandId: 'second', toolId: 'second', status: 'running' }));
+        default:
+          return Promise.resolve(response(404, {}));
+      }
+    }));
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: /Target first/ }), { target: { value: 'first-context' } });
+    const categories = screen.getByRole('navigation', { name: 'Task categories' });
+    fireEvent.click(within(categories).getByRole('button', { name: /CLI Suite · second/ }));
+    expect(screen.getByRole('textbox', { name: /Target second/ })).toHaveValue('');
+    expect(screen.queryByRole('textbox', { name: /Target first/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: /Target second/ }), { target: { value: 'second-context' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await waitFor(() => expect(started).toEqual([{ packId: 'suite', commandId: 'second', values: { target: 'second-context' } }]));
+    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
+    expect(within(categories).getByRole('button', { name: /CLI Suite · first/ })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: 'Tool category' })).toBeDisabled();
+  });
+
   test('loads authenticated runtime status and safe task metadata without rendering the CSRF token', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);

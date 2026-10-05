@@ -38,13 +38,35 @@ const tasks: Task[] = [
 ];
 
 describe('TaskDiscovery', () => {
+  test('separates executables in the same pack and scopes repeated tool IDs to their pack', () => {
+    const catalog = [...tasks, { ...tasks[1], packId: 'alpha', packName: 'Alpha Pack', commandId: 'other-tool' }];
+    const { container, rerender } = render(
+      <TaskDiscovery tasks={catalog} selectedTaskKey="alpha/inspect" toolFilter="alpha/conjur"
+        preferences={{ favorites: [{ packId: 'alpha', commandId: 'other-tool' }], recent: [{ packId: 'beta', commandId: 'inspect' }] }}
+        onFilterChange={vi.fn()} onSelect={vi.fn()} onToggleFavorite={vi.fn()} />,
+    );
+    expect(screen.getAllByRole('option')).toHaveLength(4);
+    expect(container.querySelector('[data-task-key="alpha/other-tool"]')).toBeNull();
+    expect(container.querySelector('[data-task-key="beta/inspect"]')).toBeNull();
+    expect(container.querySelector('[data-task-key="alpha/inspect"]')).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Favorites' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Recently used' })).not.toBeInTheDocument();
+    rerender(
+      <TaskDiscovery tasks={catalog} selectedTaskKey="alpha/other-tool" toolFilter="alpha/idsec"
+        preferences={{ favorites: [], recent: [] }} onFilterChange={vi.fn()} onSelect={vi.fn()} onToggleFavorite={vi.fn()} />,
+    );
+    expect(container.querySelector('[data-task-key="alpha/other-tool"]')).not.toBeNull();
+    expect(container.querySelector('[data-task-key="alpha/inspect"]')).toBeNull();
+    expect(container.querySelector('[data-task-key="beta/inspect"]')).toBeNull();
+  });
+
   test('tool categories constrain search, favorites, and recently used tasks', () => {
     const props = {
       tasks, selectedTaskKey: 'beta/inspect',
       preferences: { favorites: [{ packId: 'alpha', commandId: 'inspect' }], recent: [{ packId: 'beta', commandId: 'inspect' }] },
       onSelect: vi.fn(), onToggleFavorite: vi.fn(), onFilterChange: vi.fn(),
     };
-    const { container, rerender } = render(<TaskDiscovery {...props} packFilter="beta" />);
+    const { container, rerender } = render(<TaskDiscovery {...props} toolFilter="beta/idsec" />);
     expect(screen.queryByRole('heading', { name: 'Favorites' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Recently used' })).toBeInTheDocument();
     expect(container.querySelector('[data-task-key="alpha/inspect"]')).toBeNull();
@@ -52,7 +74,7 @@ describe('TaskDiscovery', () => {
     expect(screen.getByText('No tasks match “conjur”.')).toBeInTheDocument();
     fireEvent.change(screen.getByRole('combobox', { name: 'Tool category' }), { target: { value: '' } });
     expect(props.onFilterChange).toHaveBeenCalledWith('');
-    rerender(<TaskDiscovery {...props} packFilter="" />);
+    rerender(<TaskDiscovery {...props} toolFilter="" />);
     expect(screen.getByRole('heading', { name: 'Search results' })).toBeInTheDocument();
     expect(container.querySelector('[data-task-key="alpha/inspect"]')).not.toBeNull();
   });

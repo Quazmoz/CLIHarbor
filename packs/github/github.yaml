@@ -1,0 +1,280 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: github-cli
+  name: GitHub CLI
+  version: 0.1.0
+  description: Read-only GitHub repository and workflow metadata through the official gh CLI and its existing vendor-owned session.
+runtime:
+  platforms: [windows, linux, darwin]
+  tools:
+    gh:
+      executableNames: [gh]
+      versionProbe:
+        args: [--version]
+        parser: semver-text
+        timeoutMillis: 2000
+      versionConstraint: ">=2.95.0-0 <3.0.0-0"
+      helpProbes:
+        repositories:
+          args: [repo, list, --help]
+        pull-requests:
+          args: [pr, list, --help]
+        issues:
+          args: [issue, list, --help]
+        runs:
+          args: [run, list, --help]
+        workflows:
+          args: [workflow, list, --help]
+commands:
+  version:
+    name: GitHub CLI version
+    description: Show the local GitHub CLI version without accessing account or credential information.
+    tool: gh
+    risk: read
+    argv:
+      - literal: --version
+    output:
+      mode: raw
+    requirements:
+      requiresAuth: false
+
+  repositories:
+    name: List GitHub repositories
+    description: List repository names, visibility, archive state, and URLs for one explicit user or organization; descriptions and file contents are excluded.
+    tool: gh
+    risk: read
+    inputs:
+      - id: owner
+        label: Owner or organization
+        type: string
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 39
+          pattern: '^[A-Za-z0-9][A-Za-z0-9-]{0,38}$'
+          disallowLeadingDash: true
+      - id: limit
+        label: Maximum results
+        type: integer
+        required: true
+        validation:
+          min: 1
+          max: 100
+    argv:
+      - literal: repo
+      - literal: list
+      - positional:
+          valueFrom: owner
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - literal: --json
+      - literal: nameWithOwner,isPrivate,isArchived,url
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  pull-requests:
+    name: List pull requests
+    description: List pull-request numbers, state, draft status, timestamps, and URLs in the explicit repository without titles, bodies, comments, or diffs.
+    tool: gh
+    risk: read
+    inputs:
+      - id: repository
+        label: Repository
+        type: string
+        required: true
+        validation:
+          minLength: 3
+          maxLength: 140
+          pattern: '^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}$'
+          disallowLeadingDash: true
+      - id: limit
+        label: Maximum results
+        type: integer
+        required: true
+        validation:
+          min: 1
+          max: 100
+      - id: state
+        label: State
+        type: enum
+        required: true
+        validation:
+          enum: [open, closed, merged, all]
+          disallowLeadingDash: true
+    argv:
+      - literal: pr
+      - literal: list
+      - flag:
+          name: --repo
+          valueFrom: repository
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - flag:
+          name: --state
+          valueFrom: state
+      - literal: --json
+      - literal: number,state,isDraft,createdAt,updatedAt,url
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  issues:
+    name: List GitHub issues
+    description: List issue numbers, state, timestamps, and URLs in the explicit repository without titles, bodies, or comments.
+    tool: gh
+    risk: read
+    inputs:
+      - id: repository
+        label: Repository
+        type: string
+        required: true
+        validation:
+          minLength: 3
+          maxLength: 140
+          pattern: '^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}$'
+          disallowLeadingDash: true
+      - id: limit
+        label: Maximum results
+        type: integer
+        required: true
+        validation:
+          min: 1
+          max: 100
+      - id: state
+        label: State
+        type: enum
+        required: true
+        validation:
+          enum: [open, closed, all]
+          disallowLeadingDash: true
+    argv:
+      - literal: issue
+      - literal: list
+      - flag:
+          name: --repo
+          valueFrom: repository
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - flag:
+          name: --state
+          valueFrom: state
+      - literal: --json
+      - literal: number,state,createdAt,updatedAt,url
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  runs:
+    name: List workflow runs
+    description: List recent workflow run IDs, event, status, conclusion, timestamps, and URLs in the explicit repository without job logs or artifacts.
+    tool: gh
+    risk: read
+    inputs:
+      - id: repository
+        label: Repository
+        type: string
+        required: true
+        validation:
+          minLength: 3
+          maxLength: 140
+          pattern: '^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}$'
+          disallowLeadingDash: true
+      - id: limit
+        label: Maximum results
+        type: integer
+        required: true
+        validation:
+          min: 1
+          max: 100
+    argv:
+      - literal: run
+      - literal: list
+      - flag:
+          name: --repo
+          valueFrom: repository
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - literal: --json
+      - literal: databaseId,event,status,conclusion,createdAt,updatedAt,url
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  workflows:
+    name: List workflows
+    description: List workflow IDs, names, and state in the explicit repository without reading workflow files or running workflows.
+    tool: gh
+    risk: read
+    inputs:
+      - id: repository
+        label: Repository
+        type: string
+        required: true
+        validation:
+          minLength: 3
+          maxLength: 140
+          pattern: '^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}$'
+          disallowLeadingDash: true
+      - id: limit
+        label: Maximum results
+        type: integer
+        required: true
+        validation:
+          min: 1
+          max: 100
+      - id: all
+        label: Include disabled workflows
+        type: boolean
+    argv:
+      - literal: workflow
+      - literal: list
+      - flag:
+          name: --repo
+          valueFrom: repository
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - switch:
+          name: --all
+          enabledFrom: all
+      - literal: --json
+      - literal: id,name,state
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session

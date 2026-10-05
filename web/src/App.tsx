@@ -21,7 +21,7 @@ import { AuthenticationPage } from './AuthenticationPage';
 import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
 import { SecretAuditPage } from './SecretAuditPage';
 import { OverviewPage } from './OverviewPage';
-import { TaskDiscovery } from './TaskDiscovery';
+import { TaskDiscovery, taskToolKey } from './TaskDiscovery';
 import { StructuredResultView } from './StructuredResultView';
 import { describeToolReadiness, inputGuidance, runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
@@ -555,7 +555,7 @@ export function App() {
   const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
   const [selectedTaskKey, setSelectedTaskKey] = useState('');
   const [taskChosen, setTaskChosen] = useState(false);
-  const [taskPackFilter, setTaskPackFilter] = useState('');
+  const [taskToolFilter, setTaskToolFilter] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [taskPreferences, setTaskPreferences] = useState<TaskPreferences>(() => loadTaskPreferences());
   const [formValues, setFormValues] = useState<Record<string, FormValue>>({});
@@ -612,13 +612,13 @@ export function App() {
     if (state.kind !== 'ready') {
       return undefined;
     }
-    const tasks = state.tasks.filter((task) => taskPackFilter === '' || task.packId === taskPackFilter);
+    const tasks = state.tasks.filter((task) => taskToolFilter === '' || taskToolKey(task) === taskToolFilter);
     return tasks.find((task) => `${task.packId}/${task.commandId}` === selectedTaskKey) ?? tasks[0];
-  }, [selectedTaskKey, state, taskPackFilter]);
+  }, [selectedTaskKey, state, taskToolFilter]);
 
   const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[], tools: ToolDiagnostic[]) => {
     setState({ kind: 'ready', status, tasks, tools });
-    setTaskPackFilter('');
+    setTaskToolFilter('');
     previewRequestRef.current += 1;
     setCommandPreview(null);
     setApprovalConfirmation('');
@@ -1081,13 +1081,14 @@ export function App() {
   }, []);
 
   const taskCategories = state.kind === 'ready'
-    ? Array.from(new Map(state.tasks.map((task) => [task.packId, task.packName])).entries())
+    ? Array.from(new Map(state.tasks.map((task) => [taskToolKey(task), task])).entries())
     : [];
 
-  const changeTaskCategory = (packId: string) => {
-    if (starting || activeRunID !== null || state.kind !== 'ready' || packId === taskPackFilter) return;
-    setTaskPackFilter(packId);
-    const first = state.tasks.find((task) => packId === '' || task.packId === packId);
+  const changeTaskCategory = (toolKey: string) => {
+    if (starting || activeRunID !== null || state.kind !== 'ready' || toolKey === taskToolFilter) return;
+    if (toolKey !== '' && !state.tasks.some((task) => taskToolKey(task) === toolKey)) return;
+    setTaskToolFilter(toolKey);
+    const first = state.tasks.find((task) => toolKey === '' || taskToolKey(task) === toolKey);
     if (first) selectTaskByKey(first.packId + '/' + first.commandId, state.tasks);
     setTaskChosen(false);
   };
@@ -1131,13 +1132,13 @@ export function App() {
         {taskCategories.length > 0 && (
           <nav className="tool-categories" aria-label="Task categories">
             <p className="nav-group-label">Tools</p>
-            {taskCategories.map(([packId, name]) => (
-              <button type="button" key={packId} aria-pressed={route === 'tasks' && taskPackFilter === packId}
+            {taskCategories.map(([key, task]) => (
+              <button type="button" key={key} aria-pressed={route === 'tasks' && taskToolFilter === key}
                 disabled={starting || activeRunID !== null}
-                onClick={() => { changeTaskCategory(packId); navigate('tasks'); }}>
-                <span className="tool-category-mark" aria-hidden="true">{name.slice(0, 1)}</span>
-                <span>{name}</span>
-                <span className="category-count">{state.kind === 'ready' ? state.tasks.filter((task) => task.packId === packId).length : 0}</span>
+                onClick={() => { changeTaskCategory(key); navigate('tasks'); }}>
+                <span className="tool-category-mark" aria-hidden="true">{task.packName.slice(0, 1)}</span>
+                <span>{task.packName} · {task.toolId}</span>
+                <span className="category-count">{state.kind === 'ready' ? state.tasks.filter((candidate) => taskToolKey(candidate) === key).length : 0}</span>
               </button>
             ))}
           </nav>
@@ -1218,7 +1219,7 @@ export function App() {
             preferences={taskPreferences}
             onNavigate={navigate}
             onOpenTask={(taskKey) => {
-              setTaskPackFilter('');
+              setTaskToolFilter('');
               selectTaskByKey(taskKey, state.tasks);
               navigate('tasks');
             }}
@@ -1268,12 +1269,12 @@ export function App() {
                 ) : (
                   <form ref={taskFormRef} onSubmit={startRun} noValidate>
                     <TaskDiscovery
-                      key={taskPackFilter}
+                      key={taskToolFilter}
                       tasks={state.tasks}
                       selectedTaskKey={selectedTaskKey}
                       preferences={taskPreferences}
                       collapsed={taskChosen}
-                      packFilter={taskPackFilter}
+                      toolFilter={taskToolFilter}
                       onFilterChange={changeTaskCategory}
                       disabled={starting || activeRunID !== null}
                       onSelect={(key) => {

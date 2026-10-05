@@ -182,9 +182,9 @@ The current evaluation artifact is intentionally unsigned and portable. The pinn
 
 ## Stage 9 — Additional real CLIs
 
-**Status: Docker and kubectl read-only packs implemented; real-host qualification pending.**
+**Status: Docker, kubectl, and GitHub CLI read-only packs implemented; real-host qualification pending.**
 
-CLIHarbor now ships embedded `docker-cli` and `kubectl-cli` packs alongside Conjur. Both exercise the generic discovery/planner/executor path without vendor-specific backend branches.
+CLIHarbor now ships embedded `docker-cli`, `kubectl-cli`, and `github-cli` packs alongside Conjur. All exercise the generic discovery/planner/executor path without vendor-specific backend branches. GitHub CLI adds bounded metadata inventories for repositories, pull requests, issues, workflow runs, and workflows, using explicit targets and the existing vendor session; see [GitHub CLI integration](GITHUB_INTEGRATION.md).
 
 Docker provides active-context visibility, narrow container/image/network/volume inventory, summary disk usage, and one-shot container resource statistics. kubectl provides active-context visibility, client version, metadata-only namespace/node/pod/deployment/StatefulSet/DaemonSet/Job inventory, and optional Metrics API CPU/memory snapshots. Neither tool is auto-provisioned.
 
@@ -202,7 +202,7 @@ Selection criteria for future expansion remain:
 
 No additional tool inherits Conjur's bootstrap behavior. Any automatic dependency provisioning requires its own reviewed immutable version/source/digest/platform/install/opt-out contract.
 
-Exit condition: Conjur, Docker, and kubectl execute approved read-only workflows on qualified hosts without vendor-specific branches in the generic planner/executor.
+Exit condition: Conjur, Docker, kubectl, and GitHub CLI execute approved read-only workflows on qualified hosts without vendor-specific branches in the generic planner/executor.
 
 ## Stage 10 — Pack authoring tooling
 

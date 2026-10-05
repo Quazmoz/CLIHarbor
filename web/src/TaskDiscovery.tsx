@@ -9,8 +9,8 @@ interface TaskDiscoveryProps {
   disabled?: boolean;
   /** Start collapsed when the operator already chose a task (e.g. from Overview). */
   collapsed?: boolean;
-  packFilter?: string;
-  onFilterChange?: (packId: string) => void;
+  toolFilter?: string;
+  onFilterChange?: (toolKey: string) => void;
   onSelect: (taskKey: string) => void;
   onToggleFavorite: (task: Task) => void;
 }
@@ -29,6 +29,10 @@ interface TaskSectionProps {
 
 function taskKey(task: Task): string {
   return task.packId + '/' + task.commandId;
+}
+
+export function taskToolKey(task: Pick<Task, 'packId' | 'toolId'>): string {
+  return task.packId + '/' + task.toolId;
 }
 
 function searchableText(task: Task): string {
@@ -117,7 +121,7 @@ export function TaskDiscovery({
   preferences,
   disabled,
   collapsed = false,
-  packFilter = '',
+  toolFilter = '',
   onFilterChange,
   onSelect,
   onToggleFavorite,
@@ -142,7 +146,7 @@ export function TaskDiscovery({
     [preferences.favorites],
   );
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const matches = (task: Task) => (packFilter === '' || task.packId === packFilter) &&
+  const matches = (task: Task) => (toolFilter === '' || taskToolKey(task) === toolFilter) &&
     (normalizedQuery.length === 0 || searchableText(task).includes(normalizedQuery));
   const filteredTasks = tasks.filter(matches);
   const favoriteTasks = preferences.favorites
@@ -188,10 +192,10 @@ export function TaskDiscovery({
       {onFilterChange && (
         <label className="task-category-filter">
           Tool category
-          <select value={packFilter} disabled={disabled} onChange={(event) => onFilterChange(event.target.value)}>
+          <select value={toolFilter} disabled={disabled} onChange={(event) => onFilterChange(event.target.value)}>
             <option value="">All tools</option>
-            {Array.from(new Map(tasks.map((task) => [task.packId, task.packName])).entries()).map(([packId, name]) => (
-              <option key={packId} value={packId}>{name}</option>
+            {Array.from(new Map(tasks.map((task) => [taskToolKey(task), task])).entries()).map(([key, task]) => (
+              <option key={key} value={key}>{task.packName} · {task.toolId}</option>
             ))}
           </select>
         </label>
@@ -202,7 +206,7 @@ export function TaskDiscovery({
             Find a task
           </label>
           <span className="task-search-count" role="status" aria-live="polite" aria-atomic="true">
-            {normalizedQuery || packFilter ? filteredTasks.length + ' of ' + tasks.length : tasks.length} task{tasks.length === 1 ? '' : 's'}
+            {normalizedQuery || toolFilter ? filteredTasks.length + ' of ' + tasks.length : tasks.length} task{tasks.length === 1 ? '' : 's'}
           </span>
         </div>
         <span className="task-search-row">
@@ -230,7 +234,7 @@ export function TaskDiscovery({
         <small id="task-search-help">Press / to search names, descriptions, packs, tools, or commands.</small>
       </div>
 
-      {filteredTasks.length === 0 && (normalizedQuery.length > 0 || packFilter !== '') ? (
+      {filteredTasks.length === 0 && (normalizedQuery.length > 0 || toolFilter !== '') ? (
         <div className="task-search-empty" role="status">
           <strong>{normalizedQuery ? `No tasks match “${query.trim()}”.` : 'No tasks are available in this category.'}</strong>
           <p>Try another search or choose All tools.</p>

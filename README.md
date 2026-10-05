@@ -28,7 +28,7 @@ go run ./tools/task demo
 
 This builds CLIHarbor with its embedded frontend and the small `cliharbor-fixture` testing CLI, then opens the browser with only the example pack. Try **Inspect fixture data**, **Stream test output** (and Cancel), and **Test a failed command**. It needs no vendor account, Docker daemon, cluster, or dependency download.
 
-For normal macOS use, build with `go run ./tools/task go-build` and run `./bin/cliharbor`. Conjur, Docker, and kubectl packs are embedded; install approved vendor CLIs separately on macOS. See [Windows and macOS setup](docs/CROSS_PLATFORM.md) for commands, Intel/Apple Silicon builds, and platform-specific authentication/install limits.
+For normal macOS use, build with `go run ./tools/task go-build` and run `./bin/cliharbor`. Conjur, Docker, kubectl, and GitHub CLI packs are embedded; install approved vendor CLIs separately on macOS. See [Windows and macOS setup](docs/CROSS_PLATFORM.md) for commands, Intel/Apple Silicon builds, and platform-specific authentication/install limits.
 
 ## One-download Windows startup
 
@@ -149,7 +149,7 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | --- | --- |
 | Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
 | Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, trusted fixed-probe `pack capture-help`, non-authoritative `pack draft`, non-executing `pack validate`, static `pack compatibility`, deterministic `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
-| First-party startup | Embedded reviewed Conjur, Docker, and kubectl read-only packs for zero-config `serve` and `doctor` |
+| First-party startup | Embedded reviewed Conjur, Docker, kubectl, and GitHub CLI packs for zero-config `serve` and `doctor` |
 | Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
 | Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
 | Planning | Typed inputs, trusted literals/flags/switches/enum mappings, constrained positional values, deterministic argv |
@@ -291,6 +291,14 @@ CLIHarbor also ships an embedded `kubectl-cli` pack for active-context visibilit
 CLIHarbor never downloads kubectl, changes kubeconfig/context, accepts Kubernetes credentials, or exposes Secrets, ConfigMaps, logs, exec/cp/attach, port-forward/proxy, impersonation, or mutation workflows.
 
 See [kubectl Integration](docs/KUBECTL_INTEGRATION.md).
+
+## GitHub CLI read-only integration
+
+The embedded `github-cli` pack adds bounded metadata views for repositories, pull requests, issues, workflow runs, and workflows through the official `gh` CLI (reviewed baseline 2.95.0). Tasks require an explicit owner or repository and use fixed JSON fields. Authentication remains with `gh`; CLIHarbor does not install it or expose tokens, content, logs, or mutations.
+
+Each executable has its own tool category, including in custom packs containing several tools. Missing optional CLIs leave ready tools usable.
+
+See [GitHub CLI integration](docs/GITHUB_INTEGRATION.md).
 
 ## Real Conjur 9.x integration
 

@@ -41,7 +41,7 @@ go run ./tools/task go-build
 ./bin/cliharbor serve --no-auto-setup
 ```
 
-`doctor` reports missing vendor tools with exit 1; CLIHarbor can still start and show their readiness. The built-in Conjur, Docker, and kubectl packs load automatically. Install an approved official vendor CLI separately on macOS. Conjur must satisfy `>=9.3.1-0 <10.0.0-0`. Its [pinned upstream release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) includes darwin builds.
+`doctor` reports missing vendor tools with exit 1; CLIHarbor can still start and show their readiness. The built-in Conjur, Docker, kubectl, and GitHub CLI packs load automatically. Install an approved official vendor CLI separately on macOS. Conjur must satisfy `>=9.3.1-0 <10.0.0-0`. Its [pinned upstream release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) includes darwin builds.
 
 Discovery searches absolute PATH directories first. After PATH misses, macOS checks the bounded Go/local/bin and Docker directories under the user's home, plus `/opt/homebrew/bin` and `/usr/local/bin`. Multiple matches in a tier remain ambiguous. Pin one approved installation when needed:
 

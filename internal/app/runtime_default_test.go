@@ -46,6 +46,13 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if len(state.Registry.Commands("kubectl-cli")) != 11 {
 		t.Fatalf("embedded kubectl commands = %d, want 11", len(state.Registry.Commands("kubectl-cli")))
 	}
+	github, ok := state.Registry.FindPack("github-cli")
+	if !ok || github.Pack.Metadata.Name == "" {
+		t.Fatal("embedded GitHub pack was not loaded with metadata")
+	}
+	if len(state.Registry.Commands("github-cli")) != 6 {
+		t.Fatalf("embedded GitHub commands = %d, want 6", len(state.Registry.Commands("github-cli")))
+	}
 }
 
 func TestPrepareRuntimeCombinesDefaultAndExplicitPacks(t *testing.T) {
@@ -82,8 +89,8 @@ commands: {}
 	if _, ok := state.Registry.FindPack("other-cli"); !ok {
 		t.Fatal("explicit non-Conjur pack was not added")
 	}
-	if got := len(state.Registry.Packs()); got != 4 {
-		t.Fatalf("configured packs = %d, want 4", got)
+	if got := len(state.Registry.Packs()); got != 5 {
+		t.Fatalf("configured packs = %d, want 5", got)
 	}
 }
 
@@ -190,8 +197,8 @@ func TestPrepareRuntimeNeverAutoProvisionsDocker(t *testing.T) {
 		t.Fatalf("prepareRuntime: %v", err)
 	}
 	for _, ref := range provisioner.refs {
-		if ref.PackID == "docker-cli" || ref.ToolID == "docker" {
-			t.Fatalf("Docker unexpectedly reached automatic provisioner: %s", ref.String())
+		if ref.PackID != "cyberark-conjur-v9" || ref.ToolID != "conjur" {
+			t.Fatalf("unreviewed tool unexpectedly reached automatic provisioner: %s", ref.String())
 		}
 	}
 }

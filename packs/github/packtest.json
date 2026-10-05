@@ -1,0 +1,678 @@
+{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "local version",
+      "packId": "github-cli",
+      "commandId": "version",
+      "values": {},
+      "expectArgs": [
+        "--version"
+      ]
+    },
+    {
+      "name": "bounded repository inventory",
+      "packId": "github-cli",
+      "commandId": "repositories",
+      "values": {
+        "owner": "sample-org",
+        "limit": 30
+      },
+      "expectArgs": [
+        "repo",
+        "list",
+        "sample-org",
+        "--limit",
+        "30",
+        "--json",
+        "nameWithOwner,isPrivate,isArchived,url"
+      ]
+    },
+    {
+      "name": "pull-requests open",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "open"
+      },
+      "expectArgs": [
+        "pr",
+        "list",
+        "--repo",
+        "sample-org/sample-repo",
+        "--limit",
+        "30",
+        "--state",
+        "open",
+        "--json",
+        "number,state,isDraft,createdAt,updatedAt,url"
+      ]
+    },
+    {
+      "name": "pull-requests closed",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "closed"
+      },
+      "expectArgs": [
+        "pr",
+        "list",
+        "--repo",
+        "sample-org/sample-repo",
+        "--limit",
+        "30",
+        "--state",
+        "closed",
+        "--json",
+        "number,state,isDraft,createdAt,updatedAt,url"
+      ]
+    },
+    {
+      "name": "pull-requests merged",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "merged"
+      },
+      "expectArgs": [
+        "pr",
+        "list",
+        "--repo",
+        "sample-org/sample-repo",
+        "--limit",
+        "30",
+        "--state",
+        "merged",
+        "--json",
+        "number,state,isDraft,createdAt,updatedAt,url"
+      ]
+    },
+    {
+      "name": "pull-requests all",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "all"
+      },
+      "expectArgs": [
+        "pr",
+        "list",
+        "--repo",
+        "sample-org/sample-repo",
+        "--limit",
+        "30",
+        "--state",
+        "all",
+        "--json",
+        "number,state,isDraft,createdAt,updatedAt,url"
+      ]
+    },
+    {
+      "name": "issues open",
+      "packId": "github-cli",
+      "commandId": "issues",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "open"
+      },
+      "expectArgs": [
+        "issue",
+        "list",
+        "--repo",
+        "sample-org/sample-repo",
+        "--limit",
+        "30",
+        "--state",
+        "open",
+        "--json",
+        "number,state,createdAt,updatedAt,url"
+      ]
+    },
+    {
+      "name": "issues closed",
+      "packId": "github-cli",
+      "commandId": "issues",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "closed"
+      },
+      "expectArgs": [
+        "issue",
+        "list",
+        "--repo",
+        "sample-org/sample-repo",
+        "--limit",
+        "30",
+        "--state",
+        "closed",
+        "--json",
+        "number,state,createdAt,updatedAt,url"
+      ]
+    },
+    {
+      "name": "issues all",
+      "packId": "github-cli",
+      "commandId": "issues",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "all"
+      },
+      "expectArgs": [
+        "issue",
+        "list",
+        "--repo",
+        "sample-org/sample-repo",
+        "--limit",
+        "30",
+        "--state",
+        "all",
+        "--json",
+        "number,state,createdAt,updatedAt,url"
+      ]
+    },
+    {
+      "name": "runs metadata",
+      "packId": "github-cli",
+      "commandId": "runs",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30
+      },
+      "expectArgs": [
+        "run",
+        "list",
+        "--repo",
+        "sample-org/sample-repo",
+        "--limit",
+        "30",
+        "--json",
+        "databaseId,event,status,conclusion,createdAt,updatedAt,url"
+      ]
+    },
+    {
+      "name": "workflows metadata",
+      "packId": "github-cli",
+      "commandId": "workflows",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30
+      },
+      "expectArgs": [
+        "workflow",
+        "list",
+        "--repo",
+        "sample-org/sample-repo",
+        "--limit",
+        "30",
+        "--json",
+        "id,name,state"
+      ]
+    },
+    {
+      "name": "include disabled workflows",
+      "packId": "github-cli",
+      "commandId": "workflows",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 100,
+        "all": true
+      },
+      "expectArgs": [
+        "workflow",
+        "list",
+        "--repo",
+        "sample-org/sample-repo",
+        "--limit",
+        "100",
+        "--all",
+        "--json",
+        "id,name,state"
+      ]
+    },
+    {
+      "name": "repositories rejects limit 0",
+      "packId": "github-cli",
+      "commandId": "repositories",
+      "values": {
+        "owner": "sample-org",
+        "limit": 0
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "repositories rejects limit 101",
+      "packId": "github-cli",
+      "commandId": "repositories",
+      "values": {
+        "owner": "sample-org",
+        "limit": 101
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "reject owner flag injection",
+      "packId": "github-cli",
+      "commandId": "repositories",
+      "values": {
+        "owner": "--help",
+        "limit": 30
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.owner"
+      }
+    },
+    {
+      "name": "reject owner shell syntax",
+      "packId": "github-cli",
+      "commandId": "repositories",
+      "values": {
+        "owner": "sample;whoami",
+        "limit": 30
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.owner"
+      }
+    },
+    {
+      "name": "repositories rejects browser argv",
+      "packId": "github-cli",
+      "commandId": "repositories",
+      "values": {
+        "owner": "sample-org",
+        "limit": 30,
+        "argv": [
+          "auth",
+          "token"
+        ]
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.argv"
+      }
+    },
+    {
+      "name": "pull-requests rejects limit 0",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 0,
+        "state": "open"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "pull-requests rejects limit 101",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 101,
+        "state": "open"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "pull-requests requires explicit repository",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "limit": 30,
+        "state": "open"
+      },
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "pull-requests rejects repository flag injection",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "repository": "--help",
+        "limit": 30,
+        "state": "open"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "pull-requests rejects repository URL",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "repository": "https://example.invalid/sample-org/sample-repo",
+        "limit": 30,
+        "state": "open"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "pull-requests rejects undeclared state",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "delete"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.state"
+      }
+    },
+    {
+      "name": "pull-requests rejects browser argv",
+      "packId": "github-cli",
+      "commandId": "pull-requests",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "open",
+        "argv": [
+          "auth",
+          "token"
+        ]
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.argv"
+      }
+    },
+    {
+      "name": "issues rejects limit 0",
+      "packId": "github-cli",
+      "commandId": "issues",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 0,
+        "state": "open"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "issues rejects limit 101",
+      "packId": "github-cli",
+      "commandId": "issues",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 101,
+        "state": "open"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "issues requires explicit repository",
+      "packId": "github-cli",
+      "commandId": "issues",
+      "values": {
+        "limit": 30,
+        "state": "open"
+      },
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "issues rejects repository flag injection",
+      "packId": "github-cli",
+      "commandId": "issues",
+      "values": {
+        "repository": "--help",
+        "limit": 30,
+        "state": "open"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "issues rejects repository URL",
+      "packId": "github-cli",
+      "commandId": "issues",
+      "values": {
+        "repository": "https://example.invalid/sample-org/sample-repo",
+        "limit": 30,
+        "state": "open"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "issues rejects undeclared state",
+      "packId": "github-cli",
+      "commandId": "issues",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "delete"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.state"
+      }
+    },
+    {
+      "name": "issues rejects browser argv",
+      "packId": "github-cli",
+      "commandId": "issues",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "state": "open",
+        "argv": [
+          "auth",
+          "token"
+        ]
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.argv"
+      }
+    },
+    {
+      "name": "runs rejects limit 0",
+      "packId": "github-cli",
+      "commandId": "runs",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 0
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "runs rejects limit 101",
+      "packId": "github-cli",
+      "commandId": "runs",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 101
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "runs requires explicit repository",
+      "packId": "github-cli",
+      "commandId": "runs",
+      "values": {
+        "limit": 30
+      },
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "runs rejects repository flag injection",
+      "packId": "github-cli",
+      "commandId": "runs",
+      "values": {
+        "repository": "--help",
+        "limit": 30
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "runs rejects repository URL",
+      "packId": "github-cli",
+      "commandId": "runs",
+      "values": {
+        "repository": "https://example.invalid/sample-org/sample-repo",
+        "limit": 30
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "runs rejects browser argv",
+      "packId": "github-cli",
+      "commandId": "runs",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "argv": [
+          "auth",
+          "token"
+        ]
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.argv"
+      }
+    },
+    {
+      "name": "workflows rejects limit 0",
+      "packId": "github-cli",
+      "commandId": "workflows",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 0
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "workflows rejects limit 101",
+      "packId": "github-cli",
+      "commandId": "workflows",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 101
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.limit"
+      }
+    },
+    {
+      "name": "workflows requires explicit repository",
+      "packId": "github-cli",
+      "commandId": "workflows",
+      "values": {
+        "limit": 30
+      },
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "workflows rejects repository flag injection",
+      "packId": "github-cli",
+      "commandId": "workflows",
+      "values": {
+        "repository": "--help",
+        "limit": 30
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "workflows rejects repository URL",
+      "packId": "github-cli",
+      "commandId": "workflows",
+      "values": {
+        "repository": "https://example.invalid/sample-org/sample-repo",
+        "limit": 30
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.repository"
+      }
+    },
+    {
+      "name": "workflows rejects browser argv",
+      "packId": "github-cli",
+      "commandId": "workflows",
+      "values": {
+        "repository": "sample-org/sample-repo",
+        "limit": 30,
+        "argv": [
+          "auth",
+          "token"
+        ]
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.argv"
+      }
+    }
+  ]
+}

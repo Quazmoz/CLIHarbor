@@ -62,7 +62,7 @@ export function OverviewPage({
     (tool) => tool.credentialLogin !== undefined,
   );
   const shortcuts = useMemo(() => quickTasks(tasks, preferences), [tasks, preferences]);
-  const workflowReady = tools.length > 0 && attentionToolCount === 0 && tasks.length > 0;
+  const workflowReady = readyToolCount > 0 && tasks.length > 0;
 
   let recommendedTitle = 'Choose a safe task';
   let recommendedCopy = 'The local runtime has safe tasks available. Open Tasks to select, validate, preview, and run one.';
@@ -74,7 +74,7 @@ export function OverviewPage({
     recommendedCopy = 'No tools are configured yet. Diagnostics explains the trusted-pack and tool-readiness state without exposing execution paths.';
     recommendedDestination = 'diagnostics';
     recommendedAction = 'Open diagnostics';
-  } else if (attentionToolCount > 0) {
+  } else if (attentionToolCount > 0 && tasks.length === 0) {
     recommendedTitle = 'Resolve tool readiness';
     recommendedCopy = attentionToolCount + ' configured tool' + (attentionToolCount === 1 ? ' needs' : 's need') + ' attention before every exposed workflow is available.';
     recommendedDestination = 'diagnostics';

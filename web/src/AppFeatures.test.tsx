@@ -70,7 +70,7 @@ describe('command preview and retry workflows', () => {
     fireEvent.click(within(categories).getByRole('button', { name: /Beta/ }));
     expect(screen.getByRole('heading', { name: 'Inspect beta' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Query' })).not.toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Tool category' })).toHaveValue('beta');
+    expect(screen.getByRole('combobox', { name: 'Tool category' })).toHaveValue('beta/beta');
     expect(within(categories).getByRole('button', { name: /Beta/ })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
     expect(screen.getByRole('textbox', { name: 'Query' })).toHaveValue('');

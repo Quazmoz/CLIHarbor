@@ -24,6 +24,12 @@ var dockerCLI []byte
 //go:embed kubectl/kubectl.yaml
 var kubectlCLI []byte
 
+// githubCLI uses the official gh CLI's existing session for read-only metadata.
+// CLIHarbor does not provision gh or accept GitHub credentials.
+//
+//go:embed github/github.yaml
+var githubCLI []byte
+
 // Builtins returns defensive copies of the first-party pack bytes that are safe
 // to hand to the hardened pack loader.
 func Builtins() map[string][]byte {
@@ -31,5 +37,6 @@ func Builtins() map[string][]byte {
 		"conjur/conjur-v9.yaml": append([]byte(nil), conjurV9...),
 		"docker/docker.yaml":    append([]byte(nil), dockerCLI...),
 		"kubectl/kubectl.yaml":  append([]byte(nil), kubectlCLI...),
+		"github/github.yaml":    append([]byte(nil), githubCLI...),
 	}
 }

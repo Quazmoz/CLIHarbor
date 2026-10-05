@@ -229,7 +229,7 @@ describe('OverviewPage', () => {
     expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
   });
 
-  test('routes the primary recommendation to diagnostics when a tool needs attention', () => {
+  test('routes the primary recommendation to diagnostics when no tasks are available and a tool needs attention', () => {
     const navigate = vi.fn();
     const attentionTools: ToolDiagnostic[] = [
       readyTools[0],
@@ -239,7 +239,7 @@ describe('OverviewPage', () => {
     render(
       <OverviewPage
         status={status}
-        tasks={tasks}
+        tasks={[]}
         tools={attentionTools}
         preferences={{ favorites: [], recent: [] }}
         onNavigate={navigate}
@@ -250,6 +250,19 @@ describe('OverviewPage', () => {
     expect(screen.getByRole('heading', { name: 'Resolve tool readiness' })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Review tool readiness' })[0]);
     expect(navigate).toHaveBeenCalledWith('diagnostics');
+  });
+
+  test('keeps available tools usable when another optional tool is missing', () => {
+    const navigate = vi.fn();
+    render(
+      <OverviewPage status={status} tasks={[tasks[0]]}
+        tools={[readyTools[0], { ...readyTools[1], status: 'missing' }]}
+        preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
+    );
+    expect(screen.getByRole('heading', { name: 'Ready for local operator work' })).toBeInTheDocument();
+    expect(screen.getByText('1/2 ready')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open tasks' }));
+    expect(navigate).toHaveBeenCalledWith('tasks');
   });
 
   test('keeps authentication status conservative rather than inventing a signed-in verdict', () => {

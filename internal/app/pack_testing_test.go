@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -157,48 +158,34 @@ func TestRunPackTestsRejectsUnsafeInputIdentifiersBeforePlanning(t *testing.T) {
 	}
 }
 
-func TestDockerPackPlannerContractsAndLint(t *testing.T) {
+func TestAdditionalPackPlannerContractsAndLint(t *testing.T) {
 	t.Parallel()
-
-	packPath := filepath.Join("..", "..", "packs", "docker", "docker.yaml")
-	casesPath := filepath.Join("..", "..", "packs", "docker", "packtest.json")
-
-	var testOut bytes.Buffer
-	if err := RunPackTests(Options{Out: &testOut}, packPath, casesPath); err != nil {
-		t.Fatalf("RunPackTests(docker) error = %v\n%s", err, testOut.String())
-	}
-	if !strings.Contains(testOut.String(), "Passed 8 pack contract case(s)") {
-		t.Fatalf("docker pack test output = %q", testOut.String())
-	}
-
-	var lintOut bytes.Buffer
-	if err := LintPackPaths(Options{Out: &lintOut}, []string{packPath}, casesPath); err != nil {
-		t.Fatalf("LintPackPaths(docker) error = %v\n%s", err, lintOut.String())
-	}
-	if !strings.Contains(lintOut.String(), "0 error(s), 0 warning(s)") {
-		t.Fatalf("docker pack lint output = %q", lintOut.String())
-	}
-}
-
-func TestKubectlPackPlannerContractsAndLint(t *testing.T) {
-	t.Parallel()
-
-	packPath := filepath.Join("..", "..", "packs", "kubectl", "kubectl.yaml")
-	casesPath := filepath.Join("..", "..", "packs", "kubectl", "packtest.json")
-
-	var testOut bytes.Buffer
-	if err := RunPackTests(Options{Out: &testOut}, packPath, casesPath); err != nil {
-		t.Fatalf("RunPackTests(kubectl) error = %v\n%s", err, testOut.String())
-	}
-	if !strings.Contains(testOut.String(), "Passed 11 pack contract case(s)") {
-		t.Fatalf("kubectl pack test output = %q", testOut.String())
-	}
-
-	var lintOut bytes.Buffer
-	if err := LintPackPaths(Options{Out: &lintOut}, []string{packPath}, casesPath); err != nil {
-		t.Fatalf("LintPackPaths(kubectl) error = %v\n%s", err, lintOut.String())
-	}
-	if !strings.Contains(lintOut.String(), "0 error(s), 0 warning(s)") {
-		t.Fatalf("kubectl pack lint output = %q", lintOut.String())
+	for _, tc := range []struct {
+		name  string
+		cases int
+	}{
+		{"docker", 8},
+		{"kubectl", 11},
+		{"github", 43},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			packPath := filepath.Join("..", "..", "packs", tc.name, tc.name+".yaml")
+			casesPath := filepath.Join("..", "..", "packs", tc.name, "packtest.json")
+			var testOut bytes.Buffer
+			if err := RunPackTests(Options{Out: &testOut}, packPath, casesPath); err != nil {
+				t.Fatalf("RunPackTests error = %v\n%s", err, testOut.String())
+			}
+			if !strings.Contains(testOut.String(), fmt.Sprintf("Passed %d pack contract case(s)", tc.cases)) {
+				t.Fatalf("pack test output = %q", testOut.String())
+			}
+			var lintOut bytes.Buffer
+			if err := LintPackPaths(Options{Out: &lintOut}, []string{packPath}, casesPath); err != nil {
+				t.Fatalf("LintPackPaths error = %v\n%s", err, lintOut.String())
+			}
+			if !strings.Contains(lintOut.String(), "0 error(s), 0 warning(s)") {
+				t.Fatalf("pack lint output = %q", lintOut.String())
+			}
+		})
 	}
 }

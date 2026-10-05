@@ -20,7 +20,7 @@ CLIHarbor
 
 The top bar shows the current page, runtime connection state, and a **Sign in** button linking to Authentication. This button opens tool sign-in; it never claims a vendor session is authenticated. On narrow windows, **Menu** toggles the sidebar. Navigation preserves native links, page titles, and focus to main content.
 
-Tool categories filter only the current authorized catalog. Selecting a category resets the form to a task in that category, and **All tools** restores the full catalog. Search, Favorites, and Recently used obey the same category filter. Category changes are disabled while a task is starting or running. These filters are transient navigation state and create no execution authority.
+Tool categories filter only the current authorized catalog by exact pack/tool identity. Each executable has its own category, including when a reviewed pack contains several tools or different packs use the same tool ID. Labels show the pack name and executable tool ID. Selecting a category resets the form to a task in that category, and **All tools** restores the full catalog. Search, Favorites, and Recently used obey the same category filter. Category changes are disabled while a task is starting or running. These filters are transient navigation state and create no execution authority.
 
 ## 3. Persistent context bar
 
@@ -44,6 +44,8 @@ Home answers four questions immediately:
 4. What should I do next?
 
 The implemented Overview is a dedicated operator dashboard rather than a second copy of the task runner. It summarizes tool readiness, task availability, and the local-only boundary; chooses a conservative next step from authoritative runtime/tool state; exposes one-click Favorites/Recently used task entry; and keeps tool sign-in available below the readiness summary without inventing an authentication verdict. Ready vendor-session CLIs remain visible on Overview independently from whether a browser credential adapter is currently available. When the backend advertises the reviewed Conjur password adapter, the same real sign-in card exposes browser login; otherwise the card still reports the detected CLI and allows the reviewed session check without misrepresenting a configuration/authentication limitation as failed CLI detection. Task configuration/execution lives on `/tasks`, diagnostics on `/diagnostics`, and retained history on `/runs`.
+
+When at least one tool has available tasks, Overview recommends Tasks even if another optional CLI needs setup. The readiness counts continue to show unavailable tools. If no tasks are available, tool setup remains the recommended next step.
 
 Example cards:
 
@@ -276,7 +278,7 @@ Route changes update the browser title and move focus to main content, including
 
 ## 16. Responsive behavior
 
-Primary target is enterprise Windows laptops. Support narrow browser windows without horizontal layout failure. Production browser E2E explicitly exercises the task workflow at 1440, 1024, 768, and 390 CSS pixels. Large result tables may scroll within their result region rather than forcing page-wide overflow.
+Primary target is enterprise Windows laptops. Support narrow browser windows without horizontal layout failure. Production browser E2E explicitly exercises the task workflow at 1440, 1024, 768, 390, and 320 CSS pixels. The catalog grid constrains its column so long tool labels cannot widen forms on small screens. Large result tables may scroll within their result region rather than forcing page-wide overflow.
 
 ## 17. Design tone
 

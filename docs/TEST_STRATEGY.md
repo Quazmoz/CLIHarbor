@@ -20,7 +20,9 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 
 ### Stage 9 additional-real-CLI checkpoint
 
-The built-in Docker and kubectl packs are covered without requiring Docker Engine or a Kubernetes cluster in public CI. Tests verify default-pack loading, exact production-planner argv from each checked-in `packtest.json`, zero-error/zero-warning static lint coverage, and that neither Docker nor kubectl can enter Conjur's automatic provisioning path. Windows evaluation CI also requires zero-config `doctor` to expose all embedded tool states. Real runtime acceptance remains an approved-environment check.
+The built-in Docker, kubectl, and GitHub CLI packs are covered without requiring Docker Engine, a Kubernetes cluster, or GitHub credentials in public CI. Tests verify default-pack loading, exact production-planner argv from each checked-in `packtest.json`, zero-error/zero-warning static lint coverage, and that additional tools cannot enter Conjur's automatic provisioning path. GitHub's 43 contract cases cover fixed metadata projections, explicit targets, bounded lists, enum choices, boolean switches, and hostile/unknown input refusal. Windows evaluation CI also requires zero-config `doctor` to expose all embedded tool states. Real runtime acceptance remains an approved-environment check.
+
+Task-navigation acceptance covers two tools within one pack, repeated tool IDs across packs, consistent search/favorite/recent filtering, reset form values on tool changes, exact selected-task submission, and disabled category changes while execution is active. Overview keeps available workflows actionable when an optional CLI is missing.
 
 ### Stage 10 pack-authoring lint checkpoint
 
