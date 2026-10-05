@@ -55,7 +55,6 @@ const readyTools: ToolDiagnostic[] = [
     packName: 'Conjur',
     packVersion: '0.2.0',
     toolId: 'conjur',
-    risk: 'read',
     status: 'ready',
     version: '9.3.1',
     requiresVendorSession: true,
@@ -72,7 +71,6 @@ const readyTools: ToolDiagnostic[] = [
     packName: 'Docker',
     packVersion: '0.2.0',
     toolId: 'docker',
-    risk: 'read',
     status: 'ready',
   },
 ];
@@ -133,7 +131,6 @@ describe('OverviewPage', () => {
               packId: 'conjur',
               commandId: 'whoami',
               toolId: 'conjur',
-              risk: 'read',
               status: 'exited',
               exitCode: 0,
             }),
