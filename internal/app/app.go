@@ -49,7 +49,9 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
-	runManager, err := runs.NewManager(ctx, runtimeState.Registry, runtimeState.Discovery, runs.Config{})
+	runManager, err := runs.NewManager(ctx, runtimeState.Registry, runtimeState.Discovery, runs.Config{
+		ResolveExecutionContext: resolveMutationExecutionContext,
+	})
 	if err != nil {
 		return fmt.Errorf("configure run manager: %w", err)
 	}
@@ -69,6 +71,7 @@ func Run(ctx context.Context, options Options) error {
 	toolInstaller := newManagedToolInstaller(runtimeState.Registry, toolbootstrap.NewPortableProvisioner(), installLocations)
 	catalog := newTaskCatalog(runtimeState.Registry, runtimeState.Discovery)
 	catalog.setCredentialLoginCapabilityProvider(credentialLogin.Capability)
+	catalog.setTaskAvailabilityProvider(mutationTaskAvailable)
 	s, err := server.New(server.Config{
 		Version:                    options.Version,
 		Frontend:                   frontend,
