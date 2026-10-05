@@ -610,7 +610,6 @@ describe('AuthenticationPage', () => {
     expect(loginRequest).toEqual({
       packId: 'cyberark-conjur-v9',
       toolId: 'conjur',
-      risk: 'read',
       identity: 'alice',
       secret: 'super-secret',
     });
@@ -693,7 +692,6 @@ describe('AuthenticationPage', () => {
     expect(configurationRequest).toEqual({
       packId: 'cyberark-conjur-v9',
       toolId: 'conjur',
-      risk: 'read',
       applianceUrl: 'https://conjur.example.test',
       account: 'engineering',
       authnType: 'authn',
@@ -713,7 +711,6 @@ describe('AuthenticationPage', () => {
     expect(loginRequest).toEqual({
       packId: 'cyberark-conjur-v9',
       toolId: 'conjur',
-      risk: 'read',
       identity: 'alice',
       secret: 'super-secret',
     });
@@ -791,7 +788,6 @@ describe('AuthenticationPage', () => {
     expect(interactiveRequest).toEqual({
       packId: 'cyberark-conjur-v9',
       toolId: 'conjur',
-    risk: 'read',
     });
     expect(interactiveHeaders).toMatchObject({ 'X-CLIHarbor-CSRF': status.csrfToken });
     expect(JSON.stringify(interactiveRequest)).not.toContain('args');
