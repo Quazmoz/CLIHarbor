@@ -22,6 +22,8 @@ export type ServerErrorCode =
   | 'authentication_busy'
   | 'resource_not_found'
   | 'command_blocked'
+  | 'approval_required'
+  | 'execution_context_unavailable'
   | 'tool_unavailable'
   | 'tool_changed'
   | 'run_capacity'
@@ -70,6 +72,8 @@ const serverCodeCategories: Record<ServerErrorCode, AppErrorCategory> = {
   authentication_busy: 'capacity',
   resource_not_found: 'lifecycle',
   command_blocked: 'policy',
+  approval_required: 'policy',
+  execution_context_unavailable: 'policy',
   tool_unavailable: 'discovery',
   tool_changed: 'discovery',
   run_capacity: 'capacity',
