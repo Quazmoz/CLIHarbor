@@ -28,7 +28,7 @@ func (s *previewServiceStub) Preview(request runs.Request) (runs.Preview, error)
 func TestHandleRunPreviewReturnsPlannerRepresentationWithoutPathAuthority(t *testing.T) {
 	stub := &previewServiceStub{preview: runs.Preview{
 		PackID: "fixture", CommandID: "inspect", ToolID: "fixture", ToolVersion: "1.2.3",
-		ExecutableName: "fixture.exe", Args: []string{"inspect", "--query", "hello world"},
+		ExecutableName: "fixture.exe", Args: []string{"inspect", "--query", "hello world"}, Risk: "read",
 	}}
 	server := &Server{runs: stub}
 	body := []byte(`{"packId":"fixture","commandId":"inspect","values":{"query":"hello world"}}`)
@@ -56,6 +56,24 @@ func TestHandleRunPreviewReturnsPlannerRepresentationWithoutPathAuthority(t *tes
 	}
 	if got.ExecutableName != "fixture.exe" || len(got.Args) != 3 {
 		t.Fatalf("preview response = %#v", got)
+	}
+}
+
+func TestHandleRunPreviewRejectsBrowserSuppliedApproval(t *testing.T) {
+	stub := &previewServiceStub{}
+	server := &Server{runs: stub}
+	body := []byte(`{"packId":"fixture","commandId":"delete","values":{},"approval":{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runs/preview", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	server.handleRunPreview(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if stub.request.PackID != "" {
+		t.Fatalf("preview service received browser-supplied approval request: %#v", stub.request)
 	}
 }
 
