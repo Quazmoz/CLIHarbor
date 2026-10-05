@@ -8,7 +8,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 )
 
-func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
+func TestTaskCatalogExposesRunnableReviewedRiskMetadata(t *testing.T) {
 	maxLength := 64
 	registry, err := packs.NewRegistry([]packs.LoadedPack{{
 		Pack: packs.Pack{
@@ -28,6 +28,13 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 				},
 				"change": {
 					Name: "Change", Tool: "ready", Risk: packs.RiskChange,
+					Impact: &packs.Impact{
+						TargetInput: "target", TargetLabel: "Target", Effect: "Changes target state.", Scope: packs.ImpactScopeSingle,
+					},
+					Inputs: []packs.Input{{
+						ID: "target", Type: packs.InputString, Label: "Target", Required: true,
+						Validation: packs.InputValidation{MaxLength: &maxLength, DisallowLeadingDash: true},
+					}},
 					Output: packs.Output{Mode: packs.OutputRaw},
 				},
 				"auth": {
@@ -81,8 +88,8 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	}
 
 	tasks := catalog.ListTasks()
-	if len(tasks) != 2 {
-		t.Fatalf("task count = %d, want 2: %#v", len(tasks), tasks)
+	if len(tasks) != 3 {
+		t.Fatalf("task count = %d, want 3: %#v", len(tasks), tasks)
 	}
 	var task server.Task
 	for _, candidate := range tasks {
@@ -94,8 +101,18 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	if task.CommandID == "" || task.PackID != "fixture" || task.ToolID != "ready" || task.ToolVersion != "1.2.3" {
 		t.Fatalf("safe task metadata = %#v", task)
 	}
-	if len(task.Inputs) != 1 || task.Inputs[0].Validation.MaxLength == nil || *task.Inputs[0].Validation.MaxLength != 64 {
-		t.Fatalf("safe task input metadata = %#v", task.Inputs)
+	if len(task.Inputs) != 1 || task.Inputs[0].Validation.MaxLength == nil || *task.Inputs[0].Validation.MaxLength != 64 || task.Risk != "read" {
+		t.Fatalf("safe task input/risk metadata = %#v", task)
+	}
+	var change server.Task
+	for _, candidate := range tasks {
+		if candidate.CommandID == "change" {
+			change = candidate
+			break
+		}
+	}
+	if change.Risk != "change" || change.Impact == nil || change.Impact.TargetInput != "target" || change.Impact.Scope != "single" {
+		t.Fatalf("change task metadata = %#v", change)
 	}
 
 	task.Inputs[0].Validation.Enum = append(task.Inputs[0].Validation.Enum, "mutated")
@@ -120,6 +137,37 @@ func TestTaskCatalogExposesOnlyRunnableReadOnlyNonSecretMetadata(t *testing.T) {
 	}
 	if secondTools[1].CredentialLogin == nil || secondTools[1].CredentialLogin.Method != server.CredentialLoginMethodConjurPassword {
 		t.Fatal("tool metadata returned shared credential-login state")
+	}
+}
+
+func TestTaskCatalogAppliesDynamicMutationAvailability(t *testing.T) {
+	registry, snapshot := func() (*packs.Registry, discovery.Snapshot) {
+		registry, err := packs.NewRegistry([]packs.LoadedPack{{
+			Pack: packs.Pack{
+				Metadata: packs.Metadata{ID: "fixture", Name: "Fixture", Version: "1.0.0"},
+				Runtime: packs.Runtime{Tools: map[string]packs.Tool{"ready": {}}},
+				Commands: map[string]packs.Command{
+					"safe": {Name: "Safe", Tool: "ready", Risk: packs.RiskRead, Output: packs.Output{Mode: packs.OutputRaw}},
+				},
+			},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return registry, discovery.NewSnapshot([]discovery.ToolState{{
+			PackID: "fixture", PackVersion: "1.0.0", ToolID: "ready", Status: discovery.StatusReady,
+		}})
+	}()
+	available := false
+	catalog := newTaskCatalog(registry, snapshot)
+	catalog.setTaskAvailabilityProvider(func(packID, commandID string) bool { return available })
+
+	if got := catalog.ListTasks(); len(got) != 0 {
+		t.Fatalf("hidden tasks = %#v", got)
+	}
+	available = true
+	if got := catalog.ListTasks(); len(got) != 1 || got[0].CommandID != "safe" {
+		t.Fatalf("available tasks = %#v", got)
 	}
 }
 
