@@ -160,7 +160,6 @@ describe('OverviewPage', () => {
     expect(loginRequest).toEqual({
       packId: 'conjur',
       toolId: 'conjur',
-      risk: 'read',
       identity: 'alice',
       secret: 'super-secret',
     });
