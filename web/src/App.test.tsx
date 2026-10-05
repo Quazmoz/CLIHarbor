@@ -1192,4 +1192,133 @@ describe('App routing', () => {
     fireEvent.click(reviewButtons[reviewButtons.length - 1]);
     expect(window.location.pathname).toBe('/authentication');
   });
+
+  test('requires backend preview and typed approval for a destructive multiple-record task', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    let submitted: unknown;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(
+          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-mutation' }),
+        );
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'cyberark-conjur-v9',
+                packName: 'CyberArk / Idira Secrets Manager CLI 9.x',
+                commandId: 'issuer-delete',
+                name: 'Delete issuer',
+                description: 'Delete one issuer and optionally its associated dynamic secrets.',
+                toolId: 'conjur',
+                toolVersion: '9.3.1',
+                risk: 'destructive',
+                impact: {
+                  targetInput: 'issuer-id',
+                  targetLabel: 'Issuer ID',
+                  effect: 'Deletes the issuer and may delete associated dynamic secrets.',
+                  scope: 'multiple',
+                },
+                requiresAuth: true,
+                inputs: [
+                  {
+                    id: 'issuer-id',
+                    type: 'string',
+                    label: 'Issuer ID',
+                    required: true,
+                    validation: { maxLength: 256, disallowLeadingDash: true },
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs/preview' && init?.method === 'POST') {
+        return Promise.resolve(
+          response(200, {
+            packId: 'cyberark-conjur-v9',
+            commandId: 'issuer-delete',
+            toolId: 'conjur',
+            toolVersion: '9.3.1',
+            executableName: 'conjur.exe',
+            args: ['issuer', 'delete', '--id', 'prod-issuer', '--output', 'json'],
+            risk: 'destructive',
+            impact: {
+              targetLabel: 'Issuer ID',
+              target: 'prod-issuer',
+              effect: 'Deletes the issuer and may delete associated dynamic secrets.',
+              scope: 'multiple',
+            },
+            context: {
+              fields: [
+                { label: 'Account', value: 'engineering' },
+                { label: 'Endpoint', value: 'https://conjur.example.test' },
+              ],
+            },
+            approval: {
+              id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+              expiresAt: '2026-10-05T15:30:00Z',
+              mode: 'typed',
+              requiredText: 'DELETE MULTIPLE: prod-issuer',
+            },
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        submitted = JSON.parse(String(init.body));
+        return Promise.resolve(
+          response(202, {
+            runId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            packId: 'cyberark-conjur-v9',
+            commandId: 'issuer-delete',
+            toolId: 'conjur',
+            status: 'exited',
+            exitCode: 0,
+          }),
+        );
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    expect(await screen.findByText('Destructive task · approval required')).toBeInTheDocument();
+    expect(screen.getByText('High-impact destructive operation')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Issuer ID'), { target: { value: 'prod-issuer' } });
+    const runButton = screen.getByRole('button', { name: 'Approve destructive change and run' });
+    expect(runButton).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review destructive change' }));
+    expect(await screen.findByText('engineering')).toBeInTheDocument();
+    expect(screen.getByText('https://conjur.example.test')).toBeInTheDocument();
+    expect(screen.getByText('DELETE MULTIPLE: prod-issuer')).toBeInTheDocument();
+    expect(runButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Typed approval'), {
+      target: { value: 'DELETE MULTIPLE: prod-issuer' },
+    });
+    expect(runButton).toBeEnabled();
+    fireEvent.click(runButton);
+
+    await waitFor(() =>
+      expect(submitted).toEqual({
+        packId: 'cyberark-conjur-v9',
+        commandId: 'issuer-delete',
+        values: { 'issuer-id': 'prod-issuer' },
+        approval: {
+          id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          confirmation: 'DELETE MULTIPLE: prod-issuer',
+        },
+      }),
+    );
+  });
+
 });
