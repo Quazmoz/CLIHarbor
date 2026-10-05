@@ -125,7 +125,7 @@ The preferred architecture remains vendor-owned credentials/session storage. Gen
 
 Implemented:
 
-- Conjur resource inventory now includes bounded relationship filters for `--members-of`, `--permitted-roles`, and `--privilege`, in addition to the existing kind/search/pagination/role filters;
+- Conjur resource inventory uses an explicit bounded page-size contract for kind/search/offset/role/inspect listing; count, role-membership, and permitted-role queries use dedicated read-only tasks so list pagination cannot be bypassed;
 - Windows evaluation CI qualifies those Conjur flags against the exact pinned CyberArk Conjur CLI v9.3.1 `list --help` surface before the evaluation artifact can pass;
 - Docker adds non-verbose `system df` summary output and a one-shot `container stats --no-stream` resource snapshot with a fixed cross-platform field projection;
 - kubectl adds metadata-only StatefulSet, DaemonSet, and Job status inventory using fixed custom columns;
