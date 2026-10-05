@@ -1,6 +1,15 @@
 import { clientError, errorFromResponse } from './errors';
 
 export type TaskInputType = 'string' | 'integer' | 'boolean' | 'enum' | 'multiselect';
+export type TaskRisk = 'read' | 'change' | 'destructive';
+export type TaskImpactScope = 'single' | 'multiple';
+
+export interface TaskImpact {
+  targetInput: string;
+  targetLabel: string;
+  effect: string;
+  scope: TaskImpactScope;
+}
 
 export interface TaskInputValidation {
   min?: number;
@@ -28,6 +37,8 @@ export interface Task {
   description?: string;
   toolId: string;
   toolVersion?: string;
+  risk: TaskRisk;
+  impact?: TaskImpact;
   requiresAuth?: boolean;
   inputs: TaskInput[];
 }
@@ -40,7 +51,7 @@ function parseTask(value: unknown): Task {
   if (!isRecord(value)) {
     throw clientError('invalid_response');
   }
-  const { packId, packName, commandId, name, description, toolId, toolVersion, requiresAuth, inputs } = value;
+  const { packId, packName, commandId, name, description, toolId, toolVersion, risk, impact, requiresAuth, inputs } = value;
   if (
     typeof packId !== 'string' ||
     typeof packName !== 'string' ||
@@ -49,9 +60,33 @@ function parseTask(value: unknown): Task {
     typeof toolId !== 'string' ||
     (description !== undefined && typeof description !== 'string') ||
     (toolVersion !== undefined && typeof toolVersion !== 'string') ||
+    (risk !== undefined && !['read', 'change', 'destructive'].includes(String(risk))) ||
+    (impact !== undefined && !isRecord(impact)) ||
     (requiresAuth !== undefined && typeof requiresAuth !== 'boolean') ||
     !Array.isArray(inputs)
   ) {
+    throw clientError('invalid_response');
+  }
+
+  const parsedRisk = (risk ?? 'read') as TaskRisk;
+  let parsedImpact: TaskImpact | undefined;
+  if (impact !== undefined) {
+    const allowedImpact = new Set(['targetInput', 'targetLabel', 'effect', 'scope']);
+    if (Object.keys(impact).some((key) => !allowedImpact.has(key))) {
+      throw clientError('invalid_response');
+    }
+    const { targetInput, targetLabel, effect, scope } = impact;
+    if (
+      typeof targetInput !== 'string' ||
+      typeof targetLabel !== 'string' ||
+      typeof effect !== 'string' ||
+      !['single', 'multiple'].includes(String(scope))
+    ) {
+      throw clientError('invalid_response');
+    }
+    parsedImpact = { targetInput, targetLabel, effect, scope: scope as TaskImpactScope };
+  }
+  if ((parsedRisk === 'change' || parsedRisk === 'destructive') !== (parsedImpact !== undefined)) {
     throw clientError('invalid_response');
   }
 
@@ -118,6 +153,8 @@ function parseTask(value: unknown): Task {
     description,
     toolId,
     toolVersion,
+    risk: parsedRisk,
+    impact: parsedImpact,
     requiresAuth: requiresAuth === true,
     inputs: parsedInputs,
   };
