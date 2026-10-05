@@ -529,6 +529,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		m.closed = true
 		m.cancel()
 	}
+	clear(m.approvals)
 	m.mu.Unlock()
 
 	done := make(chan struct{})
