@@ -33,6 +33,7 @@ const tasks: Task[] = [
     commandId: 'whoami',
     name: 'Current identity',
     toolId: 'conjur',
+    risk: 'read',
     toolVersion: '9.3.1',
     requiresAuth: true,
     inputs: [],
@@ -43,6 +44,7 @@ const tasks: Task[] = [
     commandId: 'containers',
     name: 'List containers',
     toolId: 'docker',
+    risk: 'read',
     inputs: [],
   },
 ];
@@ -53,6 +55,7 @@ const readyTools: ToolDiagnostic[] = [
     packName: 'Conjur',
     packVersion: '0.2.0',
     toolId: 'conjur',
+    risk: 'read',
     status: 'ready',
     version: '9.3.1',
     requiresVendorSession: true,
@@ -69,6 +72,7 @@ const readyTools: ToolDiagnostic[] = [
     packName: 'Docker',
     packVersion: '0.2.0',
     toolId: 'docker',
+    risk: 'read',
     status: 'ready',
   },
 ];
@@ -129,6 +133,7 @@ describe('OverviewPage', () => {
               packId: 'conjur',
               commandId: 'whoami',
               toolId: 'conjur',
+              risk: 'read',
               status: 'exited',
               exitCode: 0,
             }),
@@ -158,6 +163,7 @@ describe('OverviewPage', () => {
     expect(loginRequest).toEqual({
       packId: 'conjur',
       toolId: 'conjur',
+      risk: 'read',
       identity: 'alice',
       secret: 'super-secret',
     });
