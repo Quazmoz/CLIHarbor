@@ -221,7 +221,7 @@ describe('OverviewPage', () => {
     expect(screen.getByRole('heading', { name: 'CLI authentication' })).toBeInTheDocument();
     expect(screen.getByText('2/2 ready')).toBeInTheDocument();
     expect(
-      screen.getByText(/CLI detected; browser sign-in is unavailable for the current vendor configuration/i),
+      screen.getByText(/approved conjur flow, then use the session check/i),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Check session' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();

@@ -503,7 +503,11 @@ export function VendorSessionCard({
     if (!vendorLoginOpened) {
       return undefined;
     }
-    const recheck = () => void startCheck();
+    // One automatic re-check per vendor login; later focus events must not keep adding runs.
+    const recheck = () => {
+      setVendorLoginOpened(false);
+      void startCheck();
+    };
     window.addEventListener('focus', recheck);
     return () => window.removeEventListener('focus', recheck);
   }); // Re-subscribes each render so the listener always sees the current check state.
@@ -653,14 +657,11 @@ export function VendorSessionCard({
       )}
 
       {toolView.ready && tool.credentialLogin === undefined && (
-        <div className="credential-login-error" role="status">
-          <strong>CLI detected; browser sign-in is unavailable for the current vendor configuration.</strong>
-          <span>
-            Detection and authentication are separate. CLIHarbor can still run the reviewed session check. If you expected the
-            built-in Conjur password form, review Diagnostics and the current Conjur connection/authentication mode instead of
-            reinstalling the CLI.
-          </span>
-        </div>
+        <p className="auth-tool-meta">
+          Sign in with your organization’s approved {tool.toolId} flow, then use the session check here to confirm it.
+          {tool.packId === 'cyberark-conjur-v9' &&
+            ' If you expected the built-in Conjur password form, review Diagnostics and the Conjur connection/authentication mode instead of reinstalling the CLI.'}
+        </p>
       )}
 
       {tool.credentialLogin?.method === 'conjur-password' && toolView.ready && (
@@ -987,6 +988,7 @@ export function AuthenticationPage({
         )}
       </div>
 
+      {tools.some((tool) => tool.credentialLogin !== undefined) && (
       <article className="panel auth-guidance" aria-labelledby="authentication-guidance-heading">
         <p className="status-label">Approved flow</p>
         <h3 id="authentication-guidance-heading">Sign in safely, then verify</h3>
@@ -1006,6 +1008,7 @@ export function AuthenticationPage({
           not bypass backend task policy, and the session check remains the authoritative browser-visible evidence.
         </p>
       </article>
+      )}
     </section>
   );
 }

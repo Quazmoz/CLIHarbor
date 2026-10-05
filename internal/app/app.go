@@ -79,6 +79,7 @@ func Run(ctx context.Context, options Options) error {
 		CredentialInteractiveLogin: credentialLogin,
 		CredentialConfiguration:    credentialLogin,
 		ToolInstaller:              toolInstaller,
+		SecretAudit:                newConjurSecretAuditService(ctx, runtimeState.Discovery),
 	})
 	if err != nil {
 		_ = shutdownRuns()

@@ -127,7 +127,7 @@ export function runOutcomeHeading(status: RunStatus, exitCode?: number): string 
     case 'failed':
       return 'Failed';
     case 'exited':
-      return exitCode === 0 ? 'Succeeded' : 'Failed';
+      return exitCode === 0 ? 'Succeeded' : exitCode === undefined ? 'Failed' : `Failed · exit ${exitCode}`;
   }
 }
 

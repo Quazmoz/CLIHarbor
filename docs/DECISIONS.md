@@ -697,3 +697,39 @@ Mode-aware presentation removes unnecessary console flash without broadening the
 **Migration:** Pack schema stays v1. Conjur pack advances to 0.3.0; example pack advances to 0.2.0. Existing Windows startup/preflight remains compatible. On macOS, vendor CLI installation and unsupported interactive authentication remain external approved operations.
 
 **Verification:** Native macOS Go/real-browser checks, local fixture execution integration, descendant-cleanup regressions, Windows/macOS/Linux CI, and Windows evaluation gates. Building a Windows binary on macOS does not prove native Windows behavior. See [platform setup](CROSS_PLATFORM.md) for exact support boundaries.
+
+## ADR-028 — Run the Conjur secret-value reference audit from the browser without returning values
+
+**Date:** 2026-10-05  
+**Status:** Accepted.
+
+### Context
+
+`tools/audit-conjur-secret-values.ps1` finds Conjur variables whose stored value is a path/reference to another secret (for example `RH.value.value.value/password`) instead of secret material. Operators need this from the CLIHarbor UI, on Windows and macOS, without PowerShell. The script spawns one `conjur variable get` process per variable, which is slow for large inventories, and invoking it from CLIHarbor would violate ADR-002/ADR-010 (no `powershell.exe`).
+
+### Decision
+
+Add one fixed, read-only Conjur adapter at `GET|POST|DELETE /api/v1/conjur/secret-audit`, implemented in-process with pinned `conjur-api-go` (as ADR-025 already permits for the reviewed credential bridge).
+
+- Enabled only for a healthy `cyberark-conjur-v9/conjur` tool. It reuses the session that the vendor CLI stored (`NewClientFromEnvironment`); CLIHarbor supplies no credential.
+- The browser chooses only the reviewed pack/tool identity and the `high`/`medium` reporting threshold. Start/cancel use the existing session + exact Origin + CSRF boundary.
+- It preserves the script's guarantees: a pre-count bound of 50,000 variables, bounded ID-only paging, duplicate/drift detection with full re-enumeration after reads, rejection of control/format/bidi resource IDs, a 1 MiB per-value bound, and the same classifier (ported case-for-case and tested against the script's self-test).
+- Values are read in batches with per-variable fallback, classified, and the buffers zeroed in the backend. The response DTO has **no field that can hold a value**: only variable IDs, closed reason codes, and closed per-variable failure codes (`no_value`, `forbidden`, `output_limit_exceeded`, `retrieval_failed`).
+- Failed or cancelled audits discard partial results so an incomplete audit never looks clean.
+- There is one audit at a time, held in memory. Nothing is persisted. The UI's redacted JSON download is generated client-side from the snapshot.
+- The UI requires an explicit acknowledgement before starting, because each read is recorded in Conjur's audit log.
+- It performs no mutation. Remediation stays with the operator's approved change process.
+
+### Alternatives considered
+
+1. Launch the PowerShell script from the backend. Rejected: shell invocation, Windows-only.
+2. Spawn `conjur variable get` per variable through the executor. Rejected: secret-bearing stdout would cross the executor/run-history path, and per-process cost is high.
+3. Add remediation (`variable set`) to the UI. Deferred: a mutating, secret-input workflow needs its own reviewed contract (ROADMAP Stage 7).
+
+### Security / reliability implications
+
+Secret values now transit backend memory during an operator-initiated audit. Go cannot guarantee erasure of strings/allocations made inside the vendor library. Variable IDs are operational metadata and are shown in the UI. SI-6 still holds: no secret value is ever returned to the browser, run history, logs, or diagnostics.
+
+### Verification
+
+Go tests cover classifier parity, value/metadata non-echo in the serialized snapshot, batch→per-variable fallback, failure codes, drift detection, and session failure. Server tests cover CSRF/Origin, unknown/duplicate fields, and threshold validation. Frontend tests cover acknowledgement gating, the exact request body/CSRF, redacted rendering, and rejection of unsafe server text.

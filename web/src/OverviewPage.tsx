@@ -97,14 +97,14 @@ export function OverviewPage({
             Technical execution details remain available when you need them.
           </p>
         </div>
-        <div className="overview-hero-actions">
-          <button type="button" onClick={() => onNavigate(recommendedDestination)}>
-            {recommendedAction}
-          </button>
-          <button type="button" className="secondary-button" onClick={() => onNavigate('authentication')}>
-            Review authentication
-          </button>
-        </div>
+        {/* The primary action lives once, in "Recommended next step" below. */}
+        {vendorSessionTools.length > 0 && (
+          <div className="overview-hero-actions">
+            <button type="button" className="secondary-button" onClick={() => onNavigate('authentication')}>
+              Review authentication
+            </button>
+          </div>
+        )}
       </div>
 
       {vendorSessionTools.length > 0 && (
@@ -142,7 +142,11 @@ export function OverviewPage({
         <div className="overview-metric">
           <span>Available tasks</span>
           <strong>{tasks.length} task{tasks.length === 1 ? '' : 's'}</strong>
-          <p>{vendorSessionTaskCount} task{vendorSessionTaskCount === 1 ? '' : 's'} require sign-in before use.</p>
+          <p>
+            {vendorSessionTaskCount === 0
+              ? 'None require sign-in.'
+              : `${vendorSessionTaskCount} ${vendorSessionTaskCount === 1 ? 'task requires' : 'tasks require'} sign-in before use.`}
+          </p>
         </div>
         <div className="overview-metric">
           <span>Execution boundary</span>

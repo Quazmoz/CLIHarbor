@@ -7,6 +7,8 @@ interface TaskDiscoveryProps {
   selectedTaskKey: string;
   preferences: TaskPreferences;
   disabled?: boolean;
+  /** Start collapsed when the operator already chose a task (e.g. from Overview). */
+  collapsed?: boolean;
   onSelect: (taskKey: string) => void;
   onToggleFavorite: (task: Task) => void;
 }
@@ -108,11 +110,12 @@ export function TaskDiscovery({
   selectedTaskKey,
   preferences,
   disabled,
+  collapsed = false,
   onSelect,
   onToggleFavorite,
 }: TaskDiscoveryProps) {
   const [query, setQuery] = useState('');
-  const [catalogOpen, setCatalogOpen] = useState(true);
+  const [catalogOpen, setCatalogOpen] = useState(!collapsed);
   const catalogRef = useRef<HTMLDetailsElement>(null);
   const summaryRef = useRef<HTMLElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);

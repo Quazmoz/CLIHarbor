@@ -49,7 +49,7 @@ describe('operator language', () => {
   test('presents non-zero process exit as an operator failure while preserving the backend status separately', () => {
     expect(runOutcomeHeading('exited', 0)).toBe('Succeeded');
     expect(runOutcomeTone('exited', 0)).toBe('succeeded');
-    expect(runOutcomeHeading('exited', 17)).toBe('Failed');
+    expect(runOutcomeHeading('exited', 17)).toBe('Failed · exit 17');
     expect(runOutcomeTone('exited', 17)).toBe('failed');
     expect(runOutcomeHeading('timed-out')).toBe('Timed out');
   });

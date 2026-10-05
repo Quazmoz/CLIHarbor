@@ -154,6 +154,8 @@ Pack metadata may classify output as secret-bearing, but the current planner/exe
 
 Secret retrieval, password/API-key rotation and comparable workflows are intentionally excluded from the Conjur browser pack.
 
+The one exception that reads values is the fixed Conjur secret-value reference audit (ADR-028). It classifies values in backend memory, returns only variable IDs and closed reason codes to the browser, and performs no mutation.
+
 ### SI-7 — Structured output is data, never authority
 
 Structured parsing occurs only after the authoritative process execution completes.

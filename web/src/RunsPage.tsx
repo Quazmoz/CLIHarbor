@@ -14,6 +14,7 @@ import { StructuredResultView } from './StructuredResultView';
 
 interface RunsPageProps {
   tasks: Task[];
+  onOpenTasks?: () => void;
 }
 
 const ACTIVE_RUN_REFRESH_MS = 2000;
@@ -33,7 +34,7 @@ function statusText(status: RunStatus, exitCode?: number): string {
   return runOutcomeHeading(status, exitCode);
 }
 
-function formatTimestamp(value?: string): string {
+export function formatTimestamp(value?: string): string {
   if (value === undefined) {
     return 'Not started';
   }
@@ -47,7 +48,7 @@ function formatTimestamp(value?: string): string {
   }).format(date);
 }
 
-function formatDuration(startedAt?: string, endedAt?: string): string {
+export function formatDuration(startedAt?: string, endedAt?: string): string {
   if (startedAt === undefined) {
     return '—';
   }
@@ -83,7 +84,8 @@ function FailureNotice({ failure }: { failure: AppErrorDetail }) {
   );
 }
 
-export function RunsPage({ tasks }: RunsPageProps) {
+export function RunsPage({ tasks, onOpenTasks }: RunsPageProps) {
+  const detailHeadingRef = useRef<HTMLHeadingElement>(null);
   const [summaries, setSummaries] = useState<RunSummary[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listFailure, setListFailure] = useState<AppErrorDetail | null>(null);
@@ -203,6 +205,11 @@ export function RunsPage({ tasks }: RunsPageProps) {
     setDetailLoading(true);
   };
 
+  // On narrow screens the detail sits far below the list; move focus (and the view) to it.
+  useEffect(() => {
+    if (selectedRunID !== null) detailHeadingRef.current?.focus();
+  }, [selectedRunID]);
+
   const refreshRun = () => {
     if (selectedRunID === null) {
       return;
@@ -250,6 +257,11 @@ export function RunsPage({ tasks }: RunsPageProps) {
             <div className="empty-state">
               <strong>No retained runs yet.</strong>
               <p>Run a safe task and it will appear here for the lifetime of this CLIHarbor process.</p>
+              {onOpenTasks && (
+                <button type="button" onClick={onOpenTasks}>
+                  Open tasks
+                </button>
+              )}
             </div>
           )}
 
@@ -283,6 +295,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
           )}
         </article>
 
+        {summaries.length > 0 && (
         <article className="panel run-history-detail-panel" aria-labelledby="run-history-detail-heading" aria-busy={detailLoading}>
           <p className="status-label">Run detail</p>
           {selectedRunID === null ? (
@@ -297,7 +310,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
             <>
               <div className="panel-heading-row">
                 <div>
-                  <h3 id="run-history-detail-heading">
+                  <h3 id="run-history-detail-heading" ref={detailHeadingRef} tabIndex={-1}>
                     {selectedSummary ? taskName(selectedSummary, tasks) : 'Retained run'}
                   </h3>
                   <p className="run-history-id">{selectedRunID}</p>
@@ -385,6 +398,7 @@ export function RunsPage({ tasks }: RunsPageProps) {
             </>
           )}
         </article>
+        )}
       </div>
     </section>
   );

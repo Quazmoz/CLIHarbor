@@ -10,6 +10,21 @@ RH.value.value.value/password
 
 The audit is intentionally separate from CLIHarbor's browser task authority. CLIHarbor continues to exclude secret-returning browser workflows.
 
+## Run it from CLIHarbor (Windows and macOS)
+
+When the trusted Conjur pack is loaded, open **Secret audit** in the CLIHarbor navigation:
+
+1. Sign in on **Authentication** first. The audit reuses the session that the Conjur CLI stored.
+2. Check the server/account shown, then choose what to report:
+   - **Likely and possible references** (the default, `Medium`);
+   - **Likely references only** (`High`).
+3. Confirm that you're authorized to read every visible variable, then select **Start read-only audit**. Progress is shown live and the audit can be cancelled. It keeps running if you switch pages.
+4. Review the flagged variable IDs and their reasons, copy IDs for a ticket, or download the redacted JSON report.
+
+The browser version is a Go port of this script ([ADR-028](DECISIONS.md)). It has the same bounds, classifier, drift checks and fail-closed behavior. It reads values in batches through pinned `conjur-api-go`, so it is much faster than one process per variable. Secret values never leave the CLIHarbor backend: the page receives only variable IDs, reason codes and per-variable failure codes. Those codes are `no_value` (no value set), `forbidden` (no execute permission), `output_limit_exceeded` and `retrieval_failed`. A failed or cancelled audit shows no partial results. The 50,000-variable bound is fixed in the browser version; use this script with `-MaxVariables` for larger inventories.
+
+Neither version changes any variable. Fix flagged values through your organization's approved change process.
+
 ## Safety properties
 
 The script:

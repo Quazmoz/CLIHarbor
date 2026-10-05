@@ -696,6 +696,43 @@ describe('App', () => {
     expect(query).toHaveAttribute('aria-describedby', 'task-input-query-error');
   });
 
+  test('shows browser constraint failures inline instead of submitting', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-inline' }));
+      }
+      if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: [] }));
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'fixture',
+                packName: 'Fixture',
+                commandId: 'inspect',
+                name: 'Inspect',
+                toolId: 'fixture',
+                inputs: [{ id: 'query', type: 'string', label: 'Query', required: true }],
+              },
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    const query = await screen.findByRole('textbox', { name: 'Query' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+
+    await waitFor(() => expect(query).toHaveAttribute('aria-invalid', 'true'));
+    expect(query).toHaveFocus();
+    expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs')).toBe(false);
+  });
+
   test('renders hostile-looking typed error text inertly', async () => {
     vi.stubGlobal(
       'fetch',
@@ -870,15 +907,24 @@ describe('App', () => {
     FakeEventSource.latest?.onopen?.(new Event('open'));
     expect(await screen.findByText('Live updates: connected.')).toBeInTheDocument();
 
-    FakeEventSource.latest?.emit('run-complete', {
+    FakeEventSource.latest?.emit('run-event', {
       runId: runID,
       sequence: 1,
+      type: 'process.started',
+      timestamp: new Date().toISOString(),
+    });
+    expect(await screen.findByText(/running for/)).toBeInTheDocument();
+
+    FakeEventSource.latest?.emit('run-complete', {
+      runId: runID,
+      sequence: 2,
       status: 'timed-out',
     });
 
     expect(await screen.findByRole('heading', { name: 'Timed out' })).toBeInTheDocument();
+    expect(screen.getByText(/Started .* · took/)).toBeInTheDocument();
     expect(screen.getByText(/execution time limit and was stopped/i)).toBeInTheDocument();
-    for (const output of screen.getAllByText(/No stdout yet\.|No stderr yet\./i)) {
+    for (const output of screen.getAllByText(/^No stdout\.$|^No stderr\.$/i)) {
       expect(output.closest('pre')).toHaveAttribute('tabindex', '0');
     }
   });
@@ -1024,7 +1070,7 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
     const diagnostics = await screen.findByText('Tool readiness');
-    expect(diagnostics.closest('details')).toHaveAttribute('open');
+    expect(screen.getByRole('region', { name: 'Tool readiness' })).toContainElement(diagnostics);
     expect(screen.getAllByText('1/1 ready').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Fixture is ready')).toBeInTheDocument();
     expect(screen.getByText(/CLIHarbor verified version 1\.2\.3/i)).toBeInTheDocument();

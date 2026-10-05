@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { normalizeError, invalidInputError, type AppErrorDetail } from './api/errors';
 import { fetchRuntimeStatus, type RuntimeStatus } from './api/status';
 import { fetchTasks, type Task, type TaskInput } from './api/tasks';
@@ -18,7 +18,8 @@ import {
   type StructuredErrorCode,
 } from './api/runs';
 import { AuthenticationPage } from './AuthenticationPage';
-import { RunsPage } from './RunsPage';
+import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
+import { SecretAuditPage } from './SecretAuditPage';
 import { OverviewPage } from './OverviewPage';
 import { TaskDiscovery } from './TaskDiscovery';
 import { StructuredResultView } from './StructuredResultView';
@@ -152,7 +153,12 @@ function appendRunEvent(current: RunView, event: RunEvent): RunView {
   }
   return {
     ...current,
-    snapshot: { ...current.snapshot, events: [...(current.snapshot.events ?? []), event] },
+    snapshot: {
+      ...current.snapshot,
+      // The create response predates the start event; take the start time from the stream.
+      startedAt: current.snapshot.startedAt ?? event.timestamp,
+      events: [...(current.snapshot.events ?? []), event],
+    },
     lastSequence: event.sequence,
   };
 }
@@ -190,6 +196,8 @@ function completeRun(current: RunView, complete: RunComplete): RunView {
       exitCode: complete.exitCode,
       structured: complete.structured,
       failure: complete.failure,
+      // run-complete carries no timestamp; the backend shares this machine's clock.
+      endedAt: current.snapshot.endedAt ?? new Date().toISOString(),
     },
     streamState: 'idle',
     streamFailure: undefined,
@@ -214,9 +222,16 @@ function isTaskFieldFailure(task: Task | undefined, failure: AppErrorDetail | nu
 
 // Copy is explicit and session-only; there is deliberately no download because
 // packs declare raw output as not persisted (persistRawOutput: false).
-function OutputStream({ name, text }: { name: 'stdout' | 'stderr'; text: string }) {
+function OutputStream({ name, text, live }: { name: 'stdout' | 'stderr'; text: string; live: boolean }) {
   // The notice belongs to the text it copied, so new streamed output clears it.
   const [notice, setNotice] = useState<{ text: string; message: string } | null>(null);
+  const preRef = useRef<HTMLPreElement>(null);
+  const followRef = useRef(true);
+  // Keep the newest streamed lines visible unless the operator scrolled up to read.
+  useLayoutEffect(() => {
+    const pre = preRef.current;
+    if (pre !== null && followRef.current) pre.scrollTop = pre.scrollHeight;
+  }, [text]);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);
@@ -233,13 +248,36 @@ function OutputStream({ name, text }: { name: 'stdout' | 'stderr'; text: string 
           Copy {name}
         </button>
       </div>
-      <pre tabIndex={0}>{text || `No ${name} yet.`}</pre>
+      <pre
+        ref={preRef}
+        tabIndex={0}
+        onScroll={(event) => {
+          const pre = event.currentTarget;
+          followRef.current = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
+        }}
+      >
+        {text || (live ? `No ${name} yet.` : `No ${name}.`)}
+      </pre>
       {notice?.text === text && (
         <p className="structured-copy-status" role="status">
           {notice.message}
         </p>
       )}
     </section>
+  );
+}
+
+function RunTiming({ startedAt, endedAt }: { startedAt: string; endedAt?: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (endedAt !== undefined) return undefined;
+    const timer = window.setInterval(() => setTick((tick) => tick + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [endedAt]);
+  return (
+    <p className="run-timing">
+      Started {formatTimestamp(startedAt)} · {endedAt === undefined ? 'running for' : 'took'} {formatDuration(startedAt, endedAt)}
+    </p>
   );
 }
 
@@ -453,21 +491,25 @@ function streamStateText(state: StreamState): string {
   }
 }
 
-type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'diagnostics';
+type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'diagnostics';
 
 const routePaths: Record<AppRoute, string> = {
   overview: '/',
   authentication: '/authentication',
   tasks: '/tasks',
   runs: '/runs',
+  'secret-audit': '/secret-audit',
   diagnostics: '/diagnostics',
 };
+
+const conjurPackID = 'cyberark-conjur-v9';
 
 const navigationItems: Array<{ route: AppRoute; label: string }> = [
   { route: 'overview', label: 'Overview' },
   { route: 'authentication', label: 'Authentication' },
   { route: 'tasks', label: 'Tasks' },
   { route: 'runs', label: 'Runs' },
+  { route: 'secret-audit', label: 'Secret audit' },
   { route: 'diagnostics', label: 'Diagnostics' },
 ];
 
@@ -479,6 +521,8 @@ function routeFromPath(pathname: string): AppRoute {
       return 'tasks';
     case '/runs':
       return 'runs';
+    case '/secret-audit':
+      return 'secret-audit';
     case '/diagnostics':
       return 'diagnostics';
     default:
@@ -491,6 +535,7 @@ export function App() {
   const [runtimeAttempt, setRuntimeAttempt] = useState(0);
   const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
   const [selectedTaskKey, setSelectedTaskKey] = useState('');
+  const [taskChosen, setTaskChosen] = useState(false);
   const [taskPreferences, setTaskPreferences] = useState<TaskPreferences>(() => loadTaskPreferences());
   const [formValues, setFormValues] = useState<Record<string, FormValue>>({});
   const [run, setRun] = useState<RunView | null>(null);
@@ -530,6 +575,7 @@ export function App() {
       return;
     }
     setSelectedTaskKey(key);
+    setTaskChosen(true);
     setFormValues(initialValues(task));
     previewRequestRef.current += 1;
     setCommandPreview(null);
@@ -628,7 +674,8 @@ export function App() {
   useEffect(() => {
     document.title = `${navigationItems.find((item) => item.route === route)?.label} · CLIHarbor`;
     if (previousRouteRef.current !== route) {
-      mainRef.current?.focus();
+      mainRef.current?.focus({ preventScroll: true });
+      window.scrollTo(0, 0);
       previousRouteRef.current = route;
     }
   }, [route]);
@@ -664,9 +711,11 @@ export function App() {
     run !== null && run.retained && run.snapshot.status === 'running' ? run.snapshot.runId : null;
   const displayedRunID = run?.snapshot.runId;
 
+  const displayedRunFinished = run !== null && run.snapshot.status !== 'running';
+  // Also refocus when a run ends: the Cancel button that had focus disappears.
   useEffect(() => {
     if (displayedRunID !== undefined) resultHeadingRef.current?.focus();
-  }, [displayedRunID]);
+  }, [displayedRunID, displayedRunFinished]);
 
   useEffect(() => {
     if (activeRunID === null) {
@@ -777,9 +826,25 @@ export function App() {
     }
   };
 
+  // Show constraint failures inline (with aria-invalid) instead of the browser's transient bubble.
+  const reportInvalidInput = (task: Task): boolean => {
+    for (const input of task.inputs) {
+      const element = document.getElementById(taskInputDOMID(input.id));
+      if (
+        (element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement) &&
+        !element.checkValidity()
+      ) {
+        const failure = invalidInputError('values.' + input.id).detail;
+        setTaskFailure({ ...failure, message: element.validationMessage || failure.message });
+        return true;
+      }
+    }
+    return false;
+  };
+
   const startRun = async (event: FormEvent) => {
     event.preventDefault();
-    if (state.kind !== 'ready' || selectedTask === undefined) {
+    if (state.kind !== 'ready' || selectedTask === undefined || reportInvalidInput(selectedTask)) {
       return;
     }
     setTaskFailure(null);
@@ -800,7 +865,7 @@ export function App() {
     if (state.kind !== 'ready' || selectedTask === undefined || previewing || starting) {
       return;
     }
-    if (!taskFormRef.current?.reportValidity()) return;
+    if (reportInvalidInput(selectedTask)) return;
     const requestID = previewRequestRef.current + 1;
     previewRequestRef.current = requestID;
     setPreviewing(true);
@@ -917,6 +982,8 @@ export function App() {
         task.requiresAuth === true,
     );
 
+  const hasConjurPack = state.kind === 'ready' && state.tools.some((tool) => tool.packId === conjurPackID);
+
   const navigate = useCallback((nextRoute: AppRoute) => {
     const nextPath = routePaths[nextRoute];
     if (window.location.pathname !== nextPath) {
@@ -934,7 +1001,7 @@ export function App() {
           <h1>CLIHarbor</h1>
         </div>
         <nav className="primary-nav" aria-label="Primary">
-          {navigationItems.map((item) => (
+          {navigationItems.filter((item) => item.route !== 'secret-audit' || hasConjurPack).map((item) => (
             <a
               key={item.route}
               href={routePaths[item.route]}
@@ -956,7 +1023,7 @@ export function App() {
         </nav>
         <div className="topbar-context" aria-label="Runtime boundary">
           <span className="local-badge">Local only</span>
-          {state.kind === 'ready' && <span className="build-id">v{state.status.version}</span>}
+          {state.kind === 'ready' && <span className="build-id">{/^\d/.test(state.status.version) ? 'v' : ''}{state.status.version}</span>}
         </div>
       </header>
 
@@ -996,7 +1063,15 @@ export function App() {
           />
         )}
 
-        {state.kind === 'ready' && route === 'runs' && <RunsPage tasks={state.tasks} />}
+        {state.kind === 'ready' && route === 'runs' && <RunsPage tasks={state.tasks} onOpenTasks={() => navigate('tasks')} />}
+
+        {state.kind === 'ready' && route === 'secret-audit' && (
+          <SecretAuditPage
+            csrfToken={state.status.csrfToken}
+            onOpenAuthentication={() => navigate('authentication')}
+            onOpenDiagnostics={() => navigate('diagnostics')}
+          />
+        )}
 
         {state.kind === 'ready' && route === 'overview' && (
           <OverviewPage
@@ -1012,7 +1087,7 @@ export function App() {
           />
         )}
 
-        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && (
+        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && route !== 'secret-audit' && (
           <>
             <section className="runtime-overview" aria-labelledby="runtime-heading">
               <div className="runtime-copy">
@@ -1053,11 +1128,12 @@ export function App() {
                     <p>CLIHarbor is still local-only. Load an explicitly trusted pack and resolve its tool readiness, then refresh this runtime.</p>
                   </div>
                 ) : (
-                  <form ref={taskFormRef} onSubmit={startRun}>
+                  <form ref={taskFormRef} onSubmit={startRun} noValidate>
                     <TaskDiscovery
                       tasks={state.tasks}
                       selectedTaskKey={selectedTaskKey}
                       preferences={taskPreferences}
+                      collapsed={taskChosen}
                       disabled={starting || activeRunID !== null}
                       onSelect={(key) => {
                         focusConfigurationRef.current = true;
@@ -1178,6 +1254,9 @@ export function App() {
                 {run !== null && (
                   <>
                     <p className="run-task-name">{state.tasks.find((task) => task.packId + '/' + task.commandId === run.retry.taskKey)?.name ?? run.snapshot.commandId}</p>
+                    {run.snapshot.startedAt !== undefined && (
+                      <RunTiming startedAt={run.snapshot.startedAt} endedAt={run.snapshot.status === 'running' ? undefined : run.snapshot.endedAt} />
+                    )}
                     <details className="technical-details run-technical-details">
                       <summary>Run technical details</summary>
                       <dl className="run-meta">
@@ -1272,8 +1351,8 @@ export function App() {
                         <span className="raw-output-note">stdout and stderr remain separate</span>
                       </summary>
                       <div className="output-grid">
-                        <OutputStream name="stdout" text={output.stdout} />
-                        <OutputStream name="stderr" text={output.stderr} />
+                        <OutputStream name="stdout" text={output.stdout} live={run.snapshot.status === 'running'} />
+                        <OutputStream name="stderr" text={output.stderr} live={run.snapshot.status === 'running'} />
                       </div>
                     </details>
                   </>
@@ -1283,14 +1362,14 @@ export function App() {
             )}
 
             {route === 'diagnostics' && (
-              <details className="panel tool-diagnostics" open={route === 'diagnostics'}>
-              <summary>
+              <section className="panel tool-diagnostics" aria-labelledby="tool-diagnostics-heading">
+              <div className="tool-diagnostics-heading">
                 <span className="diagnostics-summary-copy">
                   <span className="status-label">Diagnostics</span>
-                  <strong>Tool readiness</strong>
+                  <strong id="tool-diagnostics-heading">Tool readiness</strong>
                 </span>
                 <span className="summary-meta">{readyToolCount}/{state.tools.length} ready</span>
-              </summary>
+              </div>
               <div className="diagnostics-body" aria-label="Configured CLI tool diagnostics">
                 {state.tools.length === 0 ? (
                   <div className="empty-state">
@@ -1379,7 +1458,7 @@ export function App() {
                   </ul>
                 )}
               </div>
-              </details>
+              </section>
             )}
           </>
         )}
