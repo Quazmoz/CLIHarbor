@@ -1,6 +1,6 @@
 import { clientError, errorFromResponse } from './errors';
 
-export type TaskInputType = 'string' | 'integer' | 'boolean' | 'enum' | 'multiselect';
+export type TaskInputType = 'string' | 'integer' | 'boolean' | 'enum' | 'multiselect' | 'secret';
 export type TaskRisk = 'read' | 'change' | 'destructive';
 export type TaskImpactScope = 'single' | 'multiple';
 
@@ -98,7 +98,7 @@ function parseTask(value: unknown): Task {
     if (
       typeof id !== 'string' ||
       typeof label !== 'string' ||
-      !['string', 'integer', 'boolean', 'enum', 'multiselect'].includes(String(type)) ||
+      !['string', 'integer', 'boolean', 'enum', 'multiselect', 'secret'].includes(String(type)) ||
       (required !== undefined && typeof required !== 'boolean') ||
       (validation !== undefined && !isRecord(validation))
     ) {

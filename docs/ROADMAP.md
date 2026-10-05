@@ -143,9 +143,7 @@ Future read-only expansion remains demand-driven and requires authoritative comm
 
 ## Stage 6 — Change/destructive workflows
 
-**Deferred.**
-
-Before enabling `change` or `destructive` risk classes, implement and qualify:
+**Implemented for Conjur** (secret variable create/delete, permission grant/revoke, LDAP mappings, issuer delete); real-appliance qualification pending. Each item below is implemented as backend-bound single-use approval (ADR-030):
 
 - backend-enforced confirmation bound to exact command/target/context;
 - explicit tenant/profile visibility;
@@ -158,9 +156,7 @@ Frontend confirmation alone is not an authorization boundary.
 
 ## Stage 7 — Secret-bearing workflows
 
-**Deferred.**
-
-Secret retrieval/handling requires a separate reviewed contract for:
+**Write-only secret input implemented** for Conjur `variable set` (stdin only, never echoed or retained; ADR-030). Secret **retrieval** remains deferred and requires a separate reviewed contract for:
 
 - reveal/copy UX;
 - no persistence by default;

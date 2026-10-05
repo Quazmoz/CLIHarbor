@@ -2618,6 +2618,15 @@ footer p {
   color: var(--text-strong);
 }
 
+.mutation-stdin {
+  margin: 0;
+  max-height: 16rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+}
+
 .typed-approval {
   display: grid;
   gap: 0.45rem;

@@ -52,9 +52,9 @@ const (
 	ErrContextUnavailable ErrorCode = "context_unavailable"
 	ErrApprovalRequired   ErrorCode = "approval_required"
 	ErrCapacity           ErrorCode = "capacity"
-	ErrNotFound        ErrorCode = "not_found"
-	ErrClosed          ErrorCode = "closed"
-	ErrInvalidCursor   ErrorCode = "invalid_cursor"
+	ErrNotFound           ErrorCode = "not_found"
+	ErrClosed             ErrorCode = "closed"
+	ErrInvalidCursor      ErrorCode = "invalid_cursor"
 )
 
 type Error struct {
@@ -76,15 +76,16 @@ type Request struct {
 // Preview is a non-executable representation of the exact trusted plan.
 // It deliberately omits executable paths and filesystem identity.
 type Preview struct {
-	PackID         string            `json:"packId"`
-	CommandID      string            `json:"commandId"`
-	ToolID         string            `json:"toolId"`
-	ToolVersion    string            `json:"toolVersion,omitempty"`
-	ExecutableName string            `json:"executableName"`
-	Args           []string          `json:"args"`
-	Risk           packs.Risk        `json:"risk"`
-	Impact         *MutationImpact   `json:"impact,omitempty"`
-	Context        *ExecutionContext `json:"context,omitempty"`
+	PackID         string             `json:"packId"`
+	CommandID      string             `json:"commandId"`
+	ToolID         string             `json:"toolId"`
+	ToolVersion    string             `json:"toolVersion,omitempty"`
+	ExecutableName string             `json:"executableName"`
+	Args           []string           `json:"args"`
+	Stdin          string             `json:"stdin,omitempty"`
+	Risk           packs.Risk         `json:"risk"`
+	Impact         *MutationImpact    `json:"impact,omitempty"`
+	Context        *ExecutionContext  `json:"context,omitempty"`
 	Approval       *ApprovalChallenge `json:"approval,omitempty"`
 }
 
@@ -291,6 +292,9 @@ func (m *Manager) Preview(request Request) (Preview, error) {
 		Args:           append([]string(nil), plan.Args...),
 		Risk:           plan.Risk,
 		Impact:         mutationImpact(plan),
+	}
+	if !plan.StdinSensitive {
+		preview.Stdin = plan.Stdin
 	}
 	if requiresApproval(plan) {
 		context, err := m.executionContextFor(plan)

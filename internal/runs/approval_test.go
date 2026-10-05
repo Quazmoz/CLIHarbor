@@ -17,8 +17,8 @@ func TestManagerMutationApprovalIsBackendBoundSingleUseAndContextAware(t *testin
 	contextAccount := "account-a"
 
 	manager := newTestManager(t, registry, snapshot, Config{
-		Now:           func() time.Time { return now },
-		ApprovalTTL:   2 * time.Minute,
+		Now:         func() time.Time { return now },
+		ApprovalTTL: 2 * time.Minute,
 		NewApprovalID: fixedRunIDs(
 			strings.Repeat("a", 32),
 			strings.Repeat("b", 32),
@@ -82,7 +82,7 @@ func TestManagerMutationApprovalIsBackendBoundSingleUseAndContextAware(t *testin
 	}
 	_, err = manager.Start(Request{
 		PackID: "fixture", CommandID: "change",
-		Values: map[string]json.RawMessage{"target": rawRunJSON(t, "beta")},
+		Values:   map[string]json.RawMessage{"target": rawRunJSON(t, "beta")},
 		Approval: &ApprovalSubmission{ID: mismatchPreview.Approval.ID},
 	})
 	assertRunCode(t, err, ErrApprovalRequired)
@@ -174,4 +174,39 @@ func TestManagerMutationFailsClosedWithoutTrustedExecutionContext(t *testing.T) 
 		Values: map[string]json.RawMessage{"target": rawRunJSON(t, "alpha")},
 	})
 	assertRunCode(t, err, ErrContextUnavailable)
+}
+
+func TestManagerPreviewNeverEchoesSecretStdinAndApprovalBindsIt(t *testing.T) {
+	t.Setenv(managerHelperEnv, "1")
+	registry, snapshot := managerFixture(t)
+	manager := newTestManager(t, registry, snapshot, Config{
+		NewApprovalID: fixedRunIDs(strings.Repeat("a", 32), strings.Repeat("b", 32)),
+		NewRunID:      fixedRunIDs(strings.Repeat("1", 32)),
+		ResolveExecutionContext: func(plan planner.Plan) (ExecutionContext, error) {
+			return ExecutionContext{Fields: []ExecutionContextField{{Label: "Account", Value: "account-a"}}}, nil
+		},
+	})
+
+	policy, err := manager.Preview(Request{PackID: "fixture", CommandID: "policy", Values: map[string]json.RawMessage{"target": rawRunJSON(t, "db/password")}})
+	if err != nil || policy.Stdin != "- !variable\n  id: \"db/password\"\n" {
+		t.Fatalf("policy preview stdin = %q, err = %v", policy.Stdin, err)
+	}
+
+	secret := "correct horse battery staple"
+	values := map[string]json.RawMessage{"target": rawRunJSON(t, "db/password"), "value": rawRunJSON(t, secret)}
+	preview, err := manager.Preview(Request{PackID: "fixture", CommandID: "set-secret", Values: values})
+	if err != nil {
+		t.Fatalf("Preview(set-secret) error = %v", err)
+	}
+	encoded, _ := json.Marshal(preview)
+	if preview.Stdin != "" || strings.Contains(string(encoded), secret) {
+		t.Fatalf("secret preview leaked stdin: %s", encoded)
+	}
+
+	_, err = manager.Start(Request{
+		PackID: "fixture", CommandID: "set-secret",
+		Values:   map[string]json.RawMessage{"target": rawRunJSON(t, "db/password"), "value": rawRunJSON(t, "swapped")},
+		Approval: &ApprovalSubmission{ID: preview.Approval.ID},
+	})
+	assertRunCode(t, err, ErrApprovalRequired)
 }

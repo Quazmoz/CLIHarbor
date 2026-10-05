@@ -39,7 +39,7 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if tool.SessionCheck == nil || tool.SessionCheck.CommandID != "whoami" || tool.SessionCheck.UnauthenticatedStderrContains != "please login again" {
 		t.Fatalf("session check = %#v", tool.SessionCheck)
 	}
-	for _, probe := range []string{"root", "list", "resource", "role", "issuer", "authn-ldap", "whoami"} {
+	for _, probe := range []string{"root", "list", "resource", "role", "issuer", "authn-ldap", "policy-update", "variable-set", "whoami"} {
 		if _, ok := tool.HelpProbes[probe]; !ok {
 			t.Fatalf("help probe %q missing", probe)
 		}
@@ -62,6 +62,11 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 		"role-members",
 		"role-memberships",
 		"role-show",
+		"secret-create",
+		"secret-delete",
+		"secret-deny",
+		"secret-permit",
+		"secret-set-value",
 		"whoami",
 	}
 	if len(pack.Commands) != len(wantCommands) {
@@ -102,6 +107,13 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	}
 	if listLimit.Type != InputEnum || !listLimit.Required || !slices.Equal(listLimit.Validation.Enum, []string{"25", "50", "100"}) {
 		t.Fatalf("list-resources bounded page-size contract = %#v", *listLimit)
+	}
+
+	for id, command := range pack.Commands {
+		takesSecret := command.Stdin != nil && command.Stdin.Input != ""
+		if takesSecret != (id == "secret-set-value") {
+			t.Fatalf("command %q secret stdin = %v; only secret-set-value may accept a secret", id, takesSecret)
+		}
 	}
 
 	for _, id := range []string{"issuer-delete", "ldap-group-create", "ldap-group-delete", "ldap-user-create", "ldap-user-delete"} {

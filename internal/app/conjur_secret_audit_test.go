@@ -192,9 +192,13 @@ func TestSecretAuditReportsReferencesAndPerVariableFailuresWithoutValues(t *test
 
 func TestSecretAuditFailsClosed(t *testing.T) {
 	drifting := &fakeSecretAuditClient{
-		ids:       []string{"acct:variable:one", "acct:variable:two"},
-		values:    map[string]string{"acct:variable:one": "app/db/password"},
-		afterRead: func(f *fakeSecretAuditClient) { f.mu.Lock(); f.ids = []string{"acct:variable:one", "acct:variable:three"}; f.mu.Unlock() },
+		ids:    []string{"acct:variable:one", "acct:variable:two"},
+		values: map[string]string{"acct:variable:one": "app/db/password"},
+		afterRead: func(f *fakeSecretAuditClient) {
+			f.mu.Lock()
+			f.ids = []string{"acct:variable:one", "acct:variable:three"}
+			f.mu.Unlock()
+		},
 	}
 	if snapshot := runSecretAudit(t, drifting, nil, "medium"); snapshot.State != "failed" || snapshot.FailureCode != "inventory_changed" || len(snapshot.Findings) != 0 {
 		t.Fatalf("drift snapshot = %+v", snapshot)

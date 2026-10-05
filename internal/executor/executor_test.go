@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,6 +45,29 @@ func TestRunStreamsStdoutStderrAndPreservesArgBoundaries(t *testing.T) {
 	}
 	if got := string(joinEventData(events, EventStderr)); got != "stderr" {
 		t.Fatalf("stderr = %q", got)
+	}
+}
+
+func TestRunFeedsApprovedMutationStdinOnly(t *testing.T) {
+	t.Setenv(helperEnv, "1")
+	plan := helperPlan(t, "stdin")
+	plan.Risk = packs.RiskChange
+	plan.Impact = &planner.MutationImpact{TargetLabel: "Variable", Target: "db/password", Effect: "Changes it.", Scope: packs.ImpactScopeSingle}
+	plan.Stdin = "- !variable\n  id: \"db/password\"\n"
+	collector := &eventCollector{}
+	if _, err := testExecutor(2*time.Second, 1<<20).Run(context.Background(), plan, collector); err != nil {
+		t.Fatalf("Run(mutation) error = %v", err)
+	}
+	if got := string(joinEventData(collector.Events(), EventStdout)); got != "stdin:"+plan.Stdin {
+		t.Fatalf("mutation stdout = %q", got)
+	}
+
+	collector = &eventCollector{}
+	if _, err := testExecutor(2*time.Second, 1<<20).Run(context.Background(), helperPlan(t, "stdin"), collector); err != nil {
+		t.Fatalf("Run(read) error = %v", err)
+	}
+	if got := string(joinEventData(collector.Events(), EventStdout)); got != "stdin:" {
+		t.Fatalf("read stdout = %q, want empty stdin", got)
 	}
 }
 
@@ -334,6 +358,10 @@ func TestExecutorHelperProcess(t *testing.T) {
 	case "echo":
 		fmt.Fprint(os.Stdout, "stdout:"+strings.Join(args[1:], "|"))
 		fmt.Fprint(os.Stderr, "stderr")
+		os.Exit(0)
+	case "stdin":
+		data, _ := io.ReadAll(os.Stdin)
+		fmt.Fprint(os.Stdout, "stdin:"+string(data))
 		os.Exit(0)
 	case "exit":
 		code, err := strconv.Atoi(args[1])

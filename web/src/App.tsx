@@ -131,6 +131,23 @@ function cloneFormValues(values: Record<string, FormValue>): Record<string, Form
   return cloned;
 }
 
+// Secret values live only in the field until a run starts; retry copies never keep them.
+function withoutSecretValues(task: Task, values: Record<string, FormValue>): Record<string, FormValue> {
+  const cleared = cloneFormValues(values);
+  for (const input of task.inputs) {
+    if (input.type === 'secret') cleared[input.id] = '';
+  }
+  return cleared;
+}
+
+function withoutSecretRequestValues(task: Task, request: CreateRunRequest): CreateRunRequest {
+  const cloned = cloneRunRequest(request);
+  for (const input of task.inputs) {
+    if (input.type === 'secret') delete cloned.values[input.id];
+  }
+  return cloned;
+}
+
 function cloneRunRequest(request: CreateRunRequest): CreateRunRequest {
   const values: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(request.values)) {
@@ -417,14 +434,16 @@ function InputControl({
         <FieldLabel input={input} />
         <input
           id={domID}
-          type={input.type === 'integer' ? 'number' : 'text'}
+          type={input.type === 'integer' ? 'number' : input.type === 'secret' ? 'password' : 'text'}
+          autoComplete={input.type === 'secret' ? 'off' : undefined}
+          spellCheck={input.type === 'secret' ? false : undefined}
           required={input.required}
           value={typeof value === 'string' ? value : ''}
           step={input.type === 'integer' ? 1 : undefined}
           min={input.type === 'integer' ? validation.min : undefined}
           max={input.type === 'integer' ? validation.max : undefined}
-          minLength={input.type === 'string' ? validation.minLength : undefined}
-          maxLength={input.type === 'string' ? validation.maxLength : undefined}
+          minLength={input.type === 'string' || input.type === 'secret' ? validation.minLength : undefined}
+          maxLength={input.type === 'string' || input.type === 'secret' ? validation.maxLength : undefined}
           pattern={input.type === 'string' ? validation.pattern : undefined}
           aria-invalid={error === undefined ? undefined : true}
           aria-describedby={describedBy}
@@ -816,10 +835,13 @@ export function App() {
         lastSequence: snapshot.events?.at(-1)?.sequence ?? 0,
         retry: {
           taskKey: task.packId + '/' + task.commandId,
-          formValues: cloneFormValues(formSnapshot),
-          request: cloneRunRequest(request),
+          formValues: withoutSecretValues(task, formSnapshot),
+          request: withoutSecretRequestValues(task, request),
         },
       });
+      if (task.inputs.some((input) => input.type === 'secret')) {
+        setFormValues((current) => withoutSecretValues(task, current));
+      }
       setCancelRequested(false);
       setStreamAttempt(0);
       updateTaskPreferences((current) => recordRecentTask(current, task));
@@ -1386,6 +1408,20 @@ export function App() {
                                       <dt>Scope</dt>
                                       <dd>{commandPreview.impact.scope === 'multiple' ? 'Multiple records / relationships' : 'Single declared target'}</dd>
                                     </div>
+                                    {commandPreview.stdin !== undefined && (
+                                      <div>
+                                        <dt>Policy sent to the CLI</dt>
+                                        <dd>
+                                          <pre className="mutation-stdin">{commandPreview.stdin}</pre>
+                                        </dd>
+                                      </div>
+                                    )}
+                                    {selectedTask.inputs.some((input) => input.type === 'secret') && (
+                                      <div>
+                                        <dt>Secret value</dt>
+                                        <dd>Sent to the CLI on standard input only. It is not shown here or kept in run history.</dd>
+                                      </div>
+                                    )}
                                     {commandPreview.context.fields.map((field) => (
                                       <div key={field.label}>
                                         <dt>{field.label}</dt>

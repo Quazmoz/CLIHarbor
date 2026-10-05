@@ -7,9 +7,10 @@ metadata:
   description: >-
     Reviewed Conjur CLI workflows verified from the official cyberark/conjur-cli-go
     v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
-    Read operations plus a narrow set of non-secret change/destructive workflows
-    are exposed. Mutations require backend-bound explicit approval; secret-returning
-    and interactive commands remain excluded from executable browser authority.
+    Read operations plus reviewed change/destructive workflows (secret variable
+    create/delete/permission/value and LDAP mappings) are exposed. Mutations require
+    backend-bound explicit approval; secret-returning and interactive commands remain
+    excluded from executable browser authority.
 runtime:
   platforms: [windows, darwin]
   tools:
@@ -51,6 +52,12 @@ runtime:
           timeoutMillis: 3000
         authn-ldap:
           args: [authn-ldap, --help]
+          timeoutMillis: 3000
+        policy-update:
+          args: [policy, update, --help]
+          timeoutMillis: 3000
+        variable-set:
+          args: [variable, set, --help]
           timeoutMillis: 3000
         whoami:
           args: [whoami, --help]
@@ -745,6 +752,316 @@ commands:
     output:
       mode: json
       renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  secret-create:
+    name: Create secret variable
+    description: >-
+      Declare a new Conjur variable under a policy branch (conjur policy update).
+      The variable starts without a value; use Set secret value afterwards.
+    tool: conjur
+    risk: change
+    impact:
+      targetInput: variable-id
+      targetLabel: Variable
+      effect: Adds a variable declaration to the policy branch. Existing resources are not changed.
+      scope: single
+    stdin:
+      yamlTemplate: |
+        - !variable
+          id: {{variable-id}}
+    inputs:
+      - id: policy-branch
+        type: string
+        label: Policy branch
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 512
+          disallowLeadingDash: true
+      - id: variable-id
+        type: string
+        label: Variable ID (relative to the policy branch)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: dry-run
+        type: boolean
+        label: Validate only (dry run, nothing is changed)
+    argv:
+      - literal: policy
+      - literal: update
+      - flag:
+          name: --branch
+          valueFrom: policy-branch
+      - literal: --file
+      - literal: "-"
+      - switch:
+          name: --dry-run
+          enabledFrom: dry-run
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  secret-delete:
+    name: Delete secret variable
+    description: >-
+      Delete a Conjur variable declared in a policy branch (conjur policy update
+      with !delete). All stored secret versions and permissions on it are removed.
+    tool: conjur
+    risk: destructive
+    impact:
+      targetInput: variable-id
+      targetLabel: Variable
+      effect: Permanently deletes the variable, every stored secret version, and all permissions on it.
+      scope: single
+    stdin:
+      yamlTemplate: |
+        - !delete
+          record: !variable {{variable-id}}
+    inputs:
+      - id: policy-branch
+        type: string
+        label: Policy branch
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 512
+          disallowLeadingDash: true
+      - id: variable-id
+        type: string
+        label: Variable ID (relative to the policy branch)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: dry-run
+        type: boolean
+        label: Validate only (dry run, nothing is changed)
+    argv:
+      - literal: policy
+      - literal: update
+      - flag:
+          name: --branch
+          valueFrom: policy-branch
+      - literal: --file
+      - literal: "-"
+      - switch:
+          name: --dry-run
+          enabledFrom: dry-run
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  secret-permit:
+    name: Grant secret permission
+    description: >-
+      Grant a role privileges on a Conjur variable (conjur policy update with !permit).
+      execute lets the role fetch the secret value; update lets it change the value.
+    tool: conjur
+    risk: change
+    impact:
+      targetInput: variable-id
+      targetLabel: Variable
+      effect: Grants the selected role the selected privileges on this variable.
+      scope: single
+    stdin:
+      yamlTemplate: |
+        - !permit
+          role: !{{role-kind}} {{role-id}}
+          privileges: [ {{privileges}} ]
+          resource: !variable {{variable-id}}
+    inputs:
+      - id: policy-branch
+        type: string
+        label: Policy branch
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 512
+          disallowLeadingDash: true
+      - id: variable-id
+        type: string
+        label: Variable ID (relative to the policy branch)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: role-kind
+        type: enum
+        label: Role kind
+        required: true
+        validation:
+          enum: [host, group, layer, user]
+          disallowLeadingDash: true
+      - id: role-id
+        type: string
+        label: Role ID (relative to the policy branch; start with / for an absolute ID)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: privileges
+        type: enum
+        label: Privileges
+        required: true
+        validation:
+          enum: ["read, execute", "read", "execute", "update", "read, execute, update"]
+          disallowLeadingDash: true
+      - id: dry-run
+        type: boolean
+        label: Validate only (dry run, nothing is changed)
+    argv:
+      - literal: policy
+      - literal: update
+      - flag:
+          name: --branch
+          valueFrom: policy-branch
+      - literal: --file
+      - literal: "-"
+      - switch:
+          name: --dry-run
+          enabledFrom: dry-run
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  secret-deny:
+    name: Revoke secret permission
+    description: >-
+      Revoke a role's privileges on a Conjur variable (conjur policy update with !deny).
+      Conjur only removes permissions granted by the same policy branch, so use the
+      branch that granted them. Check the result with List permitted roles.
+    tool: conjur
+    risk: change
+    impact:
+      targetInput: variable-id
+      targetLabel: Variable
+      effect: Removes the selected privileges from the selected role on this variable.
+      scope: single
+    stdin:
+      yamlTemplate: |
+        - !deny
+          role: !{{role-kind}} {{role-id}}
+          privileges: [ {{privileges}} ]
+          resource: !variable {{variable-id}}
+    inputs:
+      - id: policy-branch
+        type: string
+        label: Policy branch
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 512
+          disallowLeadingDash: true
+      - id: variable-id
+        type: string
+        label: Variable ID (relative to the policy branch)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: role-kind
+        type: enum
+        label: Role kind
+        required: true
+        validation:
+          enum: [host, group, layer, user]
+          disallowLeadingDash: true
+      - id: role-id
+        type: string
+        label: Role ID (relative to the policy branch; start with / for an absolute ID)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: privileges
+        type: enum
+        label: Privileges
+        required: true
+        validation:
+          enum: ["read, execute", "read", "execute", "update", "read, execute, update"]
+          disallowLeadingDash: true
+      - id: dry-run
+        type: boolean
+        label: Validate only (dry run, nothing is changed)
+    argv:
+      - literal: policy
+      - literal: update
+      - flag:
+          name: --branch
+          valueFrom: policy-branch
+      - literal: --file
+      - literal: "-"
+      - switch:
+          name: --dry-run
+          enabledFrom: dry-run
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  secret-set-value:
+    name: Set secret value
+    description: >-
+      Store a new value for an existing Conjur variable (conjur variable set). The
+      value is sent to the CLI on standard input only; it is never placed in the
+      command line, shown back in the browser, or kept in run history.
+    tool: conjur
+    risk: change
+    impact:
+      targetInput: variable-id
+      targetLabel: Variable (full ID)
+      effect: Stores a new secret version for this variable. Applications that fetch it will receive the new value.
+      scope: single
+    stdin:
+      input: value
+    inputs:
+      - id: variable-id
+        type: string
+        label: Variable ID (full ID, for example apps/myapp/db/password)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: value
+        type: secret
+        label: Secret value
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 4096
+    argv:
+      - literal: variable
+      - literal: set
+      - flag:
+          name: --id
+          valueFrom: variable-id
+      - literal: --file
+      - literal: "-"
+    output:
+      mode: raw
     requirements:
       requiresAuth: true
       authMode: vendor-session

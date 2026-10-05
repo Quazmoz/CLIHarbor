@@ -98,17 +98,18 @@ func approvalRequirement(plan planner.Plan) (ApprovalMode, string, error) {
 
 func approvalFingerprint(plan planner.Plan, context ExecutionContext) ([sha256.Size]byte, error) {
 	payload := struct {
-		PackID         string                 `json:"packId"`
-		PackVersion    string                 `json:"packVersion"`
-		CommandID      string                 `json:"commandId"`
-		ToolID         string                 `json:"toolId"`
-		ToolVersion    string                 `json:"toolVersion"`
-		ExecutablePath string                 `json:"executablePath"`
-		ExecutableName string                 `json:"executableName"`
-		Args           []string               `json:"args"`
-		Risk           packs.Risk             `json:"risk"`
+		PackID         string                  `json:"packId"`
+		PackVersion    string                  `json:"packVersion"`
+		CommandID      string                  `json:"commandId"`
+		ToolID         string                  `json:"toolId"`
+		ToolVersion    string                  `json:"toolVersion"`
+		ExecutablePath string                  `json:"executablePath"`
+		ExecutableName string                  `json:"executableName"`
+		Args           []string                `json:"args"`
+		Stdin          string                  `json:"stdin"`
+		Risk           packs.Risk              `json:"risk"`
 		Impact         *planner.MutationImpact `json:"impact"`
-		Context        ExecutionContext       `json:"context"`
+		Context        ExecutionContext        `json:"context"`
 	}{
 		PackID:         plan.PackID,
 		PackVersion:    plan.PackVersion,
@@ -118,6 +119,7 @@ func approvalFingerprint(plan planner.Plan, context ExecutionContext) ([sha256.S
 		ExecutablePath: plan.ExecutablePath,
 		ExecutableName: plan.ExecutableName,
 		Args:           append([]string(nil), plan.Args...),
+		Stdin:          plan.Stdin,
 		Risk:           plan.Risk,
 		Impact:         plan.Impact,
 		Context:        context,

@@ -347,7 +347,7 @@ func generatedBaselineValues(command packs.Command) (map[string]json.RawMessage,
 
 		var sample any
 		switch input.Type {
-		case packs.InputString:
+		case packs.InputString, packs.InputSecret:
 			value, err := generatedStringSample(input)
 			if err != nil {
 				return nil, fmt.Errorf("input %s: %w", input.ID, err)

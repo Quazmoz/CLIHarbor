@@ -133,6 +133,7 @@ export interface RunPreview {
   toolVersion?: string;
   executableName: string;
   args: string[];
+  stdin?: string;
   risk: TaskRisk;
   impact?: RunMutationImpact;
   context?: RunExecutionContext;
@@ -364,6 +365,7 @@ function parsePreview(value: unknown): RunPreview {
     'toolVersion',
     'executableName',
     'args',
+    'stdin',
     'risk',
     'impact',
     'context',
@@ -372,7 +374,7 @@ function parsePreview(value: unknown): RunPreview {
   if (Object.keys(value).some((key) => !allowed.has(key))) {
     invalidResponse();
   }
-  const { packId, commandId, toolId, toolVersion, executableName, args, risk, impact, context, approval } = value;
+  const { packId, commandId, toolId, toolVersion, executableName, args, stdin, risk, impact, context, approval } = value;
   if (
     typeof packId !== 'string' ||
     typeof commandId !== 'string' ||
@@ -384,6 +386,7 @@ function parsePreview(value: unknown): RunPreview {
     !Array.isArray(args) ||
     args.length > 256 ||
     args.some((arg) => typeof arg !== 'string' || arg.length > 4096) ||
+    (stdin !== undefined && (typeof stdin !== 'string' || stdin.length > 65_536)) ||
     (risk !== undefined && !['read', 'change', 'destructive'].includes(String(risk)))
   ) {
     invalidResponse();
@@ -471,6 +474,7 @@ function parsePreview(value: unknown): RunPreview {
     toolVersion,
     executableName,
     args: [...args] as string[],
+    ...(typeof stdin === 'string' ? { stdin } : {}),
     risk: parsedRisk,
     impact: parsedImpact,
     context: parsedContext,

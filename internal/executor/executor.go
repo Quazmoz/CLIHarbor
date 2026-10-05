@@ -193,10 +193,13 @@ func (e *Executor) Run(ctx context.Context, plan planner.Plan, sink Sink) (Resul
 	cmd := exec.CommandContext(runCtx, plan.ExecutablePath, plan.Args...)
 	cmd.Dir = workdir
 	cmd.WaitDelay = e.waitDelay
-	// Deliberately leave Stdin unset. Auth-required read commands may reuse a
-	// vendor-owned cached session/environment, but CLIHarbor never supplies
-	// passwords, MFA responses, or other interactive credential input.
+	// Stdin is only the plan's trusted, pack-declared mutation payload (a
+	// rendered policy document or one approved secret value). CLIHarbor never
+	// supplies passwords, MFA responses, or other interactive login input.
 	cmd.Stdin = nil
+	if plan.Stdin != "" {
+		cmd.Stdin = strings.NewReader(plan.Stdin)
+	}
 
 	var cancellationApplied atomic.Bool
 	cmd.Cancel = func() error {

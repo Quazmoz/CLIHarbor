@@ -238,6 +238,9 @@
         "impact": {
           "$ref": "#/$defs/impact"
         },
+        "stdin": {
+          "$ref": "#/$defs/stdin"
+        },
         "inputs": {
           "type": "array",
           "maxItems": 64,
@@ -258,6 +261,22 @@
         },
         "requirements": {
           "$ref": "#/$defs/requirements"
+        }
+      }
+    },
+    "stdin": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/id"
+        },
+        "yamlTemplate": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192
         }
       }
     },
@@ -310,7 +329,8 @@
             "integer",
             "boolean",
             "enum",
-            "multiselect"
+            "multiselect",
+            "secret"
           ]
         },
         "label": {

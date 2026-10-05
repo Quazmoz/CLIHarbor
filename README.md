@@ -161,13 +161,13 @@ The vendor CLI remains the operational authority. The browser never chooses an e
 | Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, SHA-256 and strict inspection |
 | Diagnostics | Allowlisted non-secret support export; no command output, argv, paths, environment values, browser secrets or credentials |
 | Windows qualification | Exact toolchain, deterministic rebuild checks, `EVALUATION_SHA256SUMS`, self-test/evidence smoke and extracted-bundle preflight |
-| Conjur integration | Version-gated Conjur CLI 9.x read-only identity, resource, relationship, and role workflows derived from official CyberArk source/release evidence |
+| Conjur integration | Version-gated Conjur CLI 9.x identity, resource, relationship, and role workflows plus approval-gated secret variable create/delete, permission grant/revoke, and set-value, derived from official CyberArk source/release evidence |
 
 Still intentionally gated:
 
 - generic credential forms, embedded MFA/challenge handling, or CLIHarbor-owned token persistence beyond the reviewed Conjur adapters;
 - secret-returning workflows;
-- change/destructive browser execution;
+- change/destructive browser execution beyond the reviewed, approval-gated Conjur tasks;
 - automatic execution of unreviewed generated commands;
 - generic arbitrary-package installation;
 - Windows code signing/publisher attestation.

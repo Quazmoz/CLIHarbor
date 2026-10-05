@@ -616,6 +616,36 @@ func managerFixture(t *testing.T) (*packs.Registry, discovery.Snapshot) {
 				},
 				Output: packs.Output{Mode: packs.OutputRaw},
 			},
+			"set-secret": {
+				Name: "Set secret", Tool: "fixture", Risk: packs.RiskChange,
+				Impact: &packs.Impact{
+					TargetInput: "target", TargetLabel: "Target", Effect: "Stores a new secret.", Scope: packs.ImpactScopeSingle,
+				},
+				Stdin: &packs.Stdin{Input: "value"},
+				Inputs: []packs.Input{
+					{ID: "target", Type: packs.InputString, Label: "Target", Required: true, Validation: packs.InputValidation{MaxLength: &maxLength, DisallowLeadingDash: true}},
+					{ID: "value", Type: packs.InputSecret, Label: "Value", Required: true, Validation: packs.InputValidation{MaxLength: &maxLength}},
+				},
+				Argv: []packs.Argument{
+					{Literal: "-test.run=^TestManagerHelperProcess$"},
+					{Literal: "--"},
+					{Literal: "echo"},
+					{Flag: &packs.FlagArgument{Name: "--query", ValueFrom: "target"}},
+				},
+				Output: packs.Output{Mode: packs.OutputRaw},
+			},
+			"policy": {
+				Name: "Policy", Tool: "fixture", Risk: packs.RiskChange,
+				Impact: &packs.Impact{
+					TargetInput: "target", TargetLabel: "Target", Effect: "Declares a target.", Scope: packs.ImpactScopeSingle,
+				},
+				Stdin: &packs.Stdin{YAMLTemplate: "- !variable\n  id: {{target}}\n"},
+				Inputs: []packs.Input{
+					{ID: "target", Type: packs.InputString, Label: "Target", Required: true, Validation: packs.InputValidation{MaxLength: &maxLength, DisallowLeadingDash: true}},
+				},
+				Argv:   []packs.Argument{{Literal: "-test.run=^TestManagerHelperProcess$"}, {Literal: "--"}, {Literal: "echo"}, {Literal: "--query"}, {Literal: "policy"}},
+				Output: packs.Output{Mode: packs.OutputRaw},
+			},
 			"blocked": {
 				Name: "Blocked", Tool: "fixture", Risk: packs.RiskCredentialSensitive,
 				Argv:   []packs.Argument{{Literal: "never-executed"}},

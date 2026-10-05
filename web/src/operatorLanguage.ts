@@ -96,6 +96,11 @@ export function inputGuidance(input: TaskInput): string | undefined {
     parts.push(input.required ? 'Choose one or more values.' : 'Choose any values that apply, or leave this unselected.');
   } else if (input.type === 'boolean') {
     parts.push(input.required ? 'Turn this on when the task should include this option.' : 'Optional. Turn this on only when needed.');
+  } else if (input.type === 'secret') {
+    if (validation.maxLength !== undefined) {
+      parts.push('Use no more than ' + validation.maxLength + ' characters.');
+    }
+    parts.push('Sent to the CLI on standard input only; never shown, logged, or saved.');
   } else if (input.type === 'string') {
     if (validation.minLength !== undefined && validation.maxLength !== undefined) {
       parts.push('Use ' + validation.minLength + '–' + validation.maxLength + ' characters.');

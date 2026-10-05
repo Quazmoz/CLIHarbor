@@ -319,6 +319,19 @@ func commandInputUsage(command packs.Command) map[string]packInputUsage {
 		current.positional = current.positional || positional
 		usage[inputID] = current
 	}
+	if command.Stdin != nil {
+		inputIDs := []string{command.Stdin.Input}
+		for _, match := range packs.StdinPlaceholder.FindAllStringSubmatch(command.Stdin.YAMLTemplate, -1) {
+			inputIDs = append(inputIDs, match[1])
+		}
+		for _, inputID := range inputIDs {
+			if inputID != "" {
+				current := usage[inputID]
+				current.count++
+				usage[inputID] = current
+			}
+		}
+	}
 	return usage
 }
 

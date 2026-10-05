@@ -145,7 +145,7 @@ func TestTaskCatalogAppliesDynamicMutationAvailability(t *testing.T) {
 		registry, err := packs.NewRegistry([]packs.LoadedPack{{
 			Pack: packs.Pack{
 				Metadata: packs.Metadata{ID: "fixture", Name: "Fixture", Version: "1.0.0"},
-				Runtime: packs.Runtime{Tools: map[string]packs.Tool{"ready": {}}},
+				Runtime:  packs.Runtime{Tools: map[string]packs.Tool{"ready": {}}},
 				Commands: map[string]packs.Command{
 					"safe": {Name: "Safe", Tool: "ready", Risk: packs.RiskRead, Output: packs.Output{Mode: packs.OutputRaw}},
 				},

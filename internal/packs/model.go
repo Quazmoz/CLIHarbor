@@ -29,6 +29,9 @@ const (
 	InputBoolean     InputType = "boolean"
 	InputEnum        InputType = "enum"
 	InputMultiselect InputType = "multiselect"
+	// InputSecret is write-only: it may only feed stdin.input, so it never
+	// appears in argv, previews, impact text or browser preferences.
+	InputSecret InputType = "secret"
 )
 
 type OutputMode string
@@ -140,12 +143,22 @@ type Impact struct {
 	Scope       ImpactScope `json:"scope"`
 }
 
+// Stdin supplies one mutation command's standard input. Exactly one field is
+// set: Input sends a secret input's raw value; YAMLTemplate renders {{input}}
+// placeholders, quoting string/integer values as YAML double-quoted scalars and
+// inserting only pack-authored enum values verbatim.
+type Stdin struct {
+	Input        string `json:"input,omitempty"`
+	YAMLTemplate string `json:"yamlTemplate,omitempty"`
+}
+
 type Command struct {
 	Name         string       `json:"name"`
 	Description  string       `json:"description,omitempty"`
 	Tool         string       `json:"tool"`
 	Risk         Risk         `json:"risk"`
 	Impact       *Impact      `json:"impact,omitempty"`
+	Stdin        *Stdin       `json:"stdin,omitempty"`
 	Inputs       []Input      `json:"inputs,omitempty"`
 	Argv         []Argument   `json:"argv"`
 	Output       Output       `json:"output"`

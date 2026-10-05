@@ -1367,4 +1367,89 @@ describe('App routing', () => {
     );
   });
 
+
+  test('sends a secret value once on approval and never echoes or retains it', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const submitted: unknown[] = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-secret' }));
+      }
+      if (path === '/api/v1/tools') {
+        return Promise.resolve(response(200, { tools: [] }));
+      }
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(
+          response(200, {
+            tasks: [
+              {
+                packId: 'cyberark-conjur-v9',
+                packName: 'CyberArk / Idira Secrets Manager CLI 9.x',
+                commandId: 'secret-set-value',
+                name: 'Set secret value',
+                description: 'Store a new value for an existing Conjur variable.',
+                toolId: 'conjur',
+                toolVersion: '9.3.1',
+                risk: 'change',
+                impact: { targetInput: 'variable-id', targetLabel: 'Variable (full ID)', effect: 'Stores a new secret version.', scope: 'single' },
+                requiresAuth: true,
+                inputs: [
+                  { id: 'variable-id', type: 'string', label: 'Variable ID', required: true, validation: { maxLength: 2048, disallowLeadingDash: true } },
+                  { id: 'value', type: 'secret', label: 'Secret value', required: true, validation: { minLength: 1, maxLength: 4096 } },
+                ],
+              },
+            ],
+          }),
+        );
+      }
+      if (path === '/api/v1/runs/preview' && init?.method === 'POST') {
+        submitted.push(JSON.parse(String(init.body)));
+        return Promise.resolve(
+          response(200, {
+            packId: 'cyberark-conjur-v9',
+            commandId: 'secret-set-value',
+            toolId: 'conjur',
+            toolVersion: '9.3.1',
+            executableName: 'conjur',
+            args: ['variable', 'set', '--id', 'apps/db/password', '--file', '-'],
+            risk: 'change',
+            impact: { targetLabel: 'Variable (full ID)', target: 'apps/db/password', effect: 'Stores a new secret version.', scope: 'single' },
+            context: { fields: [{ label: 'Account', value: 'engineering' }] },
+            approval: { id: 'cccccccccccccccccccccccccccccccc', expiresAt: '2026-10-05T15:30:00Z', mode: 'explicit' },
+          }),
+        );
+      }
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        submitted.push(JSON.parse(String(init.body)));
+        return Promise.resolve(
+          response(202, { runId: 'dddddddddddddddddddddddddddddddd', packId: 'cyberark-conjur-v9', commandId: 'secret-set-value', toolId: 'conjur', status: 'exited', exitCode: 0 }),
+        );
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { container } = render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Variable ID' }), { target: { value: 'apps/db/password' } });
+    const secretField = container.querySelector<HTMLInputElement>('input[type="password"]');
+    expect(secretField).not.toBeNull();
+    fireEvent.change(secretField!, { target: { value: 'hunter2' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review change' }));
+    expect(await screen.findByText(/Sent to the CLI on standard input only. It is not shown here/u)).toBeInTheDocument();
+    expect(screen.queryByText('hunter2')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve change and run' }));
+    await waitFor(() => expect(submitted).toHaveLength(2));
+    expect(submitted[1]).toEqual({
+      packId: 'cyberark-conjur-v9',
+      commandId: 'secret-set-value',
+      values: { 'variable-id': 'apps/db/password', value: 'hunter2' },
+      approval: { id: 'cccccccccccccccccccccccccccccccc' },
+    });
+    await waitFor(() => expect(secretField!.value).toBe(''));
+    expect(container.innerHTML).not.toContain('hunter2');
+  });
+
 });

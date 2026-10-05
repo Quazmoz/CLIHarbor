@@ -190,7 +190,7 @@ credential-sensitive
 interactive
 ```
 
-The current browser planner/executor admits only `read` commands. Other risk classes remain metadata until an explicit backend confirmation/approval contract is implemented. A frontend confirmation dialog alone is not sufficient authorization for change/destructive execution.
+The browser planner/executor admits `read`, `change` and `destructive` commands. `change`/`destructive` commands must declare `impact` metadata, and the run manager executes them only after consuming a short-lived, single-use backend approval bound to the exact plan (argv, stdin, executable, impact target and execution context). A frontend confirmation dialog alone is never sufficient authorization. `credential-sensitive` and `interactive` remain metadata only.
 
 ## 10. Input types
 
@@ -201,12 +201,13 @@ Implemented input types:
 - `boolean`
 - `enum`
 - `multiselect`
+- `secret` — write-only; see §11.6
 
 Validation metadata includes numeric bounds, string-length bounds, RE2-compatible patterns, enum values, and `disallowLeadingDash`.
 
 Runtime input is untrusted. The planner validates exact JSON type and semantic bounds before any argv construction.
 
-`secret` and general filesystem `path` inputs remain deliberately absent.
+General filesystem `path` inputs remain deliberately absent.
 
 ## 11. Argument primitives
 
@@ -280,6 +281,27 @@ Security contract:
 - enum positional values beginning with `-` are invalid.
 
 A positional value cannot introduce a new subcommand or flag boundary because its location is fixed by the trusted pack and leading-dash values are refused.
+
+### 11.6 Standard input (mutation commands only)
+
+```yaml
+stdin:
+  yamlTemplate: |
+    - !variable
+      id: {{variable-id}}
+```
+
+```yaml
+stdin:
+  input: value   # a `secret` input
+```
+
+A `change` or `destructive` command may declare exactly one of:
+
+- `yamlTemplate` — a trusted YAML document (at most 8 KiB). Each `{{input-id}}` placeholder must reference a required string, integer or enum input. String and integer values are always rendered as YAML double-quoted scalars, so a value cannot leave its scalar position or add statements. Enum values are rendered verbatim and must be plain words (`^[A-Za-z0-9_, ]+$`) because they are pack-authored. The rendered document is shown in the approval preview.
+- `input` — the raw value of the command's only `secret` input.
+
+`secret` inputs must be required, declare `maxLength`, and may only feed `stdin.input`: they cannot appear in argv, impact metadata or templates. Their stdin is part of the approval fingerprint but is never returned in a preview, and the browser never keeps secret values in saved preferences or retry state.
 
 ## 12. Deliberately absent execution shapes
 

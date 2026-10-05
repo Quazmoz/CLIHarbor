@@ -2,7 +2,7 @@
 
 ## Status
 
-CLIHarbor includes a real, version-gated read-only integration for the official CyberArk / Idira Secrets Manager Conjur CLI.
+CLIHarbor includes a real, version-gated integration for the official CyberArk / Idira Secrets Manager Conjur CLI: read workflows plus approval-gated secret variable management (see [Secret variable management](#secret-variable-management)).
 
 The reviewed source pack remains in the repository at:
 
@@ -25,7 +25,7 @@ CyberArk release binaries render the reviewed release as `9.3.1-<commit>`. That 
 
 ## Zero-config startup
 
-Pack version `0.3.1` supports installed Conjur on Windows and macOS using the same reviewed 9.x argv/version contract. The upstream [v9.3.1 release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) publishes darwin builds. The automatic pinned fallback and guided external vendor-login launcher remain Windows-specific; on macOS, install an approved official CLI and complete interactive login in your terminal. See [Windows and macOS setup](CROSS_PLATFORM.md).
+Pack version `0.4.0` supports installed Conjur on Windows and macOS using the same reviewed 9.x argv/version contract. The upstream [v9.3.1 release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) publishes darwin builds. The automatic pinned fallback and guided external vendor-login launcher remain Windows-specific; on macOS, install an approved official CLI and complete interactive login in your terminal. See [Windows and macOS setup](CROSS_PLATFORM.md).
 
 Normal Windows startup is:
 
@@ -103,6 +103,9 @@ The pack was derived from these official upstream surfaces:
 - `pkg/cmd/resource.go` — resource exists/show/permitted-roles commands;
 - `pkg/cmd/role.go` — role exists/show/members/memberships commands;
 - `pkg/cmd/whoami.go` — authenticated identity query;
+- `pkg/cmd/policy.go` — `policy update --branch <b> --file -` (stdin) and `--dry-run`;
+- `pkg/cmd/variable.go` — `variable set --id <id> --file -` (stdin; `--value` would expose the secret in argv and is not used);
+- `cyberark/conjur` `gems/policy-parser` and `app/models/loader/types.rb` — `!variable`, `!permit`, `!deny`, `!delete` statement fields and `!deny` scoping to the loading policy;
 - `pkg/clients/clients.go` — vendor-owned authentication/config/session behavior;
 - checked-in `vhs/golden/*` command captures — root and command help/output behavior.
 
@@ -126,6 +129,11 @@ The current pack exposes only commands that are both documented and inside CLIHa
 | `role-show` | `conjur role show <role-id> --output json` | Role metadata |
 | `role-members` | `conjur role members <role-id> [--verbose] --output json` | Member list/details |
 | `role-memberships` | `conjur role memberships <role-id> --output json` | Parent-role memberships |
+| `secret-create` | `conjur policy update --branch <b> --file - [--dry-run]` + `!variable` | Change, approval required |
+| `secret-delete` | `conjur policy update --branch <b> --file - [--dry-run]` + `!delete` | Destructive, typed approval |
+| `secret-permit` | `conjur policy update --branch <b> --file - [--dry-run]` + `!permit` | Change, approval required |
+| `secret-deny` | `conjur policy update --branch <b> --file - [--dry-run]` + `!deny` | Change, approval required |
+| `secret-set-value` | `conjur variable set --id <id> --file -` + secret on stdin | Change, approval required; value never shown |
 
 ### Bounded resource listing
 
@@ -135,9 +143,29 @@ The deprecated list compatibility flags for role membership/permitted-role queri
 
 All user-controlled positional identifiers are represented by CLIHarbor's constrained positional primitive: one validated scalar becomes exactly one argv element. CLIHarbor does not split it, template it, reinterpret it as a shell command, or allow a leading `-` that could become an undeclared flag.
 
+## Secret variable management
+
+Select the task on the workbench, fill in the fields, select **Review change**, check the target, the exact policy document and the Conjur account/endpoint, then approve. Deleting a variable also requires typing the shown `DELETE: <variable>` text. Approvals expire after two minutes, work once, and are void if any input, the executable or the Conjur context changes.
+
+| Task | Policy sent on stdin |
+| --- | --- |
+| Create secret variable | `- !variable` / `id: "<variable>"` |
+| Delete secret variable | `- !delete` / `record: !variable "<variable>"` |
+| Grant secret permission | `- !permit` / `role: !<kind> "<role>"` / `privileges: [ … ]` / `resource: !variable "<variable>"` |
+| Revoke secret permission | the same shape with `!deny` |
+
+- **Policy branch** is the branch loaded with `policy update` (`root` or e.g. `apps/myapp`). The variable and role IDs are relative to it; start a role ID with `/` for an absolute ID (for example `/ops`).
+- **Privileges**: `execute` lets a role fetch the value, `update` lets it change the value, and `read` lets it see the variable's metadata. An application normally needs `read, execute`.
+- **Revoke** removes only permissions granted by the same policy branch (Conjur scopes `!deny` to the loading policy). Revoke from the branch that granted the permission and confirm with **List permitted roles**.
+- **Validate only (dry run)** asks Conjur to validate the policy without applying it. Conjur supports this on self-hosted (non-SaaS) deployments only.
+- **Set secret value** takes the variable's full ID (for example `apps/myapp/db/password`). The value goes to `conjur variable set --file -` on stdin, so it never appears in the process list, the preview, run history, or the browser's retry state, and the field is cleared once the run starts. Values are limited to 4,096 characters on one line.
+- Templates are fixed: you cannot submit free-form policy. User-entered IDs are always quoted YAML scalars, so they cannot add statements, and the templates never create users or hosts, so no API keys are returned.
+
+To create a working secret: **Create secret variable**, **Set secret value**, then **Grant secret permission** (`read, execute`) to the consuming host or layer.
+
 ## Authentication model
 
-All exposed read commands continue to use:
+All exposed commands use:
 
 ```yaml
 requirements:
@@ -173,7 +201,7 @@ The upstream CLI contains more functionality than CLIHarbor currently grants bro
 
 ### Secret-bearing
 
-Variable/secret retrieval and authentication commands that can return credential material remain excluded because CLIHarbor's current executor refuses secret-bearing plans.
+Variable/secret retrieval and authentication commands that can return credential material remain excluded because CLIHarbor's current executor refuses secret-bearing plans. Writing a value (`secret-set-value`) is write-only and returns no secret material.
 
 ### Interactive authentication
 
@@ -181,7 +209,7 @@ The pack still does not expose `login` or `authenticate` commands. The separate 
 
 ### Mutating/destructive
 
-Policy load/update/replace, issuer create/update/delete, API-key rotation, password changes, host-factory mutations, and other change/destructive operations remain outside the read-only executor milestone.
+Free-form policy load/update/replace, issuer create/update, API-key rotation, password changes, host-factory mutations, and other change/destructive operations remain excluded. Only the fixed templates above, the LDAP mapping tasks, and issuer delete run, each behind backend-bound approval.
 
 ### Environment-conditional/deprecated
 

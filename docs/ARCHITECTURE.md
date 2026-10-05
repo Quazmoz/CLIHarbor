@@ -309,7 +309,7 @@ The tool is constrained to:
 
 It exposes reviewed non-secret read workflows for authenticated identity, resource listing/existence/metadata/permission relationships, and role existence/metadata/members/memberships.
 
-Secret retrieval, interactive login, password/API-key rotation, policy/issuer/host-factory mutation, deprecated operations, and deployment-specific operations that cannot be generalized are absent from browser authority.
+Secret retrieval, interactive login, password/API-key rotation, free-form policy load/replace, issuer create/update, host-factory mutation, deprecated operations, and deployment-specific operations that cannot be generalized are absent from browser authority. Reviewed Conjur variable/permission/value changes run only through approval-gated pack templates (see [Conjur integration](CONJUR_INTEGRATION.md)).
 
 See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md).
 

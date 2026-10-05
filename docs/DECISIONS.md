@@ -747,3 +747,40 @@ Retain ADR-026’s mode selection. For SaaS/cloud, launch a private CLIHarbor co
 The extra local process exists solely to provide terminal handles and preserve the vendor result. No browser-supplied executable, command, fingerprint, credential, or environment is accepted. The ordinary executable identity checks and `whoami` session verification remain authoritative. The private helper’s fingerprint is content evidence across a local process boundary, not a serialization of executable authority or a new public API.
 
 Qualification includes actual Windows console-handle tests with a credential-free helper executable, paths containing spaces/Unicode, changed-content refusal, malformed handoff refusal, immediate hidden-process failure, and real managed-tenant sign-in. Compiling Windows tests on another OS is not Windows runtime qualification.
+
+## ADR-030 — Manage Conjur secret variables through approval-gated stdin templates
+
+**Date:** 2026-10-05
+**Status:** Accepted; real-appliance qualification pending.
+
+### Context
+
+Operators need to create/delete Conjur variables, grant/revoke privileges on them, and set their values from CLIHarbor. The official CLI (`cyberark/conjur-cli-go` v9.3.1) does all permission and create/delete work through `policy update --branch <b> --file -`, which reads policy YAML from stdin, and sets values through `variable set --id <id> --file -`, also stdin. Its `--value` flag would put the secret in argv. The executor previously never supplied stdin, and the Stage 6 approval branch had left the executor rejecting every non-read plan, so approved mutations could not run.
+
+### Decision
+
+- The executor admits `change`/`destructive` plans that carry impact metadata. The run manager, its only caller, consumes the single-use approval first.
+- Packs gain `stdin` for mutation commands, with exactly one of:
+  - `yamlTemplate`: a trusted document with `{{input}}` placeholders. Strings and integers render as YAML double-quoted scalars; enum values must be plain words and render verbatim.
+  - `input`: the raw value of the command's only `secret` input.
+- `secret` is a write-only input type. Pack validation allows it only as `stdin.input`.
+- The approval fingerprint includes stdin. The preview returns policy stdin but never secret stdin. The browser renders secrets as password fields, never keeps them in retry or preference state, and clears the field once a run starts.
+- The Conjur pack adds `secret-create`, `secret-delete` (destructive), `secret-permit`, `secret-deny` and `secret-set-value`. Each policy task has a dry-run switch.
+
+### Alternatives considered
+
+1. A free-form policy textarea. Rejected: it grants arbitrary policy authority, including creating hosts/users whose API keys come back in the output.
+2. `variable set --value`. Rejected: the secret would be visible in the process list and the argv preview.
+3. Making revoke destructive. Rejected: typed `DELETE:` text would wrongly suggest deleting the variable. Revoke stays `change` with explicit approval and an exact policy preview.
+
+### Security / reliability implications
+
+The secret value transits browser memory, the loopback request and backend memory (as part of the in-memory approval fingerprint hash), and then the vendor process's stdin. It is not persisted by CLIHarbor. `!deny` only removes permissions created by the same policy branch, which the task text states. Dry run is self-hosted only.
+
+### Verification
+
+- Planner contract tests pin the exact argv and stdin for every task, prove a hostile role ID stays one YAML scalar (parsed back with `yaml.v3`), and keep the secret out of argv.
+- Pack tests cover every stdin/secret validation rule.
+- Executor tests prove stdin delivery for mutations and empty stdin for reads.
+- Run manager tests prove the preview never contains the secret and a swapped secret voids the approval.
+- A frontend test covers the password field, the non-echo review, the exact request and clearing afterwards.

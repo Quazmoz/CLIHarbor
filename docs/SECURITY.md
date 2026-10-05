@@ -138,7 +138,7 @@ requiresAuth: true
 authMode: vendor-session
 ```
 
-This allows a **read-only, non-secret** command to use authentication already supplied by the vendor configuration/credential store. Task execution never receives credential stdin or credential argv.
+This allows a non-secret-output command to use authentication already supplied by the vendor configuration/credential store. Task execution never receives login credentials on stdin or argv. The only stdin a task can receive is its pack-declared mutation payload (a rendered policy document, or one approved secret value for Conjur `variable set`), see SI-11.
 
 The qualified Conjur integration additionally has one narrow in-process credential bridge. The browser may submit identity/password only to the authenticated, CSRF-protected loopback endpoint `POST /api/v1/auth/login`; that request is not a task/run and never becomes command argv, invocation preview, retained run input, stdout/stderr or diagnostics. The adapter is fixed to the qualified `cyberark-conjur-v9/conjur` identity, supports only password-style `authn`/LDAP configuration against an HTTPS appliance URL in a non-SaaS environment, admits one sign-in attempt at a time, bounds request/network duration, and returns only closed-set errors.
 
@@ -219,6 +219,14 @@ Controls:
 - no Program Files, machine PATH, registry, service, driver, scheduled task or elevation;
 - explicit `--no-auto-setup` opt-out;
 - normal discovery/version/executable-identity controls still apply after provisioning.
+
+### SI-11 — Approved mutations and write-only secret input
+
+`change`/`destructive` tasks execute only after the run manager consumes a short-lived, single-use backend approval whose fingerprint covers the exact argv, stdin, executable, impact target and Conjur account/endpoint context. Destructive tasks additionally require typed confirmation. A stale, replayed, retargeted or context-changed approval fails closed.
+
+Policy payloads come from a trusted pack template; user strings are rendered only as YAML double-quoted scalars, so they cannot add policy statements. The approval preview shows the exact policy document.
+
+A `secret` input (Conjur `variable set`) is write-only: pack validation allows it only as stdin, never argv, so it is absent from the process list, invocation preview, approval preview, run history, diagnostics and browser retry/preference state. Command output (`Value added`) carries no secret material.
 
 ## 5. Threats and mitigations
 
@@ -311,7 +319,7 @@ Before `change`/`destructive` execution is enabled, backend confirmation must be
 - submitted credentials never become process argv, task values, run history, diagnostics or logs;
 - raw vendor authentication errors are collapsed to reviewed browser-safe codes;
 - a successful password handoff or vendor-login launch is followed by the existing trusted `whoami` session check; transport/launch success alone is not authorization evidence;
-- future mutations must make profile/account/tenant context explicit before execution.
+- mutations show and bind the Conjur account/endpoint/authentication context in the approval before execution.
 
 ### T12 — Long-running/noisy process denial of service
 
@@ -364,20 +372,25 @@ The real pack at `packs/conjur/conjur-v9.yaml` is derived from the official `cyb
 
 The same pack is embedded in the normal CLIHarbor executable for the default user path.
 
-It exposes only reviewed non-secret read operations:
+It exposes reviewed non-secret read operations:
 
 - authenticated identity;
 - resource list/existence/metadata/permission relationships;
 - role existence/metadata/members/memberships.
+
+and approval-gated mutations (SI-11):
+
+- create/delete a variable and grant/revoke a role's privileges on it through fixed `policy update` templates (no free-form policy text; templates never create users/hosts, so no API keys are returned);
+- set a variable's value through `variable set --file -`;
+- LDAP group/user mappings and issuer delete.
 
 It intentionally excludes:
 
 - variable secret retrieval;
 - login/authenticate commands;
 - password/API-key rotation;
-- policy mutations;
-- issuer mutations;
-- host-factory mutations;
+- free-form policy load/replace;
+- issuer create/update and host-factory mutations;
 - deployment-specific commands that cannot be safely generalized.
 
 Online upstream evidence establishes the generic CLI contract and the pinned release bytes but does not establish organization approval, endpoint configuration or account/session state on a particular laptop.

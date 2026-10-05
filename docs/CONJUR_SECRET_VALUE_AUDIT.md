@@ -23,7 +23,7 @@ When the trusted Conjur pack is loaded, open **Secret audit** in the CLIHarbor n
 
 The browser version is a Go port of this script ([ADR-028](DECISIONS.md)). It has the same bounds, classifier, drift checks and fail-closed behavior. It reads values in batches through pinned `conjur-api-go`, so it is much faster than one process per variable. Secret values never leave the CLIHarbor backend: the page receives only variable IDs, reason codes and per-variable failure codes. Those codes are `no_value` (no value set), `forbidden` (no execute permission), `output_limit_exceeded` and `retrieval_failed`. A failed or cancelled audit shows no partial results. The 50,000-variable bound is fixed in the browser version; use this script with `-MaxVariables` for larger inventories.
 
-Neither version changes any variable. Fix flagged values through your organization's approved change process.
+Neither version changes any variable. Fix flagged values through your organization's approved change process; where that allows it, the approval-gated **Set secret value** task stores the corrected value without echoing it (see [Conjur integration](CONJUR_INTEGRATION.md#secret-variable-management)).
 
 ## Safety properties
 

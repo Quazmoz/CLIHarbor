@@ -10,6 +10,7 @@ import (
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	"gopkg.in/yaml.v3"
 )
 
 func TestConjurPackBuildsDocumentedArgv(t *testing.T) {
@@ -169,4 +170,65 @@ func conjurPlannerFixture(t *testing.T) (*packs.Registry, discovery.Snapshot) {
 		ExecutableIdentity: identity,
 	}})
 	return registry, snapshot
+}
+
+func TestConjurSecretTasksSendExactPolicyOnStdin(t *testing.T) {
+	registry, snapshot := conjurPlannerFixture(t)
+	build := func(commandID string, values map[string]any) Plan {
+		t.Helper()
+		raw := make(map[string]json.RawMessage, len(values))
+		for id, value := range values {
+			raw[id] = rawJSON(t, value)
+		}
+		plan, err := Build(registry, snapshot, Request{PackID: "cyberark-conjur-v9", CommandID: commandID, Values: raw})
+		if err != nil {
+			t.Fatalf("Build(%s) error = %v", commandID, err)
+		}
+		return plan
+	}
+
+	// A hostile role ID must stay one YAML scalar and cannot add statements.
+	hostile := "ops\"\n- !permit\n  role: !user /admin"
+	plan := build("secret-permit", map[string]any{
+		"policy-branch": "apps/myapp", "variable-id": "db/password",
+		"role-kind": "host", "role-id": hostile, "privileges": "read, execute", "dry-run": true,
+	})
+	if want := []string{"policy", "update", "--branch", "apps/myapp", "--file", "-", "--dry-run"}; !reflect.DeepEqual(plan.Args, want) {
+		t.Fatalf("permit args = %#v, want %#v", plan.Args, want)
+	}
+	wantStdin := "- !permit\n  role: !host \"ops\\\"\\n- !permit\\n  role: !user /admin\"\n  privileges: [ read, execute ]\n  resource: !variable \"db/password\"\n"
+	if plan.Stdin != wantStdin || plan.StdinSensitive || plan.Impact == nil || plan.Impact.Target != "db/password" {
+		t.Fatalf("permit plan stdin = %q sensitive = %v impact = %#v", plan.Stdin, plan.StdinSensitive, plan.Impact)
+	}
+	var statements []map[string]yaml.Node
+	if err := yaml.Unmarshal([]byte(plan.Stdin), &statements); err != nil || len(statements) != 1 {
+		t.Fatalf("permit stdin parsed into %d statements, err = %v", len(statements), err)
+	}
+	if role := statements[0]["role"]; role.Tag != "!host" || role.Value != hostile {
+		t.Fatalf("permit role node = %s %q", role.Tag, role.Value)
+	}
+
+	plan = build("secret-deny", map[string]any{
+		"policy-branch": "root", "variable-id": "db/password", "role-kind": "group", "role-id": "/ops", "privileges": "execute",
+	})
+	if want := "- !deny\n  role: !group \"/ops\"\n  privileges: [ execute ]\n  resource: !variable \"db/password\"\n"; plan.Stdin != want {
+		t.Fatalf("deny stdin = %q", plan.Stdin)
+	}
+	plan = build("secret-create", map[string]any{"policy-branch": "root", "variable-id": "db/password"})
+	if want := "- !variable\n  id: \"db/password\"\n"; plan.Stdin != want || plan.Risk != packs.RiskChange {
+		t.Fatalf("create stdin = %q risk = %s", plan.Stdin, plan.Risk)
+	}
+	plan = build("secret-delete", map[string]any{"policy-branch": "root", "variable-id": "db/password"})
+	if want := "- !delete\n  record: !variable \"db/password\"\n"; plan.Stdin != want || plan.Risk != packs.RiskDestructive {
+		t.Fatalf("delete stdin = %q risk = %s", plan.Stdin, plan.Risk)
+	}
+
+	secret := "s3cr3t value\nwith newline"
+	plan = build("secret-set-value", map[string]any{"variable-id": "apps/myapp/db/password", "value": secret})
+	if want := []string{"variable", "set", "--id", "apps/myapp/db/password", "--file", "-"}; !reflect.DeepEqual(plan.Args, want) {
+		t.Fatalf("set-value args = %#v, want %#v", plan.Args, want)
+	}
+	if plan.Stdin != secret || !plan.StdinSensitive {
+		t.Fatalf("set-value stdin sensitive = %v", plan.StdinSensitive)
+	}
 }

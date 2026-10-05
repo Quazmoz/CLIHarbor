@@ -67,10 +67,14 @@ type Plan struct {
 	ExecutableIdentity discovery.ExecutableIdentity
 	ToolVersion        string
 	Args               []string
-	Risk               packs.Risk
-	Impact             *MutationImpact
-	Output             packs.Output
-	Requirements       packs.Requirements
+	// Stdin is fed to the process verbatim. StdinSensitive marks secret-input
+	// stdin, which must never be echoed back to the browser.
+	Stdin          string
+	StdinSensitive bool
+	Risk           packs.Risk
+	Impact         *MutationImpact
+	Output         packs.Output
+	Requirements   packs.Requirements
 }
 
 func (p Plan) Clone() Plan {
@@ -224,6 +228,11 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 		}
 	}
 
+	stdin, err := renderStdin(command, values)
+	if err != nil {
+		return zero, err
+	}
+
 	return Plan{
 		PackID:             request.PackID,
 		PackVersion:        loaded.Pack.Metadata.Version,
@@ -234,11 +243,50 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 		ExecutableIdentity: toolState.ExecutableIdentity,
 		ToolVersion:        toolState.Version,
 		Args:               args,
+		Stdin:              stdin,
+		StdinSensitive:     command.Stdin != nil && command.Stdin.Input != "",
 		Risk:               command.Risk,
 		Impact:             impact,
 		Output:             command.Output,
 		Requirements:       command.Requirements,
 	}, nil
+}
+
+func renderStdin(command packs.Command, values map[string]value) (string, error) {
+	if command.Stdin == nil {
+		return "", nil
+	}
+	if command.Stdin.Input != "" {
+		current, ok := values[command.Stdin.Input]
+		if !ok || !current.present {
+			return "", &Error{Code: ErrInvalidPlanState, Path: "commandId", Message: "validated stdin input is unavailable"}
+		}
+		return current.text, nil
+	}
+	kinds := make(map[string]packs.InputType, len(command.Inputs))
+	for _, input := range command.Inputs {
+		kinds[input.ID] = input.Type
+	}
+	var renderErr error
+	rendered := packs.StdinPlaceholder.ReplaceAllStringFunc(command.Stdin.YAMLTemplate, func(placeholder string) string {
+		id := placeholder[2 : len(placeholder)-2]
+		current, ok := values[id]
+		if !ok || !current.present {
+			renderErr = &Error{Code: ErrInvalidPlanState, Path: "commandId", Message: "validated stdin template input is unavailable"}
+			return ""
+		}
+		if kinds[id] == packs.InputEnum {
+			return current.text // pack-authored plain word, validated at load
+		}
+		// A JSON string is a valid YAML double-quoted scalar, so no input can
+		// break out of its scalar position.
+		quoted, _ := json.Marshal(current.argument)
+		return string(quoted)
+	})
+	if renderErr != nil {
+		return "", renderErr
+	}
+	return rendered, nil
 }
 
 func deriveMutationImpact(command packs.Command, values map[string]value) (*MutationImpact, error) {
@@ -274,7 +322,7 @@ func parseValue(input packs.Input, raw json.RawMessage) (value, error) {
 	}
 
 	switch input.Type {
-	case packs.InputString, packs.InputEnum:
+	case packs.InputString, packs.InputEnum, packs.InputSecret:
 		var text string
 		if err := strictJSON(raw, &text); err != nil {
 			return value{}, &Error{Code: ErrInvalidInput, Path: path, Message: "input must be a string"}

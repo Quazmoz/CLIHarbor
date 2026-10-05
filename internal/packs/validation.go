@@ -377,6 +377,9 @@ func validateSemantics(pack Pack) error {
 				return err
 			}
 		}
+		if err := validateStdin(command, inputs, path); err != nil {
+			return err
+		}
 		if command.Output.Sensitivity.ContainsSecrets {
 			if command.Output.Sensitivity.PersistRawOutput {
 				return validationError(ErrSemantic, path+".output.sensitivity.persistRawOutput", "secret-bearing output cannot be persisted")
@@ -419,6 +422,71 @@ func validateSemantics(pack Pack) error {
 		}
 	}
 	return nil
+}
+
+const maxStdinTemplateBytes = 8 << 10
+
+var (
+	StdinPlaceholder  = regexp.MustCompile(`\{\{([a-z0-9][a-z0-9-]*)\}\}`)
+	rawStdinEnumValue = regexp.MustCompile(`^[A-Za-z0-9_, ]+$`)
+)
+
+func validateStdin(command Command, inputs map[string]Input, path string) error {
+	secretInputs := 0
+	for _, input := range command.Inputs {
+		if input.Type == InputSecret {
+			secretInputs++
+		}
+	}
+	stdin := command.Stdin
+	if stdin == nil {
+		if secretInputs != 0 {
+			return validationError(ErrSemantic, path+".stdin", "secret inputs must be supplied through stdin.input")
+		}
+		return nil
+	}
+	path += ".stdin"
+	if command.Risk != RiskChange && command.Risk != RiskDestructive {
+		return validationError(ErrSemantic, path, "stdin is only supported for change or destructive commands")
+	}
+	switch {
+	case stdin.Input != "" && stdin.YAMLTemplate == "":
+		if input, ok := inputs[stdin.Input]; !ok || input.Type != InputSecret || secretInputs != 1 {
+			return validationError(ErrSemantic, path+".input", "stdin input must reference the command's only secret input")
+		}
+		return nil
+	case stdin.YAMLTemplate != "" && stdin.Input == "":
+		if secretInputs != 0 {
+			return validationError(ErrSemantic, path+".yamlTemplate", "secret inputs must be supplied through stdin.input, never a template")
+		}
+		template := stdin.YAMLTemplate
+		if len(template) > maxStdinTemplateBytes || strings.ContainsRune(template, '\x00') {
+			return validationError(ErrSemantic, path+".yamlTemplate", "stdin template must be at most 8 KiB without NUL")
+		}
+		if remainder := StdinPlaceholder.ReplaceAllString(template, ""); strings.Contains(remainder, "{{") || strings.Contains(remainder, "}}") {
+			return validationError(ErrSemantic, path+".yamlTemplate", "stdin template contains a malformed placeholder")
+		}
+		for _, match := range StdinPlaceholder.FindAllStringSubmatch(template, -1) {
+			input, ok := inputs[match[1]]
+			if !ok || !input.Required {
+				return validationError(ErrSemantic, path+".yamlTemplate", "stdin template placeholders must reference required inputs")
+			}
+			switch input.Type {
+			case InputString, InputInteger:
+			case InputEnum:
+				for _, value := range input.Validation.Enum {
+					if !rawStdinEnumValue.MatchString(value) {
+						return validationError(ErrSemantic, path+".yamlTemplate", "enum values rendered into a stdin template must be plain words")
+					}
+				}
+			default:
+				return validationError(ErrSemantic, path+".yamlTemplate", "stdin template placeholders must reference string, integer, or enum inputs")
+			}
+		}
+		return nil
+	default:
+		return validationError(ErrSemantic, path, "stdin must set exactly one of input or yamlTemplate")
+	}
 }
 
 func validateImpact(impact Impact, inputs map[string]Input, path string) error {
@@ -666,6 +734,13 @@ func validateInput(input Input, path string) error {
 		if validation.Min != nil || validation.Max != nil {
 			return validationError(ErrSemantic, path+".validation", "string inputs cannot define numeric bounds")
 		}
+	case InputSecret:
+		if !input.Required || validation.MaxLength == nil {
+			return validationError(ErrSemantic, path, "secret inputs must be required and declare maxLength")
+		}
+		if len(validation.Enum) != 0 || validation.Min != nil || validation.Max != nil {
+			return validationError(ErrSemantic, path+".validation", "secret inputs cannot define enum values or numeric bounds")
+		}
 	case InputInteger:
 		if len(validation.Enum) != 0 || validation.MinLength != nil || validation.MaxLength != nil || validation.Pattern != "" {
 			return validationError(ErrSemantic, path+".validation", "integer inputs cannot define string or enum validation")
@@ -692,7 +767,7 @@ func validateArgument(arg Argument, inputs map[string]Input, path string) error 
 		if !ok {
 			return validationError(ErrSemantic, path+".flag.valueFrom", "flag references an undeclared input")
 		}
-		if input.Type == InputBoolean || input.Type == InputMultiselect {
+		if input.Type == InputBoolean || input.Type == InputMultiselect || input.Type == InputSecret {
 			return validationError(ErrSemantic, path+".flag.valueFrom", "flag values must come from string, integer, or enum inputs")
 		}
 		if !input.Required && !arg.Flag.OmitWhenEmpty {
@@ -715,7 +790,7 @@ func validateArgument(arg Argument, inputs map[string]Input, path string) error 
 		if !ok {
 			return validationError(ErrSemantic, path+".positional.valueFrom", "positional argument references an undeclared input")
 		}
-		if input.Type == InputBoolean || input.Type == InputMultiselect {
+		if input.Type == InputBoolean || input.Type == InputMultiselect || input.Type == InputSecret {
 			return validationError(ErrSemantic, path+".positional.valueFrom", "positional arguments must come from string, integer, or enum inputs")
 		}
 		if !input.Required && !arg.Positional.OmitWhenEmpty {
