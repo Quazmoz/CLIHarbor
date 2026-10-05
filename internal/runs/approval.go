@@ -157,3 +157,103 @@ func safeContextText(value string, max int) bool {
 	}
 	return true
 }
+
+func (m *Manager) executionContextFor(plan planner.Plan) (ExecutionContext, error) {
+	if !requiresApproval(plan) {
+		return ExecutionContext{}, nil
+	}
+	if m == nil || m.config.ResolveExecutionContext == nil {
+		return ExecutionContext{}, &Error{Code: ErrContextUnavailable}
+	}
+	context, err := m.config.ResolveExecutionContext(plan.Clone())
+	if err != nil || validateExecutionContext(context) != nil {
+		return ExecutionContext{}, &Error{Code: ErrContextUnavailable}
+	}
+	context.Fields = append([]ExecutionContextField(nil), context.Fields...)
+	return context, nil
+}
+
+func (m *Manager) issueApproval(plan planner.Plan, context ExecutionContext) (*ApprovalChallenge, error) {
+	mode, requiredText, err := approvalRequirement(plan)
+	if err != nil {
+		return nil, &Error{Code: ErrPolicyBlocked}
+	}
+	fingerprint, err := approvalFingerprint(plan, context)
+	if err != nil {
+		return nil, fmt.Errorf("fingerprint mutation approval")
+	}
+	id, err := m.config.NewApprovalID()
+	if err != nil || !validRunID(id) {
+		return nil, fmt.Errorf("generate approval identifier")
+	}
+	now := m.config.Now()
+	expiresAt := now.Add(m.config.ApprovalTTL)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed || m.ctx.Err() != nil {
+		return nil, &Error{Code: ErrClosed}
+	}
+	m.pruneApprovalsLocked(now)
+	if len(m.approvals) >= m.config.MaxApprovals {
+		m.evictOldestApprovalLocked()
+	}
+	m.approvals[id] = approvalRecord{
+		fingerprint:  fingerprint,
+		expiresAt:    expiresAt,
+		issuedAt:     now,
+		mode:         mode,
+		requiredText: requiredText,
+	}
+	return &ApprovalChallenge{
+		ID:           id,
+		ExpiresAt:    expiresAt,
+		Mode:         mode,
+		RequiredText: requiredText,
+	}, nil
+}
+
+func (m *Manager) consumeApprovalLocked(fingerprint [sha256.Size]byte, submission *ApprovalSubmission, now time.Time) error {
+	m.pruneApprovalsLocked(now)
+	if submission == nil || !validRunID(submission.ID) {
+		return &Error{Code: ErrApprovalRequired}
+	}
+	record, ok := m.approvals[submission.ID]
+	if !ok {
+		return &Error{Code: ErrApprovalRequired}
+	}
+	if record.fingerprint != fingerprint {
+		delete(m.approvals, submission.ID)
+		return &Error{Code: ErrApprovalRequired}
+	}
+	if record.mode == ApprovalModeTyped && submission.Confirmation != record.requiredText {
+		return &Error{Code: ErrApprovalRequired}
+	}
+	if record.mode == ApprovalModeExplicit && submission.Confirmation != "" {
+		return &Error{Code: ErrApprovalRequired}
+	}
+	delete(m.approvals, submission.ID)
+	return nil
+}
+
+func (m *Manager) pruneApprovalsLocked(now time.Time) {
+	for id, record := range m.approvals {
+		if !now.Before(record.expiresAt) {
+			delete(m.approvals, id)
+		}
+	}
+}
+
+func (m *Manager) evictOldestApprovalLocked() {
+	var oldestID string
+	var oldest time.Time
+	for id, record := range m.approvals {
+		if oldestID == "" || record.issuedAt.Before(oldest) || (record.issuedAt.Equal(oldest) && id < oldestID) {
+			oldestID = id
+			oldest = record.issuedAt
+		}
+	}
+	if oldestID != "" {
+		delete(m.approvals, oldestID)
+	}
+}
