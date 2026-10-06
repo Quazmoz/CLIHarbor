@@ -1,12 +1,16 @@
 package app
 
 import (
+	"runtime"
+	"sync"
+
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 )
 
 type taskCatalog struct {
+	mu                        sync.RWMutex
 	tasks                     []server.Task
 	tools                     []server.ToolDiagnostic
 	credentialLoginCapability func() (string, string, server.CredentialLoginCapability, bool)
@@ -47,7 +51,9 @@ func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *task
 		}
 		if declared, exists := loaded.Pack.Runtime.Tools[state.ToolID]; exists {
 			if declared.Install != nil {
-				diagnostic.Install = &server.ToolInstallCapability{Version: declared.Install.Version, CustomLocation: true}
+				if _, supported := declared.Install.Artifacts[runtime.GOOS+"-"+runtime.GOARCH]; supported && state.Status != discovery.StatusUnsupportedPlatform {
+					diagnostic.Install = &server.ToolInstallCapability{Version: declared.Install.Version, CustomLocation: true}
+				}
 			}
 			if declared.SessionCheck != nil {
 				diagnostic.SessionCheck = &server.VendorSessionCheck{
@@ -151,6 +157,8 @@ func (c *taskCatalog) ListTasks() []server.Task {
 	if c == nil {
 		return nil
 	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	out := make([]server.Task, 0, len(c.tasks))
 	for _, task := range c.tasks {
 		if c.taskAvailability != nil && !c.taskAvailability(task.PackID, task.CommandID) {
@@ -206,6 +214,8 @@ func (c *taskCatalog) ListTools() []server.ToolDiagnostic {
 	if c == nil {
 		return nil
 	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	out := make([]server.ToolDiagnostic, len(c.tools))
 	for i, tool := range c.tools {
 		out[i] = tool
@@ -234,6 +244,13 @@ func (c *taskCatalog) ListTools() []server.ToolDiagnostic {
 		}
 	}
 	return out
+}
+
+func (c *taskCatalog) refresh(registry *packs.Registry, snapshot discovery.Snapshot) {
+	next := newTaskCatalog(registry, snapshot)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.tasks, c.tools = next.tasks, next.tools
 }
 
 func cloneInt64Pointer(value *int64) *int64 {

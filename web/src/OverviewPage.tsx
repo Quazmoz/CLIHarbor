@@ -5,7 +5,7 @@ import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import { taskIdentityKey, type TaskPreferences } from './taskPreferences';
 
-export type OverviewDestination = 'authentication' | 'tasks' | 'runs' | 'diagnostics';
+export type OverviewDestination = 'authentication' | 'tasks' | 'runs' | 'tools' | 'diagnostics';
 
 interface OverviewPageProps {
   status: RuntimeStatus;
@@ -97,13 +97,14 @@ export function OverviewPage({
           </p>
         </div>
         {/* The primary action lives once, in "Recommended next step" below. */}
-        {vendorSessionTools.length > 0 && (
-          <div className="overview-hero-actions">
+        <div className="overview-hero-actions">
+          <button type="button" className="secondary-button" onClick={() => onNavigate('tools')}>Add a CLI</button>
+          {vendorSessionTools.length > 0 && (
             <button type="button" className="secondary-button" onClick={() => onNavigate('authentication')}>
               Review authentication
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="overview-metrics" aria-label="Workspace summary">

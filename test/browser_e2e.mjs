@@ -538,6 +538,22 @@ async function main() {
     assert.deepEqual(shell.groups, ['Workspace', 'Security', 'Manage']);
     await capture('overview');
 
+    stage('supported CLI catalog navigation and responsive search');
+    await page.evaluate('Array.from(document.querySelectorAll("a")).find((link) => link.textContent?.trim() === "Add a CLI").click()');
+    await waitJS(page, 'supported CLI catalog', 'location.pathname === "/tools" && document.querySelector("#tool-diagnostics-heading")?.textContent === "Add a CLI"');
+    assert.equal(await page.evaluate('document.querySelectorAll(".cli-catalog-list > li").length > 0'), true, 'catalog must include configured tools');
+    await capture('cli-catalog');
+    await page.evaluate('(() => { const input = document.querySelector("input[type=search]"); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set; setter.call(input, "no-matching-cli-zzzz"); input.dispatchEvent(new Event("input", { bubbles: true })); })()');
+    await waitJS(page, 'catalog search empty state', 'document.body.innerText.includes("No supported CLIs match your search.")');
+    await page.evaluate('(() => { const input = document.querySelector("input[type=search]"); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set; setter.call(input, ""); input.dispatchEvent(new Event("input", { bubbles: true })); })()');
+    await waitJS(page, 'catalog search reset', 'document.querySelectorAll(".cli-catalog-list > li").length > 0');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
+    await waitJS(page, 'catalog narrow layout', 'innerWidth === 320 && document.documentElement.scrollWidth <= innerWidth');
+    await capture('cli-catalog-mobile');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    await navigate(page, baseURL + '/');
+    await waitJS(page, 'overview after catalog', 'location.pathname === "/" && document.querySelector("#overview-heading") !== null');
+
     const bootstrapState = await page.evaluate('(async () => {' +
       'const status = await fetch("/api/v1/status", { credentials: "same-origin" }).then((response) => response.json());' +
       'const stored = Object.keys(localStorage).concat(Object.keys(sessionStorage)).map((key) => String(localStorage.getItem(key) ?? sessionStorage.getItem(key) ?? ""));' +

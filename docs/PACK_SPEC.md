@@ -580,7 +580,7 @@ Install metadata grants only this narrow authority:
 
 It does **not** grant shell, package-manager, arbitrary URL, arbitrary archive extraction, installer execution, PATH mutation, registry/service, elevation, or machine-wide filesystem authority. The browser request contains only `packId` and `toolId`; artifact details are never browser-controlled.
 
-A successful browser install deliberately requires a CLIHarbor restart before execution. Runtime discovery and execution authority stay immutable for the lifetime of the current server/run-manager instance.
+A successful browser install qualifies the installed tool through ordinary discovery, requires its exact pinned version and executable content hash, then adds that previously missing tool to execution authority. Existing ready tools, active plans, approvals, and retained run evidence are unchanged. The sanitized catalog updates without a restart. See [supported CLI catalog](CLI_CATALOG.md) and ADR-031.
 
 `cliharbor pack compatibility` renders these declarations together with each pack/tool platform and version constraint as static authoring metadata. It does not inspect the current host or infer CPU support from `runtime.platforms`; architecture appears only through exact managed artifact keys such as `windows-amd64`. The report performs no discovery, probe execution, network access, install, task execution, or vendor-session inspection.
 

@@ -14,7 +14,7 @@ The application uses a persistent left sidebar grouped into Workspace, Security,
 CLIHarbor
 ├─ Workspace: Overview, Tasks, Runs
 ├─ Security: Authentication, Secret audit (when Conjur is configured)
-├─ Manage: Diagnostics
+├─ Manage: Add a CLI, Diagnostics
 └─ Tools: categories from the authorized task catalog
 ```
 
@@ -177,9 +177,9 @@ Do not add export to secret-bearing results without explicit classification and 
 
 ## Managed CLI installation
 
-Diagnostics exposes **Install <tool>** only when the trusted pack declares a portable install contract for the current platform.
+**Add a CLI** at `/tools` provides a searchable catalog of configured supported CLIs with readiness, pinned install versions, and **Open tasks**. Overview links to it. Diagnostics retains the same install controls. **Install <tool>** appears only for a missing tool with a trusted portable artifact for the current OS/architecture.
 
-The install card includes an optional **Install base directory** field. Blank means CLIHarbor's default current-user cache. A custom value must be an absolute path beneath the current user's home. The UI states that this is a current-user install, requires no administrator credentials, and requires one restart before activation.
+The install card includes an optional **Install base directory** field. Blank means CLIHarbor's default current-user cache. A custom value must be an absolute path beneath the current user's home. The UI states that this is a current-user install and requires no administrator credentials. Successful installation qualifies the binary and populates Tasks and the tool sidebar without a restart. Installation and vendor sign-in stay separate. See [supported CLI catalog](CLI_CATALOG.md).
 
 The browser never chooses the downloaded artifact, executable filename, hash, archive member, redirect host, or task execution path. Invalid custom locations return a field-specific validation error instead of a generic policy failure.
 

@@ -21,9 +21,10 @@ import { AuthenticationPage } from './AuthenticationPage';
 import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
 import { SecretAuditPage } from './SecretAuditPage';
 import { OverviewPage } from './OverviewPage';
+import { ToolsPage } from './ToolsPage';
 import { TaskDiscovery, taskToolKey } from './TaskDiscovery';
 import { StructuredResultView } from './StructuredResultView';
-import { describeToolReadiness, inputGuidance, runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
+import { inputGuidance, runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
   loadTaskPreferences,
   recordRecentTask,
@@ -510,7 +511,7 @@ function streamStateText(state: StreamState): string {
   }
 }
 
-type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'diagnostics';
+type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'tools' | 'diagnostics';
 
 const routePaths: Record<AppRoute, string> = {
   overview: '/',
@@ -518,6 +519,7 @@ const routePaths: Record<AppRoute, string> = {
   tasks: '/tasks',
   runs: '/runs',
   'secret-audit': '/secret-audit',
+  tools: '/tools',
   diagnostics: '/diagnostics',
 };
 
@@ -529,6 +531,7 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'runs', label: 'Runs', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
   { route: 'authentication', label: 'Authentication', group: 'Security', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
   { route: 'secret-audit', label: 'Secret audit', group: 'Security', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
+  { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M12 5v14 M5 12h14' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
 ];
 
@@ -542,6 +545,8 @@ function routeFromPath(pathname: string): AppRoute {
       return 'runs';
     case '/secret-audit':
       return 'secret-audit';
+    case '/tools':
+      return 'tools';
     case '/diagnostics':
       return 'diagnostics';
     default:
@@ -580,6 +585,7 @@ export function App() {
   const taskFormRef = useRef<HTMLFormElement>(null);
   const previousRouteRef = useRef(route);
   const startingRef = useRef(false);
+  const installingToolRef = useRef(false);
   const displayedRunIDRef = useRef<string | null>(null);
   const previewRequestRef = useRef(0);
 
@@ -649,10 +655,11 @@ export function App() {
   }, []);
 
   const installManagedCLI = async (tool: ToolDiagnostic) => {
-    if (state.kind !== 'ready' || tool.status !== 'missing' || tool.install === undefined || installingToolKey !== null) {
+    if (state.kind !== 'ready' || tool.status !== 'missing' || tool.install === undefined || installingToolRef.current) {
       return;
     }
     const key = tool.packId + '/' + tool.toolId;
+    installingToolRef.current = true;
     setInstallingToolKey(key);
     setToolInstallNotice(null);
     try {
@@ -663,10 +670,20 @@ export function App() {
         toolInstallRoots[key] ?? '',
       );
       setToolInstallNotice({ key, message: result.message });
+      if (!result.restartRequired) {
+        try {
+          const [tasks, tools] = await Promise.all([fetchTasks(), fetchTools()]);
+          setState((current) => current.kind === 'ready' ? { ...current, tasks, tools } : current);
+          if (state.tasks.length === 0 && tasks[0]) selectTaskByKey(tasks[0].packId + '/' + tasks[0].commandId, tasks);
+        } catch {
+          setToolInstallNotice({ key, message: 'CLI installed and verified. Reload this page to show its approved tasks.' });
+        }
+      }
     } catch (error) {
       const failure = normalizeError(error).detail;
       setToolInstallNotice({ key, message: failure.message, failure });
     } finally {
+      installingToolRef.current = false;
       setInstallingToolKey(null);
     }
   };
@@ -1232,12 +1249,12 @@ export function App() {
               <div className="runtime-copy">
                 <p className="runtime-state">Authenticated local runtime</p>
                 <h2 id="runtime-heading">
-                  {route === 'tasks' ? 'Choose, verify, and run' : 'Tool readiness and setup'}
+                  {route === 'tasks' ? 'Choose, verify, and run' : route === 'tools' ? 'Build your CLI workspace' : 'Tool readiness and setup'}
                 </h2>
                 <p>
                   {route === 'tasks'
                     ? 'Choose an approved task, check its inputs, and review the result.'
-                    : 'Review each configured CLI, fix setup or version issues, and keep authentication separate from executable readiness.'}
+                    : route === 'tools' ? 'Install supported tools and open their approved tasks from one place.' : 'Review each configured CLI, fix setup or version issues, and keep authentication separate from executable readiness.'}
                 </p>
               </div>
               <dl className="runtime-facts" aria-label="Runtime summary">
@@ -1264,7 +1281,8 @@ export function App() {
                 {state.tasks.length === 0 ? (
                   <div className="empty-state">
                     <strong>No safe tasks are available.</strong>
-                    <p>CLIHarbor is still local-only. Load an explicitly trusted pack and resolve its tool readiness, then refresh this runtime.</p>
+                    <p>Add a supported CLI to populate your workspace with approved tasks.</p>
+                    <button type="button" onClick={() => navigate('tools')}>Add a CLI</button>
                   </div>
                 ) : (
                   <form ref={taskFormRef} onSubmit={startRun} noValidate>
@@ -1617,104 +1635,14 @@ export function App() {
               </section>
             )}
 
-            {route === 'diagnostics' && (
-              <section className="panel tool-diagnostics" aria-labelledby="tool-diagnostics-heading">
-              <div className="tool-diagnostics-heading">
-                <span className="diagnostics-summary-copy">
-                  <span className="status-label">Diagnostics</span>
-                  <strong id="tool-diagnostics-heading">Tool readiness</strong>
-                </span>
-                <span className="summary-meta">{readyToolCount}/{state.tools.length} ready</span>
-              </div>
-              <div className="diagnostics-body" aria-label="Configured CLI tool diagnostics">
-                {state.tools.length === 0 ? (
-                  <div className="empty-state">
-                    <strong>No tools are configured.</strong>
-                    <p>No approved CLI tools are currently available to the browser. Check startup configuration and trusted packs.</p>
-                  </div>
-                ) : (
-                  <ul className="tool-list">
-                    {state.tools.map((tool) => {
-                      const toolView = describeToolReadiness(tool);
-                      return (
-                        <li key={tool.packId + '/' + tool.toolId}>
-                          <div className="tool-summary">
-                            <strong>{toolView.heading}</strong>
-                            <span className={"tool-status " + (toolView.ready ? 'tool-status--ready' : 'tool-status--attention')}>
-                              {toolView.statusText}
-                            </span>
-                          </div>
-                          <p>{toolView.summary}</p>
-                          <p className="tool-next-step"><strong>Next:</strong> {toolView.nextStep}</p>
-                          {tool.status === 'ready' && tool.requiresVendorSession && (
-                            <div className="tool-install-actions">
-                              <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
-                                Check sign-in status
-                              </button>
-                            </div>
-                          )}
-                          {tool.status === 'missing' && tool.install !== undefined && (
-                            <div className="tool-install-controls">
-                              {tool.install.customLocation && (
-                                <label className="tool-install-location">
-                                  <span>Install base directory <span className="field-requirement">Optional</span></span>
-                                  <input
-                                    type="text"
-                                    value={toolInstallRoots[tool.packId + '/' + tool.toolId] ?? ''}
-                                    disabled={installingToolKey !== null}
-                                    placeholder="Leave blank for CLIHarbor's default user cache"
-                                    autoComplete="off"
-                                    spellCheck={false}
-                                    onChange={(event) => {
-                                      const key = tool.packId + '/' + tool.toolId;
-                                      setToolInstallRoots((current) => ({ ...current, [key]: event.target.value }));
-                                    }}
-                                  />
-                                  <small>Custom locations must be absolute paths inside your user home directory.</small>
-                                </label>
-                              )}
-                              <div className="tool-install-actions">
-                                <button
-                                  type="button"
-                                  disabled={installingToolKey !== null}
-                                  onClick={() => void installManagedCLI(tool)}
-                                >
-                                  {installingToolKey === tool.packId + '/' + tool.toolId
-                                    ? 'Installing…'
-                                    : 'Install ' + tool.packName}
-                                </button>
-                                <span>Verified current-user install · no admin credentials · restart required to activate</span>
-                              </div>
-                            </div>
-                          )}
-                          {toolInstallNotice?.key === tool.packId + '/' + tool.toolId && (
-                            <div
-                              className={toolInstallNotice.failure ? 'tool-install-result tool-install-result--error' : 'tool-install-result'}
-                              role={toolInstallNotice.failure ? 'alert' : 'status'}
-                            >
-                              <p>{toolInstallNotice.message}</p>
-                              {toolInstallNotice.failure?.remediation && <p>{toolInstallNotice.failure.remediation}</p>}
-                            </div>
-                          )}
-                          <details className="technical-details tool-technical-details">
-                            <summary>Technical details</summary>
-                            <p>
-                              Pack: {tool.packName} ({tool.packId}) · Pack version: {tool.packVersion} · Tool ID: {tool.toolId}
-                            </p>
-                            <p>
-                              Runtime status: {tool.status}
-                              {tool.version ? ' · Detected version: ' + tool.version : ''}
-                              {tool.versionConstraint ? ' · Required version: ' + tool.versionConstraint : ''}
-                            </p>
-                            {tool.message && <p>Runtime detail: {tool.message}</p>}
-                          </details>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-              </section>
+            {(route === 'diagnostics' || route === 'tools') && (
+              <ToolsPage tools={state.tools} tasks={state.tasks} catalog={route === 'tools'}
+                installingKey={installingToolKey} notice={toolInstallNotice} installRoots={toolInstallRoots}
+                tasksLocked={starting || activeRunID !== null}
+                onInstall={(tool) => void installManagedCLI(tool)}
+                onInstallRoot={(key, value) => setToolInstallRoots((current) => ({ ...current, [key]: value }))}
+                onOpenTasks={(key) => { changeTaskCategory(key); navigate('tasks'); }}
+                onOpenAuthentication={() => navigate('authentication')} />
             )}
           </>
         )}

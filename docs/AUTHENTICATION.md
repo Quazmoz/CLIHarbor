@@ -198,3 +198,12 @@ Browser bootstrap/session/CSRF tokens are CLIHarbor-local credentials and remain
 ## macOS boundary
 
 Existing vendor-session tasks, session checks, and the reviewed Conjur HTTPS authn/LDAP password/configuration bridge use the same runtime on macOS. The external vendor-login launcher remains Windows-only. On macOS, complete OIDC/JWT/SaaS or other interactive authentication with the approved official `conjur login` flow in your terminal, then use **Check session** in CLIHarbor. CLIHarbor does not create shell scripts or AppleScript command strings to emulate a vendor terminal.
+
+## Installation from the supported CLI catalog
+
+Installing a missing Conjur CLI through **Add a CLI** enables its existing
+reviewed connection/sign-in and audit capabilities after binary qualification,
+without restarting. The same vendor-owned credential and authoritative session
+check boundaries apply. GitHub CLI and kubectl installation only adds reviewed
+tasks; it does not log in, read credentials, or configure an account/cluster.
+See [Supported CLI catalog](CLI_CATALOG.md).

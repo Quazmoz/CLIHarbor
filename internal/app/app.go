@@ -68,10 +68,24 @@ func Run(ctx context.Context, options Options) error {
 	}
 	credentialLogin := newConjurCredentialLoginService(runtimeState.Discovery)
 	installLocations, _ := newManagedInstallLocationStore()
-	toolInstaller := newManagedToolInstaller(runtimeState.Registry, toolbootstrap.NewPortableProvisioner(), installLocations)
+	toolInstaller := newManagedToolInstaller(runtimeState.Registry, runtimeState.Discovery, toolbootstrap.NewPortableProvisioner(), installLocations)
 	catalog := newTaskCatalog(runtimeState.Registry, runtimeState.Discovery)
 	catalog.setCredentialLoginCapabilityProvider(credentialLogin.Capability)
 	catalog.setTaskAvailabilityProvider(mutationTaskAvailable)
+	secretAudit := newConjurSecretAuditService(ctx, runtimeState.Discovery)
+	toolInstaller.activate = func(snapshot discovery.Snapshot, state discovery.ToolState) error {
+		if err := runManager.ActivateTool(state); err != nil {
+			return err
+		}
+		if state.PackID == conjurCredentialPackID && state.ToolID == conjurCredentialToolID {
+			credentialLogin.activateTool(state)
+			secretAudit.mu.Lock()
+			secretAudit.enabled = true
+			secretAudit.mu.Unlock()
+		}
+		catalog.refresh(runtimeState.Registry, snapshot)
+		return nil
+	}
 	s, err := server.New(server.Config{
 		Version:                    options.Version,
 		Frontend:                   frontend,
@@ -82,7 +96,7 @@ func Run(ctx context.Context, options Options) error {
 		CredentialInteractiveLogin: credentialLogin,
 		CredentialConfiguration:    credentialLogin,
 		ToolInstaller:              toolInstaller,
-		SecretAudit:                newConjurSecretAuditService(ctx, runtimeState.Discovery),
+		SecretAudit:                secretAudit,
 	})
 	if err != nil {
 		_ = shutdownRuns()

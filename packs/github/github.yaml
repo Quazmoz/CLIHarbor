@@ -3,13 +3,56 @@ kind: CliPack
 metadata:
   id: github-cli
   name: GitHub CLI
-  version: 0.1.0
+  version: 0.2.0
   description: Read-only GitHub repository and workflow metadata through the official gh CLI and its existing vendor-owned session.
 runtime:
   platforms: [windows, linux, darwin]
   tools:
     gh:
       executableNames: [gh]
+      install:
+        version: 2.101.0
+        artifacts:
+          darwin-amd64:
+            archivePath: gh_2.101.0_macOS_amd64/bin/gh
+            executableName: gh
+            executableSha256: 58e034ed3be2e75def74c15870b6179deee89903437b90b0ba4a829b5d186a79
+            executableSizeBytes: 43051328
+            format: zip
+            redirectHosts: [release-assets.githubusercontent.com]
+            sha256: a6fd66c88e2f07d6e4e058173db341d07dd74d58cf8f19ae668293d2bb614ca3
+            sizeBytes: 15957303
+            url: https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_macOS_amd64.zip
+          darwin-arm64:
+            archivePath: gh_2.101.0_macOS_arm64/bin/gh
+            executableName: gh
+            executableSha256: aa97dfb4a82f7c56063cdcbfaa39a738b923c1bdca29bd5a041b8e959ca38e04
+            executableSizeBytes: 39751184
+            format: zip
+            redirectHosts: [release-assets.githubusercontent.com]
+            sha256: e4303e39d8f07141c4bad4b99b01079f05029c59b27076e8fbc825c985ecdd8b
+            sizeBytes: 14328800
+            url: https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_macOS_arm64.zip
+          windows-amd64:
+            archivePath: bin/gh.exe
+            executableName: gh.exe
+            executableSha256: df05089117a23889b3f6ea08d7644849afe7b6025647a09f33b45c71f1418f75
+            executableSizeBytes: 42755384
+            format: zip
+            redirectHosts: [release-assets.githubusercontent.com]
+            sha256: bc6c814367b193cd8e713611d61e36013c0ef843b8f516458fe3eda039192794
+            sizeBytes: 15473232
+            url: https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_windows_amd64.zip
+          windows-arm64:
+            archivePath: bin/gh.exe
+            executableName: gh.exe
+            executableSha256: 243a987065aa14768a5aa33b450a7df0b3da9fe968973fbcc80e3998f798d8a8
+            executableSizeBytes: 39257400
+            format: zip
+            redirectHosts: [release-assets.githubusercontent.com]
+            sha256: e6cbb2d4afdad3e70f3d38b8d1ebaa3a0870a897cfc0e4cf569826710b96b4fd
+            sizeBytes: 13875012
+            url: https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_windows_arm64.zip
       versionProbe:
         args: [--version]
         parser: semver-text

@@ -33,7 +33,7 @@ export function describeToolReadiness(tool: ToolDiagnostic): ToolReadinessCopy {
       statusText: 'Setup needed',
       summary: 'CLIHarbor could not find an approved installation of this tool.',
       nextStep: tool.install
-        ? 'Install the verified current-user copy below, then restart CLIHarbor.'
+        ? 'Install the verified current-user copy to make its approved tasks available.'
         : 'Use your organization-approved installation path, then restart or relaunch CLIHarbor.',
     },
     ambiguous: {

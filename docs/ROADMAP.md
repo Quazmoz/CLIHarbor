@@ -262,3 +262,11 @@ For each shipped workflow or managed dependency:
 ## Windows and macOS runtime
 
 The macOS runtime, Conjur pack platform declaration, process-group cleanup, native build path, local testing CLI/demo, and macOS quality/browser jobs are implemented. Windows remains the first enterprise evaluation target with its existing artifact/preflight contract. Broader macOS vendor/install/sign-in parity is not implied; see [Windows and macOS setup](CROSS_PLATFORM.md).
+
+## Explicit supported-tool installation
+
+The supported CLI catalog and live activation are implemented; native target-host
+qualification remains distinct. Pinned kubectl and GitHub CLI artifacts reuse the
+pack-declared portable installer only on explicit user request. This does not
+expand Conjur's automatic bootstrap to other tools. See
+[Supported CLI catalog](CLI_CATALOG.md) for versions, platforms, and acceptance.

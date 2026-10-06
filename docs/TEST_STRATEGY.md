@@ -448,3 +448,15 @@ These tests complement rather than replace local `doctor` and Phase 0 evidence t
 The quality matrix includes macOS, Windows, and Linux. The existing production embedded-browser harness accepts macOS Chrome paths and runs on macOS/Linux; its current hermetic Conjur fixture is POSIX-only. Native Go integration builds the local testing CLI into a Unicode/space-containing path, qualifies it through the real example pack and version probe, then verifies structured output, separate stderr, exit 42, streaming readiness, and cancellation through the real run manager. macOS/Linux process-controller tests verify descendant cleanup on cancellation, deadline expiry, normal root exit, and cancellation before lifecycle attachment. Platform permission/version/identity and ambiguity safeguards remain covered by discovery tests.
 
 Windows Job Object tests and evaluation qualification remain in CI. A macOS-only development machine cannot establish native Windows acceptance; cross-compilation is a separate check. Managed vendor sessions, browser handler policies, signing/notarization, and enterprise endpoint controls still require acceptance on the target host.
+
+## Supported CLI installation acceptance
+
+Cover catalog search and platform-specific install metadata, single install
+submission, existing custom roots, safe failures, and post-install task/sidebar
+publication with no restart. Backend checks must reject all non-missing tool
+states, wrong pinned versions/content, and existing ready-tool replacement.
+A newly activated task must run through the existing manager while preserving
+retained evidence. Race detection checks synchronized snapshot/catalog reads.
+Production browser coverage includes `/tools` navigation, search, and narrow
+layouts. Run these tests natively on Windows in the existing quality matrix;
+Windows cross-compilation is only a build check.

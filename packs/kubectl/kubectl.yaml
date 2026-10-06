@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: kubectl-cli
   name: Kubernetes kubectl
-  version: 0.3.0
+  version: 0.4.0
   description: >-
     Narrow read-only Kubernetes inventory pack derived from the official kubectl
     reference. It exposes context visibility and selected metadata-only get
@@ -15,6 +15,51 @@ runtime:
   tools:
     kubectl:
       executableNames: [kubectl]
+      install:
+        version: 1.35.3
+        artifacts:
+          darwin-amd64:
+            executableName: kubectl
+            format: executable
+            redirectHosts: [cdn.dl.k8s.io]
+            sha256: 2f339b1eae2e1792ec08da281b37afbeee94f70bed6b7398e7efd81ba08f8d37
+            sizeBytes: 59813904
+            url: https://dl.k8s.io/release/v1.35.3/bin/darwin/amd64/kubectl
+          darwin-arm64:
+            executableName: kubectl
+            format: executable
+            redirectHosts: [cdn.dl.k8s.io]
+            sha256: 280651239d84bab214ba83403666bf6976a5fa0dbdb41404f26eb6f276d34963
+            sizeBytes: 56759842
+            url: https://dl.k8s.io/release/v1.35.3/bin/darwin/arm64/kubectl
+          linux-amd64:
+            executableName: kubectl
+            format: executable
+            redirectHosts: [cdn.dl.k8s.io]
+            sha256: fd31c7d7129260e608f6faf92d5984c3267ad0b5ead3bced2fe125686e286ad6
+            sizeBytes: 58601656
+            url: https://dl.k8s.io/release/v1.35.3/bin/linux/amd64/kubectl
+          linux-arm64:
+            executableName: kubectl
+            format: executable
+            redirectHosts: [cdn.dl.k8s.io]
+            sha256: 6f0cd088a82dde5d5807122056069e2fac4ed447cc518efc055547ae46525f14
+            sizeBytes: 55247032
+            url: https://dl.k8s.io/release/v1.35.3/bin/linux/arm64/kubectl
+          windows-amd64:
+            executableName: kubectl.exe
+            format: executable
+            redirectHosts: [cdn.dl.k8s.io]
+            sha256: 6c367f9c34be9a13a94eb523dd62006973e1d051adea7d6bcf800dde3f6e84df
+            sizeBytes: 60102144
+            url: https://dl.k8s.io/release/v1.35.3/bin/windows/amd64/kubectl.exe
+          windows-arm64:
+            executableName: kubectl.exe
+            format: executable
+            redirectHosts: [cdn.dl.k8s.io]
+            sha256: 7f2d923aa852a8e909568f45da5780f6783007354ae11e6ab8001bc86c8c75aa
+            sizeBytes: 55826944
+            url: https://dl.k8s.io/release/v1.35.3/bin/windows/arm64/kubectl.exe
       versionProbe:
         args: [version, --client=true]
         parser: semver-text

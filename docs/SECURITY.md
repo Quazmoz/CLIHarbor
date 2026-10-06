@@ -499,7 +499,7 @@ The portable provisioner:
 - never modifies machine PATH, registry, services, Program Files, or privileged locations;
 - re-verifies managed bytes before a later startup adopts the executable.
 
-Installation does not mutate the current runtime's discovery/execution authority. The UI reports that a restart is required. On restart, CLIHarbor may select only a still-byte-identical managed artifact as a backend-owned override, after which ordinary version probes, compatibility checks, executable identity capture, planner policy, and executor protections still apply.
+Installation can activate only an authoritatively missing tool after ordinary discovery/version/identity qualification and comparison of the captured executable hash with the pinned artifact hash. Other tools and existing plans/approvals/runs remain unchanged. The task/tool catalog is refreshed under a lock and the browser fetches its updated metadata. Managed artifacts are still reverified on restart. Direct install requests for non-missing states are refused. See [ADR-031](DECISIONS.md#adr-031--supported-cli-catalog-and-additive-live-activation).
 
 This is a convenience path, not an application-control bypass. Endpoint protection, allowlisting, vendor policy, or OS execution restrictions may still refuse the managed binary, in which case CLIHarbor fails closed.
 

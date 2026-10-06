@@ -49,6 +49,19 @@ func supportedConjurConfig() conjurapi.Config {
 	}
 }
 
+func TestConjurCredentialCapabilityActivatesAfterManagedInstall(t *testing.T) {
+	service := newConjurCredentialLoginService(discovery.NewSnapshot(nil))
+	service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
+	if _, _, _, available := service.Capability(); available {
+		t.Fatal("missing Conjur advertised credential capability")
+	}
+	service.activateTool(readyConjurSnapshot().Tools()[0])
+	packID, toolID, capability, available := service.Capability()
+	if !available || packID != conjurCredentialPackID || toolID != conjurCredentialToolID || capability.Method != server.CredentialLoginMethodConjurPassword {
+		t.Fatal("installed Conjur did not expose its reviewed sign-in capability")
+	}
+}
+
 func TestConjurCredentialLoginUsesVendorClientWithoutExposingReturnedAPIKey(t *testing.T) {
 	service := newConjurCredentialLoginService(readyConjurSnapshot())
 	config := supportedConjurConfig()

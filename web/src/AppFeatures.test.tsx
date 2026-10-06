@@ -341,6 +341,67 @@ describe('command preview and retry workflows', () => {
 
 
 describe('managed CLI installation workflow', () => {
+  test('catalog install populates navigation and opens the new tasks without a restart', async () => {
+    window.history.replaceState({}, '', '/tools');
+    let installed = false;
+    let submitted: unknown;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') return Promise.resolve(response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-install' }));
+      if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: [
+        { packId: 'fixture-pack', packName: 'Fixture CLI', packVersion: '1.0.0', toolId: 'fixture', status: installed ? 'ready' : 'missing',
+          version: installed ? '1.2.3' : undefined, install: { version: '1.2.3', customLocation: true } },
+        { packId: 'manual', packName: 'Manual tool', packVersion: '1.0.0', toolId: 'manual', status: 'missing' },
+      ] }));
+      if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: installed ? [
+        { packId: 'fixture-pack', packName: 'Fixture CLI', commandId: 'inspect', name: 'Inspect newly installed CLI', toolId: 'fixture', toolVersion: '1.2.3', inputs: [] },
+      ] : [] }));
+      if (path === '/api/v1/tools/install' && init?.method === 'POST') {
+        submitted = JSON.parse(String(init.body));
+        installed = true;
+        return Promise.resolve(response(200, { installed: true, version: '1.2.3', restartRequired: false, message: 'Verified CLI installed and ready. Its approved tasks are now available.' }));
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    const search = await screen.findByRole('searchbox', { name: 'Find a CLI' });
+    expect(screen.queryByRole('button', { name: 'Install Manual tool' })).not.toBeInTheDocument();
+    fireEvent.change(search, { target: { value: 'fixture' } });
+    expect(screen.queryByText('Manual tool')).not.toBeInTheDocument();
+    const install = screen.getByRole('button', { name: 'Install Fixture CLI' });
+    fireEvent.click(install);
+    fireEvent.click(install);
+    const openTasks = await screen.findByRole('button', { name: 'Open 1 task' });
+    expect(submitted).toEqual({ packId: 'fixture-pack', toolId: 'fixture' });
+    expect(fetchMock.mock.calls.filter(([input]) => requestPath(input) === '/api/v1/tools/install')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Install Fixture CLI' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Task categories' })).getByRole('button', { name: /Fixture CLI/ })).toBeInTheDocument();
+    fireEvent.click(openTasks);
+    expect(window.location.pathname).toBe('/tasks');
+    expect(screen.getByRole('heading', { name: 'Inspect newly installed CLI' })).toBeInTheDocument();
+  });
+
+  test('failed installations keep the CLI unavailable and show a retryable error', async () => {
+    window.history.replaceState({}, '', '/tools');
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: [
+        { packId: 'fixture', packName: 'Fixture CLI', packVersion: '1.0.0', toolId: 'fixture', status: 'missing', install: { version: '1.2.3', customLocation: true } },
+      ] }));
+      if (path === '/api/v1/tools/install') return Promise.resolve(response(503, { error: {
+        code: 'tool_unavailable', category: 'discovery', message: 'Tool installation could not be verified.', retryable: true,
+      } }));
+      if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [] }));
+      return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
+    }));
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Install Fixture CLI' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tool installation could not be verified.');
+    expect(screen.getByRole('button', { name: 'Install Fixture CLI' })).toBeEnabled();
+    expect(screen.queryByRole('navigation', { name: 'Task categories' })).not.toBeInTheDocument();
+  });
+
   test('submits a user-selected install base directory for a missing managed CLI', async () => {
     window.history.replaceState({}, '', '/diagnostics');
     let submitted: unknown;

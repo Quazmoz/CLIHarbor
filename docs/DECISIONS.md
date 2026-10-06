@@ -784,3 +784,44 @@ The secret value transits browser memory, the loopback request and backend memor
 - Executor tests prove stdin delivery for mutations and empty stdin for reads.
 - Run manager tests prove the preview never contains the secret and a swapped secret voids the approval.
 - A frontend test covers the password field, the non-echo review, the exact request and clearing afterwards.
+
+## ADR-031 — Supported CLI catalog and additive live activation
+
+**Date:** 2026-10-06
+**Status:** Accepted; native Windows and managed-vendor qualification pending.
+
+### Context
+
+Portable installation already exists, but its controls were confined to
+Diagnostics and installed tools required a restart before tasks appeared.
+Operators need a selection of supported CLIs that populate the workspace.
+
+### Decision
+
+Expose `/tools` from Overview and the sidebar. Reuse the trusted pack registry,
+portable installer, discovery, planner, and executor. Add immutable kubectl
+1.35.3 and GitHub CLI 2.101.0 artifact contracts and bump their pack versions.
+Keep Docker installation external because its CLI requires an engine.
+
+Allow installation only for authoritative `missing` states. Before live
+activation, run ordinary discovery on the installed tool alone, require its
+exact install version, and compare its captured content hash with the pinned
+executable hash. The run manager may add that qualified missing tool under its
+lock. Swap sanitized catalog metadata under its own lock and refresh the UI.
+Enable existing Conjur adapters only after its qualified activation.
+
+This supersedes the portable-install restart requirement in Pack Spec §21 and
+Security's browser-managed installation section. Existing ready or uncertain
+tool states, explicit invalid overrides, the pack registry, active plans,
+approvals, and retained run evidence are not replaced. Credential ownership,
+loopback/session/CSRF protection, direct argv execution, and pre-launch identity
+checks remain authoritative. No arbitrary download URLs, package managers,
+remote packs, installers, shells or command scraping are added.
+
+### Verification
+
+Install-to-task acceptance, actual post-activation execution, non-missing state
+refusal, version/content qualification failures, platform-specific metadata,
+search, single submission, custom roots, browser layout and race checks. Native
+Windows testing remains a separate qualification requirement. See
+[Supported CLI catalog](CLI_CATALOG.md) for artifact evidence and platform scope.

@@ -453,3 +453,11 @@ The remaining Phase 8 items should continue independently; this checkpoint does 
 ## Windows and macOS runtime checkpoint
 
 macOS now participates in the quality matrix and production browser gate alongside the retained Windows/Linux checks. Built-in Conjur pack 0.3.0 adds darwin; Docker/kubectl were already portable. Shared macOS/Linux process-group cleanup supports tasks and probes. `fixture-build` and `demo` provide the small local testing CLI through example pack 0.2.0. Intel and Apple Silicon native builds use the same Go core; native runtime evidence and enterprise vendor acceptance remain distinct from cross-compilation. See [Windows and macOS setup](CROSS_PLATFORM.md).
+
+## Supported CLI catalog
+
+Implemented **Add a CLI** discovery/search, explicit pinned kubectl and GitHub
+CLI downloads through the existing portable provisioner, and additive live
+activation of missing tools. Conjur retains its existing automatic Windows
+bootstrap and gains the same explicit catalog activation path. Docker setup
+remains external. See [Supported CLI catalog](CLI_CATALOG.md) and ADR-031.

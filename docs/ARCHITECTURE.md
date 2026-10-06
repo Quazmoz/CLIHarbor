@@ -183,6 +183,7 @@ GET  /bootstrap?token=<one-time-secret>
 GET  /api/v1/status
 GET  /api/v1/tasks
 GET  /api/v1/tools
+POST /api/v1/tools/install
 POST /api/v1/runs
 GET  /api/v1/runs/{runId}
 GET  /api/v1/runs/{runId}/events
@@ -384,3 +385,15 @@ If a feature requires weakening that chain, it needs a new architecture/security
 ## Windows and macOS development demo
 
 `go run ./tools/task demo` reuses the ordinary embedded executable build, builds `cmd/cliharbor-fixture`, and supplies the explicit example pack plus exact backend-only fixture path. It disables built-in packs and auto-setup for that process. The fixture returns synthetic scalar JSON, separate stderr, finite streaming output, and deliberate exit 42; it reads no vendor credentials or user files. The normal product pack set remains unchanged. See [Windows and macOS setup](CROSS_PLATFORM.md).
+
+## Supported CLI catalog and live activation
+
+The existing pack-declared portable installer now qualifies only the installed
+tool, verifies the captured executable hash against the pinned artifact, and
+adds it to the run manager only if its prior state was `missing`. Snapshot reads
+and replacement use the manager lock; active plans and run records retain their
+original evidence. The task/tool catalog swaps under its own lock. Conjur's
+existing auth/audit adapters become available after its tool qualifies. Browser
+catalog refresh changes navigation metadata only. The pack registry and all
+other executable identities remain unchanged. See ADR-031 and
+[Supported CLI catalog](CLI_CATALOG.md).

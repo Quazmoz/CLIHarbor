@@ -1,12 +1,31 @@
 package app
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 )
+
+func TestTaskCatalogAdvertisesOnlyHostInstallArtifacts(t *testing.T) {
+	registry, err := packs.NewRegistry([]packs.LoadedPack{{Pack: packs.Pack{
+		Metadata: packs.Metadata{ID: "fixture", Version: "1.0.0"},
+		Runtime: packs.Runtime{Tools: map[string]packs.Tool{
+			"native": {Install: &packs.ToolInstall{Version: "1.2.3", Artifacts: map[string]packs.InstallArtifact{runtime.GOOS + "-" + runtime.GOARCH: {}}}},
+			"other":  {Install: &packs.ToolInstall{Version: "1.2.3", Artifacts: map[string]packs.InstallArtifact{"plan9-amd64": {}}}},
+		}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := newTaskCatalog(registry, missingInstallSnapshot(registry))
+	tools := catalog.ListTools()
+	if len(tools) != 2 || tools[0].Install == nil || tools[1].Install != nil {
+		t.Fatalf("host installation capabilities = %#v", tools)
+	}
+}
 
 func TestTaskCatalogExposesRunnableReviewedRiskMetadata(t *testing.T) {
 	maxLength := 64

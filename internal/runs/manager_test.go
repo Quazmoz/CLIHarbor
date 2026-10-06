@@ -22,6 +22,43 @@ import (
 
 const managerHelperEnv = "CLIHARBOR_RUN_MANAGER_HELPER"
 
+func TestManagerActivatesOnlyQualifiedMissingTools(t *testing.T) {
+	t.Setenv(managerHelperEnv, "1")
+	registry, qualified := managerFixture(t)
+	state := qualified.Tools()[0]
+	missing := state
+	missing.Status = discovery.StatusMissing
+	missing.Path, missing.Version = "", ""
+	missing.ExecutableIdentity = discovery.ExecutableIdentity{}
+	manager := newTestManager(t, registry, discovery.NewSnapshot([]discovery.ToolState{missing}), Config{})
+	request := Request{PackID: "fixture", CommandID: "inspect", Values: map[string]json.RawMessage{"query": json.RawMessage(`"installed"`)}}
+	if _, err := manager.Preview(request); err == nil {
+		t.Fatal("missing tool unexpectedly runnable")
+	}
+	invalid := state
+	invalid.Path = filepath.Join(t.TempDir(), "changed-tool")
+	if err := manager.ActivateTool(invalid); err == nil {
+		t.Fatal("unverified executable accepted")
+	}
+	if err := manager.ActivateTool(state); err != nil {
+		t.Fatal(err)
+	}
+	run, err := manager.Start(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	complete, err := manager.Wait(t.Context(), run.RunID)
+	if err != nil || complete.ExitCode == nil || *complete.ExitCode != 0 {
+		t.Fatalf("activated task failed: %#v, %v", complete, err)
+	}
+	if err := manager.ActivateTool(state); err == nil {
+		t.Fatal("existing ready tool was replaced")
+	}
+	if retained, ok := manager.Get(run.RunID); !ok || retained.Status != complete.Status {
+		t.Fatal("activation changed retained run evidence")
+	}
+}
+
 func TestManagerExecutesAuthorizedPlanAndReturnsBoundedSnapshot(t *testing.T) {
 	t.Setenv(managerHelperEnv, "1")
 	registry, snapshot := managerFixture(t)

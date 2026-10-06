@@ -1135,6 +1135,27 @@ main:focus { outline: none; }
   list-style: none;
 }
 
+.cli-catalog-intro {
+  padding: 0 var(--space-5) var(--space-4);
+}
+
+.cli-catalog-intro label {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  max-width: 32rem;
+}
+
+.cli-catalog-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: var(--space-5);
+}
+
+.cli-catalog-list li {
+  min-width: 0;
+}
+
 .tool-list li {
   padding: var(--space-4) 0;
   border-top: 1px solid var(--border);
@@ -1858,7 +1879,8 @@ footer p {
   gap: 0.55rem;
 }
 
-.task-search input {
+.task-search input,
+.cli-catalog-intro input {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border-strong);

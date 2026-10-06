@@ -333,3 +333,12 @@ A later second-tool milestone succeeds when a materially different CLI pack oper
 - Is explicit auth-state detection/login launch useful enough to justify a vendor-specific auth adapter?
 - What local non-secret run-history retention is acceptable?
 - Is Windows arm64 support needed?
+
+### FR-13 Supported CLI installation catalog
+
+`/tools` lists tools from trusted configured packs. For a missing tool with a
+reviewed artifact on the current OS/architecture, the user can install a verified
+current-user copy and see approved tasks populate without restarting. Other
+discovery states are never replaced. Initial managed choices are Conjur, kubectl,
+and GitHub CLI with explicit platform limits; Docker remains discovery-only.
+See [Supported CLI catalog](CLI_CATALOG.md) and ADR-031.

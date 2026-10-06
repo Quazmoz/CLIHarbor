@@ -262,6 +262,31 @@ func NewManager(parent context.Context, registry *packs.Registry, snapshot disco
 	}, nil
 }
 
+// ActivateTool adds a backend-qualified previously missing tool. Existing tools,
+// immutable plans, approvals, and retained run evidence are never replaced.
+func (m *Manager) ActivateTool(state discovery.ToolState) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed || m.ctx.Err() != nil {
+		return &Error{Code: ErrClosed}
+	}
+	ref := discovery.ToolRef{PackID: state.PackID, ToolID: state.ToolID}
+	previous, exists := m.discovery.Find(ref)
+	if !exists || previous.Status != discovery.StatusMissing || !state.Healthy() ||
+		state.PackVersion != previous.PackVersion || state.VersionConstraint != previous.VersionConstraint ||
+		!state.ExecutableIdentity.Valid() || !state.ExecutableIdentity.Matches(state.Path) {
+		return fmt.Errorf("only a qualified missing tool can be activated")
+	}
+	states := m.discovery.Tools()
+	for index := range states {
+		if states[index].PackID == ref.PackID && states[index].ToolID == ref.ToolID {
+			states[index] = state
+		}
+	}
+	m.discovery = discovery.NewSnapshot(states)
+	return nil
+}
+
 func (m *Manager) Preview(request Request) (Preview, error) {
 	if m == nil {
 		return Preview{}, &Error{Code: ErrClosed}
@@ -269,12 +294,13 @@ func (m *Manager) Preview(request Request) (Preview, error) {
 
 	m.mu.Lock()
 	closed := m.closed || m.ctx.Err() != nil
+	snapshot := m.discovery
 	m.mu.Unlock()
 	if closed {
 		return Preview{}, &Error{Code: ErrClosed}
 	}
 
-	plan, err := planner.Build(m.registry, m.discovery, planner.Request{
+	plan, err := planner.Build(m.registry, snapshot, planner.Request{
 		PackID:    request.PackID,
 		CommandID: request.CommandID,
 		Values:    cloneValues(request.Values),
@@ -318,6 +344,7 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 	m.mu.Lock()
 	closed := m.closed || m.ctx.Err() != nil
 	atCapacity := m.active >= m.config.MaxActive
+	discoverySnapshot := m.discovery
 	m.mu.Unlock()
 	if closed {
 		return Snapshot{}, &Error{Code: ErrClosed}
@@ -326,7 +353,7 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 		return Snapshot{}, &Error{Code: ErrCapacity}
 	}
 
-	plan, err := planner.Build(m.registry, m.discovery, planner.Request{
+	plan, err := planner.Build(m.registry, discoverySnapshot, planner.Request{
 		PackID:    request.PackID,
 		CommandID: request.CommandID,
 		Values:    cloneValues(request.Values),

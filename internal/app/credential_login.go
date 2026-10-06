@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
@@ -30,6 +31,7 @@ type conjurLoginClient interface {
 }
 
 type conjurCredentialLoginService struct {
+	mu                   sync.RWMutex
 	enabled              bool
 	toolPath             string
 	toolIdentity         discovery.ExecutableIdentity
@@ -66,7 +68,12 @@ func newConjurCredentialLoginService(snapshot discovery.Snapshot) *conjurCredent
 }
 
 func (s *conjurCredentialLoginService) Capability() (string, string, server.CredentialLoginCapability, bool) {
-	if s == nil || !s.enabled {
+	if s == nil {
+		return "", "", server.CredentialLoginCapability{}, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.enabled {
 		return "", "", server.CredentialLoginCapability{}, false
 	}
 	config, err := s.loadConfig()
@@ -93,7 +100,12 @@ func (s *conjurCredentialLoginService) Capability() (string, string, server.Cred
 }
 
 func (s *conjurCredentialLoginService) Configure(ctx context.Context, request server.CredentialConfigurationRequest) error {
-	if s == nil || !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
+	if s == nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	if !validConjurConnectionRequest(request) {
@@ -152,7 +164,12 @@ func (s *conjurCredentialLoginService) Configure(ctx context.Context, request se
 }
 
 func (s *conjurCredentialLoginService) Login(ctx context.Context, request server.CredentialLoginRequest) error {
-	if s == nil || !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
+	if s == nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	if !s.acquireAuthGate() {
@@ -194,7 +211,12 @@ func (s *conjurCredentialLoginService) Login(ctx context.Context, request server
 }
 
 func (s *conjurCredentialLoginService) LaunchInteractive(ctx context.Context, request server.CredentialInteractiveLoginRequest) error {
-	if s == nil || !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
+	if s == nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	if s.interactiveSupported == nil || !s.interactiveSupported() || s.launchInteractive == nil {
@@ -240,6 +262,13 @@ func (s *conjurCredentialLoginService) LaunchInteractive(ctx context.Context, re
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
 	return nil
+}
+
+func (s *conjurCredentialLoginService) activateTool(state discovery.ToolState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.enabled = state.Healthy()
+	s.toolPath, s.toolIdentity = state.Path, state.ExecutableIdentity
 }
 
 func classifyConjurCredentialLoginError(hadAPIKey bool, err error) server.CredentialLoginErrorCode {
