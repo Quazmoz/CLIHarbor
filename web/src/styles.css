@@ -169,6 +169,17 @@ button:disabled {
 }
 
 .tool-categories { display: grid; gap: 0.25rem; margin-top: 2rem; }
+.tool-audit-link {
+  display: block;
+  margin-left: 2rem;
+  padding: 0.6rem;
+  border-radius: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+.tool-audit-link:hover, .tool-audit-link[aria-current="page"] { background: var(--surface-2); color: var(--text-strong); }
+.tool-audit-link:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 .tool-categories button {
   display: flex;
   align-items: center;

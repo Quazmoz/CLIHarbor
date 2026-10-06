@@ -20,7 +20,7 @@ import (
 )
 
 // Port of tools/audit-conjur-secret-values.ps1 for the browser. Secret values
-// exist only inside classifyBatch: they are classified, zeroed, and dropped.
+// are classified in backend memory, zeroed, and dropped.
 // Only identifiers and closed reason codes reach the snapshot.
 const (
 	secretAuditMaxVariables     = 50000
@@ -93,6 +93,12 @@ func (s *conjurSecretAuditService) snapshotLocked() server.SecretAuditSnapshot {
 }
 
 func (s *conjurSecretAuditService) Start(request server.SecretAuditRequest) (server.SecretAuditSnapshot, error) {
+	if err := server.ValidateSecretAuditRequest(request); err != nil {
+		return s.Snapshot(), err
+	}
+	if request.ScanType == "" {
+		request.ScanType = "references"
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
@@ -108,9 +114,10 @@ func (s *conjurSecretAuditService) Start(request server.SecretAuditRequest) (ser
 		State:             "running",
 		Phase:             "connecting",
 		MinimumConfidence: request.MinimumConfidence,
+		ScanType:          request.ScanType,
 		StartedAt:         s.now().UTC().Format(time.RFC3339),
 	}
-	go s.run(ctx, cancel, s.done, request.MinimumConfidence)
+	go s.run(ctx, cancel, s.done, request)
 	return s.snapshotLocked(), nil
 }
 
@@ -130,10 +137,10 @@ func (s *conjurSecretAuditService) update(apply func(*server.SecretAuditSnapshot
 	apply(&s.snap)
 }
 
-func (s *conjurSecretAuditService) run(ctx context.Context, cancel context.CancelFunc, done chan struct{}, minimum string) {
+func (s *conjurSecretAuditService) run(ctx context.Context, cancel context.CancelFunc, done chan struct{}, request server.SecretAuditRequest) {
 	defer close(done)
 	defer cancel()
-	err := s.audit(ctx, minimum)
+	err := s.audit(ctx, request)
 	s.update(func(snap *server.SecretAuditSnapshot) {
 		snap.FinishedAt = s.now().UTC().Format(time.RFC3339)
 		snap.Phase = ""
@@ -158,10 +165,22 @@ func (s *conjurSecretAuditService) run(ctx context.Context, cancel context.Cance
 	})
 }
 
-func (s *conjurSecretAuditService) audit(ctx context.Context, minimum string) error {
+func (s *conjurSecretAuditService) audit(ctx context.Context, request server.SecretAuditRequest) error {
 	config, err := s.loadConfig()
 	if err != nil || config.ApplianceURL == "" {
 		return secretAuditFailure{"not_configured"}
+	}
+	// Never redirect vendor-owned credentials or tokens to a browser-chosen host.
+	// A different backend must be configured and authenticated through Conjur.
+	if request.ApplianceURL != "" && strings.TrimRight(request.ApplianceURL, "/") != strings.TrimRight(config.ApplianceURL, "/") {
+		return secretAuditFailure{"backend_mismatch"}
+	}
+	var pattern *regexp.Regexp
+	if request.ScanType == "regex" {
+		pattern, err = regexp.Compile(request.Pattern)
+		if err != nil {
+			return secretAuditFailure{"invalid_scan"}
+		}
 	}
 	if config.HTTPTimeout <= 0 || config.HTTPTimeout > secretAuditHTTPTimeoutLimit {
 		config.HTTPTimeout = secretAuditHTTPTimeoutLimit
@@ -188,8 +207,10 @@ func (s *conjurSecretAuditService) audit(ctx context.Context, minimum string) er
 		variableID := secretAuditVariableID(id)
 		variableIDs[id] = variableID
 		for _, ref := range []string{id, variableID} {
-			known[ref] = struct{}{}
-			knownNormalized[normalizeReferenceShape(ref)] = struct{}{}
+			if request.ScanType == "references" {
+				known[ref] = struct{}{}
+				knownNormalized[normalizeReferenceShape(ref)] = struct{}{}
+			}
 		}
 	}
 	sort.Slice(ids, func(i, j int) bool { return variableIDs[ids[i]] < variableIDs[ids[j]] })
@@ -209,12 +230,30 @@ func (s *conjurSecretAuditService) audit(ctx context.Context, minimum string) er
 				continue
 			}
 			value := values[id]
+			if !utf8.Valid(value) {
+				failures = append(failures, server.SecretAuditFailure{VariableID: variableIDs[id], Code: "unsupported_encoding"})
+				continue
+			}
 			inspected++
-			if utf8.Valid(value) {
-				if confidence, reason := classifySecretValue(string(value), known, knownNormalized); reason != "" &&
-					(minimum == "medium" || confidence == "high") {
-					findings = append(findings, server.SecretAuditFinding{VariableID: variableIDs[id], Confidence: confidence, Reason: reason})
+			confidence, reason := "", ""
+			switch request.ScanType {
+			case "references":
+				confidence, reason = classifySecretValue(string(value), known, knownNormalized)
+			case "contains":
+				if strings.Contains(string(value), request.Pattern) {
+					confidence, reason = "high", "contains_text_match"
 				}
+			case "exact":
+				if string(value) == request.Pattern {
+					confidence, reason = "high", "exact_text_match"
+				}
+			case "regex":
+				if pattern.Match(value) {
+					confidence, reason = "high", "regex_match"
+				}
+			}
+			if reason != "" && (request.MinimumConfidence == "medium" || confidence == "high") {
+				findings = append(findings, server.SecretAuditFinding{VariableID: variableIDs[id], Confidence: confidence, Reason: reason})
 			}
 		}
 		zeroSecretValues(values)

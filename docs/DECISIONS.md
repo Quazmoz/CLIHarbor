@@ -834,3 +834,18 @@ Windows testing remains a separate qualification requirement. See
 **Decision:** Conjur pack 0.5.0 identifies Conjur by name in the catalog and declares immutable official v9.3.1 executable downloads for Intel and Apple Silicon macOS alongside the existing Windows amd64 pin. Pin the exact probed CLI version `9.3.1-7207d6a`, matching the official release banner rather than its shorter release tag. Reuse the portable installer and normal discovery/activation checks; automatic Conjur setup remains Windows amd64 only. Remove the development `demo` task and its startup documentation. This supersedes ADR-027's demo launcher; the fixture CLI and example pack remain automated-test inputs, never normal product defaults.
 
 **Reason:** Users need the real default CLI catalog and a usable Conjur installation path. A demo launcher that disables all product packs is misleading, and supported macOS discovery without a reviewed macOS installer leaves missing Conjur unusable in the GUI.
+
+## ADR-033 — Generalize the Conjur security audit with bounded scan criteria
+
+**Date:** 2026-10-06
+**Status:** Accepted; extends ADR-028's browser-input contract.
+
+Operators need to scan values on their own Conjur backend for arbitrary path patterns or text, beyond the original secret-reference detector. Place **Security audit** beneath Conjur in tool navigation, at `/conjur/security-audit`, retaining the old `/secret-audit` route.
+
+The existing authenticated, read-only endpoint accepts optional `applianceUrl`, `scanType` (`references`, `contains`, `exact`, `regex`), and `pattern` fields. Omitted scan type keeps the reference detector; omitted URL keeps the configured backend for older callers. An explicit URL must be HTTPS without credentials/query/fragment and must equal the vendor-configured URL, allowing a trailing slash. A mismatch fails before client creation. Changing backends continues through official Conjur configuration and sign-in; CLIHarbor cannot redirect existing credentials or tokens.
+
+Custom text is bounded to 1,024 UTF-8 bytes, rejects control/format/bidi characters, and is neither reflected in responses/errors nor persisted. Regex uses the Go standard library and is compiled before value retrieval. Exact and contains matching are case-sensitive and preserve spaces; regex anchors and flags are operator-controlled. Only closed match reasons and variable IDs reach the browser. A deterministic custom match is labelled **Matched**, rather than interpreted as proof of insecure secret material. Non-UTF-8 values are explicit unchecked failures.
+
+Retain ADR-028's session/Origin/CSRF boundary, inventory/read bounds, drift checks, buffer clearing, cancellation, and no-mutation/no-value-export guarantees. The browser clears scan text after start and resets authorization acknowledgement when target or criteria change. Browser report schema version 2 adds the scan type and renames `suspiciousValues` to `matchingVariables`; patterns and values are excluded. This does not expand pack authority or require a pack/schema version change.
+
+Verification covers custom matching/negative cases, request bounds/regex/URL validation, refusal before credential forwarding, non-text reporting, pattern/value non-disclosure, navigation, consent reset, and production-browser setup/mismatch/responsive behavior. Native Windows execution is unchanged; existing Windows CI runs the portable tests.

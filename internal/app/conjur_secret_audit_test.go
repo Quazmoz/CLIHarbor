@@ -121,7 +121,7 @@ func (f *fakeSecretAuditClient) read() {
 	}
 }
 
-func runSecretAudit(t *testing.T, client *fakeSecretAuditClient, clientErr error, minimum string) server.SecretAuditSnapshot {
+func runSecretAudit(t *testing.T, client *fakeSecretAuditClient, clientErr error, minimum string, scan ...server.SecretAuditRequest) server.SecretAuditSnapshot {
 	t.Helper()
 	service := &conjurSecretAuditService{
 		enabled: true,
@@ -133,7 +133,12 @@ func runSecretAudit(t *testing.T, client *fakeSecretAuditClient, clientErr error
 		now:       time.Now,
 		snap:      server.SecretAuditSnapshot{State: "idle"},
 	}
-	if _, err := service.Start(server.SecretAuditRequest{PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID, MinimumConfidence: minimum}); err != nil {
+	request := server.SecretAuditRequest{}
+	if len(scan) > 0 {
+		request = scan[0]
+	}
+	request.PackID, request.ToolID, request.MinimumConfidence = conjurCredentialPackID, conjurCredentialToolID, minimum
+	if _, err := service.Start(request); err != nil {
 		t.Fatalf("start: %v", err)
 	}
 	select {
@@ -147,6 +152,63 @@ func runSecretAudit(t *testing.T, client *fakeSecretAuditClient, clientErr error
 		t.Fatalf("snapshot leaked a value or resource metadata: %s", encoded)
 	}
 	return snapshot
+}
+
+func TestSecretAuditCustomScansKeepValuesAndPatternsOutOfSnapshots(t *testing.T) {
+	for _, scan := range []struct{ kind, pattern, value, reason string }{
+		{"contains", secretSentinel, "prefix " + secretSentinel + " suffix", "contains_text_match"},
+		{"exact", secretSentinel, secretSentinel, "exact_text_match"},
+		{"exact", " leading space ", " leading space ", "exact_text_match"},
+		{"regex", `(?i)^team[./].*/password$`, "TEAM.env/database/password", "regex_match"},
+		{"regex", `^SENTINEL-SECRET-VALUE$`, secretSentinel, "regex_match"},
+		{"contains", "password", "PASSWORD", ""},
+		{"exact", "password", " password ", ""},
+		{"regex", `^team[./].*/password$`, "prefix team.env/database/password", ""},
+	} {
+		t.Run(scan.kind+"/"+scan.reason+"/"+scan.pattern, func(t *testing.T) {
+			client := &fakeSecretAuditClient{
+				ids: []string{"acct:variable:example"}, values: map[string]string{"acct:variable:example": scan.value},
+			}
+			snapshot := runSecretAudit(t, client, nil, "high", server.SecretAuditRequest{
+				ApplianceURL: "https://conjur.invalid/", ScanType: scan.kind, Pattern: scan.pattern,
+			})
+			if snapshot.State != "completed" || snapshot.ScanType != scan.kind {
+				t.Fatalf("snapshot = %+v", snapshot)
+			}
+			if scan.reason == "" {
+				if len(snapshot.Findings) != 0 {
+					t.Fatalf("unexpected findings = %+v", snapshot.Findings)
+				}
+			} else if len(snapshot.Findings) != 1 || snapshot.Findings[0].Reason != scan.reason || snapshot.Findings[0].Confidence != "high" {
+				t.Fatalf("findings = %+v", snapshot.Findings)
+			}
+			encoded, _ := json.Marshal(snapshot)
+			if strings.Contains(string(encoded), scan.pattern) {
+				t.Fatal("scan pattern leaked into snapshot")
+			}
+		})
+	}
+}
+
+func TestSecretAuditRefusesCredentialForwardingToAnotherBackend(t *testing.T) {
+	for _, backend := range []string{"https://other.invalid", "https://conjur.invalid/another-path", "https://conjur.invalid:9443"} {
+		client := &fakeSecretAuditClient{}
+		snapshot := runSecretAudit(t, client, errors.New("client must not be created"), "medium", server.SecretAuditRequest{ApplianceURL: backend})
+		if snapshot.State != "failed" || snapshot.FailureCode != "backend_mismatch" || client.batchCalls != 0 || client.singleCalls != 0 {
+			t.Fatalf("mismatched backend snapshot = %+v", snapshot)
+		}
+	}
+}
+
+func TestSecretAuditReportsNonTextValuesAsUnchecked(t *testing.T) {
+	client := &fakeSecretAuditClient{
+		ids: []string{"acct:variable:binary"}, values: map[string]string{"acct:variable:binary": "\xffpassword"},
+	}
+	snapshot := runSecretAudit(t, client, nil, "high", server.SecretAuditRequest{ScanType: "contains", Pattern: "password"})
+	if snapshot.State != "completed" || snapshot.Inspected != 0 || len(snapshot.Findings) != 0 ||
+		len(snapshot.Failures) != 1 || snapshot.Failures[0].Code != "unsupported_encoding" {
+		t.Fatalf("non-text snapshot = %+v", snapshot)
+	}
 }
 
 func TestSecretAuditReportsReferencesAndPerVariableFailuresWithoutValues(t *testing.T) {

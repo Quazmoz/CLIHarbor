@@ -1,27 +1,32 @@
-# Conjur Secret-Value Reference Audit
+# Conjur Security Audit
 
-`tools/audit-conjur-secret-values.ps1` is a **read-only operator audit** for finding Conjur variables whose stored value looks like a secret path/reference instead of the actual secret material.
+CLIHarbor provides a read-only audit of Conjur secret values using a reference detector or operator-supplied text/pattern criteria. It applies to any configured Conjur backend and account, with no organization-specific scope. The standalone `tools/audit-conjur-secret-values.ps1` remains a reference-only operator audit.
 
 A representative bad value is:
 
 ```text
-RH.value.value.value/password
+team.app.database/password
 ```
 
 The audit is intentionally separate from CLIHarbor's browser task authority. CLIHarbor continues to exclude secret-returning browser workflows.
 
 ## Run it from CLIHarbor (Windows and macOS)
 
-When the trusted Conjur pack is loaded, open **Secret audit** in the CLIHarbor navigation:
+When the trusted Conjur pack is loaded, open **Tools → Conjur → Security audit** (`/conjur/security-audit`). The previous `/secret-audit` link still works.
 
 1. Sign in on **Authentication** first. The audit reuses the session that the Conjur CLI stored.
-2. Check the server/account shown, then choose what to report:
-   - **Likely and possible references** (the default, `Medium`);
-   - **Likely references only** (`High`).
-3. Confirm that you're authorized to read every visible variable, then select **Start read-only audit**. Progress is shown live and the audit can be cancelled. It keeps running if you switch pages.
-4. Review the flagged variable IDs and their reasons, copy IDs for a ticket, or download the redacted JSON report.
+2. Enter or confirm the **CyberArk backend URL** and check the account shown. The URL must match your Conjur CLI configuration (a trailing slash is accepted). To use a different backend, configure and authenticate the official Conjur CLI for that backend/account first. CLIHarbor refuses a mismatch before creating a client; editing the audit URL never forwards an existing credential or token to another backend.
+3. Choose a **Secret value scan**:
+   - **Secret references and paths** preserves the existing detector and its likely/possible reporting threshold;
+   - **Contains text** finds a case-sensitive substring;
+   - **Exact text** matches the entire value, preserving spaces;
+   - **Regular expression** matches a Go regex, for example `^team[./].*/password$` for a path pattern. Add `(?i)` for case-insensitive matching. Lookaround and backreferences are unsupported.
+4. Confirm that you're authorized to read every visible variable, then select **Start read-only audit**. Editing the backend or scan criteria resets this acknowledgement. Progress is shown live and the audit can be cancelled. It keeps running if you switch pages.
+5. Review matching variable IDs and reasons, copy IDs for a ticket, or download the redacted JSON report. A custom match identifies values meeting your criteria; it does not establish that a secret is insecure.
 
-The browser version is a Go port of this script ([ADR-028](DECISIONS.md)). It has the same bounds, classifier, drift checks and fail-closed behavior. It reads values in batches through pinned `conjur-api-go`, so it is much faster than one process per variable. Secret values never leave the CLIHarbor backend: the page receives only variable IDs, reason codes and per-variable failure codes. Those codes are `no_value` (no value set), `forbidden` (no execute permission), `output_limit_exceeded` and `retrieval_failed`. A failed or cancelled audit shows no partial results. The 50,000-variable bound is fixed in the browser version; use this script with `-MaxVariables` for larger inventories.
+The browser version extends the Go port of this script ([ADR-028 and ADR-033](DECISIONS.md)). It retains the bounds, reference classifier, drift checks and fail-closed behavior. It reads values in batches through pinned `conjur-api-go`, so it is much faster than one process per variable. Secret values never leave the CLIHarbor backend: the page receives only variable IDs, reason codes and per-variable failure codes. Those codes are `no_value` (no value set), `forbidden` (no execute permission), `output_limit_exceeded`, `retrieval_failed`, and `unsupported_encoding` (not UTF-8 text, left unchecked). A failed or cancelled audit shows no partial results. The 50,000-variable bound is fixed in the browser version; use this script with `-MaxVariables` for larger reference audits.
+
+Custom scan text is limited to 1,024 UTF-8 bytes and rejects control/format/bidi characters. It stays in request/backend memory for the audit, is cleared from the form after start, and never appears in snapshots, errors, logs or downloads. Regex matching uses Go's standard library; no scripts execute. The browser download is schema version 2, adds `scanType`, and uses `matchingVariables` in place of version 1's `suspiciousValues`. It excludes the scan text and secret values. The standalone script's report format is unchanged.
 
 Neither version changes any variable. Fix flagged values through your organization's approved change process; where that allows it, the approval-gated **Set secret value** task stores the corrected value without echoing it (see [Conjur integration](CONJUR_INTEGRATION.md#secret-variable-management)).
 

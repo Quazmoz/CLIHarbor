@@ -5,6 +5,7 @@ import {
   fetchSecretAudit,
   startSecretAudit,
   type SecretAuditConfidence,
+  type SecretAuditScanType,
   type SecretAuditSnapshot,
 } from './api/secretAudit';
 
@@ -17,6 +18,16 @@ const reasonText: Record<string, string> = {
   dot_notation_reference_shape: 'Value looks like a dotted path ending in a credential field.',
   path_with_secret_field_suffix: 'Value looks like a path ending in password, token, key or similar.',
   hierarchical_reference_shape: 'Value is a deep path with no other content.',
+  contains_text_match: 'Value contains the specified text.',
+  exact_text_match: 'Value exactly matches the specified text.',
+  regex_match: 'Value matches the specified regular expression.',
+};
+
+const scanTypeText: Record<SecretAuditScanType, string> = {
+  references: 'Secret references and paths',
+  contains: 'Contains text',
+  exact: 'Exact text',
+  regex: 'Regular expression',
 };
 
 const failureCodeText: Record<string, string> = {
@@ -24,6 +35,7 @@ const failureCodeText: Record<string, string> = {
   forbidden: 'Your identity cannot read (execute) this variable.',
   output_limit_exceeded: 'Value is larger than 1 MiB and was skipped.',
   retrieval_failed: 'Conjur did not return the value.',
+  unsupported_encoding: 'Value is not UTF-8 text and was skipped.',
 };
 
 const auditFailureText: Record<string, { title: string; detail: string; action?: 'authentication' | 'diagnostics' }> = {
@@ -35,6 +47,11 @@ const auditFailureText: Record<string, { title: string; detail: string; action?:
   not_configured: {
     title: 'Conjur connection is not set up',
     detail: 'Add the Conjur server and account on the Authentication page, then sign in.',
+    action: 'authentication',
+  },
+  backend_mismatch: {
+    title: 'Sign in to the selected backend',
+    detail: 'The URL differs from your Conjur CLI configuration. Configure the Conjur CLI for this backend and account, then sign in. Return here to scan with that session.',
     action: 'authentication',
   },
   too_many_variables: {
@@ -70,14 +87,15 @@ function isAbort(error: unknown): boolean {
 function downloadReport(snapshot: SecretAuditSnapshot) {
   // Same redacted shape as the PowerShell report: identifiers and codes only.
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAtUtc: snapshot.finishedAt,
     target: snapshot.target,
     totalVariables: snapshot.total,
     inspectedValues: snapshot.inspected,
-    suspiciousValues: snapshot.findings.length,
+    matchingVariables: snapshot.findings.length,
     retrievalFailures: snapshot.failures.length,
     minimumConfidence: snapshot.minimumConfidence,
+    scanType: snapshot.scanType ?? 'references',
     findings: snapshot.findings,
     failures: snapshot.failures,
   };
@@ -99,6 +117,9 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
   const [snapshot, setSnapshot] = useState<SecretAuditSnapshot | null>(null);
   const [failure, setFailure] = useState<AppErrorDetail | null>(null);
   const [minimum, setMinimum] = useState<SecretAuditConfidence>('medium');
+  const [scanType, setScanType] = useState<SecretAuditScanType>('references');
+  const [pattern, setPattern] = useState('');
+  const [applianceURL, setApplianceURL] = useState<string | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState('');
@@ -168,10 +189,10 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
   const header = (
     <div className="route-heading">
       <p className="status-label">Conjur maintenance · read-only</p>
-      <h2 id="secret-audit-heading">Secret reference audit</h2>
+      <h2 id="secret-audit-heading">Conjur security audit</h2>
       <p>
-        Find variables whose stored value is a path to another secret, such as <code>RH.value.value.value/password</code>,
-        instead of the secret itself. CLIHarbor reads and checks each value on this computer. This page only ever
+        Scan secret values for references, path patterns, or text you choose. CLIHarbor reads and checks each value
+        on this computer. This page only ever
         receives variable IDs and the reason each one was flagged. Values are never shown, copied, or saved.
       </p>
     </div>
@@ -261,41 +282,93 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
               className="form-stack"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (!acknowledged || snapshot.packId === undefined || snapshot.toolId === undefined) return;
+                if (busy || !acknowledged || snapshot.packId === undefined || snapshot.toolId === undefined) return;
                 setFilter('');
                 setCopied('');
-                void act(() =>
-                  startSecretAudit(csrfToken, { packId: snapshot.packId!, toolId: snapshot.toolId!, minimumConfidence: minimum }),
-                );
+                void act(async () => {
+                  const next = await startSecretAudit(csrfToken, {
+                    packId: snapshot.packId!, toolId: snapshot.toolId!,
+                    minimumConfidence: scanType === 'references' ? minimum : 'high',
+                    applianceUrl: (applianceURL ?? snapshot.target?.applianceUrl ?? '').trim(),
+                    scanType,
+                    ...(scanType !== 'references' ? { pattern } : {}),
+                  });
+                  setPattern('');
+                  setAcknowledged(false);
+                  return next;
+                });
               }}
             >
-              <fieldset className="field-group secret-audit-choice">
+              <label className="field">
+                <span>CyberArk backend URL</span>
+                <input type="url" name="audit-backend-url" required maxLength={2048} autoComplete="off" spellCheck={false}
+                  placeholder="https://conjur.example.com" aria-describedby="audit-backend-help"
+                  value={applianceURL ?? snapshot.target?.applianceUrl ?? ''} disabled={busy}
+                  onChange={(event) => { setApplianceURL(event.target.value); setAcknowledged(false); }} />
+              </label>
+              <p id="audit-backend-help" className="field-help">
+                Uses the Conjur CLI session for this backend and account. To use another backend, configure
+                your Conjur CLI for it first, then sign in.
+              </p>
+              <div className="secret-audit-actions">
+                <button type="button" className="secondary-button" disabled={busy} onClick={onOpenAuthentication}>Connection and sign-in</button>
+              </div>
+              <label className="field">
+                <span>Secret value scan</span>
+                <select name="audit-scan-type" value={scanType} disabled={busy} onChange={(event) => {
+                  setScanType(event.target.value as SecretAuditScanType);
+                  setPattern('');
+                  setAcknowledged(false);
+                }}>
+                  {Object.entries(scanTypeText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              {scanType !== 'references' && (
+                <>
+                  <label className="field">
+                    <span>{scanType === 'regex' ? 'Value pattern' : 'Text to match'}</span>
+                    <input type="text" name="audit-pattern" required maxLength={1024} value={pattern} disabled={busy}
+                      autoComplete="off" spellCheck={false} aria-describedby="audit-pattern-help"
+                      placeholder={scanType === 'regex' ? '^team[./].*/password$' : undefined}
+                      onChange={(event) => { setPattern(event.target.value); setAcknowledged(false); }} />
+                  </label>
+                  <p id="audit-pattern-help" className="field-help">
+                    {scanType === 'regex'
+                      ? 'Use a Go regular expression for paths or other value shapes. Add ^ and $ to match the entire value; (?i) makes it case-insensitive.'
+                      : 'Text matching is case-sensitive and preserves spaces.'}
+                    {' '}Only matching variable IDs are returned. Scan text is cleared after starting and excluded from reports.
+                  </p>
+                </>
+              )}
+              {scanType === 'references' && <fieldset className="field-group secret-audit-choice">
                 <legend>What to report</legend>
                 <label className="checkbox-row">
-                  <input type="radio" name="minimum" checked={minimum === 'medium'} onChange={() => setMinimum('medium')} />
+                  <input type="radio" name="minimum" checked={minimum === 'medium'} disabled={busy}
+                    onChange={() => { setMinimum('medium'); setAcknowledged(false); }} />
                   <span>
                     <strong>Likely and possible references</strong> (recommended)
                     <small>Also includes paths that only look like references, so review each one.</small>
                   </span>
                 </label>
                 <label className="checkbox-row">
-                  <input type="radio" name="minimum" checked={minimum === 'high'} onChange={() => setMinimum('high')} />
+                  <input type="radio" name="minimum" checked={minimum === 'high'} disabled={busy}
+                    onChange={() => { setMinimum('high'); setAcknowledged(false); }} />
                   <span>
                     <strong>Likely references only</strong>
                     <small>Only values that match another variable or use a conjur:// style reference.</small>
                   </span>
                 </label>
-              </fieldset>
+              </fieldset>}
 
               <label className="checkbox-row secret-audit-ack">
-                <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
+                <input type="checkbox" checked={acknowledged} disabled={busy} onChange={(event) => setAcknowledged(event.target.checked)} />
                 <span>
                   I’m authorized to read every variable this identity can see. Conjur records each read in its audit log.
                 </span>
               </label>
 
               <div className="secret-audit-actions">
-                <button type="submit" disabled={!acknowledged || busy}>
+                <button type="submit" disabled={!acknowledged || busy || !(applianceURL ?? snapshot.target?.applianceUrl) || (scanType !== 'references' && pattern === '')}>
                   {busy ? 'Starting…' : completed || snapshot.state !== 'idle' ? 'Run audit again' : 'Start read-only audit'}
                 </button>
               </div>
@@ -319,8 +392,8 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
               {completed &&
                 (snapshot.findings.length === 0
                   ? snapshot.failures.length === 0
-                    ? 'No problem values found'
-                    : 'No problem values among the readable variables'
+                    ? 'No values matched the selected scan'
+                    : 'No readable values matched the selected scan'
                   : `${snapshot.findings.length.toLocaleString()} ${snapshot.findings.length === 1 ? 'variable needs' : 'variables need'} review`)}
             </h3>
 
@@ -341,6 +414,10 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
             {completed && (
               <>
                 <dl className="runtime-facts secret-audit-summary" aria-label="Audit summary">
+                  <div>
+                    <dt>Scan</dt>
+                    <dd>{scanTypeText[snapshot.scanType ?? 'references']}</dd>
+                  </div>
                   <div>
                     <dt>Variables</dt>
                     <dd>{snapshot.total.toLocaleString()}</dd>
@@ -403,7 +480,7 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
                             <p>{reasonText[finding.reason] ?? finding.reason}</p>
                           </div>
                           <span className={'secret-audit-badge secret-audit-badge--' + finding.confidence}>
-                            {finding.confidence === 'high' ? 'Likely' : 'Possible'}
+                            {snapshot.scanType && snapshot.scanType !== 'references' ? 'Matched' : finding.confidence === 'high' ? 'Likely' : 'Possible'}
                           </span>
                           <button
                             type="button"

@@ -156,7 +156,7 @@ Pack metadata may classify output as secret-bearing, but the current planner/exe
 
 Secret retrieval, password/API-key rotation and comparable workflows are intentionally excluded from the Conjur browser pack.
 
-The one exception that reads values is the fixed Conjur secret-value reference audit (ADR-028). It classifies values in backend memory, returns only variable IDs and closed reason codes to the browser, and performs no mutation.
+The one exception that reads values is the Conjur security audit (ADR-028/ADR-033). It classifies references or bounded text/regex criteria in backend memory, returns only variable IDs and closed reason codes to the browser, and performs no mutation. The selected HTTPS backend URL must match vendor configuration before a client is created; browser input cannot redirect stored credentials or tokens. Scan text is ephemeral, validated, and excluded from snapshots, errors, logs and report exports. Non-UTF-8 values are reported as unchecked.
 
 ### SI-7 — Structured output is data, never authority
 

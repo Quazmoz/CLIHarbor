@@ -518,7 +518,7 @@ const routePaths: Record<AppRoute, string> = {
   authentication: '/authentication',
   tasks: '/tasks',
   runs: '/runs',
-  'secret-audit': '/secret-audit',
+  'secret-audit': '/conjur/security-audit',
   tools: '/tools',
   diagnostics: '/diagnostics',
 };
@@ -530,7 +530,7 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'tasks', label: 'Tasks', group: 'Workspace', icon: 'm5 6 5 6-5 6 M13 18h6' },
   { route: 'runs', label: 'Runs', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
   { route: 'authentication', label: 'Authentication', group: 'Security', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
-  { route: 'secret-audit', label: 'Secret audit', group: 'Security', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
+  { route: 'secret-audit', label: 'Conjur security audit', group: 'Conjur', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
   { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M12 5v14 M5 12h14' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
 ];
@@ -544,6 +544,7 @@ function routeFromPath(pathname: string): AppRoute {
     case '/runs':
       return 'runs';
     case '/secret-audit':
+    case '/conjur/security-audit':
       return 'secret-audit';
     case '/tools':
       return 'tools';
@@ -1110,6 +1111,15 @@ export function App() {
     setTaskChosen(false);
   };
 
+  const secretAuditLink = (
+    <a className="tool-audit-link" href={routePaths['secret-audit']} aria-current={route === 'secret-audit' ? 'page' : undefined}
+      onClick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        navigate('secret-audit');
+      }}>Security audit</a>
+  );
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Skip to main content</a>
@@ -1122,7 +1132,7 @@ export function App() {
           {['Workspace', 'Security', 'Manage'].map((group) => (
             <div className="nav-group" key={group}>
               <p className="nav-group-label">{group}</p>
-              {navigationItems.filter((item) => item.group === group && (item.route !== 'secret-audit' || hasConjurPack)).map((item) => (
+              {navigationItems.filter((item) => item.group === group).map((item) => (
                 <a
                   key={item.route}
                   href={routePaths[item.route]}
@@ -1146,18 +1156,27 @@ export function App() {
             </div>
           ))}
         </nav>
-        {taskCategories.length > 0 && (
+        {(taskCategories.length > 0 || hasConjurPack) && (
           <nav className="tool-categories" aria-label="Task categories">
             <p className="nav-group-label">Tools</p>
             {taskCategories.map(([key, task]) => (
-              <button type="button" key={key} aria-pressed={route === 'tasks' && taskToolFilter === key}
-                disabled={starting || activeRunID !== null}
-                onClick={() => { changeTaskCategory(key); navigate('tasks'); }}>
-                <span className="tool-category-mark" aria-hidden="true">{task.packName.slice(0, 1)}</span>
-                <span>{task.packName} · {task.toolId}</span>
-                <span className="category-count">{state.kind === 'ready' ? state.tasks.filter((candidate) => taskToolKey(candidate) === key).length : 0}</span>
-              </button>
+              <div key={key}>
+                <button type="button" aria-pressed={route === 'tasks' && taskToolFilter === key}
+                  disabled={starting || activeRunID !== null}
+                  onClick={() => { changeTaskCategory(key); navigate('tasks'); }}>
+                  <span className="tool-category-mark" aria-hidden="true">{task.packName.slice(0, 1)}</span>
+                  <span>{task.packName} · {task.toolId}</span>
+                  <span className="category-count">{state.kind === 'ready' ? state.tasks.filter((candidate) => taskToolKey(candidate) === key).length : 0}</span>
+                </button>
+                {task.packId === conjurPackID && task.toolId === 'conjur' && secretAuditLink}
+              </div>
             ))}
+            {hasConjurPack && !taskCategories.some(([, task]) => task.packId === conjurPackID && task.toolId === 'conjur') && (
+              <div>
+                <p className="nav-group-label">Conjur</p>
+                {secretAuditLink}
+              </div>
+            )}
           </nav>
         )}
         <div className="sidebar-footer" aria-label="Runtime boundary">

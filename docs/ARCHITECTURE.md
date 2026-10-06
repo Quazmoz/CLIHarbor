@@ -393,3 +393,7 @@ existing auth/audit adapters become available after its tool qualifies. Browser
 catalog refresh changes navigation metadata only. The pack registry and all
 other executable identities remain unchanged. See ADR-031 and
 [Supported CLI catalog](CLI_CATALOG.md).
+
+## Conjur security audit boundary
+
+The reviewed Conjur audit adapter ([ADR-028/ADR-033](DECISIONS.md)) remains separate from generic pack command execution. It reuses vendor-owned configuration/session material to read and classify values only in backend memory. The browser can select the reference detector or bounded text/regex criteria and confirm a backend URL matching that configuration. Snapshots and exports contain scan type, target metadata, IDs and closed reason/failure codes; they never contain patterns or secret values. No shell, dependency, credential store, or additional pack execution authority is introduced.

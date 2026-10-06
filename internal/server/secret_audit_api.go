@@ -8,6 +8,9 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"regexp"
+	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/Quazmoz/CLIHarbor/internal/apperror"
@@ -15,13 +18,15 @@ import (
 
 const maxSecretAuditRequestBytes = 4 << 10
 
-// SecretAuditRequest starts the fixed, read-only Conjur secret-value reference
-// audit. The browser chooses only the reviewed target identity and the
-// reporting threshold; everything else is backend-controlled.
+// SecretAuditRequest selects a read-only value scan. Patterns are ephemeral
+// input: never copy them into snapshots, errors, logs, or exported reports.
 type SecretAuditRequest struct {
-	PackID            string
-	ToolID            string
-	MinimumConfidence string
+	PackID            string `json:"packId"`
+	ToolID            string `json:"toolId"`
+	MinimumConfidence string `json:"minimumConfidence"`
+	ApplianceURL      string `json:"applianceUrl"`
+	ScanType          string `json:"scanType"`
+	Pattern           string `json:"pattern"`
 }
 
 type SecretAuditTarget struct {
@@ -50,6 +55,7 @@ type SecretAuditSnapshot struct {
 	State             string               `json:"state"`
 	Phase             string               `json:"phase,omitempty"`
 	MinimumConfidence string               `json:"minimumConfidence,omitempty"`
+	ScanType          string               `json:"scanType,omitempty"`
 	StartedAt         string               `json:"startedAt,omitempty"`
 	FinishedAt        string               `json:"finishedAt,omitempty"`
 	Total             int                  `json:"total"`
@@ -61,6 +67,7 @@ type SecretAuditSnapshot struct {
 }
 
 var ErrSecretAuditUnavailable = errors.New("secret audit unavailable")
+var ErrSecretAuditInvalidRequest = errors.New("invalid secret audit request")
 
 type SecretAuditService interface {
 	Snapshot() SecretAuditSnapshot
@@ -68,11 +75,7 @@ type SecretAuditService interface {
 	Cancel() SecretAuditSnapshot
 }
 
-type secretAuditRequestDTO struct {
-	PackID            string `json:"packId"`
-	ToolID            string `json:"toolId"`
-	MinimumConfidence string `json:"minimumConfidence"`
-}
+type secretAuditRequestDTO = SecretAuditRequest
 
 func (s *Server) handleSecretAudit(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -84,12 +87,12 @@ func (s *Server) handleSecretAudit(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
 			return
 		}
-		snapshot, err := s.secretAudit.Start(SecretAuditRequest{
-			PackID:            request.PackID,
-			ToolID:            request.ToolID,
-			MinimumConfidence: request.MinimumConfidence,
-		})
+		snapshot, err := s.secretAudit.Start(request)
 		if err != nil {
+			if errors.Is(err, ErrSecretAuditInvalidRequest) {
+				writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
+				return
+			}
 			writeAPIError(w, http.StatusConflict, apperror.CodeToolUnavailable)
 			return
 		}
@@ -130,11 +133,43 @@ func decodeSecretAuditRequest(w http.ResponseWriter, r *http.Request) (secretAud
 	if err := ensureJSONEOF(decoder); err != nil {
 		return zero, err
 	}
-	if !validCredentialTargetID(request.PackID) || !validCredentialTargetID(request.ToolID) {
-		return zero, fmt.Errorf("invalid audit target")
-	}
-	if request.MinimumConfidence != "high" && request.MinimumConfidence != "medium" {
-		return zero, fmt.Errorf("invalid minimum confidence")
+	if err := ValidateSecretAuditRequest(request); err != nil {
+		return zero, err
 	}
 	return request, nil
+}
+
+// ValidateSecretAuditRequest also protects service callers outside HTTP.
+// Go's regexp engine has bounded, linear-time matching; no scripts execute.
+func ValidateSecretAuditRequest(request SecretAuditRequest) error {
+	if !validCredentialTargetID(request.PackID) || !validCredentialTargetID(request.ToolID) ||
+		(request.MinimumConfidence != "high" && request.MinimumConfidence != "medium") {
+		return ErrSecretAuditInvalidRequest
+	}
+	if request.ApplianceURL != "" && (strings.TrimSpace(request.ApplianceURL) != request.ApplianceURL || validateCredentialConfigurationURL(request.ApplianceURL) != nil) {
+		return ErrSecretAuditInvalidRequest
+	}
+	if !utf8.ValidString(request.Pattern) || len(request.Pattern) > 1024 || strings.IndexFunc(request.Pattern, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || r == '\u2028' || r == '\u2029'
+	}) >= 0 {
+		return ErrSecretAuditInvalidRequest
+	}
+	switch request.ScanType {
+	case "", "references":
+		if request.Pattern != "" {
+			return ErrSecretAuditInvalidRequest
+		}
+	case "contains", "exact", "regex":
+		if request.Pattern == "" {
+			return ErrSecretAuditInvalidRequest
+		}
+		if request.ScanType == "regex" {
+			if _, err := regexp.Compile(request.Pattern); err != nil {
+				return ErrSecretAuditInvalidRequest
+			}
+		}
+	default:
+		return ErrSecretAuditInvalidRequest
+	}
+	return nil
 }

@@ -78,7 +78,7 @@ func (h staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func isApplicationRoute(path string) bool {
 	switch path {
-	case "/", "/authentication", "/tasks", "/runs", "/secret-audit", "/diagnostics":
+	case "/", "/authentication", "/tasks", "/runs", "/secret-audit", "/conjur/security-audit", "/diagnostics":
 		return true
 	default:
 		return false

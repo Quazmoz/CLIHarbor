@@ -2,6 +2,7 @@ import { clientError, errorFromResponse } from './errors';
 
 export type SecretAuditState = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type SecretAuditConfidence = 'high' | 'medium';
+export type SecretAuditScanType = 'references' | 'contains' | 'exact' | 'regex';
 
 export interface SecretAuditFinding {
   variableId: string;
@@ -22,6 +23,7 @@ export interface SecretAuditSnapshot {
   state: SecretAuditState;
   phase?: string;
   minimumConfidence?: SecretAuditConfidence;
+  scanType?: SecretAuditScanType;
   startedAt?: string;
   finishedAt?: string;
   total: number;
@@ -73,7 +75,7 @@ export function parseSecretAuditSnapshot(payload: unknown): SecretAuditSnapshot 
   }
   let target: SecretAuditSnapshot['target'];
   if (payload.target !== undefined) {
-    if (!isRecord(payload.target) || !safeText(payload.target.applianceUrl, 512) || !(payload.target.account === '' || safeText(payload.target.account, 256))) {
+    if (!isRecord(payload.target) || !safeText(payload.target.applianceUrl, 2048) || !(payload.target.account === '' || safeText(payload.target.account, 256))) {
       throw clientError('invalid_response');
     }
     target = { applianceUrl: payload.target.applianceUrl, account: payload.target.account as string };
@@ -86,6 +88,9 @@ export function parseSecretAuditSnapshot(payload: unknown): SecretAuditSnapshot 
     if (!isRecord(item) || !safeText(item.variableId) || !safeText(item.code, 64)) throw clientError('invalid_response');
     return { variableId: item.variableId, code: item.code };
   });
+  if (payload.scanType !== undefined && !['references', 'contains', 'exact', 'regex'].includes(payload.scanType as string)) {
+    throw clientError('invalid_response');
+  }
   return {
     available: payload.available,
     packId: optionalText(payload.packId),
@@ -94,6 +99,7 @@ export function parseSecretAuditSnapshot(payload: unknown): SecretAuditSnapshot 
     state: payload.state as SecretAuditState,
     phase: optionalText(payload.phase),
     minimumConfidence: payload.minimumConfidence === undefined ? undefined : confidence(payload.minimumConfidence),
+    scanType: payload.scanType as SecretAuditScanType | undefined,
     startedAt: optionalText(payload.startedAt),
     finishedAt: optionalText(payload.finishedAt),
     total: count(payload.total),
@@ -128,7 +134,14 @@ export function fetchSecretAudit(signal?: AbortSignal): Promise<SecretAuditSnaps
 
 export function startSecretAudit(
   csrfToken: string,
-  request: { packId: string; toolId: string; minimumConfidence: SecretAuditConfidence },
+  request: {
+    packId: string;
+    toolId: string;
+    minimumConfidence: SecretAuditConfidence;
+    applianceUrl: string;
+    scanType: SecretAuditScanType;
+    pattern?: string;
+  },
 ): Promise<SecretAuditSnapshot> {
   return send('POST', csrfToken, request);
 }

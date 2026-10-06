@@ -13,9 +13,9 @@ The application uses a persistent left sidebar grouped into Workspace, Security,
 ```text
 CLIHarbor
 ├─ Workspace: Overview, Tasks, Runs
-├─ Security: Authentication, Secret audit (when Conjur is configured)
+├─ Security: Authentication
 ├─ Manage: Add a CLI, Diagnostics
-└─ Tools: categories from the authorized task catalog
+└─ Tools: categories from the authorized task catalog; Conjur includes Security audit
 ```
 
 The top bar shows the current page, runtime connection state, and a **Sign in** button linking to Authentication. This button opens tool sign-in; it never claims a vendor session is authenticated. On narrow windows, **Menu** toggles the sidebar. Navigation preserves native links, page titles, and focus to main content.

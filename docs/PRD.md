@@ -111,7 +111,7 @@ The same embedded browser UI and pack engine shall run on Windows and macOS (Int
 - Cloud-hosted execution.
 - Reimplementation of CyberArk REST APIs.
 - Replacement of vendor authorization, MFA, keystore, or profile semantics.
-- Secret-returning browser workflows. The read-only secret-value reference audit (ADR-028) reads values in the backend but returns only IDs and reason codes.
+- Secret-returning browser workflows. The read-only Conjur security audit (ADR-028/ADR-033) checks references or bounded operator-supplied text/regex criteria in the backend but returns only IDs and reason codes. Backend selection remains bound to vendor-owned configuration and authentication.
 - Change/destructive browser execution before dedicated confirmation/reconciliation design.
 - Full embedded terminal/PTY unless a future verified workflow genuinely requires it.
 - Identical vendor installation and interactive sign-in capabilities across platforms.

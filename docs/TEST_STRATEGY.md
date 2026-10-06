@@ -460,3 +460,9 @@ retained evidence. Race detection checks synchronized snapshot/catalog reads.
 Production browser coverage includes `/tools` navigation, search, and narrow
 layouts. Run these tests natively on Windows in the existing quality matrix;
 Windows cross-compilation is only a build check.
+
+## Conjur security audit acceptance
+
+Backend regressions cover the original reference detector, custom exact/contains/regex positive and negative cases, case and whitespace behavior, invalid/oversized/control-bearing scan criteria, unsupported regex syntax, HTTPS URL validation, refusal of mismatched backend origin/path/port before client creation, non-UTF-8 values reported as unchecked, and absence of scan text or values in snapshots. Endpoint tests retain session/Origin/CSRF enforcement and reject invalid criteria before service calls.
+
+Component acceptance covers the audit link beneath Conjur, canonical route and focus, editable backend URL, scan-type controls, consent reset, request shape, match labels, and clearing scan text after start. The production Chrome harness verifies the configured URL default, custom regex submission, backend mismatch refusal, and responsive layout at 1,024/390/320 pixels. The old route remains covered by embedded-frontend routing tests. These fixtures do not qualify a real Conjur appliance or native Windows interaction.
