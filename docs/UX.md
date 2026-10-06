@@ -331,4 +331,4 @@ Selecting a task from Favorites, Recently used, or All tasks feeds the same exis
 The task search supports keyboard operation and a page-local `/` focus shortcut that is ignored while typing in editable controls. Favorite toggles use native buttons with `aria-pressed`, task selection uses native buttons, focus remains visible, and the compact row layout is qualified for the 1366 × 768 enterprise-laptop target and narrow windows.
 ## Local testing on Windows and macOS
 
-The explicit example pack presents **Inspect fixture data** (scalar JSON cards, optional stderr), **Stream test output** (bounded seconds and Cancel), and **Test a failed command** (exit 42). `go run ./tools/task demo` opens this credential-free UI using the ordinary trusted pack/planner/executor path. The existing operator pages and responsive layout are shared across Windows and macOS.
+The operator pages and responsive layout are shared across Windows and macOS. Normal startup always uses the embedded product packs; there is no demo launcher or fallback to synthetic tasks. The fixture CLI and example pack are retained only for automated development checks.

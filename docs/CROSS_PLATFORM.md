@@ -2,36 +2,6 @@
 
 CLIHarbor uses the same Go runtime, embedded React UI, loopback security, trusted packs, typed forms, run history, and streaming on Windows and macOS. Native macOS builds support Apple Silicon (`arm64`) and Intel (`amd64`). Windows retains its existing x64 evaluation/preflight path.
 
-## Credential-free local demo
-
-From this checkout with Go installed:
-
-```bash
-go run ./tools/task demo
-```
-
-The task builds `bin/cliharbor` and `bin/cliharbor-fixture` (with `.exe` on Windows), then opens the local browser using only the explicit example pack. The embedded frontend is already in the checkout; Node is needed only when changing/rebuilding the frontend. The demo needs no vendor account, external service, CLI installation, or administrator rights.
-
-Open **Tasks** and try:
-
-1. **Inspect fixture data** — choose Safe or Detailed, optionally set a count (1–1000) and Verbose. Run to see scalar JSON cards, raw stdout, and separate stderr when Verbose is enabled.
-2. **Stream test output** — leave duration blank for 10 seconds, or choose 1–60 seconds. Run, watch output, and use Cancel.
-3. **Test a failed command** — observe deliberate exit code 42 and stderr, then inspect the retained run on **Runs**.
-
-The testing CLI reads no files, environment credentials, account data, or vendor sessions. It returns only synthetic values plus the OS name. It is not part of CLIHarbor's built-in product pack set.
-
-Build or run the CLI separately on macOS:
-
-```bash
-go run ./tools/task fixture-build
-./bin/cliharbor-fixture --version
-./bin/cliharbor-fixture inspect --limit 5 --verbose --detailed-mode
-./bin/cliharbor-fixture wait --seconds 3
-./bin/cliharbor-fixture fail
-```
-
-On Windows, use `bin\cliharbor-fixture.exe` with the same arguments. The `fail` command intentionally returns a non-zero exit.
-
 ## Normal macOS startup
 
 ```bash
@@ -41,7 +11,7 @@ go run ./tools/task go-build
 ./bin/cliharbor serve --no-auto-setup
 ```
 
-`doctor` reports missing vendor tools with exit 1; CLIHarbor can still start and show their readiness. The built-in Conjur, Docker, kubectl, and GitHub CLI packs load automatically. Install an approved official vendor CLI separately on macOS. Conjur must satisfy `>=9.3.1-0 <10.0.0-0`. Its [pinned upstream release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) includes darwin builds.
+`doctor` reports missing vendor tools with exit 1; CLIHarbor can still start and show their readiness. The built-in Conjur, Docker, kubectl, and GitHub CLI packs load automatically. Open **Add a CLI** to install the pinned official Conjur, kubectl, or GitHub CLI on macOS. Successful installation publishes the tool and tasks immediately. Docker remains externally installed. Conjur must satisfy `>=9.3.1-0 <10.0.0-0`. Its [pinned upstream release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) includes darwin builds.
 
 Discovery searches absolute PATH directories first. After PATH misses, macOS checks the bounded Go/local/bin and Docker directories under the user's home, plus `/opt/homebrew/bin` and `/usr/local/bin`. Multiple matches in a tier remain ambiguous. Pin one approved installation when needed:
 
@@ -57,8 +27,8 @@ Executable permission, resolved basename, version, and identity checks apply. Fo
 | --- | --- | --- |
 | Embedded browser UI, packs, read-only tasks, SSE, cancellation | Supported | Supported |
 | Conjur, Docker, kubectl installed-CLI discovery | Supported | Supported |
-| Credential-free fixture/demo | Supported | Supported |
-| Automatic pinned Conjur download | Windows amd64 only | Install an approved official CLI externally |
+| Automatic pinned Conjur download | Windows amd64 only | Use **Add a CLI** |
+| Explicit pinned Conjur installation | Windows amd64 | Intel and Apple Silicon |
 | Reviewed Conjur authn/LDAP bridge and session checks | Supported | Supported |
 | Guided external Conjur OIDC/JWT/SaaS launcher | Supported | Use the official CLI in your terminal |
 | Descendant cleanup | Job Object | Dedicated process group |

@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
@@ -52,6 +54,25 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	}
 	if len(state.Registry.Commands("github-cli")) != 6 {
 		t.Fatalf("embedded GitHub commands = %d, want 6", len(state.Registry.Commands("github-cli")))
+	}
+
+	// Even with no installed executables, every supported CLI remains discoverable
+	// in Add a CLI; only executable tasks are withheld until qualification.
+	catalog := newTaskCatalog(state.Registry, missingInstallSnapshot(state.Registry))
+	tools := catalog.ListTools()
+	if len(tools) != 4 || len(catalog.ListTasks()) != 0 {
+		t.Fatalf("missing-tool catalog = %#v; tasks = %#v", tools, catalog.ListTasks())
+	}
+	for _, tool := range tools {
+		if tool.PackID != "cyberark-conjur-v9" {
+			continue
+		}
+		if !strings.Contains(tool.PackName, "Conjur") || tool.Status != "missing" {
+			t.Fatalf("Conjur catalog entry = %#v", tool)
+		}
+		if (runtime.GOOS == "darwin" || runtime.GOOS == "windows" && runtime.GOARCH == "amd64") && tool.Install == nil {
+			t.Fatal("missing Conjur has no supported native installer")
+		}
 	}
 }
 

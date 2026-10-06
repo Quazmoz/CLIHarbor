@@ -261,7 +261,7 @@ For each shipped workflow or managed dependency:
 
 ## Windows and macOS runtime
 
-The macOS runtime, Conjur pack platform declaration, process-group cleanup, native build path, local testing CLI/demo, and macOS quality/browser jobs are implemented. Windows remains the first enterprise evaluation target with its existing artifact/preflight contract. Broader macOS vendor/install/sign-in parity is not implied; see [Windows and macOS setup](CROSS_PLATFORM.md).
+The macOS runtime, Conjur pack platform declaration, process-group cleanup, native build path, automated testing CLI, and macOS quality/browser jobs are implemented. Windows remains the first enterprise evaluation target with its existing artifact/preflight contract. Explicit pinned macOS Conjur installation is supported; broader vendor/sign-in parity is not implied; see [Windows and macOS setup](CROSS_PLATFORM.md).
 
 ## Explicit supported-tool installation
 

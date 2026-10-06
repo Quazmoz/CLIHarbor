@@ -825,3 +825,12 @@ refusal, version/content qualification failures, platform-specific metadata,
 search, single submission, custom roots, browser layout and race checks. Native
 Windows testing remains a separate qualification requirement. See
 [Supported CLI catalog](CLI_CATALOG.md) for artifact evidence and platform scope.
+
+
+## ADR-032: Restore macOS Conjur installation and remove the demo launcher
+
+**Date:** 2026-10-06
+
+**Decision:** Conjur pack 0.5.0 identifies Conjur by name in the catalog and declares immutable official v9.3.1 executable downloads for Intel and Apple Silicon macOS alongside the existing Windows amd64 pin. Pin the exact probed CLI version `9.3.1-7207d6a`, matching the official release banner rather than its shorter release tag. Reuse the portable installer and normal discovery/activation checks; automatic Conjur setup remains Windows amd64 only. Remove the development `demo` task and its startup documentation. This supersedes ADR-027's demo launcher; the fixture CLI and example pack remain automated-test inputs, never normal product defaults.
+
+**Reason:** Users need the real default CLI catalog and a usable Conjur installation path. A demo launcher that disables all product packs is misleading, and supported macOS discovery without a reviewed macOS installer leaves missing Conjur unusable in the GUI.

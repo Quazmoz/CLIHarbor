@@ -20,8 +20,11 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if pack.Metadata.ID != "cyberark-conjur-v9" {
 		t.Fatalf("pack id = %q", pack.Metadata.ID)
 	}
-	if pack.Metadata.Version != "0.4.0" {
+	if pack.Metadata.Version != "0.5.0" {
 		t.Fatalf("pack version = %q", pack.Metadata.Version)
+	}
+	if !strings.Contains(pack.Metadata.Name, "Conjur") {
+		t.Fatalf("catalog name does not identify Conjur: %q", pack.Metadata.Name)
 	}
 	if !slices.Equal(pack.Runtime.Platforms, []string{"windows", "darwin"}) {
 		t.Fatalf("platforms = %v", pack.Runtime.Platforms)
@@ -35,6 +38,15 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	}
 	if tool.VersionConstraint != ">=9.3.1-0 <10.0.0-0" {
 		t.Fatalf("version constraint = %q", tool.VersionConstraint)
+	}
+	if tool.Install == nil || tool.Install.Version != "9.3.1-7207d6a" {
+		t.Fatalf("Conjur installation contract = %#v", tool.Install)
+	}
+	for _, platform := range []string{"windows-amd64", "darwin-amd64", "darwin-arm64"} {
+		artifact, ok := tool.Install.Artifacts[platform]
+		if !ok || artifact.Format != "executable" || artifact.SizeBytes <= 0 || len(artifact.SHA256) != 64 || !strings.Contains(artifact.URL, "/v9.3.1/conjur_") {
+			t.Fatalf("Conjur %s installation contract = %#v", platform, artifact)
+		}
 	}
 	if tool.SessionCheck == nil || tool.SessionCheck.CommandID != "whoami" || tool.SessionCheck.UnauthenticatedStderrContains != "please login again" {
 		t.Fatalf("session check = %#v", tool.SessionCheck)

@@ -2,8 +2,8 @@ apiVersion: cliharbor.dev/v1
 kind: CliPack
 metadata:
   id: cyberark-conjur-v9
-  name: CyberArk / Idira Secrets Manager CLI 9.x
-  version: 0.4.0
+  name: Conjur — CyberArk / Idira Secrets Manager CLI 9.x
+  version: 0.5.0
   description: >-
     Reviewed Conjur CLI workflows verified from the official cyberark/conjur-cli-go
     v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
@@ -22,7 +22,7 @@ runtime:
         timeoutMillis: 3000
       versionConstraint: ">=9.3.1-0 <10.0.0-0"
       install:
-        version: 9.3.1
+        version: 9.3.1-7207d6a
         artifacts:
           windows-amd64:
             url: https://github.com/cyberark/conjur-cli-go/releases/download/v9.3.1/conjur_windows_amd64.exe
@@ -30,6 +30,20 @@ runtime:
             sizeBytes: 21950000
             format: executable
             executableName: conjur.exe
+            redirectHosts: [release-assets.githubusercontent.com]
+          darwin-amd64:
+            url: https://github.com/cyberark/conjur-cli-go/releases/download/v9.3.1/conjur_darwin_amd64
+            sha256: b6997198513b1e08ea6199954898bfd1103032dcc9f03cc2852ce8a2f2811eb9
+            sizeBytes: 21689104
+            format: executable
+            executableName: conjur
+            redirectHosts: [release-assets.githubusercontent.com]
+          darwin-arm64:
+            url: https://github.com/cyberark/conjur-cli-go/releases/download/v9.3.1/conjur_darwin_arm64_v8.0
+            sha256: 3c9ef7abcca34c890cccb35f56daa30864fd7438746ee1fa5a33b03f21578cf9
+            sizeBytes: 19978704
+            format: executable
+            executableName: conjur
             redirectHosts: [release-assets.githubusercontent.com]
       sessionCheck:
         commandId: whoami

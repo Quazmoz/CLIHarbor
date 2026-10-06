@@ -4,7 +4,7 @@ CLIHarbor can install a CLI from the local browser UI **only when the loaded tru
 
 The browser supplies the pack/tool identity and may optionally choose an absolute install base directory inside the current user's home directory. Download URL, SHA-256, expected size, archive member, executable filename, approved redirect hosts, and version remain backend/pack controlled. CLIHarbor never turns this into a generic package manager: it does not execute MSI/PKG installers, package-manager commands, shell scripts, registry edits, services, or machine-wide PATH changes.
 
-When a missing tool has a supported install contract, open **Diagnostics → Tool readiness** and use the offered **Install <tool>** action. Leave **Install base directory** blank for CLIHarbor's default current-user cache, or enter an absolute directory under your user home. CLIHarbor downloads and byte-verifies the declared artifact, persists only the selected managed base directory, and requires one restart. On the next startup it re-verifies the managed copy without network access before selecting it as a backend-only tool override.
+When a missing tool has a supported install contract, open **Add a CLI** and use the offered **Install <tool>** action. Leave **Install base directory** blank for CLIHarbor's default current-user cache, or enter an absolute directory under your user home. CLIHarbor downloads and byte-verifies the declared artifact, persists only the selected managed base directory, and immediately publishes the qualified tool and its tasks. On the next startup it re-verifies the managed copy without network access before selecting it as a backend-only tool override.
 
 This path is designed for locked-down work laptops where user-context portable executables are permitted. It does not bypass application control or organizational policy. If the device blocks the artifact or the pack has no reviewed artifact for that platform, CLIHarbor fails closed and leaves the normal explicit `--tool-path` / vendor installation path available.
 
@@ -18,17 +18,16 @@ CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings
 
 > **Fastest path:** download the qualified Windows artifact, run preflight, then run the CLIHarbor EXE with no pack arguments. The trusted Conjur pack is embedded, and if Conjur is genuinely missing CLIHarbor can install the exact reviewed CyberArk CLI into the current user's cache without administrator credentials. See [QUICKSTART.md](QUICKSTART.md).
 
-## macOS and local testing
+## macOS startup
 
-From a checkout with Go installed, start a credential-free demo on macOS or Windows:
+From a checkout with Go installed:
 
 ```bash
-go run ./tools/task demo
+go run ./tools/task go-build
+./bin/cliharbor
 ```
 
-This builds CLIHarbor with its embedded frontend and the small `cliharbor-fixture` testing CLI, then opens the browser with only the example pack. Try **Inspect fixture data**, **Stream test output** (and Cancel), and **Test a failed command**. It needs no vendor account, Docker daemon, cluster, or dependency download.
-
-For normal macOS use, build with `go run ./tools/task go-build` and run `./bin/cliharbor`. Conjur, Docker, kubectl, and GitHub CLI packs are embedded; install approved vendor CLIs separately on macOS. See [Windows and macOS setup](docs/CROSS_PLATFORM.md) for commands, Intel/Apple Silicon builds, and platform-specific authentication/install limits.
+Conjur, Docker, kubectl, and GitHub CLI packs load automatically. Open **Add a CLI** to install Conjur, kubectl, or GitHub CLI on supported platforms and immediately access their tasks. Existing vendor installations are discovered at startup. See [Windows and macOS setup](docs/CROSS_PLATFORM.md) and the [supported CLI catalog](docs/CLI_CATALOG.md).
 
 ## One-download Windows startup
 

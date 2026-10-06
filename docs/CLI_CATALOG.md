@@ -8,14 +8,14 @@ startup and can use the same catalog.
 
 | CLI | Pinned download | Managed installation platforms |
 | --- | --- | --- |
-| CyberArk Conjur | 9.3.1 | Windows amd64 |
+| CyberArk Conjur | 9.3.1 (`9.3.1-7207d6a` CLI version) | Windows amd64; macOS amd64 and arm64 |
 | Kubernetes kubectl | 1.35.3 | Windows, macOS, Linux: amd64 and arm64 |
 | GitHub CLI | 2.101.0 | Windows and macOS: amd64 and arm64 |
 | Docker CLI | Existing installation | Discovery only; use an approved Docker setup with a working engine |
 
 Other platform combinations show installation guidance rather than an Install
 button. Conjur's existing Windows-only automatic setup remains separate;
-kubectl and GitHub CLI downloads require an explicit Install action.
+macOS Conjur, kubectl, and GitHub CLI downloads require an explicit Install action.
 
 The catalog lists tools from already-loaded trusted packs. Adding an arbitrary
 executable or URL does not generate command authority. Additional CLIs need a
@@ -54,15 +54,21 @@ kubectl needs its normal kubeconfig/context and cluster access.
 
 ## Artifact evidence
 
-Reviewed 2026-10-06. Pins are in `packs/kubectl/kubectl.yaml` (pack 0.4.0) and
-`packs/github/github.yaml` (pack 0.2.0); the existing pack schema is unchanged.
+Reviewed 2026-10-06. Pins are in `packs/conjur/conjur-v9.yaml` (pack 0.5.0),
+`packs/kubectl/kubectl.yaml` (pack 0.4.0), and `packs/github/github.yaml`
+(pack 0.2.0); the existing pack schema is unchanged. Conjur macOS pins use
+the official v9.3.1 release API digest and exact size. Its install version matches
+the exact official CLI banner, `9.3.1-7207d6a`, so live qualification succeeds.
 kubectl hashes and exact sizes were read from the versioned official download's
 checksum files and response metadata. GitHub ZIP bytes were compared with the
 official release API's digest and size; each exact executable member was then
-hashed and measured independently. No downloaded binary was run for this review.
+hashed and measured independently. GitHub and kubectl binaries were not run for that review. The macOS arm64 Conjur
+standalone executable was independently hash/size verified and its version probe
+was run to qualify the exact CLI version.
 
 Primary references:
 
+- [CyberArk Conjur v9.3.1 release metadata](https://api.github.com/repos/cyberark/conjur-cli-go/releases/tags/v9.3.1)
 - [Kubernetes download and checksum procedure](https://kubernetes.io/docs/tasks/tools/install-kubectl-windows/)
 - [kubectl version skew policy](https://kubernetes.io/releases/version-skew-policy/#kubectl)
 - [GitHub CLI v2.101.0 release](https://github.com/cli/cli/releases/tag/v2.101.0)
