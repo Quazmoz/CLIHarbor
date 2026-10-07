@@ -106,15 +106,25 @@ func TestRunWindowsSinkFailureTerminatesDescendant(t *testing.T) {
 	observer.assertDescendantExited(t)
 }
 
-func TestRunWindowsInheritedOutputHandlesCannotHangRun(t *testing.T) {
+// A CLI that exits cleanly while a descendant still holds its inherited output
+// handles must not hang the run or be reported as failed: after WaitDelay the
+// run reports the CLI's own exit, and closing the Job Object ends the
+// descendant (behavior since 4e27152; previously this was a wait failure).
+func TestRunWindowsLingeringDescendantDoesNotHangRun(t *testing.T) {
 	t.Setenv(helperEnv, "1")
 	observer := &windowsDescendantObserver{}
 
+	started := time.Now()
 	result, err := testExecutor(5*time.Second, 1<<20).Run(t.Context(), helperPlan(t, "spawn-orphan"), observer)
-	if result.Status != StatusFailed {
-		t.Fatalf("status = %s, want failed", result.Status)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
 	}
-	assertExecutorCode(t, err, ErrWait)
+	if result.Status != StatusExited || result.ExitCode != 0 {
+		t.Fatalf("result = %s/%d, want exited/0", result.Status, result.ExitCode)
+	}
+	if elapsed := time.Since(started); elapsed > 4*time.Second {
+		t.Fatalf("run took %s; a lingering descendant must not hold it open", elapsed)
+	}
 	observer.assertDescendantExited(t)
 }
 
