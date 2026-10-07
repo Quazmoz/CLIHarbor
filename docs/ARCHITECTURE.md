@@ -65,9 +65,9 @@ internal/webui/            embedded frontend + constrained dev proxy
 internal/platform/browser/ default-browser launch boundary
 internal/packs/            pack model/schema/semantic validation/registry
 internal/discovery/        executable resolution, version probes, identity
-internal/toolbootstrap/    pinned reviewed current-user vendor dependency bootstrap
+internal/toolbootstrap/    generic provisioner interface + pack-declared portable installs
 internal/platforms/        dedicated CLI platform interface + routing set (ADR-034)
-internal/platforms/conjur/ dedicated Conjur: sign-in, mutation context, security audit
+internal/platforms/conjur/ dedicated Conjur: sign-in, mutation context, security audit, pinned bootstrap
 internal/planner/          typed values -> immutable execution plan
 internal/executor/         direct bounded process execution
 internal/processcontrol/   platform process-lifecycle ownership

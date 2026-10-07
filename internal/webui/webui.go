@@ -77,9 +77,9 @@ func (h staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// dedicatedRoute matches /dedicated/<platform-id> (and the Conjur audit
-// beneath it). IDs follow the same closed pattern the frontend accepts.
-var dedicatedRoute = regexp.MustCompile(`^/dedicated/[a-z0-9-]{1,64}$`)
+// dedicatedRoute matches /dedicated/<platform-id> and its /sign-in page; the
+// Conjur audit beneath it is listed explicitly. IDs follow the same closed pattern the frontend accepts.
+var dedicatedRoute = regexp.MustCompile(`^/dedicated/[a-z0-9-]{1,64}(/sign-in)?$`)
 
 func isApplicationRoute(path string) bool {
 	switch path {

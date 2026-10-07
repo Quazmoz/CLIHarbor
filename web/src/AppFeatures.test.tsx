@@ -99,6 +99,35 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByRole('heading', { name: 'List variables' })).toBeInTheDocument();
   });
 
+  test('Conjur sign-in lives in the dedicated section; generic Authentication links to it', async () => {
+    window.history.replaceState({}, '', '/authentication');
+    const conjurTool = {
+      packId: 'cyberark-conjur-v9', packName: 'Conjur', packVersion: '0.5.0', toolId: 'conjur', status: 'ready', version: '9.3.1',
+      requiresVendorSession: true, sessionCheck: { commandId: 'whoami' }, credentialLogin: { method: 'conjur-password' },
+    };
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: [conjurTool] }));
+      if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [
+        { packId: 'cyberark-conjur-v9', packName: 'Conjur', commandId: 'whoami', name: 'Who am I', toolId: 'conjur', requiresAuth: true, inputs: [] },
+      ] }));
+      if (path === '/api/v1/platforms') return Promise.resolve(response(200, { platforms: [{
+        id: 'conjur', name: 'CyberArk Conjur', summary: 'Built for Conjur.', packId: 'cyberark-conjur-v9', toolId: 'conjur', ready: true,
+        features: [{ id: 'sign-in', name: 'Sign in' }],
+      }] }));
+      return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
+    }));
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Authentication' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Open CyberArk Conjur sign-in' }));
+    expect(window.location.pathname).toBe('/dedicated/conjur/sign-in');
+    expect(screen.getByRole('heading', { name: 'Sign in to CyberArk Conjur' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    const dedicated = screen.getByRole('navigation', { name: 'Dedicated CLIs' });
+    expect(within(dedicated).getByRole('link', { name: 'Sign in' })).toHaveAttribute('aria-current', 'page');
+  });
+
   test('legacy Conjur audit URL still opens the dedicated audit, and the generic workspace works with no dedicated CLI', async () => {
     window.history.replaceState({}, '', '/conjur/security-audit');
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(baseRuntimeResponse(requestPath(input)) ?? response(404, {}))));

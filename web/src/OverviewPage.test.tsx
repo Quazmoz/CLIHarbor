@@ -13,12 +13,6 @@ function response(status: number, body: unknown): Response {
   });
 }
 
-function requestPath(input: RequestInfo | URL): string {
-  if (typeof input === 'string') return input;
-  if (input instanceof URL) return input.pathname;
-  return new URL(input.url).pathname;
-}
-
 const status: RuntimeStatus = {
   name: 'CLIHarbor',
   version: 'dev',
@@ -111,35 +105,9 @@ describe('OverviewPage', () => {
     expect(navigate).toHaveBeenCalledWith('authentication');
   });
 
-  test('renders and completes CLI sign-in directly from the overview', async () => {
-    let loginRequest: unknown;
-    let loginHeaders: HeadersInit | undefined;
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-        const path = requestPath(input);
-        if (path === '/api/v1/auth/login') {
-          loginRequest = JSON.parse(String(init?.body));
-          loginHeaders = init?.headers;
-          return Promise.resolve(new Response(null, { status: 204 }));
-        }
-        if (path === '/api/v1/runs') {
-          return Promise.resolve(
-            response(202, {
-              runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-              packId: 'conjur',
-              commandId: 'whoami',
-              toolId: 'conjur',
-              status: 'exited',
-              exitCode: 0,
-            }),
-          );
-        }
-        return Promise.resolve(response(404, {}));
-      }),
-    );
-
+  test('sends dedicated-platform CLIs to their dedicated sign-in instead of rendering vendor forms', () => {
+    const open = vi.fn();
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(404, {}))));
     render(
       <OverviewPage
         status={status}
@@ -148,56 +116,15 @@ describe('OverviewPage', () => {
         preferences={{ favorites: [], recent: [] }}
         onNavigate={vi.fn()}
         onOpenTask={vi.fn()}
+        dedicatedSignInFor={(tool) => (tool.toolId === 'conjur' ? { platformName: 'CyberArk Conjur', open } : undefined)}
       />,
     );
 
     expect(screen.getByRole('heading', { name: 'Sign in from CLIHarbor' })).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('textbox', { name: 'Identity' }), { target: { value: 'alice' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'super-secret' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in and verify' }));
-
-    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
-    expect(loginRequest).toEqual({
-      packId: 'conjur',
-      toolId: 'conjur',
-      identity: 'alice',
-      secret: 'super-secret',
-    });
-    expect(loginHeaders).toMatchObject({ 'X-CLIHarbor-CSRF': status.csrfToken });
-    expect(screen.getByLabelText('Password')).toHaveValue('');
-  });
-
-  test('offers vendor-owned Conjur login directly from Overview when advertised', async () => {
-    const vendorLoginTools: ToolDiagnostic[] = [
-      {
-        ...readyTools[0],
-        credentialLogin: { method: 'conjur-vendor-login' },
-      },
-      readyTools[1],
-    ];
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      if (requestPath(input) === '/api/v1/auth/interactive') {
-        return Promise.resolve(new Response(null, { status: 204 }));
-      }
-      return Promise.resolve(response(404, {}));
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(
-      <OverviewPage
-        status={status}
-        tasks={tasks}
-        tools={vendorLoginTools}
-        preferences={{ favorites: [], recent: [] }}
-        onNavigate={vi.fn()}
-        onOpenTask={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole('heading', { name: 'Sign in from CLIHarbor' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Start official Conjur sign-in' }));
-    expect(await screen.findByText('Official Conjur sign-in started.')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open CyberArk Conjur sign-in' }));
+    expect(open).toHaveBeenCalledTimes(1);
   });
 
   test('keeps a detected Conjur CLI visible when browser credential capability is unavailable', () => {

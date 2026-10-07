@@ -1,4 +1,4 @@
-package toolbootstrap
+package conjur
 
 import (
 	"context"
@@ -27,12 +27,6 @@ const (
 )
 
 var ConjurRef = discovery.ToolRef{PackID: "cyberark-conjur-v9", ToolID: "conjur"}
-
-// Provisioner can provide a reviewed local executable for a missing trusted
-// tool. Implementations must not widen the pack's executable/argv authority.
-type Provisioner interface {
-	Ensure(context.Context, discovery.ToolRef) (path string, installed bool, err error)
-}
 
 // ConjurProvisioner installs the exact reviewed CyberArk Conjur CLI release in
 // the current user's local cache. It never writes machine PATH, Program Files,

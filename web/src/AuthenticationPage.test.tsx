@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { AuthenticationPage } from './AuthenticationPage';
+import { conjurSignIn } from './platforms/conjur/ConjurSignIn';
 import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
@@ -92,6 +93,7 @@ function renderAuth(tasks: Task[] = [whoamiTask], tools: ToolDiagnostic[] = [rea
       tools={tools}
       onOpenTasks={vi.fn()}
       onOpenDiagnostics={vi.fn()}
+      signInFor={() => conjurSignIn}
     />,
   );
 }
@@ -829,4 +831,23 @@ describe('AuthenticationPage', () => {
     expect(screen.queryByText('Official Conjur sign-in started.')).not.toBeInTheDocument();
   });
 
+
+  test('generic page links a dedicated-platform CLI to its dedicated sign-in and renders no vendor form', () => {
+    const open = vi.fn();
+    render(
+      <AuthenticationPage
+        status={status}
+        tasks={[whoamiTask]}
+        tools={[readyTool]}
+        onOpenTasks={vi.fn()}
+        onOpenDiagnostics={vi.fn()}
+        dedicatedSignInFor={() => ({ platformName: 'CyberArk Conjur', open })}
+      />,
+    );
+    expect(screen.queryByRole('textbox', { name: 'Conjur server URL' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    expect(screen.queryByText('How sign-in works')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open CyberArk Conjur sign-in' }));
+    expect(open).toHaveBeenCalledTimes(1);
+  });
 });

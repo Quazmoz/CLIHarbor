@@ -1,4 +1,4 @@
-package toolbootstrap
+package conjur
 
 import (
 	"context"

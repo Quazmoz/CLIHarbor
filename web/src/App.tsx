@@ -22,6 +22,7 @@ import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
 import { SecretAuditPage } from './SecretAuditPage';
 import { OverviewPage } from './OverviewPage';
 import { PlatformPage } from './PlatformPage';
+import { dedicatedSignIn } from './platforms';
 import { fetchPlatforms, type Platform, type PlatformFeatureID } from './api/platforms';
 import { ToolsPage } from './ToolsPage';
 import { TaskDiscovery, taskToolKey } from './TaskDiscovery';
@@ -519,7 +520,7 @@ function streamStateText(state: StreamState): string {
   }
 }
 
-type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'tools' | 'diagnostics' | 'platform';
+type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'tools' | 'diagnostics' | 'platform' | 'platform-sign-in';
 
 const routePaths: Record<AppRoute, string> = {
   overview: '/',
@@ -530,20 +531,25 @@ const routePaths: Record<AppRoute, string> = {
   tools: '/tools',
   diagnostics: '/diagnostics',
   platform: '/dedicated',
+  'platform-sign-in': '/dedicated',
 };
 
 // The app has two halves: the generic workspace above works with any CLI, and
 // a dedicated CLI (picked in the sidebar) adds functionality built and tested
 // for that one platform. Platform IDs come from /api/v1/platforms.
 const dedicatedPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})$/;
+const dedicatedSignInPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})\/sign-in$/;
 
 function platformIDFromPath(pathname: string): string {
   if (pathname === routePaths['secret-audit'] || pathname === '/conjur/security-audit' || pathname === '/secret-audit') return 'conjur';
-  return dedicatedPathPattern.exec(pathname)?.[1] ?? '';
+  return (dedicatedPathPattern.exec(pathname) ?? dedicatedSignInPathPattern.exec(pathname))?.[1] ?? '';
 }
 
 function pathForRoute(route: AppRoute, platformID: string): string {
-  return route === 'platform' && platformID !== '' ? `${routePaths.platform}/${platformID}` : routePaths[route];
+  if (platformID === '') return routePaths[route];
+  if (route === 'platform') return `${routePaths.platform}/${platformID}`;
+  if (route === 'platform-sign-in') return `${routePaths.platform}/${platformID}/sign-in`;
+  return routePaths[route];
 }
 
 const navigationItems: Array<{ route: AppRoute; label: string; group: string; icon: string }> = [
@@ -555,6 +561,7 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M12 5v14 M5 12h14' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
   { route: 'platform', label: 'Dedicated CLI', group: 'Dedicated', icon: 'M4 6h16v12H4z M8 10l3 2-3 2 M13 14h3' },
+  { route: 'platform-sign-in', label: 'Dedicated sign-in', group: 'Dedicated', icon: '' },
 ];
 
 function routeFromPath(pathname: string): AppRoute {
@@ -574,7 +581,8 @@ function routeFromPath(pathname: string): AppRoute {
     case '/diagnostics':
       return 'diagnostics';
     default:
-      return dedicatedPathPattern.test(pathname) ? 'platform' : 'overview';
+      if (dedicatedPathPattern.test(pathname)) return 'platform';
+      return dedicatedSignInPathPattern.test(pathname) ? 'platform-sign-in' : 'overview';
   }
 }
 
@@ -1120,8 +1128,8 @@ export function App() {
   const activePlatform = platforms.find((platform) => platform.id === selectedPlatformID) ?? platforms[0];
   const activePlatformID = activePlatform?.id ?? '';
 
-  const navigate = useCallback((nextRoute: AppRoute) => {
-    const nextPath = pathForRoute(nextRoute, activePlatformID);
+  const navigate = useCallback((nextRoute: AppRoute, platformID: string = activePlatformID) => {
+    const nextPath = pathForRoute(nextRoute, platformID);
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, '', nextPath);
     }
@@ -1151,7 +1159,7 @@ export function App() {
         navigate('tasks');
         return;
       case 'sign-in':
-        navigate('authentication');
+        navigate('platform-sign-in');
         return;
       case 'security-audit':
         navigate('secret-audit');
@@ -1159,7 +1167,19 @@ export function App() {
     }
   };
 
-  const featureRoute: Record<PlatformFeatureID, AppRoute> = { tasks: 'tasks', 'sign-in': 'authentication', 'security-audit': 'secret-audit' };
+  const featureRoute: Record<PlatformFeatureID, AppRoute> = { tasks: 'tasks', 'sign-in': 'platform-sign-in', 'security-audit': 'secret-audit' };
+
+  const dedicatedSignInFor = (tool: ToolDiagnostic) => {
+    const owner = platforms.find((platform) => platform.packId === tool.packId && platform.toolId === tool.toolId &&
+      platform.features.some((feature) => feature.id === 'sign-in') && dedicatedSignIn[platform.id] !== undefined);
+    return owner === undefined ? undefined : {
+      platformName: owner.name,
+      open: () => {
+        setSelectedPlatformID(owner.id);
+        navigate('platform-sign-in', owner.id);
+      },
+    };
+  };
 
   return (
     <div className="app-shell">
@@ -1237,8 +1257,8 @@ export function App() {
               </span>
             </a>
             {activePlatform.features.filter((feature) => feature.id !== 'tasks').map((feature) => (
-              <a key={feature.id} href={routePaths[featureRoute[feature.id]]}
-                aria-current={route === featureRoute[feature.id] && feature.id === 'security-audit' ? 'page' : undefined}
+              <a key={feature.id} href={pathForRoute(featureRoute[feature.id], activePlatform.id)}
+                aria-current={route === featureRoute[feature.id] ? 'page' : undefined}
                 onClick={(event) => {
                   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                   event.preventDefault();
@@ -1308,6 +1328,22 @@ export function App() {
             onOpenTasks={() => navigate('tasks')}
             onOpenDiagnostics={() => navigate('diagnostics')}
             onToolsChanged={refreshTools}
+            dedicatedSignInFor={dedicatedSignInFor}
+          />
+        )}
+
+        {state.kind === 'ready' && route === 'platform-sign-in' && activePlatform !== undefined && (
+          <AuthenticationPage
+            key={activePlatform.id}
+            status={state.status}
+            tasks={state.tasks}
+            tools={state.tools.filter((tool) => tool.packId === activePlatform.packId && tool.toolId === activePlatform.toolId)}
+            onOpenTasks={() => openPlatformFeature('tasks')}
+            onOpenDiagnostics={() => navigate('diagnostics')}
+            onToolsChanged={refreshTools}
+            signInFor={() => dedicatedSignIn[activePlatform.id]}
+            heading={`Sign in to ${activePlatform.name}`}
+            intro="Connect and sign in with the flow built and tested for this CLI. The session stays owned by the vendor CLI."
           />
         )}
 
@@ -1321,6 +1357,14 @@ export function App() {
           />
         )}
 
+        {state.kind === 'ready' && (route === 'platform' || route === 'platform-sign-in') && activePlatform === undefined && (
+          <section className="panel" aria-labelledby="platform-heading">
+            <p className="status-label">Dedicated CLI</p>
+            <h2 id="platform-heading">No dedicated CLI is loaded</h2>
+            <p>The generic workspace still works with every configured CLI.</p>
+          </section>
+        )}
+
         {state.kind === 'ready' && route === 'platform' && (activePlatform !== undefined ? (
           <PlatformPage
             platform={activePlatform}
@@ -1328,13 +1372,7 @@ export function App() {
             onOpenFeature={openPlatformFeature}
             onOpenDiagnostics={() => navigate('diagnostics')}
           />
-        ) : (
-          <section className="panel" aria-labelledby="platform-heading">
-            <p className="status-label">Dedicated CLI</p>
-            <h2 id="platform-heading">No dedicated CLI is loaded</h2>
-            <p>The generic workspace still works with every configured CLI.</p>
-          </section>
-        ))}
+        ) : null)}
 
         {state.kind === 'ready' && route === 'overview' && (
           <OverviewPage
@@ -1343,6 +1381,7 @@ export function App() {
             tools={state.tools}
             preferences={taskPreferences}
             onNavigate={navigate}
+            dedicatedSignInFor={dedicatedSignInFor}
             onOpenTask={(taskKey) => {
               setTaskToolFilter('');
               selectTaskByKey(taskKey, state.tasks);
@@ -1351,7 +1390,7 @@ export function App() {
           />
         )}
 
-        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && route !== 'secret-audit' && route !== 'platform' && (
+        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && route !== 'secret-audit' && route !== 'platform' && route !== 'platform-sign-in' && (
           <>
             <section className="runtime-overview" aria-labelledby="runtime-heading">
               <div className="runtime-copy">

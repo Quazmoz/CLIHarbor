@@ -6,11 +6,14 @@ package conjur
 
 import (
 	"context"
+	"runtime"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/planner"
+	"github.com/Quazmoz/CLIHarbor/internal/platforms"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
+	"github.com/Quazmoz/CLIHarbor/internal/toolbootstrap"
 )
 
 // Feature IDs are a closed set shared with the frontend route table.
@@ -59,4 +62,15 @@ func (p *Platform) TaskAvailable(packID, commandID string) bool {
 
 func (p *Platform) ResolveExecutionContext(plan planner.Plan) (runs.ExecutionContext, error) {
 	return ResolveExecutionContext(plan)
+}
+
+// AutoSetup is Conjur's reviewed Windows amd64 bootstrap (ADR-025).
+var AutoSetup = platforms.AutoSetup{
+	Ref:             ConjurRef,
+	ShortName:       "Conjur",
+	DisplayName:     "CyberArk Conjur CLI",
+	Version:         ConjurVersion,
+	FailureGuidance: "Automatic Conjur setup could not complete. CLIHarbor did not bypass device policy; use an approved existing Conjur installation or allow the pinned CyberArk download and restart CLIHarbor.",
+	Supported:       func() bool { return runtime.GOOS == "windows" && runtime.GOARCH == "amd64" },
+	NewProvisioner:  func() toolbootstrap.Provisioner { return NewConjurProvisioner() },
 }

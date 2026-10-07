@@ -34,7 +34,7 @@ func TestProductionHandlerServesReviewedApplicationRoutes(t *testing.T) {
 		t.Fatalf("production handler: %v", err)
 	}
 
-	for _, path := range []string{"/", "/authentication", "/tasks", "/runs", "/secret-audit", "/conjur/security-audit", "/diagnostics", "/tools", "/dedicated/conjur", "/dedicated/conjur/security-audit"} {
+	for _, path := range []string{"/", "/authentication", "/tasks", "/runs", "/secret-audit", "/conjur/security-audit", "/diagnostics", "/tools", "/dedicated/conjur", "/dedicated/conjur/sign-in", "/dedicated/conjur/security-audit"} {
 		t.Run(path, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1"+path, nil))
@@ -56,7 +56,7 @@ func TestProductionHandlerRejectsUnknownAndTraversalPaths(t *testing.T) {
 		t.Fatalf("production handler: %v", err)
 	}
 
-	for _, path := range []string{"/unknown", "/index.html", "/assets/../index.html", "/dedicated/../tasks", "/dedicated/Conjur", "/dedicated/conjur/unknown"} {
+	for _, path := range []string{"/unknown", "/index.html", "/assets/../index.html", "/dedicated/../tasks", "/dedicated/Conjur", "/dedicated/conjur/unknown", "/dedicated/conjur/sign-in/x"} {
 		t.Run(path, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
