@@ -1240,7 +1240,7 @@ export function App() {
               <span>Dedicated CLI</span>
               <select value={activePlatform.id} onChange={(event) => {
                 setSelectedPlatformID(event.target.value);
-                if (route === 'platform') window.history.pushState({}, '', `${routePaths.platform}/${event.target.value}`);
+                if (route === 'platform' || route === 'platform-sign-in') navigate(route, event.target.value);
               }}>
                 {platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
               </select>

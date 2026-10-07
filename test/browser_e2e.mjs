@@ -1099,12 +1099,12 @@ async function main() {
     const auditSetup = await page.evaluate('(() => ({' +
       'backend: document.querySelector("input[name=audit-backend-url]").value,' +
       'scanTypes: Array.from(document.querySelector("select[name=audit-scan-type]").options).map((option) => option.value),' +
-      'underConjur: document.querySelector(".tool-audit-link")?.parentElement?.textContent.includes("conjur"),' +
+      'inDedicated: Array.from(document.querySelectorAll("nav[aria-label=\\"Dedicated CLIs\\"] a")).some((link) => link.textContent.trim() === "Security audit" && link.getAttribute("aria-current") === "page"),' +
       'inPrimary: Array.from(document.querySelectorAll(".primary-nav a")).some((link) => link.textContent.includes("audit"))' +
     '}))()');
     assert.equal(auditSetup.backend, conjurURL, 'audit target should default to vendor configuration');
     assert.deepEqual(auditSetup.scanTypes, ['references', 'contains', 'exact', 'regex']);
-    assert.equal(auditSetup.underConjur, true);
+    assert.equal(auditSetup.inDedicated, true, 'audit must live in the dedicated Conjur section');
     assert.equal(auditSetup.inPrimary, false);
     await page.evaluate('(() => {' +
       'const select = document.querySelector("select[name=audit-scan-type]");' +
