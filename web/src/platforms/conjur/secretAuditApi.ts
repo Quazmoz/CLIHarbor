@@ -1,4 +1,4 @@
-import { clientError, errorFromResponse } from './errors';
+import { clientError, errorFromResponse } from '../../api/errors';
 
 export type SecretAuditState = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type SecretAuditConfidence = 'high' | 'medium';

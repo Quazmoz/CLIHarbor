@@ -19,7 +19,7 @@ import {
 } from './api/runs';
 import { AuthenticationPage } from './AuthenticationPage';
 import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
-import { SecretAuditPage } from './SecretAuditPage';
+import { SecretAuditPage } from './platforms/conjur/SecretAuditPage';
 import { OverviewPage } from './OverviewPage';
 import { PlatformPage } from './PlatformPage';
 import { dedicatedSignIn } from './platforms';
@@ -557,7 +557,7 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'tasks', label: 'Tasks', group: 'Workspace', icon: 'm5 6 5 6-5 6 M13 18h6' },
   { route: 'runs', label: 'Runs', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
   { route: 'authentication', label: 'Authentication', group: 'Security', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
-  { route: 'secret-audit', label: 'Conjur security audit', group: 'Conjur', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
+  { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
   { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M12 5v14 M5 12h14' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
   { route: 'platform', label: 'Dedicated CLI', group: 'Dedicated', icon: 'M4 6h16v12H4z M8 10l3 2-3 2 M13 14h3' },
