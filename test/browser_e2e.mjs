@@ -519,14 +519,16 @@ async function main() {
       'hasDiagnosticsDetails: Boolean(document.querySelector(".tool-diagnostics")),' +
       'hasTasksLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Tasks"),' +
       'hasGuidedSignIn: document.querySelector("#overview-login-heading")?.textContent?.trim() === "Sign in from CLIHarbor",' +
-      'hasConjurSetup: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Save connection and continue"),' +
+      'hasConjurForm: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Save connection and continue"),' +
+      'hasDedicatedSignIn: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Open CyberArk Conjur sign-in"),' +
       'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth' +
     '}))()');
     assert.equal(overviewSurface.hasTaskForm, false, 'overview must not duplicate the task execution workspace');
     assert.equal(overviewSurface.hasDiagnosticsDetails, false, 'overview must not duplicate diagnostics details');
     assert.equal(overviewSurface.hasTasksLink, true, 'overview must provide primary navigation to Tasks');
     assert.equal(overviewSurface.hasGuidedSignIn, true, 'overview must expose the reviewed guided CLI sign-in surface');
-    assert.equal(overviewSurface.hasConjurSetup, true, 'first-run Conjur connection setup must be actionable from overview');
+    assert.equal(overviewSurface.hasConjurForm, false, 'generic overview must not render the dedicated Conjur form (ADR-034)');
+    assert.equal(overviewSurface.hasDedicatedSignIn, true, 'overview must link Conjur to its dedicated sign-in');
     assert.equal(overviewSurface.horizontalOverflow, false, 'overview must fit the default browser viewport horizontally');
     const shell = await page.evaluate('(() => ({' +
       'sidebarOnLeft: document.querySelector(".sidebar").getBoundingClientRect().width > 0 && document.querySelector(".sidebar").getBoundingClientRect().right <= document.querySelector("main").getBoundingClientRect().left,' +
@@ -591,7 +593,10 @@ async function main() {
     assert.equal(authSurface.hasAuthLink, true, 'authentication route must remain in primary navigation');
     await capture('authentication');
 
-    stage('staged Conjur GUI authentication');
+    stage('staged Conjur GUI authentication in the dedicated section');
+    await clickButton(page, 'Open CyberArk Conjur sign-in');
+    await waitJS(page, 'dedicated Conjur sign-in route',
+      'location.pathname === "/dedicated/conjur/sign-in" && document.body.innerText.includes("Sign in to CyberArk Conjur")');
     assert.equal(
       await page.evaluate('document.body.innerText.includes("Save connection and continue")'),
       true,
