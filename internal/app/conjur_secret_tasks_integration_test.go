@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
+	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 )
 
@@ -56,13 +57,13 @@ if [ "$1" = "variable" ]; then printf 'Value added\n'; else printf '{"created_ro
 	state, err := prepareRuntime(t.Context(), Options{
 		Out:           io.Discard,
 		PackFiles:     []string{packPath},
-		ToolOverrides: map[discovery.ToolRef]string{{PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID}: conjurPath},
+		ToolOverrides: map[discovery.ToolRef]string{{PackID: conjur.PackID, ToolID: conjur.ToolID}: conjurPath},
 	})
 	if err != nil {
 		t.Fatalf("prepareRuntime() error = %v", err)
 	}
 	manager, err := runs.NewManager(t.Context(), state.Registry, state.Discovery, runs.Config{
-		ResolveExecutionContext: resolveMutationExecutionContext,
+		ResolveExecutionContext: conjur.ResolveExecutionContext,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +80,7 @@ if [ "$1" = "variable" ]; then printf 'Value added\n'; else printf '{"created_ro
 		for id, value := range values {
 			raw[id] = integrationRawJSON(t, value)
 		}
-		request := runs.Request{PackID: conjurCredentialPackID, CommandID: commandID, Values: raw}
+		request := runs.Request{PackID: conjur.PackID, CommandID: commandID, Values: raw}
 		preview, err := manager.Preview(request)
 		if err != nil {
 			t.Fatalf("Preview(%s) error = %v", commandID, err)

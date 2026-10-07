@@ -849,3 +849,23 @@ Custom text is bounded to 1,024 UTF-8 bytes, rejects control/format/bidi charact
 Retain ADR-028's session/Origin/CSRF boundary, inventory/read bounds, drift checks, buffer clearing, cancellation, and no-mutation/no-value-export guarantees. The browser clears scan text after start and resets authorization acknowledgement when target or criteria change. Browser report schema version 2 adds the scan type and renames `suspiciousValues` to `matchingVariables`; patterns and values are excluded. This does not expand pack authority or require a pack/schema version change.
 
 Verification covers custom matching/negative cases, request bounds/regex/URL validation, refusal before credential forwarding, non-text reporting, pattern/value non-disclosure, navigation, consent reset, and production-browser setup/mismatch/responsive behavior. Native Windows execution is unchanged; existing Windows CI runs the portable tests.
+
+## ADR-034 — Split CLIHarbor into a generic workspace and dedicated CLI platforms
+
+**Date:** 2026-10-07
+**Status:** Accepted; supersedes ADR-033's placement of **Security audit** beneath the Conjur task category.
+
+CLIHarbor has two jobs that were tangled together: a generic workspace that works with any reviewed CLI through packs, and Conjur-specific functionality (guided sign-in, mutation execution context, the secret-value audit) that is built and tested for one vendor. Conjur code lived in `internal/app` beside lifecycle wiring, and the frontend branched on the Conjur pack ID in its sidebar. Adding a second vendor would have repeated that pattern.
+
+**Decision.** Make the split explicit in both halves of the product.
+
+- **Generic core** (unchanged authority): packs, discovery, planner, executor, runs, catalog, diagnostics, and the Overview/Tasks/Runs/Authentication/Add a CLI/Diagnostics pages. Core code must not branch on a vendor.
+- **Dedicated platforms**: `internal/platforms` defines a `Platform` interface (descriptor, tool activation, per-pack task availability, mutation execution context). `platforms.Set` routes those hooks to the owning platform and fails closed for any tool no platform owns, exactly as the previous Conjur-only resolver did. Each platform lives in its own package; Conjur moved, with its tests, to `internal/platforms/conjur` (credential login, secret audit, mutation context). A platform whose pack is not loaded (`--no-default-packs`) is not registered and its hooks never run.
+- **API**: authenticated `GET /api/v1/platforms` lists dedicated platforms with readiness and a closed set of feature IDs (`tasks`, `sign-in`, `security-audit`). The backend names features; the frontend owns their routes and drops unknown feature IDs. Existing endpoints, including `/api/v1/conjur/secret-audit`, are unchanged. New platform-specific endpoints should live under `/api/v1/<platform-id>/`.
+- **UI**: the sidebar keeps the generic workspace navigation and adds a **Dedicated** section with a **Dedicated CLI** picker. Each platform has a home at `/dedicated/<id>`; Conjur's audit moves to `/dedicated/conjur/security-audit`, with `/conjur/security-audit` and `/secret-audit` still served and mapped. The platform list is additive: if it fails to load, the generic workspace keeps working and the Dedicated section is hidden.
+
+**Not changed.** Pack schema/authority, the zero-config Conjur bootstrap (still isolated in `internal/toolbootstrap`), session/Origin/CSRF boundaries, and the reviewed Conjur pack. Generic task categories still list the Conjur pack, because the core can run any reviewed pack; the dedicated section adds platform-built functionality on top.
+
+**Follow-ups.** Move Conjur auto-provisioning selection behind the platform interface; split the Conjur-specific sign-in forms out of the generic Authentication page into the platform section; consider namespacing the audit endpoint under `/api/v1/platforms/conjur/` with a compatibility alias.
+
+Verification: unit tests for `platforms.Set` routing and fail-closed behavior, the platforms API session requirement, frontend parsing that rejects malformed IDs and drops unknown features, sidebar separation, legacy-route compatibility, generic workspace without any dedicated platform, and embedded-route allowlisting (including `/tools`, which was previously missing).

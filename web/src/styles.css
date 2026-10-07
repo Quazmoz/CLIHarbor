@@ -169,17 +169,42 @@ button:disabled {
 }
 
 .tool-categories { display: grid; gap: 0.25rem; margin-top: 2rem; }
-.tool-audit-link {
-  display: block;
-  margin-left: 2rem;
+.dedicated-platforms {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.dedicated-picker { display: grid; gap: 0.3rem; margin-bottom: 0.35rem; color: var(--text-muted); font-size: 0.72rem; }
+.dedicated-picker select { width: 100%; }
+.dedicated-platforms a, .dedicated-platforms button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
   padding: 0.6rem;
+  min-height: 2.5rem;
+  border: 1px solid transparent;
   border-radius: 0.35rem;
   color: var(--text-muted);
+  background: transparent;
+  text-align: left;
   font-size: 0.78rem;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
-.tool-audit-link:hover, .tool-audit-link[aria-current="page"] { background: var(--surface-2); color: var(--text-strong); }
-.tool-audit-link:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.dedicated-platforms a:hover, .dedicated-platforms a[aria-current="page"], .dedicated-platforms button:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text-strong);
+}
+.dedicated-platforms a:focus-visible, .dedicated-platforms button:focus-visible, .dedicated-picker select:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.platform-readiness { font-size: 0.68rem; font-weight: 600; white-space: nowrap; }
+.platform-readiness--ready { color: var(--accent); }
+.platform-readiness--blocked { color: var(--text-muted); }
+.platform-features { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin: 1.5rem 0 0; padding: 0; list-style: none; }
+.platform-features li { display: grid; gap: 0.5rem; align-content: start; padding: 1rem; border: 1px solid var(--border); border-radius: 0.5rem; }
+.platform-features h3, .platform-features p { margin: 0; }
 .tool-categories button {
   display: flex;
   align-items: center;

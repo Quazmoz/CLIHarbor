@@ -1,4 +1,4 @@
-package app
+package conjur
 
 import (
 	"context"
@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	conjurCredentialPackID            = "cyberark-conjur-v9"
-	conjurCredentialToolID            = "conjur"
+	PackID                            = "cyberark-conjur-v9"
+	ToolID                            = "conjur"
 	credentialLoginHTTPTimeoutSeconds = 20
 	conjurConnectionSetupTimeout      = 45 * time.Second
 	conjurConnectionSetupWaitDelay    = 2 * time.Second
@@ -30,7 +30,7 @@ type conjurLoginClient interface {
 	Login(string, string) ([]byte, error)
 }
 
-type conjurCredentialLoginService struct {
+type CredentialLoginService struct {
 	mu                   sync.RWMutex
 	enabled              bool
 	toolPath             string
@@ -44,9 +44,9 @@ type conjurCredentialLoginService struct {
 	launchBackground     func(string, []string) error
 }
 
-func newConjurCredentialLoginService(snapshot discovery.Snapshot) *conjurCredentialLoginService {
-	state, ok := snapshot.Find(discovery.ToolRef{PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID})
-	service := &conjurCredentialLoginService{
+func NewCredentialLoginService(snapshot discovery.Snapshot) *CredentialLoginService {
+	state, ok := snapshot.Find(discovery.ToolRef{PackID: PackID, ToolID: ToolID})
+	service := &CredentialLoginService{
 		enabled:    ok && state.Healthy(),
 		authGate:   make(chan struct{}, 1),
 		loadConfig: conjurapi.LoadConfig,
@@ -67,7 +67,7 @@ func newConjurCredentialLoginService(snapshot discovery.Snapshot) *conjurCredent
 	return service
 }
 
-func (s *conjurCredentialLoginService) Capability() (string, string, server.CredentialLoginCapability, bool) {
+func (s *CredentialLoginService) Capability() (string, string, server.CredentialLoginCapability, bool) {
 	if s == nil {
 		return "", "", server.CredentialLoginCapability{}, false
 	}
@@ -81,31 +81,31 @@ func (s *conjurCredentialLoginService) Capability() (string, string, server.Cred
 		return "", "", server.CredentialLoginCapability{}, false
 	}
 	if supportsConjurPasswordLogin(config) {
-		return conjurCredentialPackID, conjurCredentialToolID, server.CredentialLoginCapability{
+		return PackID, ToolID, server.CredentialLoginCapability{
 			Method: server.CredentialLoginMethodConjurPassword,
 		}, true
 	}
 	if conjurConnectionSetupRequired(config) {
-		return conjurCredentialPackID, conjurCredentialToolID, server.CredentialLoginCapability{
+		return PackID, ToolID, server.CredentialLoginCapability{
 			Method:        server.CredentialLoginMethodConjurPassword,
 			SetupRequired: true,
 		}, true
 	}
 	if s.interactiveSupported != nil && s.interactiveSupported() && supportsConjurVendorLogin(config) {
-		return conjurCredentialPackID, conjurCredentialToolID, server.CredentialLoginCapability{
+		return PackID, ToolID, server.CredentialLoginCapability{
 			Method: server.CredentialLoginMethodConjurVendorLogin,
 		}, true
 	}
 	return "", "", server.CredentialLoginCapability{}, false
 }
 
-func (s *conjurCredentialLoginService) Configure(ctx context.Context, request server.CredentialConfigurationRequest) error {
+func (s *CredentialLoginService) Configure(ctx context.Context, request server.CredentialConfigurationRequest) error {
 	if s == nil {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
+	if !s.enabled || request.PackID != PackID || request.ToolID != ToolID {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	if !validConjurConnectionRequest(request) {
@@ -163,13 +163,13 @@ func (s *conjurCredentialLoginService) Configure(ctx context.Context, request se
 	return nil
 }
 
-func (s *conjurCredentialLoginService) Login(ctx context.Context, request server.CredentialLoginRequest) error {
+func (s *CredentialLoginService) Login(ctx context.Context, request server.CredentialLoginRequest) error {
 	if s == nil {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
+	if !s.enabled || request.PackID != PackID || request.ToolID != ToolID {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	if !s.acquireAuthGate() {
@@ -210,13 +210,13 @@ func (s *conjurCredentialLoginService) Login(ctx context.Context, request server
 	return nil
 }
 
-func (s *conjurCredentialLoginService) LaunchInteractive(ctx context.Context, request server.CredentialInteractiveLoginRequest) error {
+func (s *CredentialLoginService) LaunchInteractive(ctx context.Context, request server.CredentialInteractiveLoginRequest) error {
 	if s == nil {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
+	if !s.enabled || request.PackID != PackID || request.ToolID != ToolID {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	if s.interactiveSupported == nil || !s.interactiveSupported() || s.launchInteractive == nil {
@@ -264,7 +264,7 @@ func (s *conjurCredentialLoginService) LaunchInteractive(ctx context.Context, re
 	return nil
 }
 
-func (s *conjurCredentialLoginService) activateTool(state discovery.ToolState) {
+func (s *CredentialLoginService) activateTool(state discovery.ToolState) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.enabled = state.Healthy()
@@ -290,7 +290,7 @@ func classifyConjurCredentialLoginError(hadAPIKey bool, err error) server.Creden
 	return server.CredentialLoginUnavailable
 }
 
-func (s *conjurCredentialLoginService) acquireAuthGate() bool {
+func (s *CredentialLoginService) acquireAuthGate() bool {
 	if s == nil {
 		return false
 	}
@@ -302,7 +302,7 @@ func (s *conjurCredentialLoginService) acquireAuthGate() bool {
 	}
 }
 
-func (s *conjurCredentialLoginService) releaseAuthGate() {
+func (s *CredentialLoginService) releaseAuthGate() {
 	<-s.authGate
 }
 

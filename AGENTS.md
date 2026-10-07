@@ -53,7 +53,7 @@ Do not introduce Electron/Tauri, a cloud backend, a database server, container r
 
 - Keep the runtime small and dependency-light.
 - Use small packages with explicit boundaries: server, executor, pack loader/validator, discovery, redaction, runs/events, and frontend API.
-- Keep Idira/CyberArk-specific behavior in a pack and minimal adapter code rather than leaking it throughout the engine.
+- Keep Idira/CyberArk-specific behavior in a pack plus its dedicated platform package (`internal/platforms/conjur`, ADR-034) rather than leaking it into the generic core or `internal/app`.
 - Add tests with every security-sensitive or parsing change.
 - Treat stdout/stderr as untrusted data; escape it before rendering.
 - Avoid telemetry by default. Any future telemetry must be opt-in and documented.

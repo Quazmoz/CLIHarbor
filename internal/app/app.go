@@ -9,6 +9,8 @@ import (
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
+	"github.com/Quazmoz/CLIHarbor/internal/platforms"
+	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 	"github.com/Quazmoz/CLIHarbor/internal/toolbootstrap"
@@ -49,8 +51,11 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
+	// Dedicated platforms layer vendor-specific behavior over the generic core.
+	conjurPlatform := conjur.New(ctx, runtimeState.Discovery)
+	dedicated := platforms.NewSet(runtimeState.Discovery, conjurPlatform)
 	runManager, err := runs.NewManager(ctx, runtimeState.Registry, runtimeState.Discovery, runs.Config{
-		ResolveExecutionContext: resolveMutationExecutionContext,
+		ResolveExecutionContext: dedicated.ResolveExecutionContext,
 	})
 	if err != nil {
 		return fmt.Errorf("configure run manager: %w", err)
@@ -66,23 +71,17 @@ func Run(ctx context.Context, options Options) error {
 		_ = shutdownRuns()
 		return err
 	}
-	credentialLogin := newConjurCredentialLoginService(runtimeState.Discovery)
+	credentialLogin := conjurPlatform.Login
 	installLocations, _ := newManagedInstallLocationStore()
 	toolInstaller := newManagedToolInstaller(runtimeState.Registry, runtimeState.Discovery, toolbootstrap.NewPortableProvisioner(), installLocations)
 	catalog := newTaskCatalog(runtimeState.Registry, runtimeState.Discovery)
 	catalog.setCredentialLoginCapabilityProvider(credentialLogin.Capability)
-	catalog.setTaskAvailabilityProvider(mutationTaskAvailable)
-	secretAudit := newConjurSecretAuditService(ctx, runtimeState.Discovery)
+	catalog.setTaskAvailabilityProvider(dedicated.TaskAvailable)
 	toolInstaller.activate = func(snapshot discovery.Snapshot, state discovery.ToolState) error {
 		if err := runManager.ActivateTool(state); err != nil {
 			return err
 		}
-		if state.PackID == conjurCredentialPackID && state.ToolID == conjurCredentialToolID {
-			credentialLogin.activateTool(state)
-			secretAudit.mu.Lock()
-			secretAudit.enabled = true
-			secretAudit.mu.Unlock()
-		}
+		dedicated.ActivateTool(state)
 		catalog.refresh(runtimeState.Registry, snapshot)
 		return nil
 	}
@@ -96,7 +95,8 @@ func Run(ctx context.Context, options Options) error {
 		CredentialInteractiveLogin: credentialLogin,
 		CredentialConfiguration:    credentialLogin,
 		ToolInstaller:              toolInstaller,
-		SecretAudit:                secretAudit,
+		SecretAudit:                conjurPlatform.Audit,
+		Platforms:                  dedicated,
 	})
 	if err != nil {
 		_ = shutdownRuns()

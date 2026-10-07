@@ -46,6 +46,7 @@ type Config struct {
 	CredentialConfiguration    CredentialConfigurationService
 	ToolInstaller              ToolInstallService
 	SecretAudit                SecretAuditService
+	Platforms                  PlatformService
 	MaxEventStreams            int
 }
 
@@ -73,6 +74,7 @@ type Server struct {
 	credentialConfiguration    CredentialConfigurationService
 	toolInstaller              ToolInstallService
 	secretAudit                SecretAuditService
+	platforms                  PlatformService
 	runStreamSlots             chan struct{}
 	streamCtx                  context.Context
 	streamCancel               context.CancelFunc
@@ -141,6 +143,7 @@ func New(config Config) (*Server, error) {
 		credentialConfiguration:    config.CredentialConfiguration,
 		toolInstaller:              config.ToolInstaller,
 		secretAudit:                config.SecretAudit,
+		platforms:                  config.Platforms,
 		runStreamSlots:             make(chan struct{}, maxEventStreams),
 		streamCtx:                  streamCtx,
 		streamCancel:               streamCancel,
@@ -175,6 +178,9 @@ func New(config Config) (*Server, error) {
 	}
 	if s.secretAudit != nil {
 		mux.Handle("/api/v1/conjur/secret-audit", s.requireSession(http.HandlerFunc(s.handleSecretAudit)))
+	}
+	if s.platforms != nil {
+		mux.Handle("/api/v1/platforms", s.requireSession(http.HandlerFunc(s.handlePlatforms)))
 	}
 	mux.Handle("/api/", s.requireSession(http.HandlerFunc(s.handleAPINotFound)))
 	mux.Handle("/", s.requireSession(config.Frontend))
