@@ -1,4 +1,4 @@
-package app
+package conjur
 
 import (
 	"context"
@@ -42,7 +42,7 @@ type secretAuditFailure struct{ code string }
 
 func (f secretAuditFailure) Error() string { return f.code }
 
-type conjurSecretAuditService struct {
+type SecretAuditService struct {
 	enabled    bool
 	parent     context.Context
 	loadConfig func() (conjurapi.Config, error)
@@ -55,9 +55,9 @@ type conjurSecretAuditService struct {
 	done   chan struct{}
 }
 
-func newConjurSecretAuditService(ctx context.Context, snapshot discovery.Snapshot) *conjurSecretAuditService {
-	state, ok := snapshot.Find(discovery.ToolRef{PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID})
-	return &conjurSecretAuditService{
+func NewSecretAuditService(ctx context.Context, snapshot discovery.Snapshot) *SecretAuditService {
+	state, ok := snapshot.Find(discovery.ToolRef{PackID: PackID, ToolID: ToolID})
+	return &SecretAuditService{
 		enabled:    ok && state.Healthy(),
 		parent:     ctx,
 		loadConfig: conjurapi.LoadConfig,
@@ -70,17 +70,17 @@ func newConjurSecretAuditService(ctx context.Context, snapshot discovery.Snapsho
 	}
 }
 
-func (s *conjurSecretAuditService) Snapshot() server.SecretAuditSnapshot {
+func (s *SecretAuditService) Snapshot() server.SecretAuditSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.snapshotLocked()
 }
 
-func (s *conjurSecretAuditService) snapshotLocked() server.SecretAuditSnapshot {
+func (s *SecretAuditService) snapshotLocked() server.SecretAuditSnapshot {
 	out := s.snap
 	out.Available = s.enabled
 	if s.enabled {
-		out.PackID, out.ToolID = conjurCredentialPackID, conjurCredentialToolID
+		out.PackID, out.ToolID = PackID, ToolID
 		if out.Target == nil {
 			if config, err := s.loadConfig(); err == nil && config.ApplianceURL != "" {
 				out.Target = &server.SecretAuditTarget{ApplianceURL: config.ApplianceURL, Account: config.Account}
@@ -92,7 +92,7 @@ func (s *conjurSecretAuditService) snapshotLocked() server.SecretAuditSnapshot {
 	return out
 }
 
-func (s *conjurSecretAuditService) Start(request server.SecretAuditRequest) (server.SecretAuditSnapshot, error) {
+func (s *SecretAuditService) Start(request server.SecretAuditRequest) (server.SecretAuditSnapshot, error) {
 	if err := server.ValidateSecretAuditRequest(request); err != nil {
 		return s.Snapshot(), err
 	}
@@ -101,7 +101,7 @@ func (s *conjurSecretAuditService) Start(request server.SecretAuditRequest) (ser
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.enabled || request.PackID != conjurCredentialPackID || request.ToolID != conjurCredentialToolID {
+	if !s.enabled || request.PackID != PackID || request.ToolID != ToolID {
 		return s.snapshotLocked(), server.ErrSecretAuditUnavailable
 	}
 	if s.snap.State == "running" {
@@ -121,7 +121,7 @@ func (s *conjurSecretAuditService) Start(request server.SecretAuditRequest) (ser
 	return s.snapshotLocked(), nil
 }
 
-func (s *conjurSecretAuditService) Cancel() server.SecretAuditSnapshot {
+func (s *SecretAuditService) Cancel() server.SecretAuditSnapshot {
 	s.mu.Lock()
 	cancel := s.cancel
 	s.mu.Unlock()
@@ -131,13 +131,13 @@ func (s *conjurSecretAuditService) Cancel() server.SecretAuditSnapshot {
 	return s.Snapshot()
 }
 
-func (s *conjurSecretAuditService) update(apply func(*server.SecretAuditSnapshot)) {
+func (s *SecretAuditService) update(apply func(*server.SecretAuditSnapshot)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	apply(&s.snap)
 }
 
-func (s *conjurSecretAuditService) run(ctx context.Context, cancel context.CancelFunc, done chan struct{}, request server.SecretAuditRequest) {
+func (s *SecretAuditService) run(ctx context.Context, cancel context.CancelFunc, done chan struct{}, request server.SecretAuditRequest) {
 	defer close(done)
 	defer cancel()
 	err := s.audit(ctx, request)
@@ -165,7 +165,7 @@ func (s *conjurSecretAuditService) run(ctx context.Context, cancel context.Cance
 	})
 }
 
-func (s *conjurSecretAuditService) audit(ctx context.Context, request server.SecretAuditRequest) error {
+func (s *SecretAuditService) audit(ctx context.Context, request server.SecretAuditRequest) error {
 	config, err := s.loadConfig()
 	if err != nil || config.ApplianceURL == "" {
 		return secretAuditFailure{"not_configured"}
@@ -504,4 +504,10 @@ func classifySecretValue(value string, known, knownNormalized map[string]struct{
 		}
 	}
 	return "", ""
+}
+
+func (s *SecretAuditService) activate() {
+	s.mu.Lock()
+	s.enabled = true
+	s.mu.Unlock()
 }

@@ -1,4 +1,4 @@
-package app
+package conjur
 
 import (
 	"context"
@@ -123,7 +123,7 @@ func (f *fakeSecretAuditClient) read() {
 
 func runSecretAudit(t *testing.T, client *fakeSecretAuditClient, clientErr error, minimum string, scan ...server.SecretAuditRequest) server.SecretAuditSnapshot {
 	t.Helper()
-	service := &conjurSecretAuditService{
+	service := &SecretAuditService{
 		enabled: true,
 		parent:  context.Background(),
 		loadConfig: func() (conjurapi.Config, error) {
@@ -137,7 +137,7 @@ func runSecretAudit(t *testing.T, client *fakeSecretAuditClient, clientErr error
 	if len(scan) > 0 {
 		request = scan[0]
 	}
-	request.PackID, request.ToolID, request.MinimumConfidence = conjurCredentialPackID, conjurCredentialToolID, minimum
+	request.PackID, request.ToolID, request.MinimumConfidence = PackID, ToolID, minimum
 	if _, err := service.Start(request); err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -274,8 +274,8 @@ func TestSecretAuditFailsClosed(t *testing.T) {
 		t.Fatalf("missing-session snapshot = %+v", snapshot)
 	}
 
-	disabled := &conjurSecretAuditService{snap: server.SecretAuditSnapshot{State: "idle"}}
-	if _, err := disabled.Start(server.SecretAuditRequest{PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID, MinimumConfidence: "high"}); err == nil {
+	disabled := &SecretAuditService{snap: server.SecretAuditSnapshot{State: "idle"}}
+	if _, err := disabled.Start(server.SecretAuditRequest{PackID: PackID, ToolID: ToolID, MinimumConfidence: "high"}); err == nil {
 		t.Fatal("disabled audit started")
 	}
 }

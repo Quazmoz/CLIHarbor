@@ -3,10 +3,11 @@ package app
 import (
 	"context"
 	"fmt"
-	"runtime"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	"github.com/Quazmoz/CLIHarbor/internal/platforms"
+	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
 	"github.com/Quazmoz/CLIHarbor/internal/toolbootstrap"
 	packassets "github.com/Quazmoz/CLIHarbor/packs"
 )
@@ -89,81 +90,79 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 		return state, nil
 	}
 
-	provisioner := options.ToolProvisioner
-	if provisioner == nil {
-		// The reviewed automatic artifact exists only for Windows amd64.
-		// Other hosts use discovery or explicit, pack-declared installation.
-		if runtime.GOOS != "windows" || runtime.GOARCH != "amd64" {
-			return state, nil
-		}
-		provisioner = toolbootstrap.NewConjurProvisioner()
-	}
-	changed := false
-	managedConjurSelected := false
-	managedConjurInstalled := false
-	for _, tool := range snapshot.Tools() {
-		ref := discovery.ToolRef{PackID: tool.PackID, ToolID: tool.ToolID}
-		if ref != toolbootstrap.ConjurRef || !shouldAutoProvision(tool, options.ToolOverrides) {
-			continue
-		}
-		if ref == toolbootstrap.ConjurRef && options.Out != nil {
-			if _, writeErr := fmt.Fprintf(options.Out,
-				"Setup: Conjur CLI was not found; installing verified CyberArk Conjur CLI %s for the current user...\n",
-				toolbootstrap.ConjurVersion,
-			); writeErr != nil {
-				return RuntimeState{}, fmt.Errorf("write automatic setup progress: %w", writeErr)
-			}
-		}
-		path, installed, provisionErr := provisioner.Ensure(ctx, ref)
-		if provisionErr != nil {
-			// Cancellation is a lifecycle signal, not a dependency failure. Do
-			// not swallow it and continue opening a browser/runtime after the
-			// caller has already asked CLIHarbor to stop.
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return RuntimeState{}, ctxErr
-			}
-			if ref == toolbootstrap.ConjurRef {
-				state.SetupMessages = append(state.SetupMessages,
-					"Automatic Conjur setup could not complete. CLIHarbor did not bypass device policy; use an approved existing Conjur installation or allow the pinned CyberArk download and restart CLIHarbor.")
-			}
-			continue
-		}
-		if path == "" {
-			continue
-		}
-		overrides[ref] = path
-		changed = true
-		if ref == toolbootstrap.ConjurRef {
-			managedConjurSelected = true
-			managedConjurInstalled = installed
-		}
-	}
-	if !changed {
-		return state, nil
-	}
-
-	snapshot, err = resolver.Discover(ctx, registry, overrides)
-	if err != nil {
-		return RuntimeState{}, err
-	}
-	state.Discovery = snapshot
-	if managedConjurSelected {
-		managed, ok := snapshot.Find(toolbootstrap.ConjurRef)
-		if ok && managed.Healthy() {
-			if managedConjurInstalled {
-				state.SetupMessages = append(state.SetupMessages,
-					"Installed, byte-verified, and qualified CyberArk Conjur CLI "+toolbootstrap.ConjurVersion+" for the current user; no administrator credentials or machine-wide changes were used.")
-			}
-		} else {
-			status := "unavailable"
-			if ok {
-				status = string(managed.Status)
-			}
-			state.SetupMessages = append(state.SetupMessages,
-				fmt.Sprintf("Managed CyberArk Conjur CLI %s is byte-verified but did not pass local readiness qualification (%s). No Conjur tasks were enabled; run cliharbor doctor for local diagnostic details.", toolbootstrap.ConjurVersion, status))
+	for _, setup := range defaultAutoSetups {
+		var err error
+		state, overrides, err = runAutoSetup(ctx, options, setup, resolver, registry, state, overrides)
+		if err != nil {
+			return RuntimeState{}, err
 		}
 	}
 	return state, nil
+}
+
+// defaultAutoSetups lists every dedicated platform's reviewed zero-config
+// bootstrap. The generic runtime carries no vendor knowledge beyond this list.
+var defaultAutoSetups = []platforms.AutoSetup{conjur.AutoSetup}
+
+func runAutoSetup(ctx context.Context, options Options, setup platforms.AutoSetup, resolver *discovery.Resolver, registry *packs.Registry, state RuntimeState, overrides map[discovery.ToolRef]string) (RuntimeState, map[discovery.ToolRef]string, error) {
+	tool, ok := state.Discovery.Find(setup.Ref)
+	if !ok || !shouldAutoProvision(tool, options.ToolOverrides) {
+		return state, overrides, nil
+	}
+	provisioner := options.ToolProvisioner
+	if provisioner == nil {
+		// Reviewed automatic artifacts exist only for the hosts a platform
+		// declares. Other hosts use discovery or pack-declared installation.
+		if !setup.Supported() {
+			return state, overrides, nil
+		}
+		provisioner = setup.NewProvisioner()
+	}
+	if options.Out != nil {
+		if _, writeErr := fmt.Fprintf(options.Out,
+			"Setup: %s CLI was not found; installing verified %s %s for the current user...\n",
+			setup.ShortName, setup.DisplayName, setup.Version,
+		); writeErr != nil {
+			return RuntimeState{}, nil, fmt.Errorf("write automatic setup progress: %w", writeErr)
+		}
+	}
+	path, installed, provisionErr := provisioner.Ensure(ctx, setup.Ref)
+	if provisionErr != nil {
+		// Cancellation is a lifecycle signal, not a dependency failure. Do
+		// not swallow it and continue opening a browser/runtime after the
+		// caller has already asked CLIHarbor to stop.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return RuntimeState{}, nil, ctxErr
+		}
+		state.SetupMessages = append(state.SetupMessages, setup.FailureGuidance)
+		return state, overrides, nil
+	}
+	if path == "" {
+		return state, overrides, nil
+	}
+	overrides[setup.Ref] = path
+
+	snapshot, err := resolver.Discover(ctx, registry, overrides)
+	if err != nil {
+		return RuntimeState{}, nil, err
+	}
+	state.Discovery = snapshot
+	managed, ok := snapshot.Find(setup.Ref)
+	switch {
+	case ok && managed.Healthy():
+		if installed {
+			state.SetupMessages = append(state.SetupMessages,
+				"Installed, byte-verified, and qualified "+setup.DisplayName+" "+setup.Version+" for the current user; no administrator credentials or machine-wide changes were used.")
+		}
+	default:
+		status := "unavailable"
+		if ok {
+			status = string(managed.Status)
+		}
+		state.SetupMessages = append(state.SetupMessages,
+			fmt.Sprintf("Managed %s %s is byte-verified but did not pass local readiness qualification (%s). No %s tasks were enabled; run cliharbor doctor for local diagnostic details.", setup.DisplayName, setup.Version, status, setup.ShortName))
+	}
+	return state, overrides, nil
 }
 
 func shouldAutoProvision(tool discovery.ToolState, explicit map[discovery.ToolRef]string) bool {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
+	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
 )
 
 const browserE2EEnv = "CLIHARBOR_BROWSER_E2E"
@@ -174,7 +175,7 @@ commands:
 		t.Fatal(err)
 	}
 
-	ref := discovery.ToolRef{PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID}
+	ref := discovery.ToolRef{PackID: conjur.PackID, ToolID: conjur.ToolID}
 	fixture.options.PackFiles = append(fixture.options.PackFiles, packPath)
 	fixture.options.ToolOverrides[ref] = conjurPath
 

@@ -65,7 +65,9 @@ internal/webui/            embedded frontend + constrained dev proxy
 internal/platform/browser/ default-browser launch boundary
 internal/packs/            pack model/schema/semantic validation/registry
 internal/discovery/        executable resolution, version probes, identity
-internal/toolbootstrap/    pinned reviewed current-user vendor dependency bootstrap
+internal/toolbootstrap/    generic provisioner interface + pack-declared portable installs
+internal/platforms/        dedicated CLI platform interface + routing set (ADR-034)
+internal/platforms/conjur/ dedicated Conjur: sign-in, mutation context, security audit, pinned bootstrap
 internal/planner/          typed values -> immutable execution plan
 internal/executor/         direct bounded process execution
 internal/processcontrol/   platform process-lifecycle ownership
@@ -81,6 +83,8 @@ packs/conjur/              real version-gated Conjur pack source
 schemas/                   embedded pack schema
 tools/task/                repository build/verification tasks
 ```
+
+CLIHarbor is split into a **generic core** that works with any reviewed CLI and **dedicated platforms** (`internal/platforms/<id>`) that add functionality built and tested for one CLI. The core reaches platform behavior only through `platforms.Set`; see ADR-034.
 
 Vendor-specific command syntax belongs in verified packs or narrowly scoped adapters. Generic discovery/planner/executor code must not contain Conjur-specific command branches. Vendor download logic is likewise isolated from the generic executor and cannot author argv.
 

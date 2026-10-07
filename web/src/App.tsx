@@ -19,8 +19,11 @@ import {
 } from './api/runs';
 import { AuthenticationPage } from './AuthenticationPage';
 import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
-import { SecretAuditPage } from './SecretAuditPage';
+import { SecretAuditPage } from './platforms/conjur/SecretAuditPage';
 import { OverviewPage } from './OverviewPage';
+import { PlatformPage } from './PlatformPage';
+import { dedicatedSignIn } from './platforms';
+import { fetchPlatforms, type Platform, type PlatformFeatureID } from './api/platforms';
 import { ToolsPage } from './ToolsPage';
 import { TaskDiscovery, taskToolKey } from './TaskDiscovery';
 import { StructuredResultView } from './StructuredResultView';
@@ -63,10 +66,16 @@ function isAbort(error: unknown): boolean {
 
 async function loadRuntime(
   signal?: AbortSignal,
-): Promise<{ status: RuntimeStatus; tasks: Task[]; tools: ToolDiagnostic[] }> {
+): Promise<{ status: RuntimeStatus; tasks: Task[]; tools: ToolDiagnostic[]; platforms: Platform[] }> {
   const status = await fetchRuntimeStatus(signal);
-  const [tasks, tools] = await Promise.all([fetchTasks(signal), fetchTools(signal)]);
-  return { status, tasks, tools };
+  // Dedicated platforms are additive: if their list cannot load, the generic
+  // workspace keeps working and the Dedicated section simply stays hidden.
+  const [tasks, tools, platforms] = await Promise.all([
+    fetchTasks(signal),
+    fetchTools(signal),
+    fetchPlatforms(signal).catch((error: unknown) => { if (isAbort(error)) throw error; return []; }),
+  ]);
+  return { status, tasks, tools, platforms };
 }
 
 function initialValues(task: Task | undefined): Record<string, FormValue> {
@@ -511,28 +520,48 @@ function streamStateText(state: StreamState): string {
   }
 }
 
-type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'tools' | 'diagnostics';
+type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'tools' | 'diagnostics' | 'platform' | 'platform-sign-in';
 
 const routePaths: Record<AppRoute, string> = {
   overview: '/',
   authentication: '/authentication',
   tasks: '/tasks',
   runs: '/runs',
-  'secret-audit': '/conjur/security-audit',
+  'secret-audit': '/dedicated/conjur/security-audit',
   tools: '/tools',
   diagnostics: '/diagnostics',
+  platform: '/dedicated',
+  'platform-sign-in': '/dedicated',
 };
 
-const conjurPackID = 'cyberark-conjur-v9';
+// The app has two halves: the generic workspace above works with any CLI, and
+// a dedicated CLI (picked in the sidebar) adds functionality built and tested
+// for that one platform. Platform IDs come from /api/v1/platforms.
+const dedicatedPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})$/;
+const dedicatedSignInPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})\/sign-in$/;
+
+function platformIDFromPath(pathname: string): string {
+  if (pathname === routePaths['secret-audit'] || pathname === '/conjur/security-audit' || pathname === '/secret-audit') return 'conjur';
+  return (dedicatedPathPattern.exec(pathname) ?? dedicatedSignInPathPattern.exec(pathname))?.[1] ?? '';
+}
+
+function pathForRoute(route: AppRoute, platformID: string): string {
+  if (platformID === '') return routePaths[route];
+  if (route === 'platform') return `${routePaths.platform}/${platformID}`;
+  if (route === 'platform-sign-in') return `${routePaths.platform}/${platformID}/sign-in`;
+  return routePaths[route];
+}
 
 const navigationItems: Array<{ route: AppRoute; label: string; group: string; icon: string }> = [
   { route: 'overview', label: 'Overview', group: 'Workspace', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
   { route: 'tasks', label: 'Tasks', group: 'Workspace', icon: 'm5 6 5 6-5 6 M13 18h6' },
   { route: 'runs', label: 'Runs', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
   { route: 'authentication', label: 'Authentication', group: 'Security', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
-  { route: 'secret-audit', label: 'Conjur security audit', group: 'Conjur', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
+  { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
   { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M12 5v14 M5 12h14' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
+  { route: 'platform', label: 'Dedicated CLI', group: 'Dedicated', icon: 'M4 6h16v12H4z M8 10l3 2-3 2 M13 14h3' },
+  { route: 'platform-sign-in', label: 'Dedicated sign-in', group: 'Dedicated', icon: '' },
 ];
 
 function routeFromPath(pathname: string): AppRoute {
@@ -545,13 +574,15 @@ function routeFromPath(pathname: string): AppRoute {
       return 'runs';
     case '/secret-audit':
     case '/conjur/security-audit':
+    case routePaths['secret-audit']:
       return 'secret-audit';
     case '/tools':
       return 'tools';
     case '/diagnostics':
       return 'diagnostics';
     default:
-      return 'overview';
+      if (dedicatedPathPattern.test(pathname)) return 'platform';
+      return dedicatedSignInPathPattern.test(pathname) ? 'platform-sign-in' : 'overview';
   }
 }
 
@@ -563,6 +594,8 @@ export function App() {
   const [taskChosen, setTaskChosen] = useState(false);
   const [taskToolFilter, setTaskToolFilter] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [platforms, setPlatforms] = useState<Platform[]>([]);
+  const [selectedPlatformID, setSelectedPlatformID] = useState(() => platformIDFromPath(window.location.pathname));
   const [taskPreferences, setTaskPreferences] = useState<TaskPreferences>(() => loadTaskPreferences());
   const [formValues, setFormValues] = useState<Record<string, FormValue>>({});
   const [run, setRun] = useState<RunView | null>(null);
@@ -649,6 +682,7 @@ export function App() {
       (tools) => setState((current) => (current.kind === 'ready' ? { ...current, tools } : current)),
       () => undefined,
     );
+    void fetchPlatforms().then(setPlatforms, () => undefined);
   }, []);
 
   const loadFailure = useCallback((error: unknown) => {
@@ -697,8 +731,10 @@ export function App() {
   useEffect(() => {
     const controller = new AbortController();
     void loadRuntime(controller.signal).then(
-      ({ status, tasks, tools }) => {
-        if (!controller.signal.aborted) acceptRuntime(status, tasks, tools);
+      ({ status, tasks, tools, platforms: loadedPlatforms }) => {
+        if (controller.signal.aborted) return;
+        setPlatforms(loadedPlatforms);
+        acceptRuntime(status, tasks, tools);
       },
       (error: unknown) => {
         if (!controller.signal.aborted && !isAbort(error)) {
@@ -709,10 +745,13 @@ export function App() {
     return () => controller.abort();
   }, [acceptRuntime, loadFailure, runtimeAttempt]);
 
+
   useEffect(() => {
     const handlePopState = () => {
       setNavigationOpen(false);
       setRoute(routeFromPath(window.location.pathname));
+      const pathPlatform = platformIDFromPath(window.location.pathname);
+      if (pathPlatform !== '') setSelectedPlatformID(pathPlatform);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -1086,17 +1125,18 @@ export function App() {
         task.requiresAuth === true,
     );
 
-  const hasConjurPack = state.kind === 'ready' && state.tools.some((tool) => tool.packId === conjurPackID);
+  const activePlatform = platforms.find((platform) => platform.id === selectedPlatformID) ?? platforms[0];
+  const activePlatformID = activePlatform?.id ?? '';
 
-  const navigate = useCallback((nextRoute: AppRoute) => {
-    const nextPath = routePaths[nextRoute];
+  const navigate = useCallback((nextRoute: AppRoute, platformID: string = activePlatformID) => {
+    const nextPath = pathForRoute(nextRoute, platformID);
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, '', nextPath);
     }
     setRoute(nextRoute);
     setNavigationOpen(false);
     mainRef.current?.focus({ preventScroll: true });
-  }, []);
+  }, [activePlatformID]);
 
   const taskCategories = state.kind === 'ready'
     ? Array.from(new Map(state.tasks.map((task) => [taskToolKey(task), task])).entries())
@@ -1111,14 +1151,35 @@ export function App() {
     setTaskChosen(false);
   };
 
-  const secretAuditLink = (
-    <a className="tool-audit-link" href={routePaths['secret-audit']} aria-current={route === 'secret-audit' ? 'page' : undefined}
-      onClick={(event) => {
-        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-        event.preventDefault();
+  const openPlatformFeature = (feature: PlatformFeatureID) => {
+    if (activePlatform === undefined) return;
+    switch (feature) {
+      case 'tasks':
+        changeTaskCategory(taskToolKey(activePlatform));
+        navigate('tasks');
+        return;
+      case 'sign-in':
+        navigate('platform-sign-in');
+        return;
+      case 'security-audit':
         navigate('secret-audit');
-      }}>Security audit</a>
-  );
+        return;
+    }
+  };
+
+  const featureRoute: Record<PlatformFeatureID, AppRoute> = { tasks: 'tasks', 'sign-in': 'platform-sign-in', 'security-audit': 'secret-audit' };
+
+  const dedicatedSignInFor = (tool: ToolDiagnostic) => {
+    const owner = platforms.find((platform) => platform.packId === tool.packId && platform.toolId === tool.toolId &&
+      platform.features.some((feature) => feature.id === 'sign-in') && dedicatedSignIn[platform.id] !== undefined);
+    return owner === undefined ? undefined : {
+      platformName: owner.name,
+      open: () => {
+        setSelectedPlatformID(owner.id);
+        navigate('platform-sign-in', owner.id);
+      },
+    };
+  };
 
   return (
     <div className="app-shell">
@@ -1156,7 +1217,7 @@ export function App() {
             </div>
           ))}
         </nav>
-        {(taskCategories.length > 0 || hasConjurPack) && (
+        {taskCategories.length > 0 && (
           <nav className="tool-categories" aria-label="Task categories">
             <p className="nav-group-label">Tools</p>
             {taskCategories.map(([key, task]) => (
@@ -1168,14 +1229,47 @@ export function App() {
                   <span>{task.packName} · {task.toolId}</span>
                   <span className="category-count">{state.kind === 'ready' ? state.tasks.filter((candidate) => taskToolKey(candidate) === key).length : 0}</span>
                 </button>
-                {task.packId === conjurPackID && task.toolId === 'conjur' && secretAuditLink}
               </div>
             ))}
-            {hasConjurPack && !taskCategories.some(([, task]) => task.packId === conjurPackID && task.toolId === 'conjur') && (
-              <div>
-                <p className="nav-group-label">Conjur</p>
-                {secretAuditLink}
-              </div>
+          </nav>
+        )}
+        {activePlatform !== undefined && (
+          <nav className="dedicated-platforms" aria-label="Dedicated CLIs">
+            <p className="nav-group-label">Dedicated</p>
+            <label className="dedicated-picker">
+              <span>Dedicated CLI</span>
+              <select value={activePlatform.id} onChange={(event) => {
+                setSelectedPlatformID(event.target.value);
+                if (route === 'platform' || route === 'platform-sign-in') navigate(route, event.target.value);
+              }}>
+                {platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
+              </select>
+            </label>
+            <a href={pathForRoute('platform', activePlatform.id)} aria-current={route === 'platform' ? 'page' : undefined}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                navigate('platform');
+              }}>
+              <span>{activePlatform.name} home</span>
+              <span className={'platform-readiness platform-readiness--' + (activePlatform.ready ? 'ready' : 'blocked')}>
+                {activePlatform.ready ? 'Ready' : 'Setup needed'}
+              </span>
+            </a>
+            {activePlatform.features.filter((feature) => feature.id !== 'tasks').map((feature) => (
+              <a key={feature.id} href={pathForRoute(featureRoute[feature.id], activePlatform.id)}
+                aria-current={route === featureRoute[feature.id] ? 'page' : undefined}
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  event.preventDefault();
+                  openPlatformFeature(feature.id);
+                }}>{feature.name}</a>
+            ))}
+            {activePlatform.features.some((feature) => feature.id === 'tasks') && (
+              <button type="button" disabled={starting || activeRunID !== null || (state.kind === 'ready' && !state.tasks.some((task) => taskToolKey(task) === taskToolKey(activePlatform)))}
+                onClick={() => openPlatformFeature('tasks')}>
+                {activePlatform.features.find((feature) => feature.id === 'tasks')?.name}
+              </button>
             )}
           </nav>
         )}
@@ -1234,6 +1328,22 @@ export function App() {
             onOpenTasks={() => navigate('tasks')}
             onOpenDiagnostics={() => navigate('diagnostics')}
             onToolsChanged={refreshTools}
+            dedicatedSignInFor={dedicatedSignInFor}
+          />
+        )}
+
+        {state.kind === 'ready' && route === 'platform-sign-in' && activePlatform !== undefined && (
+          <AuthenticationPage
+            key={activePlatform.id}
+            status={state.status}
+            tasks={state.tasks}
+            tools={state.tools.filter((tool) => tool.packId === activePlatform.packId && tool.toolId === activePlatform.toolId)}
+            onOpenTasks={() => openPlatformFeature('tasks')}
+            onOpenDiagnostics={() => navigate('diagnostics')}
+            onToolsChanged={refreshTools}
+            signInFor={() => dedicatedSignIn[activePlatform.id]}
+            heading={`Sign in to ${activePlatform.name}`}
+            intro="Connect and sign in with the flow built and tested for this CLI. The session stays owned by the vendor CLI."
           />
         )}
 
@@ -1247,6 +1357,23 @@ export function App() {
           />
         )}
 
+        {state.kind === 'ready' && (route === 'platform' || route === 'platform-sign-in') && activePlatform === undefined && (
+          <section className="panel" aria-labelledby="platform-heading">
+            <p className="status-label">Dedicated CLI</p>
+            <h2 id="platform-heading">No dedicated CLI is loaded</h2>
+            <p>The generic workspace still works with every configured CLI.</p>
+          </section>
+        )}
+
+        {state.kind === 'ready' && route === 'platform' && (activePlatform !== undefined ? (
+          <PlatformPage
+            platform={activePlatform}
+            tasks={state.tasks}
+            onOpenFeature={openPlatformFeature}
+            onOpenDiagnostics={() => navigate('diagnostics')}
+          />
+        ) : null)}
+
         {state.kind === 'ready' && route === 'overview' && (
           <OverviewPage
             status={state.status}
@@ -1254,6 +1381,7 @@ export function App() {
             tools={state.tools}
             preferences={taskPreferences}
             onNavigate={navigate}
+            dedicatedSignInFor={dedicatedSignInFor}
             onOpenTask={(taskKey) => {
               setTaskToolFilter('');
               selectTaskByKey(taskKey, state.tasks);
@@ -1262,7 +1390,7 @@ export function App() {
           />
         )}
 
-        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && route !== 'secret-audit' && (
+        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && route !== 'secret-audit' && route !== 'platform' && route !== 'platform-sign-in' && (
           <>
             <section className="runtime-overview" aria-labelledby="runtime-heading">
               <div className="runtime-copy">

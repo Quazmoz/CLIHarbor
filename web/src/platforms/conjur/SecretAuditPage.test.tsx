@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { SecretAuditPage } from './SecretAuditPage';
-import { parseSecretAuditSnapshot } from './api/secretAudit';
+import { parseSecretAuditSnapshot } from './secretAuditApi';
 
 function response(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });

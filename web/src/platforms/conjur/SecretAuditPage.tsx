@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { normalizeError, type AppErrorDetail } from './api/errors';
+import { normalizeError, type AppErrorDetail } from '../../api/errors';
 import {
   cancelSecretAudit,
   fetchSecretAudit,
@@ -7,7 +7,7 @@ import {
   type SecretAuditConfidence,
   type SecretAuditScanType,
   type SecretAuditSnapshot,
-} from './api/secretAudit';
+} from './secretAuditApi';
 
 const POLL_MS = 1000;
 

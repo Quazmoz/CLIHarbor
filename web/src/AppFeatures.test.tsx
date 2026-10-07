@@ -26,6 +26,9 @@ function baseRuntimeResponse(path: string): Response | undefined {
   if (path === '/api/v1/tools') {
     return response(200, { tools: [] });
   }
+  if (path === '/api/v1/platforms') {
+    return response(200, { platforms: [] });
+  }
   if (path === '/api/v1/tasks') {
     return response(200, {
       tasks: [
@@ -54,12 +57,18 @@ afterEach(() => {
 });
 
 describe('command preview and retry workflows', () => {
-  test('security audit lives beneath Conjur and opens its tool route', async () => {
+  test('dedicated Conjur section is separate from the generic workspace and opens its security audit', async () => {
+    window.history.replaceState({}, '', '/');
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
       if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [
         { packId: 'cyberark-conjur-v9', packName: 'Conjur', commandId: 'list', name: 'List variables', toolId: 'conjur', inputs: [] },
+        { packId: 'fixture', packName: 'Fixture', commandId: 'inspect', name: 'Inspect fixture', toolId: 'fixture', inputs: [] },
       ] }));
+      if (path === '/api/v1/platforms') return Promise.resolve(response(200, { platforms: [{
+        id: 'conjur', name: 'CyberArk Conjur', summary: 'Built for Conjur.', packId: 'cyberark-conjur-v9', toolId: 'conjur', ready: true,
+        features: [{ id: 'tasks', name: 'Conjur tasks' }, { id: 'sign-in', name: 'Sign in' }, { id: 'security-audit', name: 'Security audit' }],
+      }] }));
       if (path === '/api/v1/conjur/secret-audit') return Promise.resolve(response(200, {
         available: true, packId: 'cyberark-conjur-v9', toolId: 'conjur', state: 'idle',
         target: { applianceUrl: 'https://conjur.invalid', account: 'acct' },
@@ -68,15 +77,65 @@ describe('command preview and retry workflows', () => {
       return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
     }));
     render(<App />);
-    const link = await screen.findByRole('link', { name: 'Security audit' });
-    expect(within(link.parentElement!).getByRole('button', { name: /Conjur/ })).toBeInTheDocument();
+    const dedicated = await screen.findByRole('navigation', { name: 'Dedicated CLIs' });
+    expect(within(dedicated).getByRole('combobox', { name: 'Dedicated CLI' })).toHaveValue('conjur');
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
-    expect(link).toHaveAttribute('href', '/conjur/security-audit');
+    expect(within(screen.getByRole('navigation', { name: 'Task categories' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
+
+    fireEvent.click(within(dedicated).getByRole('link', { name: /CyberArk Conjur home/ }));
+    expect(window.location.pathname).toBe('/dedicated/conjur');
+    expect(screen.getByRole('heading', { name: 'CyberArk Conjur' })).toBeInTheDocument();
+
+    const link = within(dedicated).getByRole('link', { name: 'Security audit' });
+    expect(link).toHaveAttribute('href', '/dedicated/conjur/security-audit');
     fireEvent.click(link);
-    expect(window.location.pathname).toBe('/conjur/security-audit');
+    expect(window.location.pathname).toBe('/dedicated/conjur/security-audit');
     expect(await screen.findByRole('heading', { name: 'Conjur security audit' })).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveFocus();
     expect(link).toHaveAttribute('aria-current', 'page');
+
+    fireEvent.click(within(dedicated).getByRole('button', { name: 'Conjur tasks' }));
+    expect(window.location.pathname).toBe('/tasks');
+    expect(screen.getByRole('heading', { name: 'List variables' })).toBeInTheDocument();
+  });
+
+  test('Conjur sign-in lives in the dedicated section; generic Authentication links to it', async () => {
+    window.history.replaceState({}, '', '/authentication');
+    const conjurTool = {
+      packId: 'cyberark-conjur-v9', packName: 'Conjur', packVersion: '0.5.0', toolId: 'conjur', status: 'ready', version: '9.3.1',
+      requiresVendorSession: true, sessionCheck: { commandId: 'whoami' }, credentialLogin: { method: 'conjur-password' },
+    };
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: [conjurTool] }));
+      if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [
+        { packId: 'cyberark-conjur-v9', packName: 'Conjur', commandId: 'whoami', name: 'Who am I', toolId: 'conjur', requiresAuth: true, inputs: [] },
+      ] }));
+      if (path === '/api/v1/platforms') return Promise.resolve(response(200, { platforms: [{
+        id: 'conjur', name: 'CyberArk Conjur', summary: 'Built for Conjur.', packId: 'cyberark-conjur-v9', toolId: 'conjur', ready: true,
+        features: [{ id: 'sign-in', name: 'Sign in' }],
+      }] }));
+      return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
+    }));
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Authentication' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Open CyberArk Conjur sign-in' }));
+    expect(window.location.pathname).toBe('/dedicated/conjur/sign-in');
+    expect(screen.getByRole('heading', { name: 'Sign in to CyberArk Conjur' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    const dedicated = screen.getByRole('navigation', { name: 'Dedicated CLIs' });
+    expect(within(dedicated).getByRole('link', { name: 'Sign in' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('legacy Conjur audit URL still opens the dedicated audit, and the generic workspace works with no dedicated CLI', async () => {
+    window.history.replaceState({}, '', '/conjur/security-audit');
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(baseRuntimeResponse(requestPath(input)) ?? response(404, {}))));
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Conjur security audit' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
+    expect(screen.getByRole('textbox', { name: 'Query' })).toBeInTheDocument();
   });
 
   test('sidebar categories select a matching task and Sign in opens authentication', async () => {

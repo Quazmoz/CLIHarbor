@@ -1,4 +1,4 @@
-package app
+package conjur
 
 import (
 	"fmt"
@@ -11,8 +11,8 @@ import (
 
 var loadMutationConjurConfig = conjurapi.LoadConfig
 
-func mutationTaskAvailable(packID, commandID string) bool {
-	if packID != conjurCredentialPackID || !strings.HasPrefix(commandID, "ldap-") {
+func TaskAvailable(packID, commandID string) bool {
+	if packID != PackID || !strings.HasPrefix(commandID, "ldap-") {
 		return true
 	}
 	config, err := loadMutationConjurConfig()
@@ -25,8 +25,8 @@ func mutationTaskAvailable(packID, commandID string) bool {
 		validConjurConfigScalar(config.ServiceID)
 }
 
-func resolveMutationExecutionContext(plan planner.Plan) (runs.ExecutionContext, error) {
-	if plan.PackID != conjurCredentialPackID || plan.ToolID != conjurCredentialToolID {
+func ResolveExecutionContext(plan planner.Plan) (runs.ExecutionContext, error) {
+	if plan.PackID != PackID || plan.ToolID != ToolID {
 		return runs.ExecutionContext{}, fmt.Errorf("no reviewed mutation context resolver for %s/%s", plan.PackID, plan.ToolID)
 	}
 

@@ -133,7 +133,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Choose, verify, and run' })).toBeInTheDocument();
     expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   test('shows a recoverable session-expired state for unauthenticated requests', async () => {
@@ -197,7 +197,8 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Retry status check' }));
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Choose, verify, and run' })).toBeInTheDocument());
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // status (failed), status, tasks, tools, dedicated platforms
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   test('renders sanitized unavailable-tool diagnostics without executable authority', async () => {

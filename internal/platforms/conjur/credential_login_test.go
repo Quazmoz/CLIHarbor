@@ -1,4 +1,4 @@
-package app
+package conjur
 
 import (
 	"context"
@@ -31,9 +31,9 @@ func (f *fakeConjurLoginClient) Login(identity, secret string) ([]byte, error) {
 
 func readyConjurSnapshot() discovery.Snapshot {
 	return discovery.NewSnapshot([]discovery.ToolState{{
-		PackID:      conjurCredentialPackID,
+		PackID:      PackID,
 		PackVersion: "0.1.2",
-		ToolID:      conjurCredentialToolID,
+		ToolID:      ToolID,
 		Status:      discovery.StatusReady,
 		Version:     "9.3.1",
 	}})
@@ -50,20 +50,20 @@ func supportedConjurConfig() conjurapi.Config {
 }
 
 func TestConjurCredentialCapabilityActivatesAfterManagedInstall(t *testing.T) {
-	service := newConjurCredentialLoginService(discovery.NewSnapshot(nil))
+	service := NewCredentialLoginService(discovery.NewSnapshot(nil))
 	service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
 	if _, _, _, available := service.Capability(); available {
 		t.Fatal("missing Conjur advertised credential capability")
 	}
 	service.activateTool(readyConjurSnapshot().Tools()[0])
 	packID, toolID, capability, available := service.Capability()
-	if !available || packID != conjurCredentialPackID || toolID != conjurCredentialToolID || capability.Method != server.CredentialLoginMethodConjurPassword {
+	if !available || packID != PackID || toolID != ToolID || capability.Method != server.CredentialLoginMethodConjurPassword {
 		t.Fatal("installed Conjur did not expose its reviewed sign-in capability")
 	}
 }
 
 func TestConjurCredentialLoginUsesVendorClientWithoutExposingReturnedAPIKey(t *testing.T) {
-	service := newConjurCredentialLoginService(readyConjurSnapshot())
+	service := NewCredentialLoginService(readyConjurSnapshot())
 	config := supportedConjurConfig()
 	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
 	returned := []byte("sensitive-returned-api-key")
@@ -76,8 +76,8 @@ func TestConjurCredentialLoginUsesVendorClientWithoutExposingReturnedAPIKey(t *t
 	}
 
 	err := service.Login(context.Background(), server.CredentialLoginRequest{
-		PackID:   conjurCredentialPackID,
-		ToolID:   conjurCredentialToolID,
+		PackID:   PackID,
+		ToolID:   ToolID,
 		Identity: "alice",
 		Secret:   "correct horse battery staple",
 	})
@@ -95,14 +95,14 @@ func TestConjurCredentialLoginUsesVendorClientWithoutExposingReturnedAPIKey(t *t
 }
 
 func TestConjurCredentialLoginSanitizesRejectedCredentialErrors(t *testing.T) {
-	service := newConjurCredentialLoginService(readyConjurSnapshot())
+	service := NewCredentialLoginService(readyConjurSnapshot())
 	service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
 	service.newClient = func(conjurapi.Config) (conjurLoginClient, error) {
 		return &fakeConjurLoginClient{err: &response.ConjurError{Code: 401, Message: "server echoed password super-secret"}}, nil
 	}
 
 	err := service.Login(context.Background(), server.CredentialLoginRequest{
-		PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID, Identity: "alice", Secret: "super-secret",
+		PackID: PackID, ToolID: ToolID, Identity: "alice", Secret: "super-secret",
 	})
 	var loginErr *server.CredentialLoginError
 	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginRejected {
@@ -126,7 +126,7 @@ func TestConjurCredentialLoginTreatsNonCredentialFailuresAsUnavailable(t *testin
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service := NewCredentialLoginService(readyConjurSnapshot())
 			service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
 			returned := append([]byte(nil), tc.result...)
 			service.newClient = func(conjurapi.Config) (conjurLoginClient, error) {
@@ -134,7 +134,7 @@ func TestConjurCredentialLoginTreatsNonCredentialFailuresAsUnavailable(t *testin
 			}
 
 			err := service.Login(context.Background(), server.CredentialLoginRequest{
-				PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID, Identity: "alice", Secret: "super-secret",
+				PackID: PackID, ToolID: ToolID, Identity: "alice", Secret: "super-secret",
 			})
 			var loginErr *server.CredentialLoginError
 			if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnavailable {
@@ -169,7 +169,7 @@ func TestConjurCredentialLoginRejectsUnsupportedModesAndStorage(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service := NewCredentialLoginService(readyConjurSnapshot())
 			// This table covers configurations that are unsupported by the
 			// browser password bridge. Vendor-owned login is tested separately.
 			service.interactiveSupported = func() bool { return false }
@@ -187,7 +187,7 @@ func TestConjurCredentialLoginRejectsUnsupportedModesAndStorage(t *testing.T) {
 			}
 
 			err := service.Login(context.Background(), server.CredentialLoginRequest{
-				PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID, Identity: "alice", Secret: "secret",
+				PackID: PackID, ToolID: ToolID, Identity: "alice", Secret: "secret",
 			})
 			var loginErr *server.CredentialLoginError
 			if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
@@ -255,7 +255,7 @@ func TestConjurCredentialCapabilityOnlyOffersSetupForSafeWritablePartialConfig(t
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service := NewCredentialLoginService(readyConjurSnapshot())
 			service.loadConfig = func() (conjurapi.Config, error) { return tc.config, nil }
 			_, _, capability, available := service.Capability()
 			if available != tc.wantAvailable {
@@ -269,13 +269,13 @@ func TestConjurCredentialCapabilityOnlyOffersSetupForSafeWritablePartialConfig(t
 }
 
 func TestConjurCredentialLoginCapabilityRequiresReadyTool(t *testing.T) {
-	service := newConjurCredentialLoginService(discovery.NewSnapshot(nil))
+	service := NewCredentialLoginService(discovery.NewSnapshot(nil))
 	service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
 	if _, _, _, available := service.Capability(); available {
 		t.Fatal("credential login advertised without a ready Conjur tool")
 	}
 	err := service.Login(context.Background(), server.CredentialLoginRequest{
-		PackID: conjurCredentialPackID, ToolID: conjurCredentialToolID, Identity: "alice", Secret: "secret",
+		PackID: PackID, ToolID: ToolID, Identity: "alice", Secret: "secret",
 	})
 	var loginErr *server.CredentialLoginError
 	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
@@ -294,9 +294,9 @@ func readyConjurSnapshotWithExecutable(t *testing.T) discovery.Snapshot {
 		t.Fatal(err)
 	}
 	return discovery.NewSnapshot([]discovery.ToolState{{
-		PackID:             conjurCredentialPackID,
+		PackID:             PackID,
 		PackVersion:        "0.2.0",
-		ToolID:             conjurCredentialToolID,
+		ToolID:             ToolID,
 		Status:             discovery.StatusReady,
 		Path:               path,
 		ExecutableName:     filepath.Base(path),
@@ -306,12 +306,12 @@ func readyConjurSnapshotWithExecutable(t *testing.T) discovery.Snapshot {
 }
 
 func TestConjurCredentialCapabilityOffersFirstRunSetupAndRefreshesAfterConfiguration(t *testing.T) {
-	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
 	config := conjurapi.Config{}
 	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
 
 	packID, toolID, capability, available := service.Capability()
-	if !available || packID != conjurCredentialPackID || toolID != conjurCredentialToolID {
+	if !available || packID != PackID || toolID != ToolID {
 		t.Fatalf("setup capability = %q/%q %#v available=%t", packID, toolID, capability, available)
 	}
 	if capability.Method != server.CredentialLoginMethodConjurPassword || !capability.SetupRequired {
@@ -326,7 +326,7 @@ func TestConjurCredentialCapabilityOffersFirstRunSetupAndRefreshesAfterConfigura
 }
 
 func TestConjurCredentialConfigurationUsesReviewedVendorInitArgumentsOnly(t *testing.T) {
-	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
 	config := conjurapi.Config{}
 	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
 
@@ -340,8 +340,8 @@ func TestConjurCredentialConfigurationUsesReviewedVendorInitArgumentsOnly(t *tes
 	}
 
 	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
-		PackID:       conjurCredentialPackID,
-		ToolID:       conjurCredentialToolID,
+		PackID:       PackID,
+		ToolID:       ToolID,
 		ApplianceURL: "https://conjur.example.test",
 		Account:      "engineering",
 		AuthnType:    "authn",
@@ -364,7 +364,7 @@ func TestConjurCredentialConfigurationUsesReviewedVendorInitArgumentsOnly(t *tes
 }
 
 func TestConjurCredentialConfigurationReconcilesTimeoutAfterSuccessfulWrite(t *testing.T) {
-	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
 	config := conjurapi.Config{}
 	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
 	service.runInit = func(_ context.Context, _ string, _ []string) error {
@@ -374,8 +374,8 @@ func TestConjurCredentialConfigurationReconcilesTimeoutAfterSuccessfulWrite(t *t
 	}
 
 	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
-		PackID:       conjurCredentialPackID,
-		ToolID:       conjurCredentialToolID,
+		PackID:       PackID,
+		ToolID:       ToolID,
 		ApplianceURL: "https://conjur.example.test",
 		Account:      "engineering",
 		AuthnType:    "authn",
@@ -386,7 +386,7 @@ func TestConjurCredentialConfigurationReconcilesTimeoutAfterSuccessfulWrite(t *t
 }
 
 func TestConjurCredentialConfigurationRequiresRequestedStateAfterInit(t *testing.T) {
-	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
 	config := conjurapi.Config{}
 	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
 	service.runInit = func(_ context.Context, _ string, _ []string) error {
@@ -396,8 +396,8 @@ func TestConjurCredentialConfigurationRequiresRequestedStateAfterInit(t *testing
 	}
 
 	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
-		PackID:       conjurCredentialPackID,
-		ToolID:       conjurCredentialToolID,
+		PackID:       PackID,
+		ToolID:       ToolID,
 		ApplianceURL: "https://conjur.example.test",
 		Account:      "engineering",
 		AuthnType:    "authn",
@@ -409,7 +409,7 @@ func TestConjurCredentialConfigurationRequiresRequestedStateAfterInit(t *testing
 }
 
 func TestConjurCredentialConfigurationAddsOnlyReviewedLDAPFlags(t *testing.T) {
-	service := newConjurCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
 	config := conjurapi.Config{}
 	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
 
@@ -423,8 +423,8 @@ func TestConjurCredentialConfigurationAddsOnlyReviewedLDAPFlags(t *testing.T) {
 	}
 
 	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
-		PackID:       conjurCredentialPackID,
-		ToolID:       conjurCredentialToolID,
+		PackID:       PackID,
+		ToolID:       ToolID,
 		ApplianceURL: "https://conjur.example.test",
 		Account:      "engineering",
 		AuthnType:    "ldap",
@@ -475,7 +475,7 @@ func TestConjurCredentialCapabilityOffersVendorOwnedLoginForReviewedModes(t *tes
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service := NewCredentialLoginService(readyConjurSnapshot())
 			service.interactiveSupported = func() bool { return true }
 			config := supportedConjurConfig()
 			tc.mutate(&config)
@@ -485,7 +485,7 @@ func TestConjurCredentialCapabilityOffersVendorOwnedLoginForReviewedModes(t *tes
 			if !available {
 				t.Fatal("reviewed vendor-owned login was not advertised")
 			}
-			if packID != conjurCredentialPackID || toolID != conjurCredentialToolID {
+			if packID != PackID || toolID != ToolID {
 				t.Fatalf("capability target = %s/%s", packID, toolID)
 			}
 			if capability.Method != server.CredentialLoginMethodConjurVendorLogin || capability.SetupRequired {
@@ -496,7 +496,7 @@ func TestConjurCredentialCapabilityOffersVendorOwnedLoginForReviewedModes(t *tes
 }
 
 func TestConjurCredentialCapabilityRejectsInvalidVendorConfiguration(t *testing.T) {
-	service := newConjurCredentialLoginService(readyConjurSnapshot())
+	service := NewCredentialLoginService(readyConjurSnapshot())
 	service.interactiveSupported = func() bool { return true }
 	config := supportedConjurConfig()
 	config.AuthnType = "cloud"
@@ -512,7 +512,7 @@ func TestConjurCredentialCapabilityRejectsInvalidVendorConfiguration(t *testing.
 func TestConjurCredentialCapabilityDoesNotInventVendorLoginForUnsupportedModes(t *testing.T) {
 	for _, authnType := range []string{"iam", "azure", "gcp", "cert"} {
 		t.Run(authnType, func(t *testing.T) {
-			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service := NewCredentialLoginService(readyConjurSnapshot())
 			service.interactiveSupported = func() bool { return true }
 			config := supportedConjurConfig()
 			config.AuthnType = authnType
@@ -568,7 +568,7 @@ func TestConjurVendorOwnedLoginUsesModeAppropriatePresentationAndFixedArgv(t *te
 				t.Fatal(err)
 			}
 
-			service := newConjurCredentialLoginService(readyConjurSnapshot())
+			service := NewCredentialLoginService(readyConjurSnapshot())
 			service.toolPath = executable
 			service.toolIdentity = identity
 			service.interactiveSupported = func() bool { return true }
@@ -599,8 +599,8 @@ func TestConjurVendorOwnedLoginUsesModeAppropriatePresentationAndFixedArgv(t *te
 			}
 
 			err = service.LaunchInteractive(context.Background(), server.CredentialInteractiveLoginRequest{
-				PackID: conjurCredentialPackID,
-				ToolID: conjurCredentialToolID,
+				PackID: PackID,
+				ToolID: ToolID,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -630,7 +630,7 @@ func TestConjurVendorOwnedLoginRevalidatesExecutableIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	service := newConjurCredentialLoginService(readyConjurSnapshot())
+	service := NewCredentialLoginService(readyConjurSnapshot())
 	service.toolPath = executable
 	service.toolIdentity = identity
 	service.interactiveSupported = func() bool { return true }
@@ -648,8 +648,8 @@ func TestConjurVendorOwnedLoginRevalidatesExecutableIdentity(t *testing.T) {
 	}
 
 	err = service.LaunchInteractive(context.Background(), server.CredentialInteractiveLoginRequest{
-		PackID: conjurCredentialPackID,
-		ToolID: conjurCredentialToolID,
+		PackID: PackID,
+		ToolID: ToolID,
 	})
 	var loginErr *server.CredentialLoginError
 	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnavailable {

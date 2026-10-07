@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { VendorSessionCard } from './AuthenticationPage';
+import { VendorSessionCard, type DedicatedSignInLink } from './AuthenticationPage';
 import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
@@ -14,6 +14,8 @@ interface OverviewPageProps {
   preferences: TaskPreferences;
   onNavigate: (destination: OverviewDestination) => void;
   onOpenTask: (taskKey: string) => void;
+  /** Tools owned by a dedicated platform sign in from that platform's section. */
+  dedicatedSignInFor?: (tool: ToolDiagnostic) => DedicatedSignInLink | undefined;
 }
 
 function taskKey(task: Task): string {
@@ -51,6 +53,7 @@ export function OverviewPage({
   preferences,
   onNavigate,
   onOpenTask,
+  dedicatedSignInFor,
 }: OverviewPageProps) {
   const readyToolCount = tools.filter((tool) => tool.status === 'ready').length;
   const attentionToolCount = tools.length - readyToolCount;
@@ -191,6 +194,7 @@ export function OverviewPage({
                 tool={tool}
                 onOpenTasks={() => onNavigate('tasks')}
                 onOpenDiagnostics={() => onNavigate('diagnostics')}
+                dedicated={dedicatedSignInFor?.(tool)}
               />
             ))}
           </div>

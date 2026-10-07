@@ -1,4 +1,4 @@
-package app
+package conjur
 
 import (
 	"testing"
@@ -16,7 +16,7 @@ func TestMutationExecutionContextExposesOnlyReviewedNonSecretConjurFields(t *tes
 	config.JWTFilePath = "SECRET_PATH_MUST_NOT_APPEAR"
 	loadMutationConjurConfig = func() (conjurapi.Config, error) { return config, nil }
 
-	context, err := resolveMutationExecutionContext(planner.Plan{
+	context, err := ResolveExecutionContext(planner.Plan{
 		PackID: "cyberark-conjur-v9", ToolID: "conjur", CommandID: "issuer-delete",
 	})
 	if err != nil {
@@ -46,15 +46,15 @@ func TestLDAPMutationTasksAreHiddenAndBlockedForSaaS(t *testing.T) {
 	config.ServiceID = "corp"
 	loadMutationConjurConfig = func() (conjurapi.Config, error) { return config, nil }
 
-	if !mutationTaskAvailable("cyberark-conjur-v9", "ldap-group-create") {
+	if !TaskAvailable("cyberark-conjur-v9", "ldap-group-create") {
 		t.Fatal("reviewed non-SaaS LDAP task was hidden")
 	}
 
 	config.Environment = conjurapi.EnvironmentSaaS
-	if mutationTaskAvailable("cyberark-conjur-v9", "ldap-group-create") {
+	if TaskAvailable("cyberark-conjur-v9", "ldap-group-create") {
 		t.Fatal("SaaS LDAP task was exposed")
 	}
-	if _, err := resolveMutationExecutionContext(planner.Plan{
+	if _, err := ResolveExecutionContext(planner.Plan{
 		PackID: "cyberark-conjur-v9", ToolID: "conjur", CommandID: "ldap-group-delete",
 	}); err == nil {
 		t.Fatal("SaaS LDAP mutation context unexpectedly resolved")
@@ -62,7 +62,7 @@ func TestLDAPMutationTasksAreHiddenAndBlockedForSaaS(t *testing.T) {
 }
 
 func TestMutationExecutionContextFailsClosedForUnreviewedTools(t *testing.T) {
-	if _, err := resolveMutationExecutionContext(planner.Plan{
+	if _, err := ResolveExecutionContext(planner.Plan{
 		PackID: "other", ToolID: "other", CommandID: "delete",
 	}); err == nil {
 		t.Fatal("unreviewed mutation tool unexpectedly received execution context")
