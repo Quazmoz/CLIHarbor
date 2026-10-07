@@ -125,6 +125,21 @@ func TestRunTimeoutIsBounded(t *testing.T) {
 	}
 }
 
+func TestRunLingeringDescendantDoesNotHangRun(t *testing.T) {
+	t.Setenv(helperEnv, "1")
+	started := time.Now()
+	result, err := testExecutor(5*time.Second, 1<<20).Run(t.Context(), helperPlan(t, "spawn-orphan"), &eventCollector{})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Status != StatusExited || result.ExitCode != 0 {
+		t.Fatalf("result = %s/%d, want exited/0", result.Status, result.ExitCode)
+	}
+	if elapsed := time.Since(started); elapsed > 4*time.Second {
+		t.Fatalf("run took %s; a lingering descendant must not hold it open", elapsed)
+	}
+}
+
 func TestRunFailsClosedWhenOutputLimitExceeded(t *testing.T) {
 	t.Setenv(helperEnv, "1")
 	executor := testExecutor(2*time.Second, 64)
