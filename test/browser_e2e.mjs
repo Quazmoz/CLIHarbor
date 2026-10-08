@@ -541,21 +541,20 @@ async function main() {
     await capture('overview');
 
     stage('quick task navigation is a modal, not an execution shortcut');
-    assert.equal(await page.evaluate('(() => {
-      const trigger = document.querySelector(".quick-switch-trigger");
-      if (!trigger || trigger.disabled) return false;
-      trigger.click();
-      return true;
-    })()'), true);
+    assert.equal(await page.evaluate('(() => {' +
+      'const trigger = document.querySelector(".quick-switch-trigger");' +
+      'if (!trigger || trigger.disabled) return false;' +
+      'trigger.click(); return true;' +
+    '})()'), true);
     await waitJS(page, 'quick switcher ready',
       'document.querySelector(".task-switcher[open]") !== null && document.activeElement?.id === "task-switcher-input"');
-    await page.evaluate('(() => {
-      const input = document.querySelector("#task-switcher-input");
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
-      setter.call(input, "inspect fixture");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-    })()');
+    await page.evaluate('(() => {' +
+      'const input = document.querySelector("#task-switcher-input");' +
+      'const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;' +
+      'setter.call(input, "inspect fixture");' +
+      'input.dispatchEvent(new Event("input", { bubbles: true }));' +
+      'input.dispatchEvent(new Event("change", { bubbles: true }));' +
+    '})()');
     await waitJS(page, 'approved task search results',
       'document.querySelectorAll(".task-switcher-item").length > 0 && document.querySelector(".task-switcher-item")?.textContent.includes("Inspect fixture argv")');
     await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
