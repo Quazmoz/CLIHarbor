@@ -597,7 +597,7 @@ The browser may optionally request a custom install base directory. This is not 
 
 `packs/conjur/conjur-v9.yaml` is the first real vendor pack derived from authoritative upstream evidence.
 
-It is version-gated to the documented Conjur CLI 9.x contract and exposes only verified read-only/non-secret workflows using `vendor-session` authentication. See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md) for provenance, included commands, and the managed-laptop qualification boundary.
+It is version-gated to the documented Conjur CLI 9.x contract and exposes reviewed non-secret reads plus narrowly scoped, approval-gated change/destructive workflows using `vendor-session` authentication. See [Conjur CLI 9.x Integration](CONJUR_INTEGRATION.md) for provenance, included commands, and the managed-laptop qualification boundary.
 
 ## 23. Extension rule
 
@@ -611,4 +611,4 @@ If a feature would turn the pack/browser into a generic shell or move credential
 
 ## Platform expansion and local testing packs
 
-The existing `cliharbor.dev/v1` schema already declares `darwin`; no schema change is needed. Conjur pack version `0.3.0` adds macOS using the existing reviewed Conjur 9.x command/version contracts; its managed artifact remains Windows amd64 only. Docker and kubectl already declare macOS. Example pack version `0.2.0` now pairs with `cmd/cliharbor-fixture`: scalar JSON cards, finite streaming/cancellation, and a deliberate non-zero exit. It is explicit-local testing configuration and is not in the built-in product pack set.
+The existing `cliharbor.dev/v1` schema already declares `darwin`; no schema change is needed. The Conjur integration initially added macOS in pack version `0.3.0` using the existing reviewed Conjur 9.x command/version contracts; its managed artifact remains Windows amd64 only. Docker and kubectl already declare macOS. Example pack version `0.2.0` now pairs with `cmd/cliharbor-fixture`: scalar JSON cards, finite streaming/cancellation, and a deliberate non-zero exit. It is explicit-local testing configuration and is not in the built-in product pack set.

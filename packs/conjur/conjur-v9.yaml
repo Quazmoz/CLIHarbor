@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: cyberark-conjur-v9
   name: Conjur — CyberArk / Idira Secrets Manager CLI 9.x
-  version: 0.5.0
+  version: 0.6.0
   description: >-
     Reviewed Conjur CLI workflows verified from the official cyberark/conjur-cli-go
     v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
@@ -528,6 +528,36 @@ commands:
       requiresAuth: true
       authMode: vendor-session
 
+  ldap-group-list:
+    name: List LDAP group mappings
+    description: List LDAP group mapping names for an explicitly selected Conjur LDAP authenticator service.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: service-id
+        type: string
+        label: LDAP authenticator service ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+    argv:
+      - literal: authn-ldap
+      - literal: groups
+      - literal: list
+      - flag:
+          name: --id
+          valueFrom: service-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
   ldap-group-create:
     name: Create LDAP group mapping
     description: Map one LDAP group to one or more Conjur roles. This can grant access to multiple roles for every member of the LDAP group.
@@ -657,6 +687,36 @@ commands:
       - literal: show
       - positional:
           valueFrom: username
+      - flag:
+          name: --id
+          valueFrom: service-id
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  ldap-user-list:
+    name: List LDAP user mappings
+    description: List LDAP user mapping names for an explicitly selected Conjur LDAP authenticator service.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: service-id
+        type: string
+        label: LDAP authenticator service ID
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 256
+          disallowLeadingDash: true
+    argv:
+      - literal: authn-ldap
+      - literal: users
+      - literal: list
       - flag:
           name: --id
           valueFrom: service-id

@@ -16,6 +16,10 @@ A local browser UI for safely exposing curated workflows from official command-l
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
+## Output inspection and copying
+
+Completed runs provide a **Formatted** view for validated structured fields or bounded JSON stdout, with searchable individual values and copy buttons for resource IDs. Switch to **Raw** at any time to inspect the original stdout and stderr independently. No output is sent to an external service or treated as an executable command. An inline CLIHarbor favicon is embedded in the Windows/macOS local UI.
+
 ## Two product areas
 
 CLIHarbor separates the **generic CLI workspace** from **dedicated CLI platforms**:

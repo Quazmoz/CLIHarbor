@@ -69,6 +69,19 @@ func TestProductionHandlerRejectsUnknownAndTraversalPaths(t *testing.T) {
 	}
 }
 
+func TestProductionHandlerServesFavicon(t *testing.T) {
+	t.Parallel()
+	handler, err := ProductionHandler()
+	if err != nil { t.Fatal(err) }
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(method, "http://127.0.0.1/favicon.svg", nil))
+		if rec.Code != http.StatusOK { t.Fatalf("%s favicon status: %d", method, rec.Code) }
+		if !strings.Contains(rec.Header().Get("Content-Type"), "image/svg+xml") { t.Fatalf("unexpected content type: %s", rec.Header().Get("Content-Type")) }
+		if method == http.MethodGet && !strings.Contains(rec.Body.String(), "<svg") { t.Fatal("favicon SVG missing") }
+	}
+}
+
 func TestProductionHandlerServesGeneratedAssets(t *testing.T) {
 	t.Parallel()
 

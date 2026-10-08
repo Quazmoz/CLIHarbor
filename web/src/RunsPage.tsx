@@ -10,7 +10,7 @@ import {
 } from './api/runs';
 import type { Task } from './api/tasks';
 import { runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
-import { StructuredResultView } from './StructuredResultView';
+import { OutputExplorer } from './OutputExplorer';
 
 interface RunsPageProps {
   tasks: Task[];
@@ -358,31 +358,14 @@ export function RunsPage({ tasks, onOpenTasks }: RunsPageProps) {
 
                   {detail.failure && <FailureNotice failure={detail.failure} />}
 
-                  {detail.structured && (
-                    <section className="structured-result" aria-labelledby="history-structured-heading">
-                      <h3 id="history-structured-heading">Structured result</h3>
-                      {detail.structured.status === 'available' ? (
-                        <StructuredResultView fields={detail.structured.fields ?? []} />
-                      ) : (
-                        <p className="parser-warning">
-                          Structured result status: <code>{detail.structured.status}</code>
-                          {detail.structured.error ? (
-                            <>
-                              {' '}· <code>{detail.structured.error}</code>
-                            </>
-                          ) : null}
-                          . Raw stdout and stderr remain available below.
-                        </p>
-                      )}
-                    </section>
+                  {detail.structured && <h3 className="structured-result-heading">Structured result</h3>}
+                  {detail.structured?.status === 'invalid' && (
+                    <p className="parser-warning" role="status">Structured result validation failed. Inspect raw output for the original evidence.</p>
                   )}
-
-                  <details className="raw-output" open={detail.structured?.status !== 'available'}>
-                    <summary>
-                      <span>Raw process output</span>
-                      <span className="raw-output-note">loaded only for this selected run</span>
-                    </summary>
-                    <div className="output-grid">
+                  <OutputExplorer key={detail.runId}
+                    stdout={output.stdout} stderr={output.stderr}
+                    structured={detail.structured} live={detail.status === 'running'}
+                    rawOutput={<div className="output-grid">
                       <section aria-labelledby="history-stdout-heading">
                         <h3 id="history-stdout-heading">stdout</h3>
                         <pre tabIndex={0}>{output.stdout || 'No stdout retained.'}</pre>
@@ -391,8 +374,7 @@ export function RunsPage({ tasks, onOpenTasks }: RunsPageProps) {
                         <h3 id="history-stderr-heading">stderr</h3>
                         <pre tabIndex={0}>{output.stderr || 'No stderr retained.'}</pre>
                       </section>
-                    </div>
-                  </details>
+                    </div>} />
                 </>
               )}
             </>
