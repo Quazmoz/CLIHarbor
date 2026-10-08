@@ -745,3 +745,125 @@ func TestConjurCredentialLoginSingleFlightRejectsConcurrentAttempt(t *testing.T)
 		t.Fatalf("first login failed: %v", err)
 	}
 }
+
+func configuredSaaSTestConfig(url string) conjurapi.Config {
+	config := supportedConjurConfig()
+	config.Environment = conjurapi.EnvironmentSaaS
+	config.ApplianceURL = url
+	config.Account = "conjur"
+	config.AuthnType = "cloud"
+	config.ServiceID = "cyberark"
+	return config
+}
+
+func TestConjurSaaSURLValidationRejectsIdentityPortalAndUnsafeEndpoints(t *testing.T) {
+	for _, input := range []string{
+		"https://tenant.secretsmgr.cyberark.cloud",
+		"https://tenant.secretsmgr.cyberark.cloud/",
+		"https://tenant.secretsmgr.cyberark.cloud/api",
+	} {
+		if want, ok := canonicalConjurSaaSURL(input); !ok || want != "https://tenant.secretsmgr.cyberark.cloud/api" {
+			t.Fatalf("canonicalize %q = %q, %v", input, want, ok)
+		}
+	}
+	for _, unsafe := range []string{
+		"https://tenant.cyberark.cloud",
+		"https://tenant.secretsmgr.cyberark.cloud.evil.test",
+		"https://user:password@tenant.secretsmgr.cyberark.cloud",
+		"http://tenant.secretsmgr.cyberark.cloud",
+		"https://tenant.secretsmgr.cyberark.cloud:443",
+		"https://tenant.secretsmgr.cyberark.cloud/custom",
+		"https://tenant.secretsmgr.cyberark.cloud?token=one",
+		"https://tenant.secretsmgr.cyberark.cloud#fragment",
+		"https://tenant.secretsmgr.cyberark.cloud/%61pi",
+		"https://tenant.secretsmgr.cyberark.cloud\\@evil.test",
+		"https://-invalid.secretsmgr.cyberark.cloud",
+	} {
+		if got, ok := canonicalConjurSaaSURL(unsafe); ok {
+			t.Fatalf("unsafe URL %q accepted as %q", unsafe, got)
+		}
+	}
+}
+
+func TestConjurSaaSConnectionReportsVendorEndpointNotIdentityShortcut(t *testing.T) {
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := configuredSaaSTestConfig("https://tenant.secretsmgr.cyberark.cloud/api")
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+	details, err := service.Connection()
+	if err != nil { t.Fatal(err) }
+	if details.Environment != "saas" || details.ApplianceURL != config.ApplianceURL ||
+		details.Account != "conjur" || !details.Configurable {
+		t.Fatalf("unexpected connection summary: %#v", details)
+	}
+}
+
+func TestConjurSaaSFirstRunUsesVendorInitWithoutForceAndReconciles(t *testing.T) {
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := conjurapi.Config{}
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+	var args []string
+	service.runInit = func(_ context.Context, _ string, argv []string) error {
+		args = append([]string(nil), argv...)
+		config = configuredSaaSTestConfig("https://tenant.secretsmgr.cyberark.cloud/api")
+		return context.DeadlineExceeded
+	}
+	request := server.CredentialConfigurationRequest{
+		PackID: PackID, ToolID: ToolID, Environment: "saas",
+		ApplianceURL: "https://tenant.secretsmgr.cyberark.cloud",
+		Account: "conjur", AuthnType: "cloud",
+	}
+	if err := service.Configure(context.Background(), request); err != nil { t.Fatal(err) }
+	if want := []string{"init", "saas", "--url", "https://tenant.secretsmgr.cyberark.cloud"}; !reflect.DeepEqual(args, want) {
+		t.Fatalf("vendor arguments = %q want %q", args, want)
+	}
+}
+
+func TestConjurSaaSChangeRequiresCASAndExplicitForce(t *testing.T) {
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := configuredSaaSTestConfig("https://old.secretsmgr.cyberark.cloud/api")
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+	var args []string
+	service.runInit = func(_ context.Context, _ string, argv []string) error {
+		args = append([]string(nil), argv...)
+		config = configuredSaaSTestConfig("https://new.secretsmgr.cyberark.cloud/api")
+		return nil
+	}
+	request := server.CredentialConfigurationRequest{
+		PackID: PackID, ToolID: ToolID, Environment: "saas", Account: "conjur", AuthnType: "cloud",
+		ApplianceURL: "https://new.secretsmgr.cyberark.cloud",
+	}
+	assertUnsupported := func() {
+		t.Helper()
+		err := service.Configure(context.Background(), request)
+		var loginErr *server.CredentialLoginError
+		if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
+			t.Fatalf("unsafe replacement = %v, want unsupported", err)
+		}
+		if len(args) != 0 { t.Fatalf("init was run without confirmation: %q", args) }
+	}
+	assertUnsupported()
+	request.ExpectedApplianceURL = "https://other.secretsmgr.cyberark.cloud/api"
+	assertUnsupported()
+	request.ExpectedApplianceURL = "https://old.secretsmgr.cyberark.cloud/api"
+	if err := service.Configure(context.Background(), request); err != nil { t.Fatal(err) }
+	want := []string{"init", "saas", "--url", "https://new.secretsmgr.cyberark.cloud", "--force"}
+	if !reflect.DeepEqual(args, want) { t.Fatalf("argv = %q, want %q", args, want) }
+}
+
+func TestConjurSaaSRejectsNonSaaSModeReplacement(t *testing.T) {
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
+	service.runInit = func(_ context.Context, _ string, _ []string) error {
+		t.Fatal("must not overwrite self-hosted vendor config")
+		return nil
+	}
+	err := service.Configure(context.Background(), server.CredentialConfigurationRequest{
+		PackID: PackID, ToolID: ToolID, Environment: "saas", Account: "conjur",
+		AuthnType: "cloud", ApplianceURL: "https://tenant.secretsmgr.cyberark.cloud",
+		ExpectedApplianceURL: "https://conjur.example.test",
+	})
+	var loginErr *server.CredentialLoginError
+	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
+		t.Fatalf("unsafe replacement %v", err)
+	}
+}
