@@ -54,7 +54,7 @@ export function PlatformPage({ platform, tasks, onOpenFeature, onOpenDiagnostics
         ))}
       </ul>
       {platform.id === 'conjur' && (
-        <div className="platform-toolbox" aria-label="Conjur toolbox">
+        <section className="platform-toolbox" aria-label="Conjur toolbox">
           <div className="route-heading">
             <p className="status-label">Conjur toolbox</p>
             <h2>Quick tools</h2>
@@ -78,7 +78,7 @@ export function PlatformPage({ platform, tasks, onOpenFeature, onOpenDiagnostics
               </section>
             );
           })}
-        </div>
+        </section>
       )}
     </section>
   );
