@@ -9,8 +9,8 @@ const TOOL = 'conjur';
 const PAGE_SIZES = [25, 50, 100] as const;
 const KINDS = ['all', 'variable', 'policy', 'host', 'group', 'user', 'layer', 'webservice', 'host_factory'] as const;
 const PRIVILEGES = ['read', 'write', 'execute'] as const;
-const READ_COMMANDS = new Set(['whoami', 'list-resources', 'resource-show', 'resource-permitted-roles',
-  'role-show', 'role-members', 'role-memberships']);
+const READ_COMMANDS = new Set(['whoami', 'list-resources', 'resource-permitted-roles',
+  'role-members', 'role-memberships']);
 const MAX_OUTPUT = 512 * 1024;
 const MAX_ROLE_ENTRIES = 1000;
 const MAX_PAGES = 4000;
@@ -37,29 +37,11 @@ export function parseConjurIDs(output: string, max: number, account?: string): s
   return [...new Set(parsed as string[])];
 }
 
-// Only intentionally approved metadata keys may leave the generic run output for this view.
-// Never render annotations, values, credentials, policy bodies, or arbitrary vendor fields.
-export function parseSafeMetadata(output: string, expectedID: string): Record<string, string> {
-  if (output.length > MAX_OUTPUT) throw new Error('Response exceeds the explorer output limit.');
-  let parsed: unknown;
-  try { parsed = JSON.parse(output); } catch { throw new Error('Conjur returned invalid JSON.'); }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('Conjur returned an unexpected resource shape.');
-  }
-  const record = parsed as Record<string, unknown>;
-  if (record.id !== expectedID) throw new Error('Resource identity changed in the response.');
-  const result: Record<string, string> = { id: expectedID };
-  for (const key of ['kind', 'owner']) {
-    const value = record[key];
-    if (value !== undefined) {
-      if (typeof value !== 'string' || value.length > 2048 ||
-          /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(value)) {
-        throw new Error('Conjur returned unsafe metadata.');
-      }
-      result[key] = value;
-    }
-  }
-  return result;
+// No arbitrary resource/role JSON is ever fetched or stored in run history here.
+// The kind is derived from a validated full ID, never from an untrusted annotation.
+export function metadataFromID(id: string): Record<string, string> {
+  if (!validConjurID(id)) throw new Error('Invalid resource identifier.');
+  return { id, kind: id.split(':', 3)[1] };
 }
 
 interface ContextEvidence {
@@ -227,8 +209,8 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
     setResourceID(id);
     void inspect(async (signal, account) => {
       if (!validConjurID(id, account)) throw new Error('Resource ID is not in the configured Conjur account.');
-      return { type: 'resource', id, metadata: parseSafeMetadata(
-        await runRead('resource-show', { 'resource-id': id }, signal), id) };
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      return { type: 'resource', id, metadata: metadataFromID(id) };
     });
   }
 
@@ -237,8 +219,8 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
     setRoleID(id);
     void inspect(async (signal, account) => {
       if (!validConjurID(id, account)) throw new Error('Role ID is not in the configured Conjur account.');
-      return { type: 'role', id, metadata: parseSafeMetadata(
-        await runRead('role-show', { 'role-id': id }, signal), id) };
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      return { type: 'role', id, metadata: metadataFromID(id) };
     });
   }
 
@@ -303,7 +285,7 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
           <label>Full resource ID
             <input value={resourceID} maxLength={2048} disabled={working} onChange={(event) => setResourceID(event.target.value)} placeholder="account:variable:path" />
           </label>
-          <button type="submit" disabled={working || !taskMap.has('resource-show')}>Inspect resource</button>
+          <button type="submit" disabled={working || !taskMap.has('whoami')}>Inspect resource</button>
           <label>Requested privilege
             <select value={privilege} disabled={working} onChange={(event) => setPrivilege(event.target.value as typeof privilege)}>
               {PRIVILEGES.map((entry) => <option key={entry}>{entry}</option>)}
@@ -315,7 +297,7 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
           <label>Full role ID
             <input value={roleID} maxLength={2048} disabled={working} onChange={(event) => setRoleID(event.target.value)} placeholder="account:group:name" />
           </label>
-          <button type="submit" disabled={working || !taskMap.has('role-show')}>Inspect role</button>
+          <button type="submit" disabled={working || !taskMap.has('whoami')}>Inspect role</button>
         </form>
       </div>
       <div className="platform-toolbox-grid">
@@ -371,9 +353,10 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
             onClick={() => browse(inventory.offset, inventory.kind as typeof kind, inventory.search, inventory.size)}>
             Back to inventory search</button>}
           <button type="button" className="secondary-button" onClick={() => {
-            onOpenTask(inspection.type === 'role' ? 'role-show' : 'resource-show',
-              { [inspection.type === 'role' ? 'role-id' : 'resource-id']: inspection.id });
-          }}>Open approved task</button>
+            onOpenTask(inspection.type === 'role' ? 'role-members' : 'resource-permitted-roles',
+              inspection.type === 'role' ? { 'role-id': inspection.id } :
+                { 'resource-id': inspection.id, privilege });
+          }}>Open read-only task form</button>
         </>}
         <button type="button" className="secondary-button" onClick={exportMetadata}>Export approved metadata only</button>
       </section>}
