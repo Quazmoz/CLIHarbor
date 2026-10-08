@@ -156,9 +156,9 @@ func runSecretAudit(t *testing.T, client *fakeSecretAuditClient, clientErr error
 
 func TestInventoryRegexNeverRetrievesSecretValues(t *testing.T) {
 	client := &fakeSecretAuditClient{
-		ids: []string{"acct:variable:app/prod/password", "acct:variable:app/dev/name", "acct:variable:app/PROD/token"},
+		ids:    []string{"acct:variable:app/prod/password", "acct:variable:app/dev/name", "acct:variable:app/PROD/token"},
 		values: map[string]string{"acct:variable:app/prod/password": secretSentinel},
-		errs: map[string]error{"acct:variable:app/prod/password": &response.ConjurError{Code: http.StatusForbidden}},
+		errs:   map[string]error{"acct:variable:app/prod/password": &response.ConjurError{Code: http.StatusForbidden}},
 	}
 	snapshot := runSecretAudit(t, client, nil, "high", server.SecretAuditRequest{
 		ScanType: "id-regex", Pattern: `(?i)(?:^|/)prod(?:/|$)`,
