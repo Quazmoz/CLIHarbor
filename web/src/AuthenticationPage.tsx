@@ -678,7 +678,7 @@ export function AuthenticationPage({
                 '/' +
                 (tool.credentialLogin?.method ?? 'external-login') +
                 '/' +
-                (tool.credentialLogin?.setupRequired ? 'setup' : 'configured') +
+                (tool.credentialLogin?.method === 'conjur-password' && tool.credentialLogin.setupRequired ? 'setup' : 'configured') +
                 '/' +
                 (tool.sessionCheck?.commandId ?? 'no-check')
               }
