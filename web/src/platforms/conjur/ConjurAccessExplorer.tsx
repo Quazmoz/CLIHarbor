@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Task } from '../../api/tasks';
-import { cancelRun, createRun, decodeRunOutput, fetchRun, type RunSnapshot } from '../../api/runs';
+import { cancelRun, createRun, decodeRunOutput, fetchRun } from '../../api/runs';
 import { fetchTools } from '../../api/tools';
 import { fetchSecretAudit } from './secretAuditApi';
 
