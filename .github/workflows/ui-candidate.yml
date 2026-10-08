@@ -36,5 +36,5 @@ jobs:
           for file in "${files[@]}"; do
             while IFS= read -r chunk; do
               printf 'UI_ASSET|%s|%s\n' "$file" "$chunk"
-            done < <(base64 -w 0 "$file" | fold -w 1000)
+            done < <(base64 -w 1000 "$file")
           done
