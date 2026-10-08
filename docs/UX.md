@@ -85,6 +85,8 @@ Search should match task names, descriptions, and CLI terminology. While a query
 
 The catalog opens for initial discovery, then collapses after explicit selection so configuration stays within reach. **Change task** reopens it; `/` also opens the catalog and focuses search. Selection moves focus to the configuration heading. Mobile runtime counts stay in one compact row.
 
+The persistent **Find task** action in the header opens a browser-native modal task switcher on any page. Operators can also open it with **Ctrl+K / Command+K**, except while typing in form controls or while a task is running. Search matches approved task name/description, pack, tool, command ID and risk, with space-separated terms; favorites and recent tasks appear first. At most 25 matches are rendered at once. Each result shows its owning CLI and read/change/destructive plus sign-in labels. Enter selects the first result; Tab navigates result buttons; Escape closes the modal. Selecting never invokes the CLI: it clears any per-tool filter, resets the existing task form/preview/approval state, and navigates to the shared Tasks configuration. No query, form values, credential, or output data is persisted by this switcher. When the task catalog is empty or a run is active, the trigger is unavailable; the local `/` task-catalog search shortcut cannot steal focus from the open modal. The modal fits laptop and 320 px viewports.
+
 ## 6. Task form
 
 A task page contains:
