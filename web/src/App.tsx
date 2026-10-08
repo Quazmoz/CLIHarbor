@@ -1192,6 +1192,9 @@ export function App() {
   const breadcrumbPlatform = route === 'tasks' && taskFilterPlatform !== undefined ? taskFilterPlatform : activePlatform;
   const inDedicatedJourney = route === 'platform' || route === 'platform-sign-in' || route === 'secret-audit' ||
     (route === 'tasks' && taskFilterPlatform !== undefined);
+  // An old dedicated deep link may be opened without a registered platform.
+  // Keep the generic section selected rather than highlighting a broken target.
+  const headerDedicatedJourney = inDedicatedJourney && breadcrumbPlatform !== undefined;
 
   const dedicatedSignInFor = (tool: ToolDiagnostic) => {
     const owner = platforms.find((platform) => platform.packId === tool.packId && platform.toolId === tool.toolId &&
@@ -1307,7 +1310,7 @@ export function App() {
           <nav className="section-switcher" aria-label="CLI sections">
             {activePlatform !== undefined ? (
               <a href={pathForRoute('platform', activePlatform.id)}
-                aria-current={inDedicatedJourney ? 'location' : undefined}
+                aria-current={headerDedicatedJourney ? 'location' : undefined}
                 onClick={(event) => {
                   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                   event.preventDefault();
@@ -1322,7 +1325,7 @@ export function App() {
                 <span>No integration loaded</span>
               </span>
             )}
-            <a href="/" aria-current={!inDedicatedJourney ? 'location' : undefined}
+            <a href="/" aria-current={!headerDedicatedJourney ? 'location' : undefined}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();
