@@ -18,9 +18,9 @@ import (
 
 // Feature IDs are a closed set shared with the frontend route table.
 const (
-	FeatureTasks         = "tasks"
-	FeatureSignIn        = "sign-in"
-	FeatureSecurityAudit = "security-audit"
+	FeatureTasks          = "tasks"
+	FeatureSignIn         = "sign-in"
+	FeatureSecurityAudit  = "security-audit"
 	FeatureAccessExplorer = "access-explorer"
 )
 
