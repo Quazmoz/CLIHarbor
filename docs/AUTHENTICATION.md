@@ -207,3 +207,9 @@ without restarting. The same vendor-owned credential and authoritative session
 check boundaries apply. GitHub CLI and kubectl installation only adds reviewed
 tasks; it does not log in, read credentials, or configure an account/cluster.
 See [Supported CLI catalog](CLI_CATALOG.md).
+
+## Optional CyberArk Identity portal shortcut
+
+The dedicated Conjur sign-in page includes an optional browser-only shortcut for the organization's **Identity portal**. Operators enter an HTTPS URL such as `https://companyname.cyberark.cloud` (placeholder only; not a default). The application validates a single tenant subdomain, excludes userinfo, ports, paths and query/fragment content, persists only that address to origin-scoped browser local storage, and opens it with `noopener noreferrer`. Invalid saved local data is rejected on every render. No identity provider credentials are collected by the shortcut.
+
+This intentionally does **not** change `.conjurrc`, override the upstream Conjur login endpoint, or infer CLI authentication from a portal visit. Upstream Conjur 9.3.1 derives the Identity service from its separately configured SaaS endpoint, typically `https://tenant.secretsmgr.cyberark.cloud/api`. The current in-app connection wizard configures only reviewed self-hosted `authn`/LDAP modes. Cloud initialization, reconfiguration of existing vendor contexts and MFA remain vendor-owned. This separation prevents using an Identity portal URL where a Conjur API endpoint is required.
