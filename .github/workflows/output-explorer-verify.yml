@@ -24,6 +24,7 @@ jobs:
       - run: npm test --prefix web
       - run: npm run build --prefix web
       - run: go run ./tools/task sync-web
+      - run: go run ./tools/task verify-web-sync
       - run: go test -timeout 3m ./internal/webui ./internal/platforms/... ./internal/packs/...
       - run: go run ./cmd/cliharbor pack validate ./packs/conjur/conjur-v9.yaml
       - run: go run ./cmd/cliharbor pack lint ./packs/conjur/conjur-v9.yaml
