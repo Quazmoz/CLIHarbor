@@ -154,6 +154,30 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByRole('heading', { name: /get your clis ready|what would you like to do/i })).toBeInTheDocument();
   });
 
+  test('unknown dedicated CLI links cannot silently select a different installed integration', async () => {
+    window.history.replaceState({}, '', '/dedicated/missing/sign-in');
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/platforms') return Promise.resolve(response(200, { platforms: [{
+        id: 'conjur', name: 'CyberArk Conjur', summary: 'Conjur workflows.',
+        packId: 'cyberark-conjur-v9', toolId: 'conjur', ready: true,
+        features: [{ id: 'sign-in', name: 'Sign in' }],
+      }] }));
+      return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
+    }));
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'No dedicated CLI is loaded' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Sign in to CyberArk Conjur' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
+    expect(document.title).toBe('Dedicated CLI unavailable · CLIHarbor');
+    fireEvent.click(screen.getByRole('link', { name: /Other CLIs/ }));
+    expect(window.location.pathname).toBe('/tools');
+    fireEvent.click(screen.getByRole('link', { name: /Built-in CLIs/ }));
+    expect(window.location.pathname).toBe('/dedicated/conjur');
+    expect(screen.getByRole('heading', { name: 'CyberArk Conjur' })).toBeInTheDocument();
+    expect(document.title).toBe('CyberArk Conjur · CLIHarbor');
+  });
+
   test('Conjur sign-in lives in the dedicated section; generic Authentication links to it', async () => {
     window.history.replaceState({}, '', '/authentication');
     const conjurTool = {
