@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { Task } from './api/tasks';
 import { TaskSwitcher } from './TaskSwitcher';
@@ -38,6 +38,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   if (showModalDescriptor) Object.defineProperty(HTMLDialogElement.prototype, 'showModal', showModalDescriptor);
   else Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
   if (closeDescriptor) Object.defineProperty(HTMLDialogElement.prototype, 'close', closeDescriptor);
