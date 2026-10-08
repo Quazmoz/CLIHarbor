@@ -32,7 +32,7 @@ type Options struct {
 	ToolOverrides      map[discovery.ToolRef]string
 	LoadDefaultPacks   bool
 	AutoProvisionTools bool
-	AuditPath string // Tests or explicitly reviewed deployments may override local audit storage.
+	AuditPath          string // Tests or explicitly reviewed deployments may override local audit storage.
 	ToolProvisioner    toolbootstrap.Provisioner
 }
 
@@ -57,17 +57,21 @@ func Run(ctx context.Context, options Options) error {
 	if auditPath == "" {
 		var pathErr error
 		auditPath, pathErr = audittrail.DefaultPath()
-		if pathErr!=nil { return fmt.Errorf("locate mutation audit trail: %w",pathErr) }
+		if pathErr != nil {
+			return fmt.Errorf("locate mutation audit trail: %w", pathErr)
+		}
 	}
 	audit, err := audittrail.Open(auditPath)
-	if err!=nil { return fmt.Errorf("open mutation audit trail: %w",err) }
+	if err != nil {
+		return fmt.Errorf("open mutation audit trail: %w", err)
+	}
 	defer audit.Close()
 	// Dedicated platforms layer vendor-specific behavior over the generic core.
 	conjurPlatform := conjur.New(ctx, runtimeState.Discovery)
 	dedicated := platforms.NewSet(runtimeState.Discovery, conjurPlatform)
 	runManager, err := runs.NewManager(ctx, runtimeState.Registry, runtimeState.Discovery, runs.Config{
 		ResolveExecutionContext: dedicated.ResolveExecutionContext,
-		Audit: audit,
+		Audit:                   audit,
 	})
 	if err != nil {
 		return fmt.Errorf("configure run manager: %w", err)

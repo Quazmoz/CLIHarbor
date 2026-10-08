@@ -65,11 +65,13 @@ if [ "$1" = "variable" ]; then printf 'Value added\n'; else printf '{"created_ro
 	}
 	auditPath := filepath.Join(tempDir, "audit", "audit.jsonl")
 	audit, err := audittrail.Open(auditPath)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer audit.Close()
 	manager, err := runs.NewManager(t.Context(), state.Registry, state.Discovery, runs.Config{
 		ResolveExecutionContext: conjur.ResolveExecutionContext,
-		Audit: audit,
+		Audit:                   audit,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +139,9 @@ if [ "$1" = "variable" ]; then printf 'Value added\n'; else printf '{"created_ro
 		t.Fatalf("conjur saw:\n%s\nwant:\n%s", logged, want)
 	}
 	audited, err := os.ReadFile(auditPath)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(string(audited), secret) || strings.Contains(string(audited), "STDIN:") {
 		t.Fatal("audit journal retained sensitive stdin or command output")
 	}

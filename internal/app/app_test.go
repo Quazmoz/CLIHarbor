@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"path/filepath"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 
