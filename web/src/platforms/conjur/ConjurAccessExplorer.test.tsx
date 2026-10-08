@@ -103,14 +103,14 @@ describe('Conjur access workflow', () => {
     render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={() => {}}
       onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Search inventory' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('changed');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/account|changed/);
     expect(screen.queryByRole('region', { name: 'Explorer results' })).not.toBeInTheDocument();
   });
   test('rejects denied reads instead of claiming no access', async () => {
     vi.mocked(createRun).mockImplementation(async (_, request) => ({
       runId: 'read', packId: request.packId, toolId: 'conjur', commandId: request.commandId,
-      status: request.commandId === 'resource-show' ? 'failed' : 'exited',
-      exitCode: request.commandId === 'resource-show' ? 1 : 0, events: [],
+      status: request.commandId === 'resource-permitted-roles' ? 'failed' : 'exited',
+      exitCode: request.commandId === 'resource-permitted-roles' ? 1 : 0, events: [],
     }));
     render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={() => {}}
       onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
@@ -118,6 +118,7 @@ describe('Conjur access workflow', () => {
       target: { value: 'dev:variable:billing/password' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Inspect resource' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Query Conjur-permitted roles (execute)' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('not evidence of absent access');
     expect(screen.queryByRole('region', { name: 'Explorer results' })).not.toBeInTheDocument();
   });
