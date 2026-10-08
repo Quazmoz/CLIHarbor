@@ -47,6 +47,9 @@ export function ConjurBackendConnection({ status, tool, ready, onToolsChanged, i
     setSaving(true);
     setSaveError(null);
     setSaved(false);
+    // A timed-out vendor init could still have changed the active target.
+    // Even on an error the previous whoami proof is no longer authoritative.
+    invalidateSession?.();
     try {
       await configureCredentialConnection(status.csrfToken, {
         packId: tool.packId,
@@ -61,14 +64,14 @@ export function ConjurBackendConnection({ status, tool, ready, onToolsChanged, i
       // vendor configuration and invalidate stale session evidence first.
       const updated = await getVendorConnection();
       if (updated.environment !== 'saas' || updated.applianceUrl !== normalizedURL) {
-        throw new Error('The CLI did not report the requested endpoint. Inspect the Conjur configuration.');
+        setSaveError('The CLI did not report the requested endpoint. Inspect the official Conjur configuration.');
+        return;
       }
       setConnection(updated);
       setEndpoint(updated.applianceUrl);
       setEditing(false);
       setConfirmed(false);
       setSaved(true);
-      invalidateSession?.();
       onToolsChanged?.();
     } catch (error) {
       setSaveError(normalizeError(error).detail.message);
