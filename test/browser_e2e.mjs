@@ -1162,9 +1162,17 @@ async function main() {
     stage('responsive operator pages');
     for (const width of [1024, 390, 320]) {
       await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
-      for (const route of ['/', '/authentication', '/runs', '/diagnostics', '/conjur/security-audit']) {
+      for (const route of ['/', '/authentication', '/runs', '/diagnostics', '/conjur/security-audit', '/dedicated/conjur/access-explorer']) {
         await navigate(page, baseURL + route);
         await waitJS(page, route + ' ready', 'document.querySelector("main").getAttribute("aria-busy") === "false" && document.querySelector("main h2") !== null');
+        if (route === '/dedicated/conjur/access-explorer') {
+          assert.equal(await page.evaluate(
+            'document.querySelector("#access-heading")?.textContent === "Access & Permissions Explorer"'),
+            true, 'Conjur Access Explorer must resolve as a dedicated route');
+          assert.equal(await page.evaluate(
+            'document.querySelector("button[type=submit]")?.textContent?.trim() === "Search inventory"'),
+            true, 'Conjur Access Explorer must expose its safe inventory form');
+        }
         assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, route + ' must fit at ' + width + 'px');
         await capture((route === '/' ? 'overview' : route.slice(1).replaceAll('/', '-')) + '-' + width);
       }
