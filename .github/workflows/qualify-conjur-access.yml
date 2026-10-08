@@ -4,6 +4,10 @@ on:
   push:
     branches: [feat/conjur-access-explorer]
 
+concurrency:
+  group: conjur-access-qualify
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
