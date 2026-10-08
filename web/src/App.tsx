@@ -1142,6 +1142,10 @@ export function App() {
     if (starting || activeRunID !== null || state.kind !== 'ready' || toolKey === taskToolFilter) return;
     if (toolKey !== '' && !state.tasks.some((task) => taskToolKey(task) === toolKey)) return;
     setTaskToolFilter(toolKey);
+    // When filtering from the shared task browser, keep the built-in CLI
+    // navigation and breadcrumbs aligned with the chosen tool.
+    const platform = platforms.find((candidate) => taskToolKey(candidate) === toolKey);
+    if (platform !== undefined) setSelectedPlatformID(platform.id);
     const first = state.tasks.find((task) => toolKey === '' || taskToolKey(task) === toolKey);
     if (first) selectTaskByKey(first.packId + '/' + first.commandId, state.tasks);
     setTaskChosen(false);
