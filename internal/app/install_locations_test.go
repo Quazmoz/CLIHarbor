@@ -31,6 +31,51 @@ func TestManagedInstallLocationStoreRoundTripsValidUserHomeRoot(t *testing.T) {
 	}
 }
 
+func TestManagedInstallLocationReadIsBoundedBeforeAllocating(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "oversized.json")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A sparse corrupt registry must not cause a file-sized memory allocation.
+	if err := file.Truncate(512 << 20); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := readManagedLocationFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) != maxManagedInstallLocationBytes+1 {
+		t.Fatalf("bounded read = %d bytes", len(data))
+	}
+	store := newManagedInstallLocationStoreAt(path, t.TempDir())
+	if got := store.Load(); len(got) != 0 {
+		t.Fatalf("oversized registry was accepted: %#v", got)
+	}
+}
+
+func TestManagedInstallLocationReplacementRetainsOtherTools(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(t.TempDir(), "locations.json")
+	store := newManagedInstallLocationStoreAt(path, home)
+	first := discovery.ToolRef{PackID: "first-pack", ToolID: "first"}
+	second := discovery.ToolRef{PackID: "second-pack", ToolID: "second"}
+	if err := store.Save(first, filepath.Join(home, "first")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(second, filepath.Join(home, "second")); err != nil {
+		t.Fatal(err)
+	}
+	loaded := store.Load()
+	if len(loaded) != 2 || loaded[first] != filepath.Join(home, "first") || loaded[second] != filepath.Join(home, "second") {
+		t.Fatalf("registry replacement lost an existing entry: %#v", loaded)
+	}
+}
+
 func TestManagedInstallLocationStoreIgnoresCorruptAndUnsafeEntries(t *testing.T) {
 	home := t.TempDir()
 	path := filepath.Join(t.TempDir(), "locations.json")
