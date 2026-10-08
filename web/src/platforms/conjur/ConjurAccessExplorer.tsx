@@ -22,7 +22,7 @@ export function validConjurID(value: string, account?: string): boolean {
   const parts = /^([^:]+):([a-z_]+):(.+)$/u.exec(value);
   if (!parts || !parts[1] || !parts[3] ||
       !/^[a-zA-Z0-9_.-]+$/.test(parts[1]) ||
-      !KINDS.includes(parts[2] as typeof KINDS[number])) return false;
+      !KINDS.slice(1).includes(parts[2] as typeof KINDS[number])) return false;
   return account === undefined || value.startsWith(account + ':');
 }
 
@@ -187,8 +187,8 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
     }
   }
 
-  function browse(offset: number, nextKind = kind, nextSearch = search, nextSize = size) {
-    if (offset < 0 || offset / nextSize >= MAX_PAGES || nextSearch.length > 512 ||
+  function browse(offset: number, nextKind = kind, nextSearch = search, nextSize: number = size) {
+    if (!PAGE_SIZES.includes(nextSize as 25 | 50 | 100) || offset < 0 || offset / nextSize >= MAX_PAGES || nextSearch.length > 512 ||
         /[\p{Cc}\p{Cf}]/u.test(nextSearch)) {
       setError('Invalid or out-of-bounds inventory request.');
       return;
