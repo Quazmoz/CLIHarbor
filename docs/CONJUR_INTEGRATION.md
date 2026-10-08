@@ -2,7 +2,7 @@
 
 ## Status
 
-CLIHarbor includes a real, version-gated integration for the official CyberArk / Idira Secrets Manager Conjur CLI: read workflows plus approval-gated secret variable management (see [Secret variable management](#secret-variable-management)).
+CLIHarbor includes a version-gated, curated Conjur CLI integration: reviewed reads, approval-gated secret variable management, LDAP mapping workflows, and issuer deletion. It is not a passthrough for every vendor command; see [Coverage and exclusions](#coverage-and-exclusions).
 
 The reviewed source pack remains in the repository at:
 
@@ -115,7 +115,7 @@ Windows evaluation CI also runs the exact pinned v9.3.1 binary through the `list
 
 ## Implemented browser workflows
 
-The current pack exposes only commands that are both documented and inside CLIHarbor's current read-only/non-secret execution envelope:
+The current pack exposes reviewed non-secret reads and separately approved change/destructive workflows:
 
 | CLIHarbor command | Conjur argv shape | Notes |
 | --- | --- | --- |
@@ -129,6 +129,11 @@ The current pack exposes only commands that are both documented and inside CLIHa
 | `role-show` | `conjur role show <role-id> --output json` | Role metadata |
 | `role-members` | `conjur role members <role-id> [--verbose] --output json` | Member list/details |
 | `role-memberships` | `conjur role memberships <role-id> --output json` | Parent-role memberships |
+| `ldap-group-list` | `conjur authn-ldap groups list --id <service> --output json` | Group mapping names scoped to a configured LDAP service |
+| `ldap-user-list` | `conjur authn-ldap users list --id <service> --output json` | User mapping names scoped to a configured LDAP service |
+| `ldap-group-show/create/delete` | `conjur authn-ldap groups <show|create|delete> ...` | Show mappings and approval-gated mutations |
+| `ldap-user-show/create/delete` | `conjur authn-ldap users <show|create|delete> ...` | Show mappings and approval-gated mutations |
+| `issuer-delete` | `conjur issuer delete --id <id> ...` | Destructive; explicit approval |
 | `secret-create` | `conjur policy update --branch <b> --file - [--dry-run]` + `!variable` | Change, approval required |
 | `secret-delete` | `conjur policy update --branch <b> --file - [--dry-run]` + `!delete` | Destructive, typed approval |
 | `secret-permit` | `conjur policy update --branch <b> --file - [--dry-run]` + `!permit` | Change, approval required |
@@ -194,6 +199,20 @@ The login endpoint itself is protected by the existing loopback session, exact H
 After a successful credential exchange the browser immediately runs the existing reviewed `conjur whoami --output json` session check. That check remains the browser-visible evidence that the stored vendor session is usable.
 
 Downloading the Conjur executable still does not configure a Conjur appliance/account, authenticate a user, or create vendor credentials.
+
+## Coverage and exclusions
+
+The pinned CyberArk `conjur-cli-go` v9.3.1 provides commands beyond the **24 reviewed CLIHarbor pack tasks**. CLIHarbor supports resource/role queries, bounded inventory, whoami, LDAP group/user mapping list/show/create/delete, issuer delete, fixed-template secret variable operations, and the dedicated Conjur sign-in and secret-value audit. This is not full upstream CLI parity.
+
+The following capabilities remain outside the browser's present authorization and data-sensitivity contract, pending separate per-command qualification:
+
+- `variable get`, `host/user rotate-api-key`, and host-factory token/host creation may return credentials, secret values, or access material.
+- `login`, `authenticate`, `logout`, and `init*` are vendor-owned configuration/session flows; only the separately reviewed password-style login adapter is currently available in-browser.
+- Arbitrary policy `load/update/replace`, issuer `create/update`, and password changes require new operation-specific validation/approval/reconciliation before browser execution.
+- `issuer get/list`, `policy fetch`, `pubkeys` and environment-dependent `check` require explicit data-sensitivity and size contracts. The upstream `check` command is registered only for non-SaaS configurations.
+- Deprecated, compatibility or terminal-help commands do not automatically become browser executable tasks.
+
+Operators may use their approved Conjur CLI in a terminal for workflows not qualified for the browser. CLIHarbor does not synthesize vendor syntax or accept arbitrary command strings.
 
 ## Commands intentionally not exposed
 
