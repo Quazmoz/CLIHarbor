@@ -106,18 +106,27 @@ func npmCommand() string {
 
 func webBuild(root string) error {
 	web := filepath.Join(root, "web")
-	for _, args := range [][]string{
-		{"ci", "--prefix", web},
-		{"run", "typecheck", "--prefix", web},
-		{"run", "lint", "--prefix", web},
-		{"test", "--prefix", web},
-		{"run", "build", "--prefix", web},
-	} {
-		if err := run(root, npmCommand(), args...); err != nil {
-			return err
+	steps := []struct {
+		name string
+		args []string
+	}{
+		{"install frontend dependencies (npm ci)", []string{"ci", "--prefix", web}},
+		{"TypeScript typecheck", []string{"run", "typecheck", "--prefix", web}},
+		{"frontend ESLint", []string{"run", "lint", "--prefix", web}},
+		{"frontend tests (Vitest)", []string{"test", "--prefix", web}},
+		{"frontend production build (Vite)", []string{"run", "build", "--prefix", web}},
+	}
+	for _, step := range steps {
+		fmt.Fprintf(os.Stderr, "task: %s...\n", step.name)
+		if err := run(root, npmCommand(), step.args...); err != nil {
+			return fmt.Errorf("%s: %w", step.name, err)
 		}
 	}
-	return syncWeb(root)
+	fmt.Fprintln(os.Stderr, "task: synchronize embedded frontend...")
+	if err := syncWeb(root); err != nil {
+		return fmt.Errorf("synchronize embedded frontend: %w", err)
+	}
+	return nil
 }
 
 func check(root string) error {
@@ -284,7 +293,7 @@ func buildExecutableWithEnv(
 		env["CGO_ENABLED"] = "0"
 	}
 	if err := runWithEnv(root, env, "go", args...); err != nil {
-		return err
+		return fmt.Errorf("compile CLIHarbor executable: %w", err)
 	}
 	return nil
 }
