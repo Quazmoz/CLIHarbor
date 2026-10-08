@@ -512,13 +512,13 @@ async function main() {
     await waitJS(page, 'clean authenticated application page',
       'location.href === ' + JSON.stringify(baseURL + '/') + ' && document.body.innerText.includes("CLIHarbor")');
     await waitJS(page, 'operator overview dashboard',
-      'location.pathname === "/" && document.querySelector("#overview-heading")?.textContent?.includes("local operator work") === true');
+      'location.pathname === "/" && ["Get your CLIs ready", "What would you like to do?"].includes(document.querySelector("#overview-heading")?.textContent?.trim())');
 
     const overviewSurface = await page.evaluate('(() => ({' +
       'hasTaskForm: Boolean(document.querySelector(".task-panel form")),' +
       'hasDiagnosticsDetails: Boolean(document.querySelector(".tool-diagnostics")),' +
       'hasTasksLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Tasks"),' +
-      'hasGuidedSignIn: document.querySelector("#overview-login-heading")?.textContent?.trim() === "Sign in from CLIHarbor",' +
+      'hasGuidedSignIn: ["Connect your CLIs", "CLI session checks"].includes(document.querySelector("#overview-login-heading")?.textContent?.trim()),' +
       'hasConjurForm: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Save connection and continue"),' +
       'hasDedicatedSignIn: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Open CyberArk Conjur sign-in"),' +
       'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth' +
@@ -532,12 +532,12 @@ async function main() {
     assert.equal(overviewSurface.horizontalOverflow, false, 'overview must fit the default browser viewport horizontally');
     const shell = await page.evaluate('(() => ({' +
       'sidebarOnLeft: document.querySelector(".sidebar").getBoundingClientRect().width > 0 && document.querySelector(".sidebar").getBoundingClientRect().right <= document.querySelector("main").getBoundingClientRect().left,' +
-      'signInOnRight: document.querySelector(".sign-in-button").getBoundingClientRect().right > innerWidth - 80,' +
+      'hasHeaderSections: ["Built-in CLIs", "Other CLIs"].every((label) => Array.from(document.querySelectorAll(".section-switcher a")).some((link) => link.textContent?.includes(label))),' +
       'groups: Array.from(document.querySelectorAll(".primary-nav .nav-group-label")).map((element) => element.textContent)' +
     '}))()');
     assert.equal(shell.sidebarOnLeft, true, 'desktop navigation must be a left sidebar');
-    assert.equal(shell.signInOnRight, true, 'Sign in must be reachable at the top right');
-    assert.deepEqual(shell.groups, ['Workspace', 'Security', 'Manage']);
+    assert.equal(shell.hasHeaderSections, true, 'header must distinguish built-in integrations from other CLIs');
+    assert.deepEqual(shell.groups, ['CLI workspace']);
     await capture('overview');
 
     stage('supported CLI catalog navigation and responsive search');
@@ -572,8 +572,8 @@ async function main() {
     assert.equal(bootstrapState.csrfInStorage, false, 'CSRF token must not enter browser storage');
 
     stage('direct authentication route and enterprise viewport');
-    await clickButton(page, 'Sign in');
-    await waitJS(page, 'top-right sign-in navigation', 'location.pathname === "/authentication" && document.activeElement?.id === "main-content"');
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent?.trim() === "CLI sessions").click()');
+    await waitJS(page, 'per-CLI session navigation', 'location.pathname === "/authentication" && document.activeElement?.id === "main-content"');
     await page.call('Emulation.setDeviceMetricsOverride', {
       width: 1366,
       height: 768,
@@ -582,15 +582,15 @@ async function main() {
     });
     await navigate(page, baseURL + '/authentication');
     await waitJS(page, 'authentication route',
-      'location.pathname === "/authentication" && document.body.innerText.includes("Authentication")');
+      'location.pathname === "/authentication" && document.querySelector("#authentication-heading")?.textContent?.trim() === "CLI sessions"');
     const authSurface = await page.evaluate('(() => ({' +
       'passwordInputs: document.querySelectorAll("input[type=password]").length,' +
       'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,' +
-      'hasAuthLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Authentication")' +
+      'hasAuthLink: Array.from(document.querySelectorAll(".primary-nav a")).some((link) => link.textContent?.trim() === "CLI sessions")' +
     '}))()');
     assert.equal(authSurface.passwordInputs, 0, 'authentication route must not contain password inputs');
     assert.equal(authSurface.horizontalOverflow, false, 'authentication route must fit the 1366px enterprise viewport horizontally');
-    assert.equal(authSurface.hasAuthLink, true, 'authentication route must remain in primary navigation');
+    assert.equal(authSurface.hasAuthLink, true, 'CLI sessions route must remain in primary navigation');
     await capture('authentication');
 
     stage('staged Conjur GUI authentication in the dedicated section');
