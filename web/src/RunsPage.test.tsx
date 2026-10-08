@@ -48,11 +48,19 @@ describe('RunsPage', () => {
     const completedID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     let intervalCallback: (() => void) | undefined;
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const nativeSetInterval = window.setInterval.bind(window);
+    const nativeClearInterval = window.clearInterval.bind(window);
     vi.spyOn(window, 'setInterval').mockImplementation(((callback: TimerHandler, delay?: number) => {
-      if (delay === 2000) intervalCallback = callback as () => void;
-      return 1;
+      if (delay === 2000) {
+        intervalCallback = callback as () => void;
+        return -1;
+      }
+      // Keep Testing Library's own interval-based waitFor polling functional.
+      return nativeSetInterval(callback, delay);
     }) as typeof window.setInterval);
-    vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+    vi.spyOn(window, 'clearInterval').mockImplementation((id) => {
+      if (id !== -1) nativeClearInterval(id);
+    });
     let detailCalls = 0;
     const completed = { runId: completedID, commandId: 'inspect', packId: 'fixture', toolId: 'fixture', status: 'exited', exitCode: 0 };
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
@@ -107,11 +115,19 @@ describe('RunsPage', () => {
 
   test('does not abort a slow background poll on each timer tick', async () => {
     let intervalCallback: (() => void) | undefined;
+    const nativeSetInterval = window.setInterval.bind(window);
+    const nativeClearInterval = window.clearInterval.bind(window);
     vi.spyOn(window, 'setInterval').mockImplementation(((callback: TimerHandler, delay?: number) => {
-      if (delay === 2000) intervalCallback = callback as () => void;
-      return 1;
+      if (delay === 2000) {
+        intervalCallback = callback as () => void;
+        return -1;
+      }
+      // Keep Testing Library's own interval-based waitFor polling functional.
+      return nativeSetInterval(callback, delay);
     }) as typeof window.setInterval);
-    vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+    vi.spyOn(window, 'clearInterval').mockImplementation((id) => {
+      if (id !== -1) nativeClearInterval(id);
+    });
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
     let resolvePoll: (response: Response) => void = () => undefined;
     const slowPoll = new Promise<Response>((resolve) => { resolvePoll = resolve; });
@@ -245,13 +261,18 @@ describe('RunsPage', () => {
     let intervalCallback: (() => void) | undefined;
     let visibilityState: DocumentVisibilityState = 'hidden';
     vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibilityState);
+    const nativeSetInterval = window.setInterval.bind(window);
+    const nativeClearInterval = window.clearInterval.bind(window);
     vi.spyOn(window, 'setInterval').mockImplementation(((callback: TimerHandler, delay?: number) => {
-      // Testing Library also creates polling intervals; capture only the
-      // application's two-second history refresh callback.
-      if (delay === 2000) intervalCallback = callback as () => void;
-      return 1;
+      if (delay === 2000) {
+        intervalCallback = callback as () => void;
+        return -1;
+      }
+      return nativeSetInterval(callback, delay);
     }) as typeof window.setInterval);
-    const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation((id) => {
+      if (id !== -1) nativeClearInterval(id);
+    });
 
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
@@ -300,7 +321,7 @@ describe('RunsPage', () => {
 
     expect(await screen.findByText('Succeeded')).toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([input]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs')).toHaveLength(2);
-    await waitFor(() => expect(clearIntervalSpy).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(clearIntervalSpy).toHaveBeenCalledWith(-1));
   });
 
   test('keeps list state usable when a selected retained run has already been evicted', async () => {
