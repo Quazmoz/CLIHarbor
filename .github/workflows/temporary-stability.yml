@@ -6,7 +6,11 @@ permissions:
   contents: read
 jobs:
   quality:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -27,9 +31,17 @@ jobs:
       - run: go mod verify
       - run: go vet ./...
       - run: go test -timeout 2m ./...
-      - run: go test -race -timeout 3m ./...
-      - run: npm audit --prefix web --audit-level=high
+      - name: Race detector
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -race -timeout 3m ./...
+      - name: Frontend dependency audit
+        if: matrix.os == 'ubuntu-latest'
+        run: npm audit --prefix web --audit-level=high
+      - name: Embedded frontend executable build
+        run: go run ./tools/task go-build
       - name: Emit generated frontend assets
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
         run: |
           node - <<'NODE'
           const fs = require('node:fs');
