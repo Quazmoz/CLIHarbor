@@ -29,9 +29,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Inline evaluation from the checkout root failed.' }
 
     $quotedElsewhere = "'" + $elsewhere.Replace("'", "''") + "'"
+    $quotedFixture = "'" + $fixture.Replace("'", "''") + "'"
     $invalidCommand = 'Set-Location -LiteralPath ' + $quotedElsewhere +
-        '; & ([ScriptBlock]::Create((Get-Content -LiteralPath ' + $quotedRoot +
-        ' + ''\\tools\\dev-restart.ps1'' -Raw))) -Stop'
+        '; & ([ScriptBlock]::Create((Get-Content -LiteralPath ' + $quotedFixture + ' -Raw))) -Stop'
     # An inline invocation outside a checkout must reject rather than guess a root.
     & $hostExe -NoProfile -NonInteractive -Command $invalidCommand *> $null
     if ($LASTEXITCODE -eq 0) { throw 'Inline evaluation outside a checkout unexpectedly succeeded.' }
