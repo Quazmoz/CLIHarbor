@@ -1,9 +1,9 @@
 name: Stage 6 mutation verification
 
+# Historical Stage 6 checks remain available only by explicit user request.
+# Do not add push/PR/scheduled triggers or automatically dispatch this workflow.
 on:
-  push:
-    branches:
-      - feature/mutating-task-approvals
+  workflow_dispatch:
 
 permissions:
   contents: read
