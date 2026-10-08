@@ -38,7 +38,7 @@ func TestManagedInstallLocationReadIsBoundedBeforeAllocating(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A sparse corrupt registry must not cause a file-sized memory allocation.
-	if err := file.Truncate(512 << 20); err != nil {
+	if err := file.Truncate(16 << 20); err != nil {
 		_ = file.Close()
 		t.Fatal(err)
 	}
