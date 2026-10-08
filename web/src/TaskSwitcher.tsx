@@ -29,9 +29,14 @@ export function TaskSwitcher({ tasks, preferences, onSelect, onClose }: TaskSwit
   }, []);
 
   const favoriteKeys = useMemo(() => new Set(preferences.favorites.map(taskIdentityKey)), [preferences.favorites]);
-  const order = useMemo(() => new Map(
-    [...preferences.favorites, ...preferences.recent].map((identity, index) => [taskIdentityKey(identity), index] as const),
-  ), [preferences.favorites, preferences.recent]);
+  const order = useMemo(() => {
+    const positions = new Map<string, number>();
+    [...preferences.favorites, ...preferences.recent].forEach((identity, index) => {
+      const key = taskIdentityKey(identity);
+      if (!positions.has(key)) positions.set(key, index);
+    });
+    return positions;
+  }, [preferences.favorites, preferences.recent]);
   const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const matching = tasks.filter((task) => terms.every((term) => searchableText(task).includes(term)))
     .sort((a, b) => (order.get(taskIdentityKey(a)) ?? Infinity) - (order.get(taskIdentityKey(b)) ?? Infinity));
