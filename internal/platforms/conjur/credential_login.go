@@ -114,6 +114,11 @@ func (s *CredentialLoginService) Connection() (server.CredentialConnection, erro
 	if !s.executableReady() {
 		return server.CredentialConnection{}, &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
+	// Do not report a transient half-written vendor config during init.
+	if !s.acquireAuthGate() {
+		return server.CredentialConnection{}, &server.CredentialLoginError{Code: server.CredentialLoginBusy}
+	}
+	defer s.releaseAuthGate()
 	config, err := s.loadConfig()
 	if err != nil {
 		return server.CredentialConnection{}, &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
