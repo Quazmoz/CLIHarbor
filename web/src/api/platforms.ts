@@ -2,7 +2,7 @@ import { clientError, errorFromResponse } from './errors';
 
 // Closed set shared with internal/platforms/*: the backend names features,
 // the frontend owns the routes they open.
-export type PlatformFeatureID = 'tasks' | 'sign-in' | 'security-audit';
+export type PlatformFeatureID = 'tasks' | 'sign-in' | 'security-audit' | 'access-explorer';
 
 export interface PlatformFeature {
   id: PlatformFeatureID;
