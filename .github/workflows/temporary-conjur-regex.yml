@@ -1,0 +1,76 @@
+name: Temporary Conjur regex qualification
+on:
+  push:
+    branches: [feat/conjur-regex-toolbox]
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: '.go-version'
+          cache: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.node-version'
+          package-manager-cache: false
+      - run: npm ci --prefix web
+      - run: npm run typecheck --prefix web
+      - run: npm run lint --prefix web
+      - run: npm test --prefix web
+      - run: node --check test/browser_e2e.mjs
+      - run: npm run build --prefix web
+      - run: go run ./tools/task sync-web
+      - run: go mod verify
+      - run: go vet ./...
+      - run: go test -timeout 2m ./...
+      - run: npm audit --prefix web --audit-level=high
+      - run: go run ./tools/task go-build
+      - name: Browser E2E
+        env:
+          CLIHARBOR_BROWSER_E2E: '1'
+        run: go test -timeout 100s -count=1 -run TestProductionEmbeddedBrowserE2E ./internal/app
+      - name: Export built assets for commit
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('fs'), path = require('path');
+          function walk(dir) {
+            for (const entry of fs.readdirSync(dir, {withFileTypes:true})) {
+              const p = path.join(dir, entry.name);
+              if (entry.isDirectory()) walk(p);
+              else if (entry.isFile()) {
+                const name = p.replaceAll(path.sep, '/');
+                const b = fs.readFileSync(p), text = b.toString('base64');
+                console.log('SYNC_FILE:' + name + ':' + b.length);
+                for (let i=0;i<text.length;i+=1200) console.log('SYNC_CHUNK:'+name+':'+(i/1200)+':'+text.slice(i,i+1200));
+              }
+            }
+          }
+          walk('internal/webui/static'); console.log('SYNC_FINISHED');
+          NODE
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: '.go-version'
+          cache: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.node-version'
+          package-manager-cache: false
+      - run: npm ci --prefix web
+      - run: npm run typecheck --prefix web
+      - run: npm test --prefix web
+      - run: npm run build --prefix web
+      - run: go run ./tools/task sync-web
+      - run: go vet ./...
+      - run: go test -timeout 2m ./...
+      - run: go run ./tools/task go-build
