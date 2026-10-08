@@ -140,15 +140,16 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
     }
   };
 
-  // A focus event is not proof the operator left to complete OIDC/MFA.
-  // Only re-check on a return from a previously blurred or hidden page.
+  // A vendor console may steal focus before the launch API responds. Track
+  // departure while the request is in flight, but verify only after the
+  // backend confirms that the vendor-owned login process was launched.
   useEffect(() => {
-    if (!vendorLoginOpened) return undefined;
+    if (!credentialSubmitting && !vendorLoginOpened) return undefined;
     if (document.visibilityState === 'hidden') vendorLoginLeftPageRef.current = true;
 
     const markAway = () => { vendorLoginLeftPageRef.current = true; };
     const recheckOnReturn = () => {
-      if (!vendorLoginLeftPageRef.current || checking || document.visibilityState === 'hidden') return;
+      if (!vendorLoginOpened || !vendorLoginLeftPageRef.current || checking || document.visibilityState === 'hidden') return;
       vendorLoginLeftPageRef.current = false;
       setVendorLoginOpened(false);
       void verifySession();
@@ -166,7 +167,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
       window.removeEventListener('focus', recheckOnReturn);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [vendorLoginOpened, checking, verifySession]);
+  }, [credentialSubmitting, vendorLoginOpened, checking, verifySession]);
 
   return (
     <>
@@ -377,8 +378,9 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
             <span className="safety-chip">Credentials stay vendor-owned</span>
           </div>
           <p className="credential-login-help">
-            Continue in Conjur’s browser or terminal to complete sign-in. Password and MFA prompts stay in the
-            vendor terminal. When login finishes, the result stays visible until you close the window.
+            Complete sign-in through Conjur’s official browser or terminal flow. CLIHarbor does not collect
+            vendor credentials or MFA responses. For terminal-based sign-in, keep the window open until you have
+            reviewed the result, then return here to check the session.
           </p>
           {credentialFailure !== null && (
             <div className="credential-login-error" role="alert">
