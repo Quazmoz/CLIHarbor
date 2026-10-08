@@ -46,7 +46,9 @@ shell installer, package-manager bridge, or runtime command scraping is added.
 - Conjur activation also enables its existing reviewed authentication and audit
   adapters. Installation does not authenticate any CLI or create a service.
 - Managed executables and custom install locations persist through the existing
-  current-user mechanisms and are reverified at the next startup.
+  current-user mechanisms and are reverified at the next startup. A custom
+  location is not saved while live executable/version/hash qualification is
+  failing; failed qualification cannot seed a misleading location for restart.
 
 kubectl must remain within one minor release of the target cluster's API server.
 The catalog displays the pinned version before installation. Operators needing
