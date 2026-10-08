@@ -48,6 +48,8 @@ func (h staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case isApplicationRoute(r.URL.Path):
 		name = "index.html"
+	case r.URL.Path == "/favicon.svg":
+		name = "favicon.svg"
 	case strings.HasPrefix(r.URL.Path, "/assets/"):
 		name = strings.TrimPrefix(r.URL.Path, "/")
 	default:

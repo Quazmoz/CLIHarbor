@@ -26,7 +26,7 @@ import { dedicatedSignIn } from './platforms';
 import { fetchPlatforms, type Platform, type PlatformFeatureID } from './api/platforms';
 import { ToolsPage } from './ToolsPage';
 import { TaskDiscovery, taskToolKey } from './TaskDiscovery';
-import { StructuredResultView } from './StructuredResultView';
+import { OutputExplorer } from './OutputExplorer';
 import { inputGuidance, runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
   loadTaskPreferences,
@@ -1810,34 +1810,18 @@ export function App() {
                           </button>
                         </div>
                       )}
-                    {run.snapshot.structured && (
-                      <section className="structured-result" aria-labelledby="structured-result-heading">
-                        <h3 id="structured-result-heading">Structured result</h3>
-                        {run.snapshot.structured.status === 'available' ? (
-                          <StructuredResultView fields={run.snapshot.structured.fields ?? []} />
-                        ) : (
-                          <p className="parser-warning">
-                            {structuredFailureMessage(run.snapshot.structured.error)}
-                            {run.snapshot.structured.error && (
-                              <>
-                                {' '}Parser code: <code>{run.snapshot.structured.error}</code>.
-                              </>
-                            )}{' '}
-                            Raw stdout and stderr remain available below.
-                          </p>
-                        )}
-                      </section>
+                    {run.snapshot.structured?.status === 'invalid' && (
+                      <p className="parser-warning" role="status">
+                        {structuredFailureMessage(run.snapshot.structured.error)} Raw output remains available.
+                      </p>
                     )}
-                    <details className="raw-output" open={run.snapshot.structured?.status !== 'available'}>
-                      <summary>
-                        <span>Raw process output</span>
-                        <span className="raw-output-note">stdout and stderr remain separate</span>
-                      </summary>
-                      <div className="output-grid">
+                    <OutputExplorer key={run.snapshot.runId}
+                      stdout={output.stdout} stderr={output.stderr}
+                      live={run.snapshot.status === 'running'} structured={run.snapshot.structured}
+                      rawOutput={<div className="output-grid">
                         <OutputStream name="stdout" text={output.stdout} live={run.snapshot.status === 'running'} />
                         <OutputStream name="stderr" text={output.stderr} live={run.snapshot.status === 'running'} />
-                      </div>
-                    </details>
+                      </div>} />
                   </>
                 )}
               </article>
