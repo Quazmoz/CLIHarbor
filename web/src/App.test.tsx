@@ -580,7 +580,9 @@ describe('App', () => {
     });
 
     expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
-    expect(screen.getAllByText('<script>alert(1)</script>')).toHaveLength(2);
+    expect(screen.getAllByText('<script>alert(1)</script>')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
+    expect(screen.getAllByText('<script>alert(1)</script>')).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
     expect(document.querySelector('script')).toBeNull();
     expect(source?.closed).toBe(true);
@@ -672,6 +674,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
     expect(screen.getByText(/structured rendering could not validate this output/i)).toBeInTheDocument();
     expect(screen.getByText('wrong_type')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
     expect(screen.getByText('{"name":42}')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
   });

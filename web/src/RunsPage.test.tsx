@@ -208,6 +208,8 @@ describe('RunsPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
     expect(screen.getByText(hostile)).toBeInTheDocument();
+    expect(screen.queryByText(secretMarker)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
     expect(screen.getByText(secretMarker)).toBeInTheDocument();
     expect(document.querySelector('#history-pwn')).toBeNull();
     expect(document.body.dataset.pwned).toBeUndefined();

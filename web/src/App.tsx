@@ -1813,7 +1813,9 @@ export function App() {
                     {run.snapshot.structured && <h3 className="structured-result-heading">Structured result</h3>}
                     {run.snapshot.structured?.status === 'invalid' && (
                       <p className="parser-warning" role="status">
-                        {structuredFailureMessage(run.snapshot.structured.error)} Raw output remains available.
+                        {structuredFailureMessage(run.snapshot.structured.error)}
+                        {run.snapshot.structured.error && <> Parser code: <code>{run.snapshot.structured.error}</code>.</>}
+                        {' '}Raw output remains available.
                       </p>
                     )}
                     <OutputExplorer key={run.snapshot.runId}
