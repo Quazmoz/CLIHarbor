@@ -50,7 +50,7 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
       <p>{platform.summary}</p>
       <p role="status">
         {platform.ready
-          ? <><strong>CLI ready.</strong> Everything below is built and tested for this CLI.</>
+          ? <><strong>CLI discovery ready.</strong> Verify the vendor session and backend permissions before using these workflows.</>
           : <><strong>Setup needed.</strong> Check tool readiness before using this integration.</>}
       </p>
       {!platform.ready && (
