@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +26,38 @@ const (
 	credentialLoginHTTPTimeoutSeconds = 20
 	conjurConnectionSetupTimeout      = 45 * time.Second
 	conjurConnectionSetupWaitDelay    = 2 * time.Second
+)
+
+var conjurSaaSTenantHost = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.secretsmgr\.cyberark\.cloudpackage conjur
+
+import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/Quazmoz/CLIHarbor/internal/discovery"
+	"github.com/Quazmoz/CLIHarbor/internal/platform/terminal"
+	"github.com/Quazmoz/CLIHarbor/internal/server"
+	"github.com/cyberark/conjur-api-go/conjurapi"
+	"github.com/cyberark/conjur-api-go/conjurapi/response"
+)
+
+const (
+	PackID                            = "cyberark-conjur-v9"
+	ToolID                            = "conjur"
+	credentialLoginHTTPTimeoutSeconds = 20
+	conjurConnectionSetupTimeout      = 45 * time.Second
+	conjurConnectionSetupWaitDelay    = 2 * time.Second
+)
+
 )
 
 type conjurLoginClient interface {
@@ -99,6 +133,45 @@ func (s *CredentialLoginService) Capability() (string, string, server.Credential
 	return "", "", server.CredentialLoginCapability{}, false
 }
 
+// Connection reports only non-secret configuration data from the vendor's
+// authoritative config loader. It never invents a profile or stores a URL.
+func (s *CredentialLoginService) Connection() (server.CredentialConnection, error) {
+	if s == nil {
+		return server.CredentialConnection{}, &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.executableReady() {
+		return server.CredentialConnection{}, &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	config, err := s.loadConfig()
+	if err != nil {
+		return server.CredentialConnection{}, &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+	environment := "other"
+	configurable := false
+	switch {
+	case config.IsSaaS():
+		environment = "saas"
+		configurable = supportsConjurVendorLogin(config) && !conjurConfigEnvOverride()
+	case conjurBlankConfig(config):
+		environment = "unconfigured"
+		configurable = !conjurConfigEnvOverride() && writableConjurCredentials(config)
+	case supportsConjurPasswordLogin(config):
+		environment = "self-hosted"
+	}
+	if config.ApplianceURL != "" && !validConjurHTTPSURL(config.ApplianceURL) {
+		return server.CredentialConnection{}, &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+	if config.Account != "" && !validConjurConfigScalar(config.Account) {
+		return server.CredentialConnection{}, &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+	return server.CredentialConnection{
+		Environment: environment, ApplianceURL: config.ApplianceURL,
+		Account: config.Account, Configurable: configurable,
+	}, nil
+}
+
 func (s *CredentialLoginService) Configure(ctx context.Context, request server.CredentialConfigurationRequest) error {
 	if s == nil {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
@@ -130,8 +203,11 @@ func (s *CredentialLoginService) Configure(ctx context.Context, request server.C
 	if err != nil {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
-	// Idempotent only for the same connection; a different server/account against
-	// an existing configuration must not be reported as saved.
+	// An exact match is idempotent. Changes to an existing SaaS connection
+	// require a browser-confirmed compare-and-swap target, never implicit force.
+	if request.Environment == "saas" {
+		return s.configureSaaS(ctx, config, request)
+	}
 	if conjurConfigMatchesConnectionRequest(config, request) {
 		return nil
 	}
@@ -165,6 +241,82 @@ func (s *CredentialLoginService) Configure(ctx context.Context, request server.C
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
 	return nil
+}
+
+func writableConjurCredentials(config conjurapi.Config) bool {
+	return config.CredentialStorage != conjurapi.CredentialStorageNone &&
+		config.CredentialStorageMode != conjurapi.CredentialStorageModeReadOnly
+}
+
+func conjurBlankConfig(config conjurapi.Config) bool {
+	return config.ApplianceURL == "" && config.Account == "" &&
+		config.AuthnType == "" && config.ServiceID == "" && config.Environment == ""
+}
+
+// Environment overrides are not writable using conjur init; attempting to
+// change them would write .conjurrc but leave the effective endpoint unchanged.
+func conjurConfigEnvOverride() bool {
+	for _, key := range []string{"CONJUR_APPLIANCE_URL", "CONJUR_ACCOUNT", "CONJUR_AUTHN_TYPE", "CONJUR_SERVICE_ID", "CONJUR_ENVIRONMENT"} {
+		if _, present := os.LookupEnv(key); present {
+			return true
+		}
+	}
+	return false
+}
+
+func canonicalConjurSaaSURL(value string) (string, bool) {
+	u, err := url.Parse(value)
+	if err != nil || u.Scheme != "https" || u.User != nil ||
+		u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" ||
+		u.Host != u.Hostname() || !conjurSaaSTenantHost.MatchString(u.Hostname()) ||
+		(u.Path != "" && u.Path != "/" && u.Path != "/api") || u.RawPath != "" {
+		return "", false
+	}
+	return "https://" + u.Hostname() + "/api", true
+}
+
+func conjurSaaSMatches(config conjurapi.Config, expectedURL string) bool {
+	return config.IsSaaS() && strings.EqualFold(strings.TrimSpace(config.AuthnType), "cloud") &&
+		config.Account == "conjur" && config.ServiceID == "cyberark" &&
+		config.ApplianceURL == expectedURL && writableConjurCredentials(config)
+}
+
+func (s *CredentialLoginService) configureSaaS(
+	ctx context.Context, current conjurapi.Config, request server.CredentialConfigurationRequest,
+) error {
+	want, ok := canonicalConjurSaaSURL(request.ApplianceURL)
+	if !ok || conjurConfigEnvOverride() || !writableConjurCredentials(current) {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	if conjurSaaSMatches(current, want) {
+		return nil
+	}
+	replacing := current.IsSaaS()
+	if replacing {
+		oldURL, ok := canonicalConjurSaaSURL(request.ExpectedApplianceURL)
+		if !ok || request.ExpectedApplianceURL != current.ApplianceURL ||
+			!conjurSaaSMatches(current, oldURL) || want == oldURL {
+			return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+		}
+	} else if !conjurBlankConfig(current) || request.ExpectedApplianceURL != "" {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+
+	args := []string{"init", "saas", "--url", strings.TrimSuffix(want, "/api")}
+	if replacing {
+		// Only exact, confirmed SaaS -> SaaS replacement uses vendor --force;
+		// no arbitrary flags, local file edits, or silent overwrite.
+		args = append(args, "--force")
+	}
+	initErr := s.runInit(ctx, s.toolPath, args)
+	updated, err := s.loadConfig()
+	if err == nil && conjurSaaSMatches(updated, want) {
+		return nil // Reconcile timeout-after-durable vendor write.
+	}
+	if initErr != nil || err != nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+	return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 }
 
 func (s *CredentialLoginService) Login(ctx context.Context, request server.CredentialLoginRequest) error {
@@ -351,7 +503,12 @@ func runConjurConnectionInit(ctx context.Context, executable string, args []stri
 }
 
 func validConjurConnectionRequest(request server.CredentialConfigurationRequest) bool {
-	if !validConjurHTTPSURL(request.ApplianceURL) || !validConjurConfigScalar(request.Account) {
+	if request.Environment == "saas" {
+		_, ok := canonicalConjurSaaSURL(request.ApplianceURL)
+		return ok && request.Account == "conjur" && request.AuthnType == "cloud" && request.ServiceID == ""
+	}
+	if request.Environment != "" || request.ExpectedApplianceURL != "" ||
+		!validConjurHTTPSURL(request.ApplianceURL) || !validConjurConfigScalar(request.Account) {
 		return false
 	}
 	switch request.AuthnType {
