@@ -97,7 +97,7 @@ test('explains backend mismatch and requires acknowledgement again after editing
   fireEvent.click(screen.getByRole('checkbox', { name: /inspect visible Conjur variable identifiers/ }));
   expect(screen.getByRole('button', { name: 'Search again' })).toBeEnabled();
   fireEvent.change(screen.getByRole('textbox', { name: 'CyberArk backend URL' }), { target: { value: 'https://another.invalid' } });
-  expect(screen.getByRole('button', { name: 'Run audit again' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Search again' })).toBeDisabled();
 });
 
 test('downloads a versioned report containing only scan metadata and redacted findings', async () => {
