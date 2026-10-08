@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { ConjurAccessExplorer, parseConjurIDs, parseSafeMetadata, validConjurID } from './ConjurAccessExplorer';
+import { ConjurAccessExplorer, parseConjurIDs, metadataFromID, validConjurID } from './ConjurAccessExplorer';
 import { cancelRun, createRun } from '../../api/runs';
 import { fetchTools } from '../../api/tools';
 import { fetchSecretAudit } from './secretAuditApi';
@@ -11,9 +11,7 @@ vi.mock('../../api/runs', () => ({ createRun: vi.fn(), fetchRun: vi.fn(), cancel
     switch (snapshot.commandId) {
       case 'whoami': return '{"username":"operator","account":"dev"}';
       case 'list-resources': return '["dev:variable:billing/password","dev:group:operators"]';
-      case 'resource-show': return '{"id":"dev:variable:billing/password","kind":"variable","owner":"dev:group:operators","annotations":{"secret":"SHOULD_NOT_RENDER"},"value":"SHOULD_NOT_RENDER"}';
       case 'resource-permitted-roles': return '["dev:group:operators","dev:group:operators"]';
-      case 'role-show': return '{"id":"dev:group:operators","kind":"group"}';
       case 'role-members': return '["dev:user:alice","dev:user:alice","dev:group:operators"]';
       case 'role-memberships': return '["dev:group:operators","dev:group:parent","dev:group:parent"]';
       default: throw Error('unexpected command');
@@ -29,9 +27,7 @@ const read = (commandId: string, inputs: Task['inputs'] = []): Task =>
 const tasks = [
   read('whoami'), read('list-resources', [{ id: 'limit', type: 'enum' },
     { id: 'kind', type: 'enum' }, { id: 'search', type: 'string' }, { id: 'offset', type: 'integer' }]),
-  read('resource-show', [{ id: 'resource-id', type: 'string' }]),
   read('resource-permitted-roles', [{ id: 'resource-id', type: 'string' }, { id: 'privilege', type: 'string' }]),
-  read('role-show', [{ id: 'role-id', type: 'string' }]),
   read('role-members', [{ id: 'role-id', type: 'string' }]),
   read('role-memberships', [{ id: 'role-id', type: 'string' }]),
   { ...read('secret-delete'), risk: 'destructive' as const },
@@ -70,10 +66,8 @@ describe('vendor output boundaries', () => {
   test('deduplicates cycles and never exports unapproved metadata', () => {
     expect(parseConjurIDs('["dev:group:a","dev:group:a","dev:group:b"]', 5, 'dev'))
       .toEqual(['dev:group:a', 'dev:group:b']);
-    expect(parseSafeMetadata('{"id":"dev:variable:p","owner":"dev:group:x","value":"NO","annotations":{"token":"NO"}}',
-      'dev:variable:p')).toEqual({ id: 'dev:variable:p', owner: 'dev:group:x' });
-    expect(() => parseSafeMetadata('{"id":"dev:variable:other"}', 'dev:variable:p')).toThrow();
-    expect(() => parseSafeMetadata('{"id":"dev:variable:p","owner":"evil\\nowner"}', 'dev:variable:p')).toThrow();
+    expect(metadataFromID('dev:variable:p')).toEqual({ id: 'dev:variable:p', kind: 'variable' });
+    expect(() => metadataFromID('unqualified')).toThrow();
   });
 });
 
@@ -92,12 +86,12 @@ describe('Conjur access workflow', () => {
     const roles = await screen.findByRole('region', { name: 'Permitted roles' });
     expect(within(roles).getAllByRole('button')).toHaveLength(1);
     expect(roles).toHaveTextContent('not certify an individual identity');
-    fireEvent.click(screen.getByRole('button', { name: 'Open approved task' }));
-    expect(onOpenTask).toHaveBeenCalledExactlyOnceWith('resource-show',
-      { 'resource-id': 'dev:variable:billing/password' });
+    fireEvent.click(screen.getByRole('button', { name: 'Open read-only task form' }));
+    expect(onOpenTask).toHaveBeenCalledExactlyOnceWith('resource-permitted-roles',
+      { 'resource-id': 'dev:variable:billing/password', privilege: 'execute' });
     expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.commandId))
       .toEqual(['whoami', 'list-resources', 'whoami',
-        'whoami', 'resource-show', 'whoami', 'whoami', 'resource-permitted-roles', 'whoami']);
+        'whoami', 'whoami', 'whoami', 'resource-permitted-roles', 'whoami']);
   });
   test('rejects context switch without showing stale inspection', async () => {
     let reads = 0;
