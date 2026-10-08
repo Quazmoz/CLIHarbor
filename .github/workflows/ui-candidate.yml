@@ -25,8 +25,7 @@ jobs:
       - run: npm test --prefix web
       - run: npm run build --prefix web
       - run: go run ./tools/task sync-web
-      # Generated assets are intentionally uncommitted until copied from this run.
-      - run: git status --porcelain=v1 -- internal/webui/static
+      - run: go run ./tools/task verify-web-sync
       - run: go test -timeout 2m ./internal/webui ./internal/platforms/...
       - name: Export generated assets for source synchronization
         shell: bash
