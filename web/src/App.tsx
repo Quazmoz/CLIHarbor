@@ -1810,6 +1810,7 @@ export function App() {
                           </button>
                         </div>
                       )}
+                    {run.snapshot.structured && <h3 className="structured-result-heading">Structured result</h3>}
                     {run.snapshot.structured?.status === 'invalid' && (
                       <p className="parser-warning" role="status">
                         {structuredFailureMessage(run.snapshot.structured.error)} Raw output remains available.

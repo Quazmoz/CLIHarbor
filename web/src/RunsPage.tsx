@@ -358,6 +358,7 @@ export function RunsPage({ tasks, onOpenTasks }: RunsPageProps) {
 
                   {detail.failure && <FailureNotice failure={detail.failure} />}
 
+                  {detail.structured && <h3 className="structured-result-heading">Structured result</h3>}
                   {detail.structured?.status === 'invalid' && (
                     <p className="parser-warning" role="status">Structured result validation failed. Inspect raw output for the original evidence.</p>
                   )}

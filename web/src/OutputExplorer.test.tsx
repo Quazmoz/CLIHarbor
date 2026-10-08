@@ -32,7 +32,7 @@ describe('OutputExplorer', () => {
     expect(screen.getByText('raw text')).toBeInTheDocument();
     rerender(<OutputExplorer stdout={'{"id":"value"}'} stderr="" live rawOutput={<pre>in progress</pre>} />);
     expect(screen.getByRole('button', { name: 'Formatted' })).toBeDisabled();
-    rerender(<OutputExplorer stdout={'{"id":"' + 'a'.repeat(130_000) + '"}'} stderr="" rawOutput={<pre>large</pre>} />);
+    rerender(<OutputExplorer stdout={'{"id":"' + 'a'.repeat(140_000) + '"}'} stderr="" rawOutput={<pre>large</pre>} />);
     expect(screen.getByRole('button', { name: 'Formatted' })).toBeDisabled();
   });
 
