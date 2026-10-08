@@ -110,6 +110,63 @@ describe('Conjur API backend connection', () => {
     expect(written?.expectedApplianceUrl).toBeUndefined();
   });
 
+  test('never keeps old session evidence after an ambiguous vendor configuration failure', async () => {
+    const invalidate = vi.fn();
+    const refresh = vi.fn();
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(response({
+          error: {
+            code: 'authentication_unavailable', category: 'lifecycle',
+            message: 'Vendor authentication is not currently available.',
+            remediation: 'Inspect vendor configuration before retrying.',
+            retryable: true,
+          },
+        }, 503));
+      }
+      return Promise.resolve(response({
+        environment: 'saas', applianceUrl: old, account: 'conjur', configurable: true,
+      }));
+    }));
+    render(<ConjurBackendConnection status={status} tool={tool} ready
+      invalidateSession={invalidate} onToolsChanged={refresh} />);
+    expect(await screen.findByText(old)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Change API endpoint' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Secrets Manager API URL' }), {
+      target: { value: next },
+    });
+    fireEvent.click(screen.getByRole('checkbox', { name: /replace the existing vendor CLI connection/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Replace CLI API endpoint' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Vendor authentication is not currently available.');
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.queryByText(/endpoint saved and verified/i)).not.toBeInTheDocument();
+  });
+
+  test('does not claim success if post-init vendor readback disagrees', async () => {
+    const invalidate = vi.fn();
+    let reads = 0;
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') return Promise.resolve(new Response(null, { status: 204 }));
+      reads += 1;
+      return Promise.resolve(response({
+        environment: 'saas', applianceUrl: old, account: 'conjur', configurable: true,
+      }));
+    }));
+    render(<ConjurBackendConnection status={status} tool={tool} ready invalidateSession={invalidate} />);
+    expect(await screen.findByText(old)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Change API endpoint' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Secrets Manager API URL' }), {
+      target: { value: next },
+    });
+    fireEvent.click(screen.getByRole('checkbox', { name: /replace the existing vendor CLI connection/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Replace CLI API endpoint' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The CLI did not report the requested endpoint');
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(reads).toBe(2);
+    expect(screen.queryByText(/endpoint saved and verified/i)).not.toBeInTheDocument();
+  });
+
   test('does not offer reconfiguration for an unsupported externally managed mode', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response({
       environment: 'other', applianceUrl: 'https://custom.example.test',
