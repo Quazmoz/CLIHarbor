@@ -101,6 +101,39 @@ describe('Conjur access workflow', () => {
       .toEqual(['whoami', 'list-resources', 'whoami',
         'whoami', 'resource-exists', 'whoami', 'whoami', 'resource-permitted-roles', 'whoami']);
   });
+  test('traverses nested roles without inventing effective permissions or executing mutations', async () => {
+    render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={() => {}}
+      onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
+    fireEvent.change(screen.getByPlaceholderText('account:group:name'), { target: { value: 'dev:group:operators' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect role' }));
+    await screen.findByRole('button', { name: 'List direct members' });
+    fireEvent.click(screen.getByRole('button', { name: 'List direct members' }));
+    const members = await screen.findByRole('region', { name: 'Direct members' });
+    expect(within(members).getAllByRole('button')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'List memberships' }));
+    const expanded = await screen.findByRole('region', { name: 'Expanded memberships' });
+    expect(within(expanded).getAllByRole('button')).toHaveLength(2);
+    expect(expanded).toHaveTextContent('not necessarily direct edges');
+    expect(vi.mocked(createRun).mock.calls.every(([, req]) => req.commandId !== 'secret-delete')).toBe(true);
+    expect(vi.mocked(createRun).mock.calls.every(([, req]) => req.commandId !== 'role-show')).toBe(true);
+  });
+  test('an absent resource is unknown, not proof of denied access', async () => {
+    vi.mocked(createRun).mockImplementation(async (_, request) => ({
+      runId: request.commandId, packId: request.packId, toolId: 'conjur', commandId: request.commandId,
+      status: 'exited', exitCode: 0, events: [],
+    }));
+    // Vendor returns a normal false boolean, never enough to assert permission denial.
+    const { decodeRunOutput } = await import('../../api/runs');
+    vi.mocked(decodeRunOutput).mockImplementation((snapshot) =>
+      snapshot.commandId === 'resource-exists' ? '{"exists":false}' :
+      snapshot.commandId === 'whoami' ? '{"username":"operator","account":"dev"}' : '[]');
+    render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={() => {}}
+      onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
+    fireEvent.change(screen.getByPlaceholderText('account:variable:path'), { target: { value: 'dev:variable:absent' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect resource' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('not evidence of absent access');
+    expect(screen.queryByRole('region', { name: 'Explorer results' })).not.toBeInTheDocument();
+  });
   test('rejects context switch without showing stale inspection', async () => {
     let reads = 0;
     vi.mocked(fetchSecretAudit).mockImplementation(async () => ({
