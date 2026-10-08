@@ -27,7 +27,6 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
   useEffect(() => {
     if (platform.id !== 'conjur') return;
     const controller = new AbortController();
-    setTarget(null);
     void fetchSecretAudit(controller.signal).then((audit) => {
       if (!controller.signal.aborted && audit.available && audit.target) setTarget(audit.target);
     }).catch(() => { if (!controller.signal.aborted) setTarget(null); });
