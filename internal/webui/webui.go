@@ -80,13 +80,13 @@ func (h staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // dedicatedRoute matches /dedicated/<platform-id> and its /sign-in page; the
-// Conjur audit beneath it is listed explicitly. IDs follow the same closed pattern the frontend accepts.
+// Conjur audit and access explorer beneath it are listed explicitly. IDs follow the same closed pattern the frontend accepts.
 var dedicatedRoute = regexp.MustCompile(`^/dedicated/[a-z0-9-]{1,64}(/sign-in)?$`)
 
 func isApplicationRoute(path string) bool {
 	switch path {
 	case "/", "/authentication", "/tasks", "/runs", "/tools", "/diagnostics",
-		"/secret-audit", "/conjur/security-audit", "/dedicated/conjur/security-audit":
+		"/secret-audit", "/conjur/security-audit", "/dedicated/conjur/security-audit", "/dedicated/conjur/access-explorer":
 		return true
 	default:
 		return dedicatedRoute.MatchString(path)
