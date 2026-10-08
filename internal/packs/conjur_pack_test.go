@@ -20,7 +20,7 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if pack.Metadata.ID != "cyberark-conjur-v9" {
 		t.Fatalf("pack id = %q", pack.Metadata.ID)
 	}
-	if pack.Metadata.Version != "0.6.0" {
+	if pack.Metadata.Version != "0.7.0" {
 		t.Fatalf("pack version = %q", pack.Metadata.Version)
 	}
 	if !strings.Contains(pack.Metadata.Name, "Conjur") {
@@ -68,6 +68,10 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 		"ldap-user-delete",
 		"ldap-user-list",
 		"ldap-user-show",
+		"list-variables",
+		"list-policies",
+		"list-hosts",
+		"list-groups",
 		"list-resources",
 		"resource-exists",
 		"resource-permitted-roles",
@@ -112,6 +116,13 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 		}
 	}
 
+	for _, id := range []string{"list-variables", "list-policies", "list-hosts", "list-groups"} {
+		command := pack.Commands[id]
+		if command.Risk != RiskRead || len(command.Inputs) != 2 || command.Inputs[0].ID != "limit" ||
+			!command.Inputs[0].Required || !slices.Equal(command.Inputs[0].Validation.Enum, []string{"25", "50", "100"}) {
+			t.Fatalf("inventory shortcut %s is not bounded: %+v", id, command)
+		}
+	}
 	listCommand := pack.Commands["list-resources"]
 	var listLimit *Input
 	for i := range listCommand.Inputs {
