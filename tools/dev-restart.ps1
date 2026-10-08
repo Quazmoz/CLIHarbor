@@ -25,7 +25,7 @@ if ([string]::IsNullOrWhiteSpace($scriptDir)) {
     }
     $candidate = Join-Path -Path $location.ProviderPath -ChildPath 'tools/dev-restart.ps1'
     if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
-        throw 'Cannot locate CLIHarbor: run from the checkout with .\\tools\\dev-restart.ps1.'
+        throw 'Cannot locate CLIHarbor: run from the checkout with .\tools\dev-restart.ps1.'
     }
     $scriptDir = Split-Path -Parent -Path $candidate
 }
