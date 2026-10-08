@@ -9,7 +9,7 @@ const TOOL = 'conjur';
 const PAGE_SIZES = [25, 50, 100] as const;
 const KINDS = ['all', 'variable', 'policy', 'host', 'group', 'user', 'layer', 'webservice', 'host_factory'] as const;
 const PRIVILEGES = ['read', 'write', 'execute'] as const;
-const READ_COMMANDS = new Set(['whoami', 'list-resources', 'resource-permitted-roles',
+const READ_COMMANDS = new Set(['whoami', 'list-resources', 'resource-exists', 'role-exists', 'resource-permitted-roles',
   'role-members', 'role-memberships']);
 const MAX_OUTPUT = 512 * 1024;
 const MAX_ROLE_ENTRIES = 1000;
@@ -39,6 +39,17 @@ export function parseConjurIDs(output: string, max: number, account?: string): s
 
 // No arbitrary resource/role JSON is ever fetched or stored in run history here.
 // The kind is derived from a validated full ID, never from an untrusted annotation.
+export function parseExists(output: string): boolean {
+  if (output.length > 256) throw new Error('Conjur existence response exceeded its limit.');
+  let parsed: unknown;
+  try { parsed = JSON.parse(output); } catch { throw new Error('Conjur returned invalid existence JSON.'); }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed) ||
+      Object.keys(parsed).length !== 1 || typeof (parsed as Record<string, unknown>).exists !== 'boolean') {
+    throw new Error('Conjur returned an unexpected existence response.');
+  }
+  return (parsed as { exists: boolean }).exists;
+}
+
 export function metadataFromID(id: string): Record<string, string> {
   if (!validConjurID(id)) throw new Error('Invalid resource identifier.');
   return { id, kind: id.split(':', 3)[1] };
@@ -175,13 +186,16 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
       if (controller.signal.aborted || before.target !== after.target || before.identity !== after.identity) {
         throw new Error('Conjur endpoint, account, CLI or authenticated identity changed. Results discarded.');
       }
+      if (abortRef.current !== controller) return;
       setEvidence(after);
       setInspection(result);
       if (result.type === 'inventory') setInventory(result);
     } catch (err) {
-      setInventory(null);
-      setEvidence(null);
-      if (!isAbort(err)) setError(err instanceof Error ? err.message : 'The Conjur query failed.');
+      if (abortRef.current === controller) {
+        setInventory(null);
+        setEvidence(null);
+        if (!isAbort(err)) setError(err instanceof Error ? err.message : 'The Conjur query failed.');
+      }
     } finally {
       if (abortRef.current === controller) { abortRef.current = null; setWorking(false); }
     }
@@ -209,7 +223,9 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
     setResourceID(id);
     void inspect(async (signal, account) => {
       if (!validConjurID(id, account)) throw new Error('Resource ID is not in the configured Conjur account.');
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      if (!parseExists(await runRead('resource-exists', { 'resource-id': id }, signal))) {
+        throw new Error('Conjur did not confirm that the resource exists or is visible.');
+      }
       return { type: 'resource', id, metadata: metadataFromID(id) };
     });
   }
@@ -219,7 +235,9 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
     setRoleID(id);
     void inspect(async (signal, account) => {
       if (!validConjurID(id, account)) throw new Error('Role ID is not in the configured Conjur account.');
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      if (!parseExists(await runRead('role-exists', { 'role-id': id }, signal))) {
+        throw new Error('Conjur did not confirm that the role exists or is visible.');
+      }
       return { type: 'role', id, metadata: metadataFromID(id) };
     });
   }
@@ -285,7 +303,7 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
           <label>Full resource ID
             <input value={resourceID} maxLength={2048} disabled={working} onChange={(event) => setResourceID(event.target.value)} placeholder="account:variable:path" />
           </label>
-          <button type="submit" disabled={working || !taskMap.has('whoami')}>Inspect resource</button>
+          <button type="submit" disabled={working || !taskMap.has('resource-exists')}>Inspect resource</button>
           <label>Requested privilege
             <select value={privilege} disabled={working} onChange={(event) => setPrivilege(event.target.value as typeof privilege)}>
               {PRIVILEGES.map((entry) => <option key={entry}>{entry}</option>)}
@@ -297,7 +315,7 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
           <label>Full role ID
             <input value={roleID} maxLength={2048} disabled={working} onChange={(event) => setRoleID(event.target.value)} placeholder="account:group:name" />
           </label>
-          <button type="submit" disabled={working || !taskMap.has('whoami')}>Inspect role</button>
+          <button type="submit" disabled={working || !taskMap.has('role-exists')}>Inspect role</button>
         </form>
       </div>
       <div className="platform-toolbox-grid">
