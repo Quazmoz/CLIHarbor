@@ -61,9 +61,9 @@ func TestConjurInventoryShortcutsUseFixedKindAndBoundedPagination(t *testing.T) 
 	registry, snapshot := conjurPlannerFixture(t)
 	for id, kind := range map[string]string{
 		"list-variables": "variable",
-		"list-policies": "policy",
-		"list-hosts": "host",
-		"list-groups": "group",
+		"list-policies":  "policy",
+		"list-hosts":     "host",
+		"list-groups":    "group",
 	} {
 		t.Run(id, func(t *testing.T) {
 			plan, err := Build(registry, snapshot, Request{
