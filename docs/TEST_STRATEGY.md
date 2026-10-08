@@ -12,6 +12,10 @@ GitHub Actions are **manual-only** for CLIHarbor. No workflow should automatical
 
 Use local Go, TypeScript, frontend synchronization, regression, and browser checks for normal development. Explicitly report skipped or platform-unavailable tests. This policy changes *when and where* qualification runs, not the required tests or release acceptance criteria: once a production release and GitHub Actions use are explicitly authorized, manually run the full applicable workflow for the exact target commit before release.
 
+### Development restart path regressions
+
+`tools/test-dev-restart-paths.ps1` uses temporary fixture checkouts to exercise the Windows helper's `-Stop` path without building or starting a runtime. It verifies that direct script-file invocation works from an unrelated current directory, that inline evaluation from the repository root works without `$PSScriptRoot`, and that invalid inline working directories fail closed before any build or process stop. Run it using Windows PowerShell or PowerShell 7 on Windows; it is not a substitute for a live Windows stop/build/start acceptance run.
+
 ### Credential login consistency regressions
 
 The Conjur sign-in adapter requires a currently matching executable identity at operation time, not merely an earlier healthy discovery snapshot. Regression tests cover a replaced executable, configuration drift between password exchange and its response, sanitized unavailability when context changes, and deterministic single-flight rejection of overlapping logins. All authentication and connection setup remain behind the same backend authorization and vendor credential-storage boundaries.
