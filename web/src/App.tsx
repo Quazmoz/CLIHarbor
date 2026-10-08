@@ -26,6 +26,7 @@ import { dedicatedSignIn } from './platforms';
 import { fetchPlatforms, type Platform, type PlatformFeatureID } from './api/platforms';
 import { ToolsPage } from './ToolsPage';
 import { TaskDiscovery, taskToolKey } from './TaskDiscovery';
+import { TaskSwitcher } from './TaskSwitcher';
 import { OutputExplorer } from './OutputExplorer';
 import { inputGuidance, runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
@@ -594,6 +595,7 @@ export function App() {
   const [taskChosen, setTaskChosen] = useState(false);
   const [taskToolFilter, setTaskToolFilter] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [taskSwitcherOpen, setTaskSwitcherOpen] = useState(false);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [selectedPlatformID, setSelectedPlatformID] = useState(() => platformIDFromPath(window.location.pathname));
   const [taskPreferences, setTaskPreferences] = useState<TaskPreferences>(() => loadTaskPreferences());
@@ -802,6 +804,26 @@ export function App() {
   const activeRunID =
     run !== null && run.retained && run.snapshot.status === 'running' ? run.snapshot.runId : null;
   const displayedRunID = run?.snapshot.runId;
+  const taskSwitcherAvailable = state.kind === 'ready' && state.tasks.length > 0 && !starting && activeRunID === null;
+
+  useEffect(() => {
+    if (!taskSwitcherAvailable) {
+      setTaskSwitcherOpen(false);
+      return;
+    }
+    const openTaskSwitcher = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.repeat ||
+          event.key.toLowerCase() !== 'k' || !(event.ctrlKey || event.metaKey) ||
+          event.altKey || event.shiftKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement &&
+          (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      event.preventDefault();
+      setTaskSwitcherOpen(true);
+    };
+    document.addEventListener('keydown', openTaskSwitcher);
+    return () => document.removeEventListener('keydown', openTaskSwitcher);
+  }, [taskSwitcherAvailable]);
 
   const displayedRunFinished = run !== null && run.snapshot.status !== 'running';
   // Also refocus when a run ends: the Cancel button that had focus disappears.
@@ -1320,6 +1342,14 @@ export function App() {
         <div className="topbar-location">
           <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
             onClick={() => setNavigationOpen((open) => !open)}>Menu</button>
+          <button type="button" className="quick-switch-trigger" disabled={!taskSwitcherAvailable}
+            onClick={() => setTaskSwitcherOpen(true)} aria-haspopup="dialog" aria-keyshortcuts="Control+k Meta+k">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>
+            </svg>
+            <span>Find task</span><kbd>⌘K / Ctrl K</kbd>
+          </button>
           <nav className="section-switcher" aria-label="CLI sections">
             {activePlatform !== undefined ? (
               <a href={pathForRoute('platform', activePlatform.id)}
@@ -1379,6 +1409,17 @@ export function App() {
           <span className="connection-label">{state.kind === 'ready' ? 'Local runtime ready' : state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}</span>
         </div>
       </header>
+
+      {taskSwitcherOpen && state.kind === 'ready' && taskSwitcherAvailable && (
+        <TaskSwitcher tasks={state.tasks} preferences={taskPreferences} onClose={() => setTaskSwitcherOpen(false)}
+          onSelect={(key) => {
+            setTaskSwitcherOpen(false);
+            setTaskToolFilter('');
+            focusConfigurationRef.current = true;
+            selectTaskByKey(key, state.tasks);
+            navigate('tasks');
+          }} />
+      )}
 
       <main ref={mainRef} id="main-content" tabIndex={-1} aria-busy={state.kind === 'loading'}>
         {state.kind === 'loading' && (
