@@ -401,3 +401,7 @@ other executable identities remain unchanged. See ADR-031 and
 ## Conjur security audit boundary
 
 The reviewed Conjur audit adapter ([ADR-028/ADR-033](DECISIONS.md)) remains separate from generic pack command execution. It reuses vendor-owned configuration/session material to read and classify values only in backend memory. The browser can select the reference detector or bounded text/regex criteria and confirm a backend URL matching that configuration. Snapshots and exports contain scan type, target metadata, IDs and closed reason/failure codes; they never contain patterns or secret values. No shell, dependency, credential store, or additional pack execution authority is introduced.
+
+## Durable mutation journal (current implementation)
+
+The `internal/audittrail` store serializes mutation approval/terminal records in a bounded private JSONL file, with startup chain validation and fsync on append. `internal/runs.Manager` accepts an audit sink and blocks mutations without one or when the sink fails; the `internal/app` startup wires the default user-config journal. Authenticated `GET /api/v1/audit` exposes only bounded metadata to the Runs UI. Detailed read-only run events remain in memory and are not added to the journal. This is metadata-level lifecycle evidence, **not** transactional rollback or external compliance logging. See [Mutation audit and recovery](MUTATION_AUDIT.md).
