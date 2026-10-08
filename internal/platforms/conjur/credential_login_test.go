@@ -668,8 +668,8 @@ func TestConjurCredentialLoginRejectsReplacedExecutableBeforeCredentialExchange(
 		PackID: PackID, ToolID: ToolID, Identity: "alice", Secret: "secret",
 	})
 	var loginErr *server.CredentialLoginError
-	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
-		t.Fatalf("error = %#v, want unsupported for changed executable identity", err)
+	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnavailable {
+		t.Fatalf("error = %#v, want unavailable for changed executable identity", err)
 	}
 }
 
@@ -713,4 +713,36 @@ type conjurLoginClientWithSideEffect struct {
 
 func (f *conjurLoginClientWithSideEffect) Login(identity, secret string) ([]byte, error) {
 	return f.login(identity, secret)
+}
+
+func TestConjurCredentialLoginSingleFlightRejectsConcurrentAttempt(t *testing.T) {
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	service.loadConfig = func() (conjurapi.Config, error) { return supportedConjurConfig(), nil }
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	service.newClient = func(conjurapi.Config) (conjurLoginClient, error) {
+		return &conjurLoginClientWithSideEffect{login: func(_, _ string) ([]byte, error) {
+			close(entered)
+			<-release
+			return nil, nil
+		}}, nil
+	}
+
+	request := server.CredentialLoginRequest{
+		PackID: PackID, ToolID: ToolID, Identity: "alice", Secret: "secret",
+	}
+	first := make(chan error, 1)
+	go func() { first <- service.Login(context.Background(), request) }()
+	<-entered
+
+	err := service.Login(context.Background(), request)
+	var loginErr *server.CredentialLoginError
+	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginBusy {
+		t.Fatalf("concurrent login = %#v, want busy", err)
+	}
+
+	close(release)
+	if err := <-first; err != nil {
+		t.Fatalf("first login failed: %v", err)
+	}
 }
