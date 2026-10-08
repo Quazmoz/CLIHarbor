@@ -23,16 +23,17 @@ const featureDetail: Record<PlatformFeatureID, string> = {
 
 /** Home for one dedicated CLI: what CLIHarbor adds on top of the generic workspace. */
 export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
+  const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
   const [target, setTarget] = useState<{ applianceUrl: string; account: string } | null>(null);
   useEffect(() => {
+    setTarget(null);
     if (platform.id !== 'conjur') return;
     const controller = new AbortController();
     void fetchSecretAudit(controller.signal).then((audit) => {
-      if (!controller.signal.aborted && audit.available && audit.target) setTarget(audit.target);
+      if (!controller.signal.aborted) setTarget(audit.available ? audit.target ?? null : null);
     }).catch(() => { if (!controller.signal.aborted) setTarget(null); });
     return () => controller.abort();
-  }, [platform.id]);
-  const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
+  }, [platform.id, tool?.status]);
   const platformTasks = tasks.filter((task) => task.packId === platform.packId && task.toolId === platform.toolId);
   const taskCount = platformTasks.length;
   // All shortcuts are resolved from backend-advertised approved tasks, never
