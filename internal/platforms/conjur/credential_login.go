@@ -28,37 +28,7 @@ const (
 	conjurConnectionSetupWaitDelay    = 2 * time.Second
 )
 
-var conjurSaaSTenantHost = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.secretsmgr\.cyberark\.cloudpackage conjur
-
-import (
-	"context"
-	"errors"
-	"io"
-	"net/http"
-	"net/url"
-	"os"
-	"os/exec"
-	"regexp"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/Quazmoz/CLIHarbor/internal/discovery"
-	"github.com/Quazmoz/CLIHarbor/internal/platform/terminal"
-	"github.com/Quazmoz/CLIHarbor/internal/server"
-	"github.com/cyberark/conjur-api-go/conjurapi"
-	"github.com/cyberark/conjur-api-go/conjurapi/response"
-)
-
-const (
-	PackID                            = "cyberark-conjur-v9"
-	ToolID                            = "conjur"
-	credentialLoginHTTPTimeoutSeconds = 20
-	conjurConnectionSetupTimeout      = 45 * time.Second
-	conjurConnectionSetupWaitDelay    = 2 * time.Second
-)
-
-)
+var conjurSaaSTenantHost = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.secretsmgr\.cyberark\.cloud$`)
 
 type conjurLoginClient interface {
 	Login(string, string) ([]byte, error)
