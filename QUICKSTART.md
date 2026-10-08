@@ -234,3 +234,7 @@ go run ./tools/task verify-windows-eval-repro
 ```
 
 Continue with [README](README.md), [Conjur integration](docs/CONJUR_INTEGRATION.md), [Security](docs/SECURITY.md), and [Architecture](docs/ARCHITECTURE.md).
+
+## Explore Conjur access safely
+
+After confirming Conjur CLI discovery and authentication, open **Built-in CLIs → CyberArk Conjur → Access & permissions** (`/dedicated/conjur/access-explorer`). Select a kind and page size, search visible resources, and select a full resource ID. Query roles for a chosen privilege or open a role to inspect direct members and recursively expanded memberships. The tool never reads variable secret values; no mutation runs from an explorer link. Failed queries and insufficient visibility are **unknown**, not proof of denied permission. [More details](docs/CONJUR_INTEGRATION.md#access--permissions-explorer).
