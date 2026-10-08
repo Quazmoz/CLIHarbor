@@ -17,7 +17,7 @@ describe('custom CLI pack wizard', () => {
     fireEvent.change(screen.getByLabelText('Tool ID'), { target: { value: 'acme' } });
     fireEvent.change(screen.getByLabelText('Executable filename (basename only)'), { target: { value: 'acme' } });
     expect(screen.getByRole('button', { name: 'Download pack draft (.yaml)' })).toBeEnabled();
-    expect(screen.getByLabelText('Generated YAML — no runnable tasks')).toHaveValue(expect.stringContaining('commands: {}'));
+    expect((screen.getByLabelText('Generated YAML — no runnable tasks') as HTMLTextAreaElement).value).toContain('commands: {}');
     expect(screen.queryByText(/has not been validated, trusted, or loaded/i)).not.toBeInTheDocument();
     expect(screen.getByText(/explicitly load the reviewed pack/i)).toBeInTheDocument();
   });
