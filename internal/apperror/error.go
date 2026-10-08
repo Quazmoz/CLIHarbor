@@ -92,7 +92,7 @@ func DetailFor(code Code) Detail {
 		return Detail{Code: code, Category: CategoryPolicy, Message: "This change requires a fresh explicit approval.", Remediation: "Preview the task again, verify its exact target and environment, then approve it."}
 	case CodeAuditUnavailable:
 		return Detail{Code: code, Category: CategorySecurity,
-			Message: "CLIHarbor cannot safely record this change in its local audit trail.",
+			Message:     "CLIHarbor cannot safely record this change in its local audit trail.",
 			Remediation: "Do not retry blindly. Check the journal under your user configuration's CLIHarbor/audit directory, available disk space and any stale lock. Verify prior operation outcomes before repairing audit storage."}
 	case CodeExecutionContextUnavailable:
 		return Detail{Code: code, Category: CategoryPolicy, Message: "CLIHarbor could not establish trusted environment context for this change.", Remediation: "Verify the vendor connection/account configuration, then preview the task again before approving it."}

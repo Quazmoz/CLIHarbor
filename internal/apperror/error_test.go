@@ -27,8 +27,8 @@ func TestWithFieldAllowsOnlyOperatorInputFields(t *testing.T) {
 }
 
 func TestAuditUnavailableErrorIsExplicitAndSafe(t *testing.T) {
- detail := DetailFor(CodeAuditUnavailable)
- if detail.Code != CodeAuditUnavailable || detail.Category != CategorySecurity || detail.Message == "" || detail.Remediation == "" || detail.Retryable {
-  t.Fatalf("unsafe audit failure detail = %#v", detail)
- }
+	detail := DetailFor(CodeAuditUnavailable)
+	if detail.Code != CodeAuditUnavailable || detail.Category != CategorySecurity || detail.Message == "" || detail.Remediation == "" || detail.Retryable {
+		t.Fatalf("unsafe audit failure detail = %#v", detail)
+	}
 }
