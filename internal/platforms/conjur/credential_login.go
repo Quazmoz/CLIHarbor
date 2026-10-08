@@ -123,7 +123,7 @@ func (s *CredentialLoginService) Connection() (server.CredentialConnection, erro
 	switch {
 	case config.IsSaaS():
 		environment = "saas"
-		configurable = supportsConjurVendorLogin(config) && !conjurConfigEnvOverride()
+		configurable = conjurSaaSMatches(config, config.ApplianceURL) && !conjurConfigEnvOverride()
 	case conjurBlankConfig(config):
 		environment = "unconfigured"
 		configurable = !conjurConfigEnvOverride() && writableConjurCredentials(config)
@@ -237,7 +237,7 @@ func conjurConfigEnvOverride() bool {
 func canonicalConjurSaaSURL(value string) (string, bool) {
 	u, err := url.Parse(value)
 	if err != nil || u.Scheme != "https" || u.User != nil ||
-		u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" ||
+		strings.ContainsAny(value, "?#") || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" ||
 		u.Host != u.Hostname() || !conjurSaaSTenantHost.MatchString(u.Hostname()) ||
 		(u.Path != "" && u.Path != "/" && u.Path != "/api") || u.RawPath != "" {
 		return "", false
