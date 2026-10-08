@@ -27,6 +27,24 @@ jobs:
       - run: go run ./tools/task sync-web
       - run: git status --porcelain=v1 -- internal/webui/static
       - run: go test -timeout 2m ./internal/webui ./internal/platforms/... ./internal/packs/...
+      - name: Validate browser-produced pack with native pack loader
+        shell: bash
+        run: |
+          node --experimental-strip-types --input-type=module <<'JS'
+          import { writeFileSync } from 'node:fs';
+          import { preparePackDraft } from './web/src/packDraft.ts';
+          const result = preparePackDraft({
+            packId: 'sample-scratch',
+            name: 'Sample CLI',
+            toolId: 'sample',
+            executable: 'sample',
+            platforms: ['windows', 'darwin', 'linux'],
+          });
+          if (!result.yaml) throw Error(JSON.stringify(result.issues));
+          writeFileSync('/tmp/cliharbor-wizard-sample.yaml', result.yaml);
+          JS
+          go run ./cmd/cliharbor pack validate /tmp/cliharbor-wizard-sample.yaml
+          go run ./cmd/cliharbor pack lint /tmp/cliharbor-wizard-sample.yaml
       - name: Export generated asset bytes
         shell: bash
         run: |

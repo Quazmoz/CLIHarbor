@@ -81,6 +81,8 @@ describe('command preview and retry workflows', () => {
     expect(within(dedicated).getByRole('combobox', { name: 'Dedicated CLI' })).toHaveValue('conjur');
     expect(within(dedicated).getByText('Built-in CLIs')).toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByText('CLI workspace')).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Task categories' }))
+      .getByText('Workspace CLI packs')).toHaveClass('nav-subgroup-label');
     expect(screen.queryByRole('button', { name: /^Sign in$/i })).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Task categories' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
