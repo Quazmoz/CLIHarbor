@@ -12,7 +12,7 @@ This path is designed for locked-down work laptops where user-context portable e
 
 A local browser UI for safely exposing curated workflows from official command-line tools on Windows and macOS.
 
-**Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation/lint/contract-test tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x read-only integration are implemented.
+**Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation/lint/contract-test tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x integration (read-only inventory, approved changes and an opt-in value scanner) are implemented.
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
@@ -25,7 +25,7 @@ Completed runs provide a **Formatted** view for validated structured fields or b
 CLIHarbor separates the **generic CLI workspace** from **dedicated CLI platforms**:
 
 - **CLI workspace:** **Overview**, **Tasks**, **Runs**, **CLI sessions**, **Add a CLI**, **Diagnostics**, and the tool categories generated from reviewed packs. Additional CLIs can be loaded through explicit trusted packs (`--pack-file` / `--pack-dir`). **Add a CLI** provides both the reviewed install catalog and a guided, browser-only **Create a custom CLI pack** flow. The wizard downloads a discovery-only YAML scaffold but does not validate, trust, run, or activate it; approved pack loading still requires explicit operator action.
-- **Dedicated CLIs:** a separate sidebar section with a platform picker and platform-specific home and workflows. **CyberArk Conjur** is the first built-in integration, with guided sign-in and read-only secret-value security audit at `/dedicated/conjur`, `/dedicated/conjur/sign-in`, and `/dedicated/conjur/security-audit`. Its approved commands still use the shared `/tasks` runner rather than duplicating execution authority.
+- **Dedicated CLIs:** a separate sidebar section with a platform picker and platform-specific home and workflows. **CyberArk Conjur** is the first built-in integration, with guided sign-in, grouped approved inventory/access/mutation tools and an inventory-first regex pattern explorer at `/dedicated/conjur`, `/dedicated/conjur/sign-in`, and `/dedicated/conjur/security-audit`. Its approved commands still use the shared `/tasks` runner rather than duplicating execution authority.
 
 Future purpose-built integrations belong in the dedicated platform registry, not as vendor branches in the generic planner/executor. The separate sections are additive: when no dedicated platform is loaded, the generic workspace remains functional.
 
@@ -152,6 +152,8 @@ exact executable + argv[]
     ↓
 official installed or exact verified managed CLI
 ```
+
+**Conjur pattern explorer:** Open **Built-in CLIs → CyberArk Conjur → Security audit**. The default **Variable IDs · regex** mode uses metadata-only Conjur inventory searches, with credential-name, production, service-account and legacy-path presets plus custom Go/RE2 expressions. It never reads secret values. Select **Secret values · regex** only when an authorized value scan is necessary; it requires explicit acknowledgement and returns only variable IDs and match reasons, never values. The Conjur home also has read-only, paginated shortcuts for variables, policies, hosts and groups and links to reviewed access/change tasks. All commands still go through the shared task confirmation path.
 
 The vendor CLI remains the operational authority. The browser never chooses an executable file, executable path used for task execution, subcommand, flag name, shell string, raw argv, dependency URL, or expected hash. For pack-declared portable installs only, the browser may choose a constrained base directory beneath the current user's home; CLIHarbor still derives the final executable path and verifies the exact reviewed bytes.
 
