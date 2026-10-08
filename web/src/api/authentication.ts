@@ -5,8 +5,39 @@ export interface CredentialConfigurationRequest {
   toolId: string;
   applianceUrl: string;
   account: string;
-  authnType: 'authn' | 'ldap';
+  authnType: 'authn' | 'ldap' | 'cloud';
   serviceId?: string;
+  environment?: 'saas';
+  expectedApplianceUrl?: string;
+}
+
+export interface VendorConnection {
+  environment: 'saas' | 'self-hosted' | 'unconfigured' | 'other';
+  applianceUrl: string;
+  account: string;
+  configurable: boolean;
+}
+
+export async function getVendorConnection(signal?: AbortSignal): Promise<VendorConnection> {
+  const response = await fetch('/api/v1/auth/configure', {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+  if (!response.ok) throw await errorFromResponse(response);
+  const data: unknown = await response.json();
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw clientError('invalid_response');
+  const value = data as Record<string, unknown>;
+  if (!['saas', 'self-hosted', 'unconfigured', 'other'].includes(String(value.environment)) ||
+      typeof value.applianceUrl !== 'string' || value.applianceUrl.length > 2048 ||
+      typeof value.account !== 'string' || value.account.length > 256 ||
+      typeof value.configurable !== 'boolean' ||
+      /[\u0000-\u001f\u007f]/.test(value.applianceUrl) ||
+      /[\u0000-\u001f\u007f]/.test(value.account)) {
+    throw clientError('invalid_response');
+  }
+  return value as unknown as VendorConnection;
 }
 
 export interface CredentialLoginRequest {
