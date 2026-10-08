@@ -851,6 +851,42 @@ describe('AuthenticationPage', () => {
     expect(open).toHaveBeenCalledTimes(1);
   });
 
+  test('notices the vendor console stealing focus before launch request completes', async () => {
+    const vendorTool: ToolDiagnostic = {
+      ...readyTool,
+      credentialLogin: { method: 'conjur-vendor-login' },
+    };
+    let resolveLaunch: ((value: Response) => void) | undefined;
+    const launchPending = new Promise<Response>((resolve) => { resolveLaunch = resolve; });
+    let sessionChecks = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/auth/interactive') return launchPending;
+      if (path === '/api/v1/runs') {
+        sessionChecks += 1;
+        return Promise.resolve(response(202, {
+          runId: 'edededededededededededededededed',
+          packId: whoamiTask.packId, toolId: 'conjur', commandId: 'whoami',
+          status: 'exited', exitCode: 0,
+        }));
+      }
+      return Promise.resolve(response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderAuth([whoamiTask], [vendorTool]);
+    fireEvent.click(screen.getByRole('button', { name: 'Start official Conjur sign-in' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    fireEvent.blur(window);
+    expect(sessionChecks).toBe(0);
+
+    resolveLaunch?.(new Response(null, { status: 204 }));
+    expect(await screen.findByText('Official Conjur sign-in started.')).toBeInTheDocument();
+    fireEvent.focus(window);
+    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+    expect(sessionChecks).toBe(1);
+  });
+
   test('does not auto-check vendor login from unrelated focus; verifies once after returning', async () => {
     const vendorTool: ToolDiagnostic = {
       ...readyTool,
