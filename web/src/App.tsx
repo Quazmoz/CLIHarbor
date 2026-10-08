@@ -20,6 +20,7 @@ import {
 import { AuthenticationPage } from './AuthenticationPage';
 import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
 import { SecretAuditPage } from './platforms/conjur/SecretAuditPage';
+import { ConjurAccessExplorer } from './platforms/conjur/ConjurAccessExplorer';
 import { OverviewPage } from './OverviewPage';
 import { PlatformPage } from './PlatformPage';
 import { dedicatedSignIn } from './platforms';
@@ -521,7 +522,7 @@ function streamStateText(state: StreamState): string {
   }
 }
 
-type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'tools' | 'diagnostics' | 'platform' | 'platform-sign-in';
+type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'access-explorer' | 'tools' | 'diagnostics' | 'platform' | 'platform-sign-in';
 
 const routePaths: Record<AppRoute, string> = {
   overview: '/',
@@ -529,6 +530,7 @@ const routePaths: Record<AppRoute, string> = {
   tasks: '/tasks',
   runs: '/runs',
   'secret-audit': '/dedicated/conjur/security-audit',
+  'access-explorer': '/dedicated/conjur/access-explorer',
   tools: '/tools',
   diagnostics: '/diagnostics',
   platform: '/dedicated',
@@ -542,7 +544,7 @@ const dedicatedPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})$/;
 const dedicatedSignInPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})\/sign-in$/;
 
 function platformIDFromPath(pathname: string): string {
-  if (pathname === routePaths['secret-audit'] || pathname === '/conjur/security-audit' || pathname === '/secret-audit') return 'conjur';
+  if (pathname === routePaths['secret-audit'] || pathname === '/conjur/security-audit' || pathname === '/secret-audit' || pathname === routePaths['access-explorer']) return 'conjur';
   return (dedicatedPathPattern.exec(pathname) ?? dedicatedSignInPathPattern.exec(pathname))?.[1] ?? '';
 }
 
@@ -561,6 +563,7 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'authentication', label: 'CLI sessions', group: 'Manage', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
   { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
+  { route: 'access-explorer', label: 'Conjur access explorer', group: 'Dedicated', icon: 'M12 2v20 M2 12h20 M6 6l12 12' },
   { route: 'platform', label: 'Dedicated CLI', group: 'Dedicated', icon: 'M4 6h16v12H4z M8 10l3 2-3 2 M13 14h3' },
   { route: 'platform-sign-in', label: 'Dedicated sign-in', group: 'Dedicated', icon: '' },
 ];
@@ -579,6 +582,8 @@ function routeFromPath(pathname: string): AppRoute {
       return 'secret-audit';
     case '/tools':
       return 'tools';
+    case routePaths['access-explorer']:
+      return 'access-explorer';
     case '/diagnostics':
       return 'diagnostics';
     default:
@@ -633,14 +638,20 @@ export function App() {
     });
   }, []);
 
-  const selectTaskByKey = useCallback((key: string, tasks: Task[]) => {
+  const selectTaskByKey = useCallback((key: string, tasks: Task[], prefill?: Record<string, string>) => {
     const task = tasks.find((candidate) => candidate.packId + '/' + candidate.commandId === key);
     if (task === undefined) {
       return;
     }
     setSelectedTaskKey(key);
     setTaskChosen(true);
-    setFormValues(initialValues(task));
+    const values = initialValues(task);
+    for (const input of task.inputs) {
+      const candidate = prefill?.[input.id];
+      if (input.type === 'string' && candidate !== undefined && candidate.length <= (input.validation?.maxLength ?? 2048) &&
+          !/[\p{Cc}\p{Cf}]/u.test(candidate) && !candidate.startsWith('-')) values[input.id] = candidate;
+    }
+    setFormValues(values);
     previewRequestRef.current += 1;
     setCommandPreview(null);
     setApprovalConfirmation('');
@@ -1199,10 +1210,13 @@ export function App() {
       case 'security-audit':
         navigate('secret-audit');
         return;
+      case 'access-explorer':
+        navigate('access-explorer', 'conjur');
+        return;
     }
   };
 
-  const featureRoute: Record<PlatformFeatureID, AppRoute> = { tasks: 'tasks', 'sign-in': 'platform-sign-in', 'security-audit': 'secret-audit' };
+  const featureRoute: Record<PlatformFeatureID, AppRoute> = { tasks: 'tasks', 'sign-in': 'platform-sign-in', 'security-audit': 'secret-audit', 'access-explorer': 'access-explorer' };
 
   // Prefer the exact CLI's dedicated sign-in; otherwise check this CLI's vendor session.
   const openSessionsForTool = (packId: string, toolId: string) => {
@@ -1225,7 +1239,7 @@ export function App() {
   const taskFilterPlatform = taskFilterLabel === undefined ? undefined : platforms.find((platform) =>
     platform.packId === taskFilterLabel.packId && platform.toolId === taskFilterLabel.toolId);
   const breadcrumbPlatform = route === 'tasks' && taskFilterPlatform !== undefined ? taskFilterPlatform : activePlatform;
-  const inDedicatedJourney = route === 'platform' || route === 'platform-sign-in' || route === 'secret-audit' ||
+  const inDedicatedJourney = route === 'platform' || route === 'platform-sign-in' || route === 'secret-audit' || route === 'access-explorer' ||
     (route === 'tasks' && taskFilterPlatform !== undefined);
   // An old dedicated deep link may be opened without a registered platform.
   // Keep the generic section selected rather than highlighting a broken target.
@@ -1477,6 +1491,24 @@ export function App() {
 
         {state.kind === 'ready' && route === 'runs' && <RunsPage tasks={state.tasks} onOpenTasks={() => navigate('tasks')} />}
 
+        {state.kind === 'ready' && route === 'access-explorer' && activePlatform?.id === 'conjur' && (
+          <ConjurAccessExplorer
+            tasks={state.tasks}
+            csrfToken={state.status.csrfToken}
+            onOpenSignIn={() => navigate('platform-sign-in', 'conjur')}
+            onOpenDiagnostics={() => navigate('diagnostics')}
+            onOpenTask={(commandId, prefill) => {
+              if (starting || activeRunID !== null) return;
+              const currentPlatform = platforms.find((p) => p.id === 'conjur');
+              if (!currentPlatform) return;
+              setTaskToolFilter(taskToolKey(currentPlatform));
+              setSelectedPlatformID('conjur');
+              focusConfigurationRef.current = true;
+              selectTaskByKey(currentPlatform.packId + '/' + commandId, state.tasks, prefill);
+              navigate('tasks', 'conjur');
+            }}
+          />
+        )}
         {state.kind === 'ready' && route === 'secret-audit' && (
           <SecretAuditPage
             csrfToken={state.status.csrfToken}
@@ -1532,7 +1564,7 @@ export function App() {
           />
         )}
 
-        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && route !== 'secret-audit' && route !== 'platform' && route !== 'platform-sign-in' && (
+        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && route !== 'secret-audit' && route !== 'access-explorer' && route !== 'platform' && route !== 'platform-sign-in' && (
           <>
             <section className={'runtime-overview' + (route === 'tasks' ? ' runtime-overview--task' : '')} aria-labelledby="runtime-heading">
               <div className="runtime-copy">
