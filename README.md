@@ -20,7 +20,7 @@ CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings
 
 CLIHarbor separates the **generic CLI workspace** from **dedicated CLI platforms**:
 
-- **CLI workspace:** **Overview**, **Tasks**, **Runs**, **CLI sessions**, **Add a CLI**, **Diagnostics**, and the tool categories generated from reviewed packs. Additional CLIs can be loaded through explicit trusted packs (`--pack-file` / `--pack-dir`). **Add a CLI** provides the reviewed install catalog; it is not an unrestricted terminal, dynamic pack downloader, or arbitrary executable importer.
+- **CLI workspace:** **Overview**, **Tasks**, **Runs**, **CLI sessions**, **Add a CLI**, **Diagnostics**, and the tool categories generated from reviewed packs. Additional CLIs can be loaded through explicit trusted packs (`--pack-file` / `--pack-dir`). **Add a CLI** provides both the reviewed install catalog and a guided, browser-only **Create a custom CLI pack** flow. The wizard downloads a discovery-only YAML scaffold but does not validate, trust, run, or activate it; approved pack loading still requires explicit operator action.
 - **Dedicated CLIs:** a separate sidebar section with a platform picker and platform-specific home and workflows. **CyberArk Conjur** is the first built-in integration, with guided sign-in and read-only secret-value security audit at `/dedicated/conjur`, `/dedicated/conjur/sign-in`, and `/dedicated/conjur/security-audit`. Its approved commands still use the shared `/tasks` runner rather than duplicating execution authority.
 
 Future purpose-built integrations belong in the dedicated platform registry, not as vendor branches in the generic planner/executor. The separate sections are additive: when no dedicated platform is loaded, the generic workspace remains functional.
@@ -184,7 +184,9 @@ Still intentionally gated:
 
 CLIHarbor's core runtime is not Conjur-specific. A separate CLI can be added as another reviewed declarative pack and loaded in the same browser session as the embedded Conjur pack.
 
-Create a discovery-only scaffold:
+To create a discovery-only scaffold without installing Go or Node on a managed workstation, open **Add a CLI → Create a custom CLI pack → Start authoring**. Enter the pack ID, display name, tool ID, executable basename (never an absolute path), and verified target operating systems. Review and download the YAML draft. The draft enables **no commands** and is not automatically loaded; an operator must review it, run the pack validator/linter and restart CLIHarbor with `--pack-file`. This is an offline authoring convenience, not a generic CLI importer.
+
+Alternatively, create the same discovery-only scaffold from the CLI:
 
 ```bash
 go run ./cmd/cliharbor pack init \

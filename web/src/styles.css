@@ -135,7 +135,15 @@ button:disabled {
 
 .brand-caption { font-size: 0.68rem; color: var(--text-muted); }
 
+.workspace-navigation { display: grid; gap: 0.2rem; }
 .primary-nav { display: grid; gap: 1.6rem; }
+.nav-subgroup-label {
+  margin: 0 0 0.35rem;
+  padding: 0 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 550;
+}
 .nav-group { display: grid; gap: 0.25rem; }
 .nav-group-label {
   margin: 0 0 0.5rem;
@@ -176,7 +184,7 @@ button:disabled {
   background: #19323a;
 }
 
-.tool-categories { display: grid; gap: 0.25rem; margin-top: 1.2rem; }
+.tool-categories { display: grid; gap: 0.25rem; margin-top: 0.3rem; padding-left: 0.25rem; }
 .dedicated-platforms {
   display: grid;
   gap: 0.25rem;
@@ -1186,6 +1194,49 @@ main:focus { outline: none; }
   gap: var(--space-2);
   margin-top: var(--space-4);
   max-width: 32rem;
+}
+
+.pack-authoring {
+  margin: 0 var(--space-5) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.pack-authoring-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.pack-authoring-heading h3, .pack-authoring-review h4, .pack-authoring-next h4 {
+  margin: 0.35rem 0;
+  color: var(--text-strong);
+}
+.pack-authoring-heading p:not(.status-label) { margin: 0.25rem 0; color: var(--text-muted); }
+.pack-authoring-body { display: grid; gap: var(--space-4); padding: 0 var(--space-4) var(--space-4); }
+.pack-authoring-boundary { margin: 0; padding: var(--space-3); border-left: 3px solid var(--accent); background: var(--surface-3); }
+.pack-authoring-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--space-4); }
+.pack-authoring-fields fieldset { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; margin: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3); }
+.pack-authoring-fields legend { color: var(--text-strong); font-weight: 700; }
+.pack-authoring-fields label:not(.pack-platform-option) { margin-top: 0.4rem; font-weight: 600; font-size: 0.85rem; }
+.pack-authoring-fields input:not([type="checkbox"]), .pack-authoring-review textarea {
+  width: 100%; min-width: 0; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  padding: 0.6rem; color: var(--text); background: var(--surface-3);
+}
+.pack-authoring-fields input[aria-invalid="true"] { border-color: var(--warning); }
+.pack-authoring-fields small[role="alert"] { color: var(--warning); }
+.pack-authoring-hint { font-size: 0.78rem; color: var(--text-muted); }
+.pack-platform-option { display: flex; align-items: center; gap: 0.6rem; padding: 0.2rem 0; }
+.pack-authoring-review, .pack-authoring-next { display: grid; justify-items: start; gap: 0.5rem; }
+.pack-authoring-review textarea { font: 0.8rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 100%; resize: vertical; }
+.pack-authoring-next ol { margin: 0.25rem 0; padding-left: 1.5rem; }
+.pack-authoring-next li { margin-bottom: 0.7rem; overflow-wrap: anywhere; }
+.pack-authoring-next code { font-size: 0.78rem; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .pack-authoring-heading { flex-direction: column; }
+  .pack-authoring { margin-inline: var(--space-3); }
 }
 
 .cli-catalog-list {

@@ -1204,6 +1204,7 @@ export function App() {
           <span className="brand-mark" aria-hidden="true">&gt;_</span>
           <div><h1>CLIHarbor</h1><span className="brand-caption">Your local CLI workspace</span></div>
         </div>
+        <div className="workspace-navigation">
         <nav className="primary-nav" aria-label="Primary">
           <div className="nav-group">
             <p className="nav-group-label">CLI workspace</p>
@@ -1233,7 +1234,7 @@ export function App() {
         </nav>
         {taskCategories.length > 0 && (
           <nav className="tool-categories" aria-label="Task categories">
-            <p className="nav-group-label">Workspace CLI packs</p>
+            <p className="nav-subgroup-label">Workspace CLI packs</p>
             {taskCategories.map(([key, task]) => (
               <div key={key}>
                 <button type="button" aria-pressed={route === 'tasks' && taskToolFilter === key}
@@ -1247,6 +1248,7 @@ export function App() {
             ))}
           </nav>
         )}
+        </div>
         {activePlatform !== undefined && (
           <nav className="dedicated-platforms" aria-label="Dedicated CLIs">
             <p className="nav-group-label">Built-in CLIs</p>
