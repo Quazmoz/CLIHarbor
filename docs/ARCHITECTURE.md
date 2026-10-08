@@ -398,6 +398,12 @@ catalog refresh changes navigation metadata only. The pack registry and all
 other executable identities remain unchanged. See ADR-031 and
 [Supported CLI catalog](CLI_CATALOG.md).
 
+## Conjur Access Explorer contract
+
+The dedicated React Access Explorer consumes the existing authenticated `/api/v1/runs` read-only executor and `/api/v1/tasks` allowlist; it does not introduce a generic Conjur REST proxy, command syntax, or secret-returning API. It checks the read-only task's pack/tool/risk before starting. It binds each result to two observations of the configuration from `/api/v1/conjur/secret-audit`, the tool version/readiness from `/api/v1/tools`, and the CLI session's reviewed `whoami` result. Inconsistencies discard the result. Browser output is restricted to validated resource ID arrays, existence booleans, role relationship arrays and fields derived from a validated full ID. The explorer does not execute raw `resource-show` or `role-show` to avoid storing unconstrained vendor metadata in generic run history. Operators may separately use those existing approved tasks through the generic task runner.
+
+These pre/post checks detect observed context changes but do not provide server-side snapshot isolation or atomic authorization across the duration of a vendor command. Real Conjur authorization remains enforced by the vendor. The explorer is **not** an authoritative effective-access calculator. A future backend-native context-bound operation would be required to make stronger atomicity guarantees.
+
 ## Conjur security audit boundary
 
 The reviewed Conjur audit adapter ([ADR-028/ADR-033](DECISIONS.md)) remains separate from generic pack command execution. It reuses vendor-owned configuration/session material to read and classify values only in backend memory. The browser can select the reference detector or bounded text/regex criteria and confirm a backend URL matching that configuration. Snapshots and exports contain scan type, target metadata, IDs and closed reason/failure codes; they never contain patterns or secret values. No shell, dependency, credential store, or additional pack execution authority is introduced.

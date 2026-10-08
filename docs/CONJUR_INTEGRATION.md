@@ -25,7 +25,7 @@ CyberArk release binaries render the reviewed release as `9.3.1-<commit>`. That 
 
 ## Zero-config startup
 
-Pack version `0.6.0` supports installed Conjur on Windows and macOS using the same reviewed 9.x argv/version contract. The upstream [v9.3.1 release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) publishes darwin builds. The automatic pinned fallback and guided external vendor-login launcher remain Windows-specific; on macOS, install an approved official CLI and complete interactive login in your terminal. See [Windows and macOS setup](CROSS_PLATFORM.md).
+Pack version `0.7.0` supports installed Conjur on Windows and macOS using the same reviewed 9.x argv/version contract. The upstream [v9.3.1 release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) publishes darwin builds. The automatic pinned fallback and guided external vendor-login launcher remain Windows-specific; on macOS, install an approved official CLI and complete interactive login in your terminal. See [Windows and macOS setup](CROSS_PLATFORM.md).
 
 Normal Windows startup is:
 
@@ -147,6 +147,16 @@ The upstream Conjur 9.3.1 `list` command defaults to as many as 10,000 resources
 The deprecated list compatibility flags for role membership/permitted-role queries are no longer exposed through `list-resources`; the existing `role-members` and `resource-permitted-roles` tasks are the authoritative browser workflows for those operations. Counting is likewise a separate `count-resources` task so a pagination cap cannot silently change count semantics. The executor's output limit remains a final safety boundary rather than being enlarged or disabled.
 
 All user-controlled positional identifiers are represented by CLIHarbor's constrained positional primitive: one validated scalar becomes exactly one argv element. CLIHarbor does not split it, template it, reinterpret it as a shell command, or allow a leading `-` that could become an undeclared flag.
+
+## Access & permissions explorer
+
+Open **Built-in CLIs → CyberArk Conjur → Access & permissions**, or visit `/dedicated/conjur/access-explorer`. This dedicated view runs **only existing backend-advertised read-only tasks**, with bounded inventory pages (25/50/100), a server-side search and a resource kind selector. Every resource or role selection rechecks the configured Conjur endpoint/account, CLI readiness/version, and the `whoami` identity before and after the query. Changed context, failed or incomplete vendor reads, oversized/malformed JSON, and cross-account IDs discard the result rather than imply that access is absent.
+
+Resource navigation first verifies visibility/existence using the reviewed `resource-exists` or `role-exists` boolean task, then displays only the validated full `id` and a `kind` derived from that identifier; it never invokes `resource-show` or `role-show`, because their unfiltered responses would otherwise be retained in generic run history. Annotations, policies, owner metadata and values are neither retrieved for the explorer nor displayed/exported. Operators can separately review the generic approved tasks, subject to their normal output/history contracts. Inventory exports contain only approved resource IDs. An optional task shortcut opens the already-approved task form with the reviewed resource/role ID prefilled; it does not preview, authorize or execute the task. All mutations retain the existing review/approval/audit lifecycle.
+
+**Permission interpretation:** `resource permitted-roles` returns Conjur-reported permitted-role relationships for a selected `read`, `write`, or `execute` privilege. `role members` returns direct members by default. In the pinned 9.3.1 Go CLI, `role memberships` uses `RoleMembershipsAll` and therefore returns **recursively expanded memberships**, not direct parent edges. Duplicate IDs are removed for display; traversal is not performed by CLIHarbor. None of these relationships, nor an empty or unavailable result, constitutes proof of an individual identity's effective permission. Checking effective permission requires a separately reviewed authoritative privilege check, not graph inference. No new pack command is introduced.
+
+See CyberArk's pinned [resource implementation](https://github.com/cyberark/conjur-cli-go/blob/7207d6a4a2005130978e10d03d7f6b55ab0216d6/pkg/cmd/resource.go) and [role implementation](https://github.com/cyberark/conjur-cli-go/blob/7207d6a4a2005130978e10d03d7f6b55ab0216d6/pkg/cmd/role.go). The explorer remains fixture/CI-qualified only until tested against an approved Conjur backend.
 
 ## Secret variable management
 

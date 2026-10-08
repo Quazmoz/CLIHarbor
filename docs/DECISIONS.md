@@ -882,3 +882,19 @@ Replace the heuristic, all-values-first Conjur audit *UI default* with read-only
 
 Add four vendor-verified, page-bounded read-only inventory commands (variables, policies, hosts and groups) to Conjur pack v0.7.0, and present approved tasks as navigation shortcuts in the Conjur home. Quick links cannot authorize or execute commands; the shared task planner and approval requirements remain authoritative.
 
+## ADR-036 — Reuse approved read-only Conjur tasks for a bounded access explorer
+
+**Date:** 2026-10-08  
+**Status:** Accepted
+
+**Context:** CLIHarbor already provides vetted Conjur Go CLI v9.3.1 read commands, a bounded task runner and session handling. The new UX must not become an unrestricted API proxy or confuse role-graph relationships with effective rights.
+
+**Decision:** Build the Access & Permissions Explorer as a dedicated client of the existing approved read-only tasks, without new pack commands or secret-value APIs. Fix the browser's input/response scope to approved resource IDs, derived kind metadata, and explicit relationship types. Never invoke raw resource/role show commands in the explorer, as their unfiltered outputs are retained by the generic task history. Check configured endpoint/account, CLI readiness/version and whoami before and after inspection, discard drifted and partial results, and re-use normal task forms for any further operator action. Treat `role memberships` as vendor-recursively expanded (per pinned Go source), never as a direct edge or effective-access proof.
+
+**Alternatives considered:** (1) New Conjur REST proxy (rejected: duplicative authorization and broad trust boundary). (2) Client-computed effective permissions (rejected: incomplete visibility and unsupported semantics). (3) Export arbitrary resource JSON (rejected: possible sensitive annotations).
+
+**Security/reliability implications:** Conjur controls native authorization; the explorer never executes mutations. Query count, response size and pagination are bounded; stale and unauthorized results are unknown, not denied. Pre/post checks are not atomic session snapshots. Generic read-run history still retains its normal output contract.
+
+**Verification:** React parsing and interaction tests, platform API tests, production-browser E2E and Windows/Go build gates; real corporate server qualification remains an explicit follow-up.
+
+**Revisit when:** A reviewed backend-native context-bound Conjur permission-check API and corporate fixture tests can prove actual effective permissions and provide stronger atomic session binding.

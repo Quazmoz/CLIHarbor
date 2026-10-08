@@ -3136,3 +3136,22 @@ footer p {
 .platform-tool-button span { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; overflow-wrap: anywhere; }
 .platform-tool-button small { align-self: end; font-size: 0.7rem; color: var(--accent); }
 .platform-tool-button:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+.conjur-access .platform-toolbox-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  align-items: start;
+}
+.conjur-access .form-stack {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.conjur-access input,
+.conjur-access select { width: 100%; min-width: 0; max-width: 100%; }
+.conjur-access-results { min-width: 0; overflow-wrap: anywhere; }
+.conjur-access-results li { margin-block: .5rem; overflow-wrap: anywhere; }
+.conjur-access-results button { max-width: 100%; white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.conjur-access-results dd { overflow-wrap: anywhere; }
+@media (max-width: 420px) {
+  .conjur-access { padding-inline: 1rem; }
+  .conjur-access .platform-toolbox-grid { grid-template-columns: minmax(0, 1fr); }
+}

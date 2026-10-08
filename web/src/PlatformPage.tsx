@@ -1,9 +1,14 @@
+import { useEffect, useState } from 'react';
 import type { Platform, PlatformFeatureID } from './api/platforms';
+import type { ToolDiagnostic } from './api/tools';
+import { fetchSecretAudit } from './platforms/conjur/secretAuditApi';
 import type { Task } from './api/tasks';
 
 interface PlatformPageProps {
   platform: Platform;
   tasks: Task[];
+  tools?: ToolDiagnostic[];
+  onOpenRuns?: () => void;
   onOpenFeature: (feature: PlatformFeatureID) => void;
   onOpenDiagnostics: () => void;
   onOpenTask: (taskKey: string) => void;
@@ -13,10 +18,21 @@ const featureDetail: Record<PlatformFeatureID, string> = {
   tasks: 'Approved commands from the reviewed pack, with target context shown before any change runs.',
   'sign-in': 'Guided sign-in that keeps the session owned by the vendor CLI.',
   'security-audit': 'Custom regex explorer with metadata-only inventory presets and opt-in secret-value matching.',
+  'access-explorer': 'Read-only resource and role navigation with bounded inventory and clearly labeled permission relationships.',
 };
 
 /** Home for one dedicated CLI: what CLIHarbor adds on top of the generic workspace. */
-export function PlatformPage({ platform, tasks, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
+export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
+  const [target, setTarget] = useState<{ applianceUrl: string; account: string } | null>(null);
+  useEffect(() => {
+    if (platform.id !== 'conjur') return;
+    const controller = new AbortController();
+    void fetchSecretAudit(controller.signal).then((audit) => {
+      if (!controller.signal.aborted && audit.available && audit.target) setTarget(audit.target);
+    }).catch(() => { if (!controller.signal.aborted) setTarget(null); });
+    return () => controller.abort();
+  }, [platform.id]);
+  const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
   const platformTasks = tasks.filter((task) => task.packId === platform.packId && task.toolId === platform.toolId);
   const taskCount = platformTasks.length;
   // All shortcuts are resolved from backend-advertised approved tasks, never
@@ -33,12 +49,31 @@ export function PlatformPage({ platform, tasks, onOpenFeature, onOpenDiagnostics
       <p>{platform.summary}</p>
       <p role="status">
         {platform.ready
-          ? <><strong>CLI ready.</strong> Everything below is built and tested for this CLI.</>
+          ? <><strong>CLI discovery ready.</strong> Verify the vendor session and backend permissions before using these workflows.</>
           : <><strong>Setup needed.</strong> Check tool readiness before using this integration.</>}
       </p>
       {!platform.ready && (
         <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>Open Diagnostics</button>
       )}
+      {platform.id === 'conjur' && <section className="platform-toolbox-section" aria-label="Conjur environment">
+        <h3>Operations overview</h3>
+        <dl>
+          <div><dt>CLI discovery</dt><dd>{tool?.status ?? (platform.ready ? 'Ready' : 'Not ready')}</dd></div>
+          <div><dt>CLI version</dt><dd>{tool?.version ?? 'Not verified'}</dd></div>
+          <div><dt>Configured endpoint</dt><dd>{target?.applianceUrl ?? 'Not available'}</dd></div>
+          <div><dt>Configured account</dt><dd>{target?.account ?? 'Not available'}</dd></div>
+          <div><dt>Authenticated identity</dt><dd>Verify on Conjur sign-in / session</dd></div>
+          <div><dt>Session</dt><dd>Not inferred from CLI discovery; check the vendor session</dd></div>
+        </dl>
+        <div className="platform-toolbox-grid">
+          <button type="button" className="secondary-button" onClick={() => onOpenFeature('access-explorer')}>Access &amp; permissions</button>
+          <button type="button" className="secondary-button" onClick={() => onOpenFeature('security-audit')}>Regex pattern explorer</button>
+          <button type="button" className="secondary-button" onClick={() => onOpenFeature('tasks')}>Inventory &amp; approved changes</button>
+          <button type="button" className="secondary-button" onClick={() => onOpenFeature('sign-in')}>Session check</button>
+          {onOpenRuns && <button type="button" className="secondary-button" onClick={onOpenRuns}>Runs &amp; mutation audit</button>}
+          <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>Diagnostics</button>
+        </div>
+      </section>}
       <ul className="platform-features">
         {platform.features.map((feature) => (
           <li key={feature.id}>
@@ -48,7 +83,7 @@ export function PlatformPage({ platform, tasks, onOpenFeature, onOpenDiagnostics
               onClick={() => onOpenFeature(feature.id)}
               disabled={feature.id === 'tasks' && taskCount === 0}>
               {feature.id === 'tasks' ? 'Browse ' + taskCount + ' approved tasks' :
-                feature.id === 'sign-in' ? 'Open sign-in' : 'Open security audit'}
+                feature.id === 'sign-in' ? 'Open sign-in' : feature.id === 'access-explorer' ? 'Open Access Explorer' : 'Open security audit'}
             </button>
           </li>
         ))}
