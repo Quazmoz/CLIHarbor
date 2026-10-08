@@ -1153,7 +1153,7 @@ async function main() {
     const auditRequest = await auditRequestPromise;
     assert.deepEqual(JSON.parse(auditRequest.request.postData), {
       packId: 'cyberark-conjur-v9', toolId: 'conjur', minimumConfidence: 'high',
-      applianceUrl: 'https://other.invalid', scanType: 'id-regex', pattern: '^team[./].*/password
+      applianceUrl: 'https://other.invalid', scanType: 'id-regex', pattern: '^team[./].*/password$',
     });
     assert.equal(await waitHTTPStatus(page, auditRequest.requestId), 202);
     await waitJS(page, 'audit refuses mismatched backend', 'document.querySelector("#secret-audit-result-heading")?.textContent.includes("Sign in to the selected backend")');
