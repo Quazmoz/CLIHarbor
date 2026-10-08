@@ -25,7 +25,7 @@ func TestDurableAuditChainAndTampering(t *testing.T) {
  if _,err:=Open(path);err==nil{t.Fatal("tampered audit admitted")}
 }
 func TestAuditRejectsUnsafeDataAndPartialAppend(t *testing.T) {
- path:=filepath.Join(t.TempDir(),"trail")
+ path:=filepath.Join(t.TempDir(),"audit","trail")
  s,err:=Open(path);if err!=nil{t.Fatal(err)}
  t.Cleanup(func(){_ =s.Close()})
  if err:=s.Append(runs.AuditEvent{RunID:strings.Repeat("a",32),Action:"approved",Risk:"destructive",PackID:"p",CommandID:"c",TargetLabel:"target",Target:"bad\nvalue",Scope:"single"});err==nil{t.Fatal("multiline target admitted")}

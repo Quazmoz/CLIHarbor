@@ -63,7 +63,7 @@ if [ "$1" = "variable" ]; then printf 'Value added\n'; else printf '{"created_ro
 	if err != nil {
 		t.Fatalf("prepareRuntime() error = %v", err)
 	}
-	auditPath := filepath.Join(tempDir, "audit.jsonl")
+	auditPath := filepath.Join(tempDir, "audit", "audit.jsonl")
 	audit, err := audittrail.Open(auditPath)
 	if err != nil { t.Fatal(err) }
 	defer audit.Close()

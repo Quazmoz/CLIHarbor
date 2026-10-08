@@ -24,7 +24,7 @@ func TestRunLaunchesExactBootstrapURLWithoutPrintingTokenOnSuccess(t *testing.T)
 	cancel()
 	var out bytes.Buffer
 
-	if err := Run(ctx, Options{Out: &out, Version: "test-version", Browser: launcher, AuditPath: filepath.Join(t.TempDir(), "audit.jsonl")}); err != nil {
+	if err := Run(ctx, Options{Out: &out, Version: "test-version", Browser: launcher, AuditPath: filepath.Join(t.TempDir(), "audit", "audit.jsonl")}); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if opened == "" {
@@ -57,7 +57,7 @@ func TestRunBrowserLaunchFailurePrintsUsableFallbackAndKeepsServerLifecycle(t *t
 	cancel()
 	var out bytes.Buffer
 
-	if err := Run(ctx, Options{Out: &out, Version: "test-version", Browser: launcher, AuditPath: filepath.Join(t.TempDir(), "audit.jsonl")}); err != nil {
+	if err := Run(ctx, Options{Out: &out, Version: "test-version", Browser: launcher, AuditPath: filepath.Join(t.TempDir(), "audit", "audit.jsonl")}); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if opened == "" || !strings.Contains(out.String(), opened) {
