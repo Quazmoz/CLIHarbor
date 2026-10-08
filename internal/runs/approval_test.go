@@ -3,6 +3,7 @@ package runs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -209,4 +210,43 @@ func TestManagerPreviewNeverEchoesSecretStdinAndApprovalBindsIt(t *testing.T) {
 		Approval: &ApprovalSubmission{ID: preview.Approval.ID},
 	})
 	assertRunCode(t, err, ErrApprovalRequired)
+}
+
+type rejectingAuditSink struct { reject string }
+func (s *rejectingAuditSink) Append(event AuditEvent) error {
+ if event.Action==s.reject { return errors.New("disk not writable") }
+ return nil
+}
+
+func TestMutationAuditFailuresFailClosed(t *testing.T) {
+ t.Setenv(managerHelperEnv,"1")
+ registry,snapshot:=managerFixture(t)
+ for _,reject := range []string{"approved","completed"} {
+  t.Run(reject,func(t *testing.T) {
+   sink:=&rejectingAuditSink{reject:reject}
+   manager:=newTestManager(t,registry,snapshot,Config{
+    Audit:sink,
+    ResolveExecutionContext:func(planner.Plan)(ExecutionContext,error) {
+     return ExecutionContext{Fields:[]ExecutionContextField{{Label:"Account",Value:"test-account"}}},nil
+    },
+   })
+   request:=Request{PackID:"fixture",CommandID:"change",Values:map[string]json.RawMessage{"target":rawRunJSON(t,"alpha")}}
+   preview,err:=manager.Preview(request)
+   if err!=nil { t.Fatal(err) }
+   request.Approval=&ApprovalSubmission{ID:preview.Approval.ID}
+   start,err:=manager.Start(request)
+   if reject=="approved" {
+    assertRunCode(t,err,ErrAuditUnavailable)
+    if len(manager.List())!=0 { t.Fatal("mutation launched despite audit failure") }
+   } else {
+    if err!=nil { t.Fatal(err) }
+    if _,err=manager.Wait(t.Context(),start.RunID);err!=nil {t.Fatal(err)}
+   }
+   preview,err=manager.Preview(Request{PackID:request.PackID,CommandID:request.CommandID,Values:request.Values})
+   if err!=nil { t.Fatal(err) }
+   request.Approval=&ApprovalSubmission{ID:preview.Approval.ID}
+   _,err=manager.Start(request)
+   assertRunCode(t,err,ErrAuditUnavailable)
+  })
+ }
 }

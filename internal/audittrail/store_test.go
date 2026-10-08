@@ -30,4 +30,12 @@ func TestAuditRejectsUnsafeDataAndPartialAppend(t *testing.T) {
  t.Cleanup(func(){_ =s.Close()})
  if err:=s.Append(runs.AuditEvent{RunID:strings.Repeat("a",32),Action:"approved",Risk:"destructive",PackID:"p",CommandID:"c",TargetLabel:"target",Target:"bad\nvalue",Scope:"single"});err==nil{t.Fatal("multiline target admitted")}
  if len(s.List())!=0{t.Fatal("invalid event persisted")}
+ if err:=s.Append(runs.AuditEvent{RunID:strings.Repeat("b",32),Action:"completed",Status:"exited"});err==nil {
+  t.Fatal("orphan completion admitted")
+ }
+ approved:=runs.AuditEvent{RunID:strings.Repeat("a",32),Action:"approved",Risk:"change",PackID:"p",CommandID:"c",TargetLabel:"ID",Target:"target",Effect:"changes object",Scope:"single"}
+ if err:=s.Append(approved);err!=nil{t.Fatal(err)}
+ if err:=s.Append(approved);err==nil{t.Fatal("duplicate approval admitted")}
+ if err:=s.Append(runs.AuditEvent{RunID:approved.RunID,Action:"completed",Status:"exited"});err!=nil{t.Fatal(err)}
+ if err:=s.Append(runs.AuditEvent{RunID:approved.RunID,Action:"completed",Status:"exited"});err==nil{t.Fatal("duplicate completion admitted")}
 }
