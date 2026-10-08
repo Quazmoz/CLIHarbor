@@ -20,7 +20,7 @@ export interface Platform {
   features: PlatformFeature[];
 }
 
-const featureIDs: ReadonlySet<string> = new Set<PlatformFeatureID>(['tasks', 'sign-in', 'security-audit']);
+const featureIDs: ReadonlySet<string> = new Set<PlatformFeatureID>(['tasks', 'sign-in', 'security-audit', 'access-explorer']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
