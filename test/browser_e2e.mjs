@@ -540,6 +540,38 @@ async function main() {
     assert.deepEqual(shell.groups, ['CLI workspace']);
     await capture('overview');
 
+    stage('quick task navigation is a modal, not an execution shortcut');
+    assert.equal(await page.evaluate('(() => {
+      const trigger = document.querySelector(".quick-switch-trigger");
+      if (!trigger || trigger.disabled) return false;
+      trigger.click();
+      return true;
+    })()'), true);
+    await waitJS(page, 'quick switcher ready',
+      'document.querySelector(".task-switcher[open]") !== null && document.activeElement?.id === "task-switcher-input"');
+    await page.evaluate('(() => {
+      const input = document.querySelector("#task-switcher-input");
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+      setter.call(input, "inspect fixture");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    })()');
+    await waitJS(page, 'approved task search results',
+      'document.querySelectorAll(".task-switcher-item").length > 0 && document.querySelector(".task-switcher-item")?.textContent.includes("Inspect fixture argv")');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
+    await waitJS(page, 'quick switcher narrow layout',
+      'innerWidth === 320 && document.documentElement.scrollWidth <= innerWidth && document.querySelector(".task-switcher")?.getBoundingClientRect().right <= innerWidth');
+    await capture('task-switcher-mobile');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    await page.evaluate('document.querySelector(".task-switcher-item").click(); true');
+    await waitJS(page, 'quick switcher opens existing task configuration',
+      'location.pathname === "/tasks" && document.querySelector(".task-context-header h3")?.textContent?.includes("Inspect fixture argv") && document.querySelector(".task-switcher") === null');
+    assert.equal(await page.evaluate('document.querySelector(".run-panel h2")?.textContent === "Succeeded"'), false,
+      'quick switcher must not execute a task');
+    await navigate(page, baseURL + '/');
+    await waitJS(page, 'overview restored after quick switcher',
+      'location.pathname === "/" && document.querySelector("#overview-heading") !== null');
+
     stage('supported CLI catalog navigation and responsive search');
     await page.evaluate('Array.from(document.querySelectorAll("a")).find((link) => link.textContent?.trim() === "Add a CLI").click()');
     await waitJS(page, 'supported CLI catalog', 'location.pathname === "/tools" && document.querySelector("#tool-diagnostics-heading")?.textContent === "Add a CLI"');
