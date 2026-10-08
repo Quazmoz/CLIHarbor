@@ -1,0 +1,36 @@
+name: Durable mutation audit qualification
+on:
+  push:
+    branches: [feat/durable-mutation-audit]
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.node-version'
+          package-manager-cache: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: '.go-version'
+          cache: false
+      - run: npm ci --prefix web
+      - run: npm run typecheck --prefix web
+      - run: npm run lint --prefix web
+      - run: npm test --prefix web
+      - run: npm run build --prefix web
+      - run: go run ./tools/task sync-web
+      - run: go test -timeout 3m ./internal/audittrail ./internal/runs ./internal/server ./internal/app ./internal/webui
+      - name: Export web assets
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for file in internal/webui/static/index.html internal/webui/static/favicon.svg internal/webui/static/assets/*; do
+            while IFS= read -r chunk; do
+              printf 'UI_ASSET|%s|%s\n' "$file" "$chunk"
+            done < <(base64 -w 1000 "$file")
+          done
