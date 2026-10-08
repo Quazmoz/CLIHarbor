@@ -26,6 +26,7 @@ jobs:
       - run: npm run build --prefix web
       - run: go run ./tools/task verify-web-sync
       - run: go run ./tools/task sync-web
+      - run: gofmt -d internal/server/secret_audit_api.go internal/server/secret_audit_api_test.go internal/platforms/conjur/secret_audit.go internal/platforms/conjur/secret_audit_test.go internal/packs/conjur_pack_test.go internal/planner/conjur_pack_test.go
       - run: test -z "$(gofmt -l internal/server/secret_audit_api.go internal/server/secret_audit_api_test.go internal/platforms/conjur/secret_audit.go internal/platforms/conjur/secret_audit_test.go internal/packs/conjur_pack_test.go internal/planner/conjur_pack_test.go)"
       - run: go mod verify
       - run: go vet ./...
