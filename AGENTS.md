@@ -59,6 +59,12 @@ Do not introduce Electron/Tauri, a cloud backend, a database server, container r
 - Avoid telemetry by default. Any future telemetry must be opt-in and documented.
 - Never commit credentials, tenant URLs, internal hostnames, tokens, user identifiers, or example secrets.
 
+## Reliable development restart and freshness
+
+After frontend, Go, or embedded-asset changes, do not restart an old `bin/cliharbor` executable or assume `go run ./cmd/cliharbor serve` rebuilds React. For testing in a developer checkout, use `bash tools/dev-restart.sh` (macOS/Linux) or `.\\tools\\dev-restart.ps1` (Windows PowerShell); use `--pull` / `-Pull` only when a fast-forward upstream update is intended. These helpers run the repository's build and frontend checks and launch freshly rebuilt embedded assets. Stop any manually launched CLIHarbor/Vite processes using their own terminal before adopting the helpers.
+
+The helpers may stop **only** a prior instance they started and verified by executable path plus PID start identity. Never use broad `pkill`, guessed ports, another process's PID, browser-cache/profile deletion, vendor credential/cache clearing, or `git reset --hard` as a restart shortcut. Never start a new version after a failed build. The restarted browser receives a new ephemeral loopback port; direct the user to the new browser tab. Generated embedded assets still need to be committed and checked in release work. Follow the GitHub Actions authorization policy below.
+
 ## GitHub Actions execution policy (explicit user authorization required)
 
 **Do not run GitHub Actions automatically during routine CLIHarbor development.** Repository workflows must be manual-only (`workflow_dispatch`); do not add `push`, `pull_request`, merge, tag, scheduled, or other automatic triggers, including temporary qualification workflows. Do not manually dispatch a workflow via GitHub UI, API, CLI, or automation unless the user **specifically authorizes GitHub Actions for that operation** (for example, production release qualification or a named exceptional CI check). Ordinary implementation, commits, PRs, merges, local validation failures, and a generic request to "test" or "continue" are **not** authorization to spend GitHub Actions minutes.
