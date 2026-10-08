@@ -1535,6 +1535,8 @@ export function App() {
           <PlatformPage
             platform={activePlatform}
             tasks={state.tasks}
+            tools={state.tools}
+            onOpenRuns={() => navigate('runs')}
             onOpenFeature={openPlatformFeature}
             onOpenDiagnostics={() => navigate('diagnostics')}
             onOpenTask={(key) => {
