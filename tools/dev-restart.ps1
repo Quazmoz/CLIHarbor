@@ -7,7 +7,33 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($Pull -and $Stop) { throw 'Choose either -Pull or -Stop.' }
 
-$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+# Script-file invocation has $PSCommandPath/$PSScriptRoot. Inline evaluation
+# (for example, Invoke-Expression) does not; accept that form only when the
+# current filesystem directory is an identifiable CLIHarbor checkout.
+$scriptDir = $null
+if (-not [string]::IsNullOrWhiteSpace($PSCommandPath) -and
+    [IO.Path]::GetFileName($PSCommandPath) -ieq 'dev-restart.ps1') {
+    $scriptDir = Split-Path -Parent -Path $PSCommandPath
+} elseif (-not [string]::IsNullOrWhiteSpace($PSScriptRoot) -and
+    (Test-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath 'dev-restart.ps1') -PathType Leaf)) {
+    $scriptDir = $PSScriptRoot
+}
+if ([string]::IsNullOrWhiteSpace($scriptDir)) {
+    $location = Get-Location
+    if ($location.Provider.Name -ne 'FileSystem') {
+        throw 'Cannot locate CLIHarbor: invoke tools/dev-restart.ps1 as a file from a repository checkout.'
+    }
+    $candidate = Join-Path -Path $location.ProviderPath -ChildPath 'tools/dev-restart.ps1'
+    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        throw 'Cannot locate CLIHarbor: run from the checkout with .\\tools\\dev-restart.ps1.'
+    }
+    $scriptDir = Split-Path -Parent -Path $candidate
+}
+$root = (Resolve-Path -LiteralPath (Join-Path -Path $scriptDir -ChildPath '..')).ProviderPath
+if ([string]::IsNullOrWhiteSpace($root) -or
+    -not (Test-Path -LiteralPath (Join-Path -Path $root -ChildPath 'go.mod') -PathType Leaf)) {
+    throw 'Cannot locate CLIHarbor repository root (go.mod missing); no process was stopped or started.'
+}
 Set-Location -LiteralPath $root
 $bin = Join-Path $root 'bin'
 $exe = Join-Path $bin 'cliharbor.exe'
