@@ -16,6 +16,15 @@ A local browser UI for safely exposing curated workflows from official command-l
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
+## Two product areas
+
+CLIHarbor separates the **generic CLI workspace** from **dedicated CLI platforms**:
+
+- **CLI workspace:** **Overview**, **Tasks**, **Runs**, **Authentication**, **Add a CLI**, **Diagnostics**, and the tool categories generated from reviewed packs. Additional CLIs can be loaded through explicit trusted packs (`--pack-file` / `--pack-dir`). **Add a CLI** provides the reviewed install catalog; it is not an unrestricted terminal, dynamic pack downloader, or arbitrary executable importer.
+- **Dedicated CLIs:** a separate sidebar section with a platform picker and platform-specific home and workflows. **CyberArk Conjur** is the first built-in integration, with guided sign-in and read-only secret-value security audit at `/dedicated/conjur`, `/dedicated/conjur/sign-in`, and `/dedicated/conjur/security-audit`. Its approved commands still use the shared `/tasks` runner rather than duplicating execution authority.
+
+Future purpose-built integrations belong in the dedicated platform registry, not as vendor branches in the generic planner/executor. The separate sections are additive: when no dedicated platform is loaded, the generic workspace remains functional.
+
 > **Fastest path:** download the qualified Windows artifact, run preflight, then run the CLIHarbor EXE with no pack arguments. The trusted Conjur pack is embedded, and if Conjur is genuinely missing CLIHarbor can install the exact reviewed CyberArk CLI into the current user's cache without administrator credentials. See [QUICKSTART.md](QUICKSTART.md).
 
 ## macOS startup

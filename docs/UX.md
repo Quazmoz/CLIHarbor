@@ -8,15 +8,20 @@ The UI should preserve the transparency and precision of a CLI while reducing me
 
 ## 2. Core navigation
 
-The application uses a persistent left sidebar grouped into Workspace, Security, and Manage:
+The implemented left sidebar has two product areas, although the generic links are subdivided into Workspace, Security, Manage, and Tools:
 
 ```text
 CLIHarbor
-├─ Workspace: Overview, Tasks, Runs
-├─ Security: Authentication
-├─ Manage: Add a CLI, Diagnostics
-└─ Tools: categories from the authorized task catalog; Conjur includes Security audit
+├─ Generic CLI workspace
+│  ├─ Workspace: Overview, Tasks, Runs
+│  ├─ Security: Authentication
+│  ├─ Manage: Add a CLI, Diagnostics
+│  └─ Tools: task categories from reviewed CLI packs
+└─ Dedicated CLIs
+   └─ CyberArk Conjur: Home, Sign in, Security audit, Conjur tasks
 ```
+
+The generic workspace accepts additional reviewed packs and shares a single safe task execution engine. **Add a CLI** is a catalog of approved installs, not an arbitrary-script runner or unrestricted pack importer. The Dedicated section is for vendor-specific, first-class workflows; Conjur's sign-in and security audit live there. Conjur tasks deliberately remain in the shared catalog and run on `/tasks`, including when opened from the Dedicated section, without a second execution or permission model. A dedicated platform is displayed only when its pack is registered.
 
 The top bar shows the current page, runtime connection state, and a **Sign in** button linking to Authentication. This button opens tool sign-in; it never claims a vendor session is authenticated. On narrow windows, **Menu** toggles the sidebar. Navigation preserves native links, page titles, and focus to main content.
 
