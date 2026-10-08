@@ -83,3 +83,8 @@ and content qualification, non-missing-state refusal, platform-specific install
 capabilities, single submission, search, and existing custom-location behavior.
 Native Windows runtime qualification remains required in Windows CI; a macOS
 run or Windows cross-compilation does not establish it.
+
+### Conjur 9.x inventory tools
+
+The reviewed Conjur pack v0.7.0 now includes **Browse secret variable IDs**, **Browse policies**, **Browse hosts** and **Browse groups**. Each uses the vendor's `list` command with a fixed `--kind` value, required `--limit` 25/50/100, optional `--offset`, and JSON output. Only metadata is returned; secret values are never retrieved. The dedicated Conjur home links to these and existing review/approval tasks, all using the shared planner and execution gate.
+
