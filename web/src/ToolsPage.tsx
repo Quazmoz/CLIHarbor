@@ -42,7 +42,6 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
           <p role="status">{visible.length} supported {visible.length === 1 ? 'CLI' : 'CLIs'}</p>
         </div>
       )}
-      {catalog && <PackAuthoringWizard registeredPackIds={[...new Set(tools.map((tool) => tool.packId))]} />}
       <div className="diagnostics-body" aria-label="Configured CLI tool diagnostics">
         {visible.length === 0 ? (
           <p>{tools.length === 0 ? 'No tools are configured. Load a reviewed pack to add a CLI.' : 'No supported CLIs match your search.'}</p>
@@ -113,6 +112,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
           </ul>
         )}
       </div>
+      {catalog && <PackAuthoringWizard registeredPackIds={[...new Set(tools.map((tool) => tool.packId))]} />}
     </section>
   );
 }

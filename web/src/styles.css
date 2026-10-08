@@ -136,15 +136,15 @@ button:disabled {
 .brand-caption { font-size: 0.68rem; color: var(--text-muted); }
 
 .workspace-navigation { display: grid; gap: 0.2rem; }
-.primary-nav { display: grid; gap: 1.6rem; }
+.primary-nav { display: grid; gap: 0.95rem; }
 .nav-subgroup-label {
   margin: 0 0 0.35rem;
   padding: 0 0.65rem;
   color: var(--text-muted);
   font-size: 0.72rem;
-  font-weight: 550;
+  font-weight: 600;
 }
-.nav-group { display: grid; gap: 0.25rem; }
+.nav-group { display: grid; gap: 0.2rem; }
 .nav-group-label {
   margin: 0 0 0.5rem;
   padding: 0 0.65rem;
@@ -181,10 +181,28 @@ button:disabled {
 .primary-nav a[aria-current="page"] {
   color: var(--accent);
   border-color: var(--border-strong);
+  border-left: 3px solid var(--accent);
+  padding-left: calc(0.68rem - 2px);
   background: #19323a;
 }
 
-.tool-categories { display: grid; gap: 0.25rem; margin-top: 0.3rem; padding-left: 0.25rem; }
+.task-scope-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+}
+.task-scope-banner strong { color: var(--text-strong); }
+.task-scope-banner p { margin: 0.3rem 0 0; color: var(--text-muted); font-size: 0.84rem; }
+.task-scope-banner button { flex-shrink: 0; }
+@media (max-width: 620px) {
+  .task-scope-banner { align-items: stretch; flex-direction: column; }
+}
+
 .dedicated-platforms {
   display: grid;
   gap: 0.25rem;
@@ -210,10 +228,11 @@ button:disabled {
   font-weight: 500;
   overflow-wrap: anywhere;
 }
-.dedicated-platforms a:hover, .dedicated-platforms a[aria-current="page"], .dedicated-platforms button:hover:not(:disabled) {
+.dedicated-platforms a:hover, .dedicated-platforms a[aria-current="page"], .dedicated-platforms button[aria-pressed="true"], .dedicated-platforms button:hover:not(:disabled) {
   background: var(--surface-2);
   color: var(--text-strong);
 }
+.dedicated-platforms a[aria-current="page"], .dedicated-platforms button[aria-pressed="true"] { border-left: 3px solid var(--accent); }
 .dedicated-platforms a:focus-visible, .dedicated-platforms button:focus-visible, .dedicated-picker select:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 .platform-readiness { font-size: 0.68rem; font-weight: 600; white-space: nowrap; }
 .platform-readiness--ready { color: var(--accent); }
@@ -221,6 +240,8 @@ button:disabled {
 .platform-features { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin: 1.5rem 0 0; padding: 0; list-style: none; }
 .platform-features li { display: grid; gap: 0.5rem; align-content: start; padding: 1rem; border: 1px solid var(--border); border-radius: 0.5rem; }
 .platform-features h3, .platform-features p { margin: 0; }
+.platform-features li:focus-within { border-color: var(--border-strong); }
+.platform-features li button { justify-self: start; margin-top: auto; }
 .tool-categories button {
   display: flex;
   align-items: center;
@@ -269,8 +290,12 @@ button:disabled {
   background: var(--bg);
 }
 .topbar-location { display: flex; align-items: center; gap: 0.8rem; min-width: 0; font-size: 0.8rem; }
-.workspace-label, .breadcrumb-divider { color: var(--text-subtle); }
-.current-page { color: var(--text-strong); font-weight: 600; }
+.breadcrumbs { display: flex; align-items: center; gap: 0.55rem; min-width: 0; flex-wrap: wrap; }
+.breadcrumbs a { color: var(--text-muted); text-decoration: none; }
+.breadcrumbs a:hover { color: var(--text-strong); text-decoration: underline; }
+.breadcrumbs a:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.breadcrumb-divider { color: var(--text-subtle); }
+.current-page { color: var(--text-strong); font-weight: 650; overflow-wrap: anywhere; }
 .connection-label { color: var(--text-muted); font-size: 0.73rem; }
 .navigation-toggle { display: none; }
 
@@ -2849,7 +2874,7 @@ footer p {
   .tool-categories { margin-top: 1.25rem; }
   .topbar { grid-row: 1; padding: 0.75rem 1rem; min-height: 4rem; }
   .navigation-toggle { display: inline-flex; }
-  .workspace-label, .breadcrumb-divider, .connection-label { display: none; }
+  .breadcrumbs a:first-child, .breadcrumb-divider, .connection-label { display: none; }
   .topbar-location { gap: 0.65rem; }
   main { padding: 1rem; }
 }

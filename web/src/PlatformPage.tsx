@@ -25,7 +25,7 @@ export function PlatformPage({ platform, tasks, onOpenFeature, onOpenDiagnostics
       <p role="status">
         {platform.ready
           ? <><strong>CLI ready.</strong> Everything below is built and tested for this CLI.</>
-          : <><strong>CLI not ready.</strong> Fix setup in Diagnostics, then come back.</>}
+          : <><strong>Setup needed.</strong> Check tool readiness before using this integration.</>}
       </p>
       {!platform.ready && (
         <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>Open Diagnostics</button>
@@ -35,9 +35,11 @@ export function PlatformPage({ platform, tasks, onOpenFeature, onOpenDiagnostics
           <li key={feature.id}>
             <h3>{feature.name}</h3>
             <p>{featureDetail[feature.id]}{feature.id === 'tasks' ? ` ${taskCount} available.` : ''}</p>
-            <button type="button" onClick={() => onOpenFeature(feature.id)}
+            <button type="button" className={feature.id === 'tasks' ? undefined : 'secondary-button'}
+              onClick={() => onOpenFeature(feature.id)}
               disabled={feature.id === 'tasks' && taskCount === 0}>
-              Open {feature.name}
+              {feature.id === 'tasks' ? 'Browse ' + taskCount + ' approved tasks' :
+                feature.id === 'sign-in' ? 'Open sign-in' : 'Open security audit'}
             </button>
           </li>
         ))}
