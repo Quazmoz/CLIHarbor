@@ -176,7 +176,7 @@ func (s *SecretAuditService) audit(ctx context.Context, request server.SecretAud
 		return secretAuditFailure{"backend_mismatch"}
 	}
 	var pattern *regexp.Regexp
-	if request.ScanType == "regex" {
+	if request.ScanType == "regex" || request.ScanType == "id-regex" {
 		pattern, err = regexp.Compile(request.Pattern)
 		if err != nil {
 			return secretAuditFailure{"invalid_scan"}
@@ -198,7 +198,35 @@ func (s *SecretAuditService) audit(ctx context.Context, request server.SecretAud
 	if err != nil {
 		return err
 	}
-	s.update(func(snap *server.SecretAuditSnapshot) { snap.Total = len(ids); snap.Phase = "reading" })
+	s.update(func(snap *server.SecretAuditSnapshot) { snap.Total = len(ids); snap.Phase = "matching" })
+	// Inventory regex operates only on resource IDs. It must never retrieve a
+	// secret value, regardless of the Conjur account's execute privileges.
+	if request.ScanType == "id-regex" {
+		sort.Slice(ids, func(i, j int) bool {
+			return secretAuditVariableID(ids[i]) < secretAuditVariableID(ids[j])
+		})
+		var findings []server.SecretAuditFinding
+		for i, id := range ids {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			name := secretAuditVariableID(id)
+			if pattern.MatchString(name) {
+				findings = append(findings, server.SecretAuditFinding{
+					VariableID: name, Confidence: "high", Reason: "regex_variable_id_match",
+				})
+			}
+			s.update(func(snap *server.SecretAuditSnapshot) {
+				snap.Processed, snap.Inspected = i+1, i+1
+			})
+		}
+		if err := s.verifyInventory(ctx, client, ids); err != nil {
+			return err
+		}
+		s.update(func(snap *server.SecretAuditSnapshot) { snap.Findings = findings })
+		return nil
+	}
+	s.update(func(snap *server.SecretAuditSnapshot) { snap.Phase = "reading" })
 
 	known := map[string]struct{}{}
 	knownNormalized := map[string]struct{}{}
@@ -262,20 +290,9 @@ func (s *SecretAuditService) audit(ctx context.Context, request server.SecretAud
 		s.update(func(snap *server.SecretAuditSnapshot) { snap.Processed = processed; snap.Inspected = inspected })
 	}
 
-	// Not a server-side transaction: re-verify the visible ID set so drift
-	// during a long audit cannot yield a report claiming full coverage.
-	s.update(func(snap *server.SecretAuditSnapshot) { snap.Phase = "verifying" })
-	ending, err := listSecretAuditVariables(ctx, client)
-	if err != nil {
+	// Do not advertise clean results when the source changes during the scan.
+	if err := s.verifyInventory(ctx, client, ids); err != nil {
 		return err
-	}
-	if len(ending) != len(ids) {
-		return secretAuditFailure{"inventory_changed"}
-	}
-	for _, id := range ending {
-		if _, ok := variableIDs[id]; !ok {
-			return secretAuditFailure{"inventory_changed"}
-		}
 	}
 
 	sort.SliceStable(findings, func(i, j int) bool {
@@ -284,6 +301,29 @@ func (s *SecretAuditService) audit(ctx context.Context, request server.SecretAud
 	s.update(func(snap *server.SecretAuditSnapshot) {
 		snap.Findings, snap.Failures, snap.Inspected = findings, failures, inspected
 	})
+	return nil
+}
+
+// verifyInventory ensures the same visible set was present at scan completion.
+// This check is shared by ID-only and value-reading modes.
+func (s *SecretAuditService) verifyInventory(ctx context.Context, client secretAuditClient, ids []string) error {
+	s.update(func(snap *server.SecretAuditSnapshot) { snap.Phase = "verifying" })
+	ending, err := listSecretAuditVariables(ctx, client)
+	if err != nil {
+		return err
+	}
+	if len(ending) != len(ids) {
+		return secretAuditFailure{"inventory_changed"}
+	}
+	seen := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		seen[id] = struct{}{}
+	}
+	for _, id := range ending {
+		if _, ok := seen[id]; !ok {
+			return secretAuditFailure{"inventory_changed"}
+		}
+	}
 	return nil
 }
 
