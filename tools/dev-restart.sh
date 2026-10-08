@@ -36,13 +36,17 @@ stop_owned() {
   fi
   owned_pid="${BASH_REMATCH[1]}"
   owned_start="${BASH_REMATCH[2]}"
+  if [[ ! "$owned_pid" =~ ^[0-9]{1,9}$ ]] || (( 10#$owned_pid <= 1 )); then
+    echo 'Unsafe development PID marker; refusing to stop any process.' >&2
+    exit 1
+  fi
   if ! kill -0 "$owned_pid" 2>/dev/null; then
     rm -- "$pid_file"
     return 0
   fi
   actual_start="$(proc_start "$owned_pid")"
   command="$(ps -p "$owned_pid" -o command= 2>/dev/null || true)"
-  if [[ "$actual_start" != "$owned_start" || "$command" != "$exe serve --no-auto-setup"* ]]; then
+  if [[ "$actual_start" != "$owned_start" || "$command" != "$exe serve --no-auto-setup" ]]; then
     echo "PID $owned_pid does not match helper-owned CLIHarbor. Refusing to kill it." >&2
     exit 1
   fi
@@ -70,6 +74,7 @@ fi
 
 # Builds and tests Vite assets, replaces stale embedded files, then builds
 # exactly the executable this helper will launch. No old web/dist is reused.
+[[ ! -L "$exe" ]] || { echo 'Refusing symlinked CLIHarbor executable.' >&2; exit 1; }
 go run ./tools/task build
 [[ -x "$exe" ]] || { echo 'CLIHarbor build did not create an executable.' >&2; exit 1; }
 [[ ! -L "$log_file" && ! -L "$pid_file" ]] || { echo 'Unsafe development log or PID path.' >&2; exit 1; }
@@ -86,6 +91,11 @@ printf '%s|%s\n' "$owned_pid" "$owned_start" > "$pid_file"
 # Observe startup output rather than treating an arbitrary delay as readiness.
 for ((i=0; i<150; i++)); do
   if grep -qE '^(Local runtime: http://127\.0\.0\.1:|Default browser launch failed\.)' "$log_file"; then
+    if ! kill -0 "$owned_pid" 2>/dev/null; then
+      rm -f -- "$pid_file"
+      echo "CLIHarbor exited after startup. Inspect $log_file" >&2
+      exit 1
+    fi
     echo "Fresh CLIHarbor started (PID $owned_pid)."
     echo "Startup log (private; may contain a one-time bootstrap URL): $log_file"
     echo 'Use the newly opened browser tab; old tabs may refer to a stopped loopback port.'
