@@ -32,6 +32,7 @@ type Options struct {
 	ToolOverrides      map[discovery.ToolRef]string
 	LoadDefaultPacks   bool
 	AutoProvisionTools bool
+	AuditPath string // Tests or explicitly reviewed deployments may override local audit storage.
 	ToolProvisioner    toolbootstrap.Provisioner
 }
 
@@ -52,8 +53,12 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
-	auditPath, err := audittrail.DefaultPath()
-	if err!=nil { return fmt.Errorf("locate mutation audit trail: %w",err) }
+	auditPath := options.AuditPath
+	if auditPath == "" {
+		var pathErr error
+		auditPath, pathErr = audittrail.DefaultPath()
+		if pathErr!=nil { return fmt.Errorf("locate mutation audit trail: %w",pathErr) }
+	}
 	audit, err := audittrail.Open(auditPath)
 	if err!=nil { return fmt.Errorf("open mutation audit trail: %w",err) }
 	defer audit.Close()
