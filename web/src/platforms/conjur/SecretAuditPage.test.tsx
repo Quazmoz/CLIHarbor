@@ -25,73 +25,66 @@ function renderPage() {
   return render(<SecretAuditPage csrfToken="csrf-audit" onOpenAuthentication={() => undefined} onOpenDiagnostics={() => undefined} />);
 }
 
-test('requires acknowledgement, sends only the reviewed request, and renders redacted findings', async () => {
+test('defaults to inventory-only regex with preset and renders redacted matches', async () => {
   const completed = {
-    ...base,
-    state: 'completed',
-    minimumConfidence: 'high',
-    total: 3,
-    processed: 3,
-    inspected: 2,
-    findings: [{ variableId: 'app/db/password', confidence: 'high', reason: 'exact_known_variable_reference' }],
-    failures: [{ variableId: 'app/empty', code: 'no_value' }],
+    ...base, state: 'completed', scanType: 'id-regex',
+    minimumConfidence: 'high', total: 3, processed: 3, inspected: 3,
+    findings: [{ variableId: 'app/db/password', confidence: 'high', reason: 'regex_variable_id_match' }],
   };
-  const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-    if (init?.method === 'POST') return response(202, completed);
-    return response(200, { ...base, state: 'idle' });
-  });
+  const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+    response(init?.method === 'POST' ? 202 : 200, init?.method === 'POST' ? completed : { ...base, state: 'idle' }));
   vi.stubGlobal('fetch', fetchMock);
   renderPage();
-
-  const start = await screen.findByRole('button', { name: 'Start read-only audit' });
+  const start = await screen.findByRole('button', { name: 'Start pattern search' });
   expect(start).toBeDisabled();
-  expect(screen.getByText('https://conjur.invalid')).toBeInTheDocument();
-
-  fireEvent.click(screen.getByRole('radio', { name: /Likely references only/ }));
-  fireEvent.click(screen.getByRole('checkbox', { name: /authorized to read every variable/ }));
+  expect(screen.getByRole('combobox', { name: 'Search target' })).toHaveValue('id-regex');
+  expect(screen.getByRole('combobox', { name: 'Pattern preset' })).toHaveValue('credential-names');
+  const pattern = screen.getByRole('textbox', { name: 'Regex pattern (Go / RE2)' });
+  const searchPattern = (pattern as HTMLInputElement).value;
+  fireEvent.click(screen.getByRole('checkbox', { name: /inspect visible Conjur variable identifiers/ }));
   fireEvent.click(start);
-
   expect(await screen.findByRole('heading', { name: '1 variable needs review' })).toBeInTheDocument();
   const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
   expect(post?.[0]).toBe('/api/v1/conjur/secret-audit');
   expect(JSON.parse(String(post?.[1]?.body))).toEqual({
     packId: 'cyberark-conjur-v9', toolId: 'conjur', minimumConfidence: 'high',
-    applianceUrl: 'https://conjur.invalid', scanType: 'references',
+    applianceUrl: 'https://conjur.invalid', scanType: 'id-regex', pattern: searchPattern,
   });
   expect((post?.[1]?.headers as Record<string, string>)['X-CLIHarbor-CSRF']).toBe('csrf-audit');
   expect(screen.getByText('app/db/password')).toBeInTheDocument();
-  expect(screen.getByText('Value is exactly the ID of another Conjur variable.')).toBeInTheDocument();
-  expect(screen.getByText('1 variable could not be checked')).toBeInTheDocument();
+  expect(screen.getByText(/no secret value was retrieved/)).toBeInTheDocument();
+  expect(pattern).toHaveValue('');
+  expect(screen.getByRole('checkbox', { name: /inspect visible Conjur variable identifiers/ })).not.toBeChecked();
 });
 
-test.each(['contains', 'exact', 'regex'])('submits a %s scan with the selected backend and clears scan text', async (scanType) => {
-  const pattern = scanType === 'regex' ? '^team[./].*/password$' : 'scan-text-sentinel';
-  const reasons: Record<string, string> = { contains: 'contains_text_match', exact: 'exact_text_match', regex: 'regex_match' };
+test.each(['id-regex', 'regex'] as const)('supports custom %s patterns and resets consent on selection', async (scanType) => {
+  const pattern = scanType === 'regex' ? '(?i)^conjur://[^/]+$' : '(?i)^team/.*/password$';
   const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => response(init?.method === 'POST' ? 202 : 200, {
     ...base, state: init?.method === 'POST' ? 'completed' : 'idle', scanType,
-    findings: init?.method === 'POST' ? [{ variableId: 'example', confidence: 'high', reason: reasons[scanType] }] : [],
+    findings: init?.method === 'POST' ? [{ variableId: 'example', confidence: 'high',
+      reason: scanType === 'regex' ? 'regex_match' : 'regex_variable_id_match' }] : [],
   }));
   vi.stubGlobal('fetch', fetchMock);
   renderPage();
   const backend = await screen.findByRole('textbox', { name: 'CyberArk backend URL' });
   fireEvent.change(backend, { target: { value: 'https://other.invalid' } });
-  fireEvent.change(screen.getByRole('combobox', { name: 'Secret value scan' }), { target: { value: scanType } });
-  expect(screen.queryByRole('radio')).not.toBeInTheDocument();
-  const input = screen.getByRole('textbox', { name: scanType === 'regex' ? 'Value pattern' : 'Text to match' });
-  const start = screen.getByRole('button', { name: 'Start read-only audit' });
-  expect(start).toBeDisabled();
+  fireEvent.change(screen.getByRole('combobox', { name: 'Search target' }), { target: { value: scanType } });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Pattern preset' }), { target: { value: 'custom' } });
+  const input = screen.getByRole('textbox', { name: 'Regex pattern (Go / RE2)' });
   fireEvent.change(input, { target: { value: pattern } });
-  fireEvent.click(screen.getByRole('checkbox', { name: /authorized to read every variable/ }));
+  const start = screen.getByRole('button', { name: 'Start pattern search' });
+  expect(start).toBeDisabled();
+  const acknowledgement = screen.getByRole('checkbox', { name: scanType === 'regex' ? /authorized to read every variable/ : /inspect visible Conjur variable identifiers/ });
+  fireEvent.click(acknowledgement);
   fireEvent.click(start);
   expect(await screen.findByRole('heading', { name: '1 variable needs review' })).toBeInTheDocument();
-  expect(screen.getByText('Matched')).toBeInTheDocument();
   const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
   expect(JSON.parse(String(post?.[1]?.body))).toEqual({
     packId: 'cyberark-conjur-v9', toolId: 'conjur', minimumConfidence: 'high',
     applianceUrl: 'https://other.invalid', scanType, pattern,
   });
   expect(input).toHaveValue('');
-  expect(screen.getByRole('checkbox', { name: /authorized to read every variable/ })).not.toBeChecked();
+  expect(acknowledgement).not.toBeChecked();
 });
 
 test('explains backend mismatch and requires acknowledgement again after editing the target', async () => {
@@ -101,8 +94,8 @@ test('explains backend mismatch and requires acknowledgement again after editing
   expect(await screen.findByRole('heading', { name: 'Sign in to the selected backend' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Open Authentication' }));
   expect(onOpenAuthentication).toHaveBeenCalledOnce();
-  fireEvent.click(screen.getByRole('checkbox', { name: /authorized to read every variable/ }));
-  expect(screen.getByRole('button', { name: 'Run audit again' })).toBeEnabled();
+  fireEvent.click(screen.getByRole('checkbox', { name: /inspect visible Conjur variable identifiers/ }));
+  expect(screen.getByRole('button', { name: 'Search again' })).toBeEnabled();
   fireEvent.change(screen.getByRole('textbox', { name: 'CyberArk backend URL' }), { target: { value: 'https://another.invalid' } });
   expect(screen.getByRole('button', { name: 'Run audit again' })).toBeDisabled();
 });
