@@ -4,7 +4,6 @@ import {
   cancelSecretAudit,
   fetchSecretAudit,
   startSecretAudit,
-  type SecretAuditConfidence,
   type SecretAuditScanType,
   type SecretAuditSnapshot,
 } from './secretAuditApi';
