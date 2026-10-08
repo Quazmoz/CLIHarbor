@@ -3,6 +3,7 @@ import type { AppErrorDetail } from './api/errors';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import { describeToolReadiness } from './operatorLanguage';
+import { PackAuthoringWizard } from './PackAuthoringWizard';
 
 interface ToolsPageProps {
   tools: ToolDiagnostic[];
@@ -34,12 +35,14 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
       </div>
       {catalog && (
         <div className="cli-catalog-intro">
-          <p>Choose a supported CLI. CLIHarbor verifies the official download and adds its approved tasks to your workspace.</p>
+          <h3>Install a supported CLI</h3>
+          <p>Choose a CLI from the reviewed catalog. CLIHarbor verifies the official download and adds its approved tasks to your workspace.</p>
           <p>Installation is for your user only. Sign-in and service configuration remain separate.</p>
           <label>Find a CLI<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search supported tools" /></label>
           <p role="status">{visible.length} supported {visible.length === 1 ? 'CLI' : 'CLIs'}</p>
         </div>
       )}
+      {catalog && <PackAuthoringWizard registeredPackIds={[...new Set(tools.map((tool) => tool.packId))]} />}
       <div className="diagnostics-body" aria-label="Configured CLI tool diagnostics">
         {visible.length === 0 ? (
           <p>{tools.length === 0 ? 'No tools are configured. Load a reviewed pack to add a CLI.' : 'No supported CLIs match your search.'}</p>

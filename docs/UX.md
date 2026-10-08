@@ -14,12 +14,12 @@ The left sidebar explicitly separates **CLI workspace** (reviewed generic packs,
 CLIHarbor
 ├─ CLI workspace
 │  ├─ Overview, Tasks, Runs, CLI sessions, Add a CLI, Diagnostics
-│  └─ Workspace CLI packs: tasks from reviewed CLI packs
+│  └─ Workspace CLI packs (subordinate filter): tasks from reviewed CLI packs
 └─ Built-in CLIs
    └─ CyberArk Conjur: Home, Sign in, Security audit, Conjur tasks
 ```
 
-The generic workspace accepts additional reviewed packs and shares a single safe task execution engine. **Add a CLI** is a catalog of approved installs, not an arbitrary-script runner or unrestricted pack importer. The Dedicated section is for vendor-specific, first-class workflows; Conjur's sign-in and security audit live there. Conjur tasks deliberately remain in the shared catalog and run on `/tasks`, including when opened from the Dedicated section, without a second execution or permission model. A dedicated platform is displayed only when its pack is registered.
+The generic workspace accepts additional reviewed packs and shares a single safe task execution engine. **Add a CLI** offers two explicitly separate workflows: installing approved CLIs from the catalog, and downloading a locally generated, discovery-only YAML draft through **Create a custom CLI pack**. The wizard does not register, trust, validate, download vendor binaries, or execute any task; operator review, `pack validate`, `pack lint` and an explicit `--pack-file` restart are required. The Dedicated section is for vendor-specific, first-class workflows; Conjur's sign-in and security audit live there. Conjur tasks deliberately remain in the shared catalog and run on `/tasks`, including when opened from the Dedicated section, without a second execution or permission model. A dedicated platform is displayed only when its pack is registered.
 
 The top bar shows the current page and **local runtime connection status**, with **no global Sign in button**. Authentication is scoped to each CLI: built-in platforms offer sign-in in their own section, and the generic **CLI sessions** page (backwards-compatible `/authentication`) checks individual vendor sessions without acting as an application-wide login. Task and diagnostics sign-in links open the matching dedicated CLI when available; otherwise they open per-tool session checks. On narrow windows, **Menu** toggles the sidebar. Navigation preserves native links, page titles, and focus to main content.
 
@@ -185,6 +185,12 @@ Do not add export to secret-bearing results without explicit classification and 
 The install card includes an optional **Install base directory** field. Blank means CLIHarbor's default current-user cache. A custom value must be an absolute path beneath the current user's home. The UI states that this is a current-user install and requires no administrator credentials. Successful installation qualifies the binary and populates Tasks and the tool sidebar without a restart. Installation and vendor sign-in stay separate. See [supported CLI catalog](CLI_CATALOG.md).
 
 The browser never chooses the downloaded artifact, executable filename, hash, archive member, redirect host, or task execution path. Invalid custom locations return a field-specific validation error instead of a generic policy failure.
+
+## Guided custom CLI pack authoring
+
+**Add a CLI** also includes a collapsed wizard for additional reviewed vendor tools. It collects a unique pack ID, display name, tool ID, executable **basename only**, and verified Windows/macOS/Linux platform selections. It locally generates a `cliharbor.dev/v1` scaffold with `commands: {}`, no probes, no auth adapter, no installer, and no command-execution authority. The YAML is presented for review and downloaded via the browser; no authoring payload is sent to the backend and there is no auto-activation endpoint.
+
+A duplicate currently loaded pack ID, malformed identifier, executable path/script/interpreter, name containing control characters, or empty platform selection disables export. These frontend checks are only UX; `cliharbor pack validate` and `pack lint` remain the authoritative static checks. Because the draft has no tasks, an operator must independently author reviewed deterministic command definitions before work can run. The UI gives exact next steps for static validation, lint, discovery and explicitly loading the file with `serve --pack-file`; the normal built-in pack set remains additive. Wizard state is transient browser memory, not persisted credentials or approved configuration.
 
 ## 10. Error UX
 

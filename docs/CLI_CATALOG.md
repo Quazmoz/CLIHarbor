@@ -17,6 +17,8 @@ Other platform combinations show installation guidance rather than an Install
 button. Conjur's existing Windows-only automatic setup remains separate;
 macOS Conjur, kubectl, and GitHub CLI downloads require an explicit Install action.
 
+The **Create a custom CLI pack** guide on the same page is separate from the install catalog. It downloads a discovery-only pack YAML file with no runnable tasks and no backend writes. It does not import, install, or activate a CLI. After independent review, validate/lint locally and explicitly start CLIHarbor with `--pack-file`. See [Pack specification](PACK_SPEC.md) and [README authoring quickstart](../README.md#add-another-cli-without-changing-go-code).
+
 The catalog lists tools from already-loaded trusted packs. Adding an arbitrary
 executable or URL does not generate command authority. Additional CLIs need a
 reviewed pack with approved command/input/output contracts and immutable install
