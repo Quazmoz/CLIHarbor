@@ -35,7 +35,7 @@ export function taskToolKey(task: Pick<Task, 'packId' | 'toolId'>): string {
   return task.packId + '/' + task.toolId;
 }
 
-function searchableText(task: Task): string {
+export function searchableText(task: Task): string {
   return [
     task.name,
     task.description ?? '',
@@ -163,7 +163,9 @@ export function TaskDiscovery({
 
   useEffect(() => {
     const focusSearch = (event: KeyboardEvent) => {
-      if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) {
+      // A modal task switcher owns keyboard focus while it is open.
+      if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey ||
+          document.querySelector('dialog[open]') !== null) {
         return;
       }
       const target = event.target;
