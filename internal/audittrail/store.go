@@ -10,7 +10,9 @@ import (
  "encoding/json"
  "errors"
  "fmt"
+ "io"
  "os"
+ "runtime"
  "path/filepath"
  "sync"
  "time"
@@ -46,6 +48,7 @@ type Store struct {
  lock *os.File
  lockPath string
  entries []Entry
+ seen map[string]bool
  size int64
  failed bool
 }
@@ -60,8 +63,9 @@ func Open(path string) (*Store, error) {
  if path == "" || !filepath.IsAbs(path) { return nil, errors.New("audit path must be absolute") }
  dir := filepath.Dir(path)
  if err := os.MkdirAll(dir, 0700); err != nil { return nil, fmt.Errorf("create audit directory: %w", err) }
- if st, err := os.Lstat(dir); err != nil || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
-  return nil, errors.New("audit directory is not a regular directory")
+ if st, err := os.Lstat(dir); err != nil || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 ||
+   (runtime.GOOS!="windows" && st.Mode().Perm()&0077 != 0) {
+  return nil, errors.New("audit directory must be private and regular")
  }
  if st, err := os.Lstat(path); err == nil {
   if !st.Mode().IsRegular() || st.Mode()&os.ModeSymlink != 0 { return nil, errors.New("audit trail is not a regular file") }
@@ -78,28 +82,43 @@ func Open(path string) (*Store, error) {
  if err != nil { return fail(err) }
  stat, err := file.Stat()
  if err != nil { _ = file.Close(); return fail(err) }
- if !stat.Mode().IsRegular() || stat.Size() > maxBytes { _ = file.Close(); return fail(errors.New("audit trail invalid or at capacity")) }
+ if !stat.Mode().IsRegular() || stat.Size() > maxBytes ||
+   (runtime.GOOS!="windows" && stat.Mode().Perm()&0077 != 0) {
+   _ = file.Close(); return fail(errors.New("audit trail must be private and below capacity"))
+ }
  entries, err := readEntries(file)
  if err != nil { _ = file.Close(); return fail(fmt.Errorf("audit trail integrity check failed: %w", err)) }
- return &Store{file:file,lock:lock,lockPath:lockPath,entries:entries,size:stat.Size()},nil
+ seen := make(map[string]bool,len(entries))
+ for _, e:=range entries { if e.Action=="approved" { seen[e.RunID]=true } else { seen[e.RunID]=false } }
+ return &Store{file:file,lock:lock,lockPath:lockPath,entries:entries,seen:seen,size:stat.Size()},nil
 }
 
 func readEntries(file *os.File) ([]Entry,error) {
  if _, err := file.Seek(0,0); err != nil { return nil,err }
  reader := bufio.NewReader(file)
  entries := make([]Entry,0)
+ seen := make(map[string]bool)
  prev := ""
  for {
   line, err := reader.ReadBytes('\n')
-  if errors.Is(err,os.ErrClosed) { return nil,err }
-  if len(line)==0 && err != nil { break }
+  if err!=nil && !errors.Is(err,io.EOF) { return nil,err }
+  if len(line)==0 && errors.Is(err,io.EOF) { break }
   if len(line)==0 || len(line)>4096 || line[len(line)-1]!='\n' { return nil,errors.New("partial or oversized audit entry") }
   var entry Entry
   decoder := json.NewDecoder(bytes.NewReader(line))
   decoder.DisallowUnknownFields()
   if decodeErr:=decoder.Decode(&entry); decodeErr!=nil { return nil,decodeErr }
+  var extra any
+  if err:=decoder.Decode(&extra); !errors.Is(err,io.EOF) { return nil,errors.New("audit entry contains trailing content") }
   if len(entries)>=maxEntries || entry.Sequence!=uint64(len(entries)+1) || entry.PreviousHash!=prev ||
    !validEntry(entry) || entry.Hash!=calculateHash(entry) { return nil,errors.New("audit chain mismatch") }
+  if entry.Action=="approved" {
+    if _, duplicate:=seen[entry.RunID]; duplicate { return nil,errors.New("duplicate approval record") }
+    seen[entry.RunID]=true
+  } else {
+    if !seen[entry.RunID] { return nil,errors.New("orphan or duplicate completion") }
+    seen[entry.RunID]=false
+  }
   prev=entry.Hash
   entries=append(entries,entry)
   if err != nil { break }
@@ -111,8 +130,11 @@ func validEntry(e Entry) bool {
  if len(e.RunID)!=32 || e.Time.IsZero() || e.Undo!="not-available" { return false }
  for _, ch:=range e.RunID { if !((ch>='a'&&ch<='f')||(ch>='0'&&ch<='9')) { return false } }
  if e.Action!="approved" && e.Action!="completed" { return false }
- if e.Action=="approved" && (e.Risk!="change"&&e.Risk!="destructive" || e.PackID=="" || e.CommandID=="" || e.TargetLabel=="" || e.Scope=="") { return false }
- if e.Action=="completed" && e.Status=="" { return false }
+ if e.Action=="approved" && ((e.Risk!="change"&&e.Risk!="destructive") || e.PackID=="" || e.CommandID=="" ||
+   e.TargetLabel=="" || e.Effect=="" || (e.Scope!="single" && e.Scope!="multiple") ||
+   e.Status!="" || e.ExitCode!=nil) { return false }
+ if e.Action=="completed" && (e.Status!="exited" && e.Status!="cancelled" && e.Status!="timed-out" && e.Status!="failed" ||
+   e.PackID!="" || e.CommandID!="" || e.Risk!="" || e.TargetLabel!="" || e.Target!="" || e.Effect!="" || e.Scope!="") { return false }
  for _, value:=range []string{e.PackID,e.CommandID,e.Risk,e.TargetLabel,e.Target,e.Effect,e.Scope,e.Status} {
   if len(value)>2048 { return false }
   for _, r:=range value { if r<32 || r==127 { return false } }
@@ -139,6 +161,9 @@ func (s *Store) Append(event runs.AuditEvent) error {
   Sequence:uint64(len(s.entries)+1)}
  if len(s.entries)>0 { e.PreviousHash=s.entries[len(s.entries)-1].Hash }
  if !validEntry(e) { return errors.New("mutation audit metadata invalid") }
+ if e.Action=="approved" {
+  if _, exists:=s.seen[e.RunID]; exists { return errors.New("mutation approval already recorded") }
+ } else if !s.seen[e.RunID] { return errors.New("mutation completion has no pending approval") }
  e.Hash=calculateHash(e)
  raw,err:=json.Marshal(e)
  if err!=nil { return err }
@@ -149,6 +174,7 @@ func (s *Store) Append(event runs.AuditEvent) error {
  if err:=s.file.Sync();err!=nil { s.failed=true; return errors.New("mutation audit sync failed") }
  s.size+=int64(n)
  s.entries=append(s.entries,e)
+ s.seen[e.RunID]=e.Action=="approved"
  return nil
 }
 
