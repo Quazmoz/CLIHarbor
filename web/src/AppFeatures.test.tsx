@@ -111,7 +111,7 @@ describe('command preview and retry workflows', () => {
     expect(link).toHaveAttribute('href', '/dedicated/conjur/security-audit');
     fireEvent.click(link);
     expect(window.location.pathname).toBe('/dedicated/conjur/security-audit');
-    expect(await screen.findByRole('heading', { name: 'Conjur security audit' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Conjur pattern explorer' })).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveFocus();
     expect(link).toHaveAttribute('aria-current', 'page');
 
@@ -211,7 +211,7 @@ describe('command preview and retry workflows', () => {
     window.history.replaceState({}, '', '/conjur/security-audit');
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(baseRuntimeResponse(requestPath(input)) ?? response(404, {}))));
     render(<App />);
-    expect(await screen.findByRole('heading', { name: 'Conjur security audit' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Conjur pattern explorer' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
     const sections = screen.getByRole('navigation', { name: 'CLI sections' });
     expect(within(sections).queryByRole('link', { name: /Built-in CLIs/ })).not.toBeInTheDocument();
