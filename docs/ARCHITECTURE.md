@@ -405,3 +405,7 @@ The reviewed Conjur audit adapter ([ADR-028/ADR-033](DECISIONS.md)) remains sepa
 ## Durable mutation journal (current implementation)
 
 The `internal/audittrail` store serializes mutation approval/terminal records in a bounded private JSONL file, with startup chain validation and fsync on append. `internal/runs.Manager` accepts an audit sink and blocks mutations without one or when the sink fails; the `internal/app` startup wires the default user-config journal. Authenticated `GET /api/v1/audit` exposes only bounded metadata to the Runs UI. Detailed read-only run events remain in memory and are not added to the journal. This is metadata-level lifecycle evidence, **not** transactional rollback or external compliance logging. See [Mutation audit and recovery](MUTATION_AUDIT.md).
+
+## Managed CLI install-location recovery
+
+Custom install locations are stored in a bounded (64 KiB) current-user JSON registry. Reads are limited before allocation, and updates replace a fully synced staging file without deleting the previous registry after a failed rename. In live activation mode, the application records a custom location only after executable discovery, version and pinned-content qualification succeed. Rejected installs leave that location unchanged; ordinary launch still independently revalidates managed tools.

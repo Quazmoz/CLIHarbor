@@ -244,12 +244,20 @@ func TestManagedInstallDoesNotActivateFailedQualification(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			installer := newManagedToolInstaller(registry, missingInstallSnapshot(registry), &fakeManagedProvisioner{path: fixture.executable}, nil)
+			home := t.TempDir()
+			store := newManagedInstallLocationStoreAt(filepath.Join(t.TempDir(), "locations.json"), home)
+			customRoot := filepath.Join(home, "verified-tools")
+			installer := newManagedToolInstaller(registry, missingInstallSnapshot(registry), &fakeManagedProvisioner{path: fixture.executable}, store)
 			installer.activate = func(discovery.Snapshot, discovery.ToolState) error {
 				t.Fatal("unexpected activation for wrong pinned version or content")
 				return nil
 			}
-			_, err = installer.InstallTool(t.Context(), server.ToolInstallRequest{PackID: fixture.ref.PackID, ToolID: fixture.ref.ToolID})
+			_, err = installer.InstallTool(t.Context(), server.ToolInstallRequest{
+				PackID: fixture.ref.PackID, ToolID: fixture.ref.ToolID, InstallRoot: customRoot,
+			})
+			if got := store.Load(); len(got) != 0 {
+				t.Fatalf("unqualified executable persisted a custom location: %#v", got)
+			}
 			var installErr *server.ToolInstallError
 			if !errors.As(err, &installErr) || installErr.Code != server.ToolInstallUnavailable {
 				t.Fatalf("qualification error = %v", err)

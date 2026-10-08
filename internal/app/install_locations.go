@@ -13,6 +13,17 @@ import (
 )
 
 const managedInstallLocationSchemaVersion = 1
+const maxManagedInstallLocationBytes = 64 << 10
+
+// Bound reads before allocation: this file is on the local user-state trust boundary.
+func readManagedLocationFile(path string) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return io.ReadAll(io.LimitReader(file, maxManagedInstallLocationBytes+1))
+}
 
 type managedInstallLocationFile struct {
 	Version int               `json:"version"`
@@ -55,8 +66,8 @@ func (s *managedInstallLocationStore) Load() map[discovery.ToolRef]string {
 	if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 		return nil
 	}
-	data, err := os.ReadFile(s.path)
-	if err != nil || len(data) == 0 || len(data) > 64<<10 {
+	data, err := readManagedLocationFile(s.path)
+	if err != nil || len(data) == 0 || len(data) > maxManagedInstallLocationBytes {
 		return nil
 	}
 	var file managedInstallLocationFile
@@ -98,7 +109,7 @@ func (s *managedInstallLocationStore) Save(ref discovery.ToolRef, root string) e
 		Version: managedInstallLocationSchemaVersion,
 		Tools:   map[string]string{},
 	}
-	if data, err := os.ReadFile(s.path); err == nil && len(data) <= 64<<10 {
+	if data, err := readManagedLocationFile(s.path); err == nil && len(data) <= maxManagedInstallLocationBytes {
 		var existing managedInstallLocationFile
 		decoder := json.NewDecoder(strings.NewReader(string(data)))
 		decoder.DisallowUnknownFields()
@@ -161,13 +172,10 @@ func (s *managedInstallLocationStore) Save(ref discovery.ToolRef, root string) e
 	if err := temp.Close(); err != nil {
 		return err
 	}
+	// Never delete the previous registry on a failed replacement: an
+	// antivirus lock, permission error or filesystem failure must preserve it.
 	if err := os.Rename(tempPath, s.path); err != nil {
-		if removeErr := os.Remove(s.path); removeErr != nil && !os.IsNotExist(removeErr) {
-			return err
-		}
-		if err := os.Rename(tempPath, s.path); err != nil {
-			return err
-		}
+		return err
 	}
 	keep = true
 	return nil

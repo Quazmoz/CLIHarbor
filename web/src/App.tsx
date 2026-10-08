@@ -758,13 +758,19 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    document.title = `${navigationItems.find((item) => item.route === route)?.label} · CLIHarbor`;
+    const linkedPlatform = platforms.find((platform) => platform.id === platformIDFromPath(window.location.pathname));
+    const pageTitle = route === 'platform'
+      ? linkedPlatform?.name ?? 'Dedicated CLI unavailable'
+      : route === 'platform-sign-in'
+        ? linkedPlatform ? `Sign in · ${linkedPlatform.name}` : 'Dedicated CLI unavailable'
+        : navigationItems.find((item) => item.route === route)?.label ?? 'CLIHarbor';
+    document.title = `${pageTitle} · CLIHarbor`;
     if (previousRouteRef.current !== route) {
       mainRef.current?.focus({ preventScroll: true });
       window.scrollTo(0, 0);
       previousRouteRef.current = route;
     }
-  }, [route]);
+  }, [route, selectedPlatformID, platforms]);
 
   useEffect(() => {
     if (state.kind === 'error') {
@@ -1125,7 +1131,14 @@ export function App() {
         task.requiresAuth === true,
     );
 
-  const activePlatform = platforms.find((platform) => platform.id === selectedPlatformID) ?? platforms[0];
+  // An explicit dedicated URL is authoritative. Never silently substitute
+  // another vendor's integration for an unknown or removed platform ID.
+  const dedicatedPathID = route === 'platform' || route === 'platform-sign-in'
+    ? platformIDFromPath(window.location.pathname)
+    : '';
+  const activePlatform = dedicatedPathID
+    ? platforms.find((platform) => platform.id === dedicatedPathID)
+    : (platforms.find((platform) => platform.id === selectedPlatformID) ?? platforms[0]);
   const activePlatformID = activePlatform?.id ?? '';
 
   const navigate = useCallback((nextRoute: AppRoute, platformID: string = activePlatformID) => {
