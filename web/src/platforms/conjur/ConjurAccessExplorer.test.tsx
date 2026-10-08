@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { ConjurAccessExplorer, parseConjurIDs, metadataFromID, validConjurID } from './ConjurAccessExplorer';
+import { ConjurAccessExplorer, parseConjurIDs, metadataFromID, parseExists, validConjurID } from './ConjurAccessExplorer';
 import { cancelRun, createRun } from '../../api/runs';
 import { fetchTools } from '../../api/tools';
 import { fetchSecretAudit } from './secretAuditApi';
@@ -11,6 +11,8 @@ vi.mock('../../api/runs', () => ({ createRun: vi.fn(), fetchRun: vi.fn(), cancel
     switch (snapshot.commandId) {
       case 'whoami': return '{"username":"operator","account":"dev"}';
       case 'list-resources': return '["dev:variable:billing/password","dev:group:operators"]';
+      case 'resource-exists': return '{"exists":true}';
+      case 'role-exists': return '{"exists":true}';
       case 'resource-permitted-roles': return '["dev:group:operators","dev:group:operators"]';
       case 'role-members': return '["dev:user:alice","dev:user:alice","dev:group:operators"]';
       case 'role-memberships': return '["dev:group:operators","dev:group:parent","dev:group:parent"]';
@@ -27,6 +29,8 @@ const read = (commandId: string, inputs: Array<Pick<Task['inputs'][number], 'id'
 const tasks = [
   read('whoami'), read('list-resources', [{ id: 'limit', type: 'enum' },
     { id: 'kind', type: 'enum' }, { id: 'search', type: 'string' }, { id: 'offset', type: 'integer' }]),
+  read('resource-exists', [{ id: 'resource-id', type: 'string' }]),
+  read('role-exists', [{ id: 'role-id', type: 'string' }]),
   read('resource-permitted-roles', [{ id: 'resource-id', type: 'string' }, { id: 'privilege', type: 'string' }]),
   read('role-members', [{ id: 'role-id', type: 'string' }]),
   read('role-memberships', [{ id: 'role-id', type: 'string' }]),
@@ -68,6 +72,10 @@ describe('vendor output boundaries', () => {
       .toEqual(['dev:group:a', 'dev:group:b']);
     expect(metadataFromID('dev:variable:p')).toEqual({ id: 'dev:variable:p', kind: 'variable' });
     expect(() => metadataFromID('unqualified')).toThrow();
+    expect(parseExists('{"exists":true}')).toBe(true);
+    expect(parseExists('{"exists":false}')).toBe(false);
+    expect(() => parseExists('{"exists":true,"value":"bad"}')).toThrow();
+    expect(() => parseExists('true')).toThrow();
   });
 });
 
@@ -91,7 +99,7 @@ describe('Conjur access workflow', () => {
       { 'resource-id': 'dev:variable:billing/password', privilege: 'execute' });
     expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.commandId))
       .toEqual(['whoami', 'list-resources', 'whoami',
-        'whoami', 'whoami', 'whoami', 'resource-permitted-roles', 'whoami']);
+        'whoami', 'resource-exists', 'whoami', 'whoami', 'resource-permitted-roles', 'whoami']);
   });
   test('rejects context switch without showing stale inspection', async () => {
     let reads = 0;
