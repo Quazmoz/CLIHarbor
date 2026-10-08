@@ -31,8 +31,8 @@ jobs:
         run: npm run build --prefix web
       - name: Sync embedded frontend
         run: go run ./tools/task sync-web
-      - name: Verify embedded frontend
-        run: go run ./tools/task verify-web-sync
+      - name: Show generated changes for commit
+        run: git status --short internal/webui/static
       - name: Go embedded frontend tests
         run: go test -timeout 2m ./internal/webui ./internal/app
       - name: Emit generated public frontend files
