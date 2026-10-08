@@ -3,12 +3,12 @@ import { configureCredentialConnection, launchInteractiveLogin, loginWithCredent
 import { normalizeError, type AppErrorDetail } from '../../api/errors';
 import type { ToolDiagnostic } from '../../api/tools';
 import type { SignInContext, ToolSignIn } from '../../AuthenticationPage';
-import { CyberArkPortalLink } from './CyberArkPortalLink';
+import { ConjurBackendConnection } from './ConjurBackendConnection';
 
 // Dedicated Conjur sign-in (ADR-034): the connection/password form and the
 // official vendor-login launcher. The generic Authentication page owns the
 // session check and renders this only inside the dedicated Conjur section.
-function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession, onToolsChanged }: SignInContext) {
+function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession, onToolsChanged, invalidateSession }: SignInContext) {
   const checking = checkKind === 'checking';
   const [credentialIdentity, setCredentialIdentity] = useState('');
   const [credentialSecret, setCredentialSecret] = useState('');
@@ -23,6 +23,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
   const [credentialAccount, setCredentialAccount] = useState('');
   const [credentialAuthnType, setCredentialAuthnType] = useState<'authn' | 'ldap'>('authn');
   const [credentialServiceID, setCredentialServiceID] = useState('');
+  const [showSaaSSetup, setShowSaaSSetup] = useState(false);
 
   // A verified session ends the "sign-in started" notice (and its focus re-check).
   // Adjusted during render, per React guidance, rather than in an effect.
@@ -171,7 +172,12 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
 
   return (
     <>
-      {ready && <CyberArkPortalLink />}
+      {ready && (tool.credentialLogin?.method !== 'conjur-password' || showSaaSSetup) && (
+        <ConjurBackendConnection
+          status={status} tool={tool} ready={ready}
+          onToolsChanged={onToolsChanged} invalidateSession={invalidateSession}
+        />
+      )}
       {ready && tool.credentialLogin === undefined && (
         <p className="auth-tool-meta">
           Sign in with your organization’s approved {tool.toolId} flow, then use the session check here to confirm it.
@@ -179,7 +185,14 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
         </p>
       )}
 
-      {tool.credentialLogin?.method === 'conjur-password' && ready && (
+      {tool.credentialLogin?.method === 'conjur-password' && ready &&
+        tool.credentialLogin.setupRequired === true && (
+        <button type="button" className="secondary-button"
+          onClick={() => setShowSaaSSetup((previous) => !previous)}>
+          {showSaaSSetup ? 'Use self-hosted connection instead' : 'Configure Secrets Manager SaaS API instead'}
+        </button>
+      )}
+      {tool.credentialLogin?.method === 'conjur-password' && ready && !showSaaSSetup && (
         <form
           className="credential-login-form"
           onSubmit={(event) => {

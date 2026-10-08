@@ -19,12 +19,27 @@ import (
 const maxCredentialConfigurationRequestBytes = 8 << 10
 
 type CredentialConfigurationRequest struct {
-	PackID       string
-	ToolID       string
-	ApplianceURL string
-	Account      string
-	AuthnType    string
-	ServiceID    string
+	PackID               string
+	ToolID               string
+	Environment          string
+	ApplianceURL         string
+	ExpectedApplianceURL string
+	Account              string
+	AuthnType            string
+	ServiceID            string
+}
+
+// Read-only, sanitized vendor connection metadata. Credentials and filesystem
+// paths never cross this browser boundary.
+type CredentialConnection struct {
+	Environment  string `json:"environment"`
+	ApplianceURL string `json:"applianceUrl"`
+	Account      string `json:"account"`
+	Configurable bool   `json:"configurable"`
+}
+
+type CredentialConnectionReader interface {
+	Connection() (CredentialConnection, error)
 }
 
 type CredentialConfigurationService interface {
@@ -32,17 +47,33 @@ type CredentialConfigurationService interface {
 }
 
 type credentialConfigurationRequestDTO struct {
-	PackID       string `json:"packId"`
-	ToolID       string `json:"toolId"`
-	ApplianceURL string `json:"applianceUrl"`
-	Account      string `json:"account"`
-	AuthnType    string `json:"authnType"`
-	ServiceID    string `json:"serviceId,omitempty"`
+	PackID               string `json:"packId"`
+	ToolID               string `json:"toolId"`
+	Environment          string `json:"environment,omitempty"`
+	ApplianceURL         string `json:"applianceUrl"`
+	ExpectedApplianceURL string `json:"expectedApplianceUrl,omitempty"`
+	Account              string `json:"account"`
+	AuthnType            string `json:"authnType"`
+	ServiceID            string `json:"serviceId,omitempty"`
 }
 
 func (s *Server) handleCredentialConfiguration(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		reader, ok := s.credentialConfiguration.(CredentialConnectionReader)
+		if !ok {
+			writeAPIError(w, http.StatusConflict, apperror.CodeAuthenticationUnsupported)
+			return
+		}
+		connection, err := reader.Connection()
+		if err != nil {
+			writeCredentialLoginError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, connection)
+		return
+	}
 	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
+		w.Header().Set("Allow", "GET, POST")
 		writeMethodNotAllowed(w)
 		return
 	}
@@ -57,12 +88,14 @@ func (s *Server) handleCredentialConfiguration(w http.ResponseWriter, r *http.Re
 	// WriteTimeout; without this the browser sees a reset for a setup that succeeded.
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(slowResponseWriteTimeout))
 	err = s.credentialConfiguration.Configure(r.Context(), CredentialConfigurationRequest{
-		PackID:       request.PackID,
-		ToolID:       request.ToolID,
-		ApplianceURL: request.ApplianceURL,
-		Account:      request.Account,
-		AuthnType:    request.AuthnType,
-		ServiceID:    request.ServiceID,
+		PackID:               request.PackID,
+		ToolID:               request.ToolID,
+		Environment:          request.Environment,
+		ApplianceURL:         request.ApplianceURL,
+		ExpectedApplianceURL: request.ExpectedApplianceURL,
+		Account:              request.Account,
+		AuthnType:            request.AuthnType,
+		ServiceID:            request.ServiceID,
 	})
 	if err != nil {
 		writeCredentialLoginError(w, err)
@@ -105,6 +138,8 @@ func decodeCredentialConfigurationRequest(w http.ResponseWriter, r *http.Request
 	}
 
 	request.ApplianceURL = strings.TrimSpace(request.ApplianceURL)
+	request.ExpectedApplianceURL = strings.TrimSpace(request.ExpectedApplianceURL)
+	request.Environment = strings.ToLower(strings.TrimSpace(request.Environment))
 	request.Account = strings.TrimSpace(request.Account)
 	request.AuthnType = strings.ToLower(strings.TrimSpace(request.AuthnType))
 	request.ServiceID = strings.TrimSpace(request.ServiceID)
@@ -114,6 +149,23 @@ func decodeCredentialConfigurationRequest(w http.ResponseWriter, r *http.Request
 	}
 	if err := validateCredentialConfigurationURL(request.ApplianceURL); err != nil {
 		return zero, err
+	}
+	if request.ExpectedApplianceURL != "" {
+		if err := validateCredentialConfigurationURL(request.ExpectedApplianceURL); err != nil {
+			return zero, fmt.Errorf("invalid expected connection URL")
+		}
+	}
+	if request.Environment == "saas" {
+		if request.Account != "conjur" || request.AuthnType != "cloud" || request.ServiceID != "" {
+			return zero, fmt.Errorf("invalid SaaS connection parameters")
+		}
+		return request, nil
+	}
+	if request.Environment != "" {
+		return zero, fmt.Errorf("unsupported environment")
+	}
+	if request.ExpectedApplianceURL != "" {
+		return zero, fmt.Errorf("self-hosted connection replacement is not supported")
 	}
 	if request.Account == "" || len(request.Account) > 256 || containsControlCharacter(request.Account) {
 		return zero, fmt.Errorf("invalid account")

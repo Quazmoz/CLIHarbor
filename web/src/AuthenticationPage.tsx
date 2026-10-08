@@ -46,6 +46,8 @@ export interface SignInContext {
   /** Runs the pack-declared session check; resolves when the check settles or fails to start. */
   verifySession: () => Promise<void>;
   onToolsChanged?: () => void;
+  /** Clear previous session evidence after changing the vendor API connection. */
+  invalidateSession?: () => void;
 }
 
 /**
@@ -559,7 +561,19 @@ export function VendorSessionCard({
       )}
 
       {signIn !== undefined
-        ? signIn.render({ status, tool, headingID, ready: toolView.ready, checkKind: check.kind, verifySession: startCheck, onToolsChanged })
+        ? signIn.render({
+            status, tool, headingID, ready: toolView.ready, checkKind: check.kind,
+            verifySession: startCheck, onToolsChanged,
+            invalidateSession: () => {
+              attemptRef.current += 1;
+              closeStreamRef.current?.();
+              closeStreamRef.current = null;
+              activeRunRef.current = null;
+              stdoutRef.current = '';
+              stderrRef.current = '';
+              setCheck({ kind: 'unchecked' });
+            },
+          })
         : dedicated !== undefined
           ? (
             <div className="auth-tool-meta auth-dedicated-sign-in">

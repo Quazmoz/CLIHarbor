@@ -633,6 +633,30 @@ describe('AuthenticationPage', () => {
     expect(screen.getByRole('button', { name: 'Check session' })).toBeEnabled();
   });
 
+  test('offers the real SaaS API configuration during first-run setup', async () => {
+    const setupTool: ToolDiagnostic = {
+      ...readyTool,
+      credentialLogin: { method: 'conjur-password', setupRequired: true },
+    };
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (requestPath(input) === '/api/v1/auth/configure' && (init?.method === 'GET' || init === undefined)) {
+        return Promise.resolve(response(200, {
+          environment: 'unconfigured', applianceUrl: '', account: '', configurable: true,
+        }));
+      }
+      return Promise.resolve(response(404, {}));
+    }));
+    renderAuth([whoamiTask], [setupTool]);
+    expect(screen.getByRole('textbox', { name: 'Conjur server URL' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Secrets Manager SaaS API instead' }));
+    expect(screen.queryByRole('textbox', { name: 'Conjur server URL' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: 'Secrets Manager API URL' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('https://companyname.secretsmgr.cyberark.cloud')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Use self-hosted connection instead' }));
+    expect(screen.getByRole('textbox', { name: 'Conjur server URL' })).toBeInTheDocument();
+  });
+
   test('keeps the password out of first-run connection setup, then signs in and verifies', async () => {
     const setupTool: ToolDiagnostic = {
       ...readyTool,

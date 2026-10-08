@@ -210,8 +210,15 @@ check boundaries apply. GitHub CLI and kubectl installation only adds reviewed
 tasks; it does not log in, read credentials, or configure an account/cluster.
 See [Supported CLI catalog](CLI_CATALOG.md).
 
-## Optional CyberArk Identity portal shortcut
+## Actual Conjur API connection setup — SaaS
 
-The dedicated Conjur sign-in page includes an optional browser-only shortcut for the organization's **Identity portal**. Operators enter an HTTPS URL such as `https://companyname.cyberark.cloud` (placeholder only; not a default). The application validates a single tenant subdomain, excludes userinfo, ports, paths and query/fragment content, persists only that address to origin-scoped browser local storage, and opens it with `noopener noreferrer`. Invalid saved local data is rejected on every render. No identity provider credentials are collected by the shortcut.
+The dedicated Conjur sign-in page now presents **Conjur API connection**, displaying the effective vendor `appliance_url`, account, and environment as read through `conjur-api-go`. It does not create a browser-only Identity portal bookmark or store configuration in localStorage.
 
-This intentionally does **not** change `.conjurrc`, override the upstream Conjur login endpoint, or infer CLI authentication from a portal visit. Upstream Conjur 9.3.1 derives the Identity service from its separately configured SaaS endpoint, typically `https://tenant.secretsmgr.cyberark.cloud/api`. The current in-app connection wizard configures only reviewed self-hosted `authn`/LDAP modes. Cloud initialization, reconfiguration of existing vendor contexts and MFA remain vendor-owned. This separation prevents using an Identity portal URL where a Conjur API endpoint is required.
+- `GET /api/v1/auth/configure` is authenticated, read-only, and returns only sanitized non-secret endpoint/account/environment plus whether safe in-app SaaS configuration is supported.
+- First-run SaaS setup allows a single HTTPS `https://<tenant>.secretsmgr.cyberark.cloud` URL; the backend invokes the identity-verified vendor CLI with fixed `init saas --url <url>` arguments. The vendor persists `.conjurrc`, selects `cloud` authentication and its canonical account, and normalizes the effective endpoint to `/api`.
+- Already configured SaaS-to-SaaS changes require an explicit browser acknowledgement plus the previous exact SaaS URL. The backend checks current configuration under the existing single-flight gate, refuses stale expected URLs, environment overrides, read-only storage, and other auth modes, and only then uses the vendor `--force` argument to replace the approved SaaS config. No password/MFA enters this API.
+- After initialization, the backend reloads the authoritative vendor config and requires exact endpoint/account/mode matches. A vendor timeout after durable write is reconciled against readback; inconsistent state is reported as unavailable rather than falsely saved.
+- The browser re-fetches the new connection and invalidates any prior authenticated session-check evidence. A new `whoami` check is required. No session token, credential, or keyring data is copied.
+- The separately scoped first-run self-hosted `authn`/LDAP wizard is unchanged. Switching an existing non-SaaS profile to SaaS or replacing unsupported configuration modes is deliberately not offered.
+
+The short Identity hostname `companyname.cyberark.cloud` is an Identity **website**, not a Secrets Manager API endpoint. The corresponding Secrets Manager SaaS tenant endpoint uses `companyname.secretsmgr.cyberark.cloud`; neither example is employer-specific. Authoritative references: `cyberark/conjur-cli-go` `pkg/cmd/initcloud.go` and `cyberark/conjur-api-go`.
