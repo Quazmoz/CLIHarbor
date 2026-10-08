@@ -3,6 +3,7 @@ import { configureCredentialConnection, launchInteractiveLogin, loginWithCredent
 import { normalizeError, type AppErrorDetail } from '../../api/errors';
 import type { ToolDiagnostic } from '../../api/tools';
 import type { SignInContext, ToolSignIn } from '../../AuthenticationPage';
+import { CyberArkPortalLink } from './CyberArkPortalLink';
 
 // Dedicated Conjur sign-in (ADR-034): the connection/password form and the
 // official vendor-login launcher. The generic Authentication page owns the
@@ -154,6 +155,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
 
   return (
     <>
+      {ready && <CyberArkPortalLink />}
       {ready && tool.credentialLogin === undefined && (
         <p className="auth-tool-meta">
           Sign in with your organization’s approved {tool.toolId} flow, then use the session check here to confirm it.

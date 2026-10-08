@@ -238,3 +238,9 @@ Continue with [README](README.md), [Conjur integration](docs/CONJUR_INTEGRATION.
 ## Explore Conjur access safely
 
 After confirming Conjur CLI discovery and authentication, open **Built-in CLIs → CyberArk Conjur → Access & permissions** (`/dedicated/conjur/access-explorer`). Select a kind and page size, search visible resources, and select a full resource ID. Query roles for a chosen privilege or open a role to inspect direct members and recursively expanded memberships. The tool never reads variable secret values; no mutation runs from an explorer link. Failed queries and insufficient visibility are **unknown**, not proof of denied permission. [More details](docs/CONJUR_INTEGRATION.md#access--permissions-explorer).
+
+## CyberArk Identity sign-in URL (optional)
+
+Open **Dedicated CLIs → CyberArk Conjur → Sign in**. Enter your organization's Identity portal URL in the optional **CyberArk Identity login URL** field. The blank field only displays `https://companyname.cyberark.cloud` as a suggestion; no actual company URL is embedded. Save it and select **Open CyberArk Identity portal** to open it in a separate tab. The saved address belongs to this browser origin only, and does not configure or authenticate the Conjur CLI.
+
+For Conjur SaaS CLI initialization, the official CLI expects a separate service endpoint shaped like `https://tenant.secretsmgr.cyberark.cloud`. Follow the approved vendor CLI setup/login process, then return to CLIHarbor and **Check session**. The app does not send passwords or tokens to the optional Identity portal shortcut.
