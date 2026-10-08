@@ -538,3 +538,7 @@ docs/                      product, architecture, security and operations docs
 CLIHarbor is intentionally narrower than a terminal emulator, shell wrapper, remote execution service, credential manager, generic package manager, or automatic runtime CLI scraper.
 
 Its value comes from making **known, reviewed CLI workflows** easy to use while retaining a small inspectable authority boundary. A new automatic dependency is accepted only when its exact source/version/hash/platform/install policy is reviewed and the installed bytes still pass normal CLIHarbor discovery/version/identity checks.
+
+## Mutation audit trail and undo safety
+
+Reviewed change and destructive operations are now synchronously journaled to a private, append-only local audit file before execution. Open **Runs → Mutation audit trail** to see approvals, outcomes and targets after restart; this is separate from temporary raw run history. The journal never persists passwords, stdin, stdout/stderr or argv. Failed/unavailable audit storage blocks new mutations. **No automated undo is enabled** until inverse operations are independently qualified with remote pre-state and drift checks. See [Mutation audit and recovery](docs/MUTATION_AUDIT.md).

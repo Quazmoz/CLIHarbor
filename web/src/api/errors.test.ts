@@ -65,6 +65,14 @@ describe('browser error contract', () => {
     ).toBeNull();
   });
 
+  test('accepts the reviewed audit storage unavailable error without exposing disk details', () => {
+    const detail = parseServerErrorDetail({
+      code: 'audit_unavailable', category: 'security',
+      message: 'Mutation audit trail unavailable.', retryable: false,
+    });
+    expect(detail?.code).toBe('audit_unavailable');
+  });
+
   test('unknown response payload becomes a generic bounded client error', async () => {
     const response = new Response(
       JSON.stringify({

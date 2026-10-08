@@ -34,6 +34,7 @@ const (
 	CodeResourceNotFound            Code = "resource_not_found"
 	CodeCommandBlocked              Code = "command_blocked"
 	CodeApprovalRequired            Code = "approval_required"
+	CodeAuditUnavailable            Code = "audit_unavailable"
 	CodeExecutionContextUnavailable Code = "execution_context_unavailable"
 	CodeToolUnavailable             Code = "tool_unavailable"
 	CodeToolChanged                 Code = "tool_changed"
@@ -89,6 +90,10 @@ func DetailFor(code Code) Detail {
 		return Detail{Code: code, Category: CategoryPolicy, Message: "The task is not permitted by the current local execution policy.", Remediation: "Choose a task currently exposed by CLIHarbor. Use cliharbor doctor if the browser metadata appears stale."}
 	case CodeApprovalRequired:
 		return Detail{Code: code, Category: CategoryPolicy, Message: "This change requires a fresh explicit approval.", Remediation: "Preview the task again, verify its exact target and environment, then approve it."}
+	case CodeAuditUnavailable:
+		return Detail{Code: code, Category: CategorySecurity,
+			Message:     "CLIHarbor cannot safely record this change in its local audit trail.",
+			Remediation: "Do not retry blindly. Check the journal under your user configuration's CLIHarbor/audit directory, available disk space and any stale lock. Verify prior operation outcomes before repairing audit storage."}
 	case CodeExecutionContextUnavailable:
 		return Detail{Code: code, Category: CategoryPolicy, Message: "CLIHarbor could not establish trusted environment context for this change.", Remediation: "Verify the vendor connection/account configuration, then preview the task again before approving it."}
 	case CodeToolUnavailable:

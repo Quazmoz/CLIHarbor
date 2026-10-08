@@ -11,6 +11,7 @@ import {
 import type { Task } from './api/tasks';
 import { runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import { OutputExplorer } from './OutputExplorer';
+import { MutationAuditTrail } from './MutationAuditTrail';
 
 interface RunsPageProps {
   tasks: Task[];
@@ -382,6 +383,7 @@ export function RunsPage({ tasks, onOpenTasks }: RunsPageProps) {
         </article>
         )}
       </div>
+      <MutationAuditTrail />
     </section>
   );
 }

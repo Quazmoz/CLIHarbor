@@ -23,6 +23,7 @@ export type ServerErrorCode =
   | 'resource_not_found'
   | 'command_blocked'
   | 'approval_required'
+  | 'audit_unavailable'
   | 'execution_context_unavailable'
   | 'tool_unavailable'
   | 'tool_changed'
@@ -73,6 +74,7 @@ const serverCodeCategories: Record<ServerErrorCode, AppErrorCategory> = {
   resource_not_found: 'lifecycle',
   command_blocked: 'policy',
   approval_required: 'policy',
+  audit_unavailable: 'security',
   execution_context_unavailable: 'policy',
   tool_unavailable: 'discovery',
   tool_changed: 'discovery',

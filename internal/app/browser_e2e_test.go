@@ -202,6 +202,7 @@ func TestProductionEmbeddedBrowserE2E(t *testing.T) {
 	fixture := executionFixtureConfigForTest(t)
 	configureBrowserConjurFixture(t, &fixture)
 	launched := make(chan string, 1)
+	fixture.options.AuditPath = filepath.Join(t.TempDir(), "audit", "audit.jsonl")
 	fixture.options.Out = io.Discard
 	fixture.options.Version = "browser-e2e"
 	fixture.options.Browser = browser.LauncherFunc(func(rawURL string) error {

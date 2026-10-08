@@ -752,6 +752,9 @@ func currentManagerExecutable(t *testing.T) (string, string, discovery.Executabl
 
 func newTestManager(t *testing.T, registry *packs.Registry, snapshot discovery.Snapshot, config Config) *Manager {
 	t.Helper()
+	if config.Audit == nil {
+		config.Audit = testAuditSink{}
+	}
 	manager, err := NewManager(t.Context(), registry, snapshot, config)
 	if err != nil {
 		t.Fatal(err)
@@ -816,3 +819,7 @@ func assertRunCode(t *testing.T, err error, want ErrorCode) {
 		t.Fatalf("code = %s, want %s", runErr.Code, want)
 	}
 }
+
+type testAuditSink struct{}
+
+func (testAuditSink) Append(AuditEvent) error { return nil }

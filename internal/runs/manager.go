@@ -55,6 +55,7 @@ const (
 	ErrNotFound           ErrorCode = "not_found"
 	ErrClosed             ErrorCode = "closed"
 	ErrInvalidCursor      ErrorCode = "invalid_cursor"
+	ErrAuditUnavailable   ErrorCode = "audit_unavailable"
 )
 
 type Error struct {
@@ -65,6 +66,23 @@ type Error struct {
 func (e *Error) Error() string {
 	return string(e.Code)
 }
+
+// AuditEvent captures only reviewed, non-secret mutation metadata.
+type AuditEvent struct {
+	RunID       string
+	Action      string
+	PackID      string
+	CommandID   string
+	Risk        string
+	TargetLabel string
+	Target      string
+	Effect      string
+	Scope       string
+	Status      string
+	ExitCode    *int
+}
+
+type AuditSink interface{ Append(AuditEvent) error }
 
 type Request struct {
 	PackID    string
@@ -151,6 +169,7 @@ type Config struct {
 	NewRunID                func() (string, error)
 	NewApprovalID           func() (string, error)
 	ResolveExecutionContext func(planner.Plan) (ExecutionContext, error)
+	Audit                   AuditSink
 }
 
 type Manager struct {
@@ -161,13 +180,14 @@ type Manager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	mu        sync.Mutex
-	runs      map[string]*record
-	order     []string
-	approvals map[string]approvalRecord
-	active    int
-	closed    bool
-	waitGroup sync.WaitGroup
+	mu          sync.Mutex
+	runs        map[string]*record
+	order       []string
+	approvals   map[string]approvalRecord
+	active      int
+	auditFailed bool
+	closed      bool
+	waitGroup   sync.WaitGroup
 }
 
 type record struct {
@@ -192,6 +212,7 @@ type record struct {
 	structuredTooLarge bool
 	structuredResult   *structured.Result
 	failure            *apperror.Detail
+	audited            bool
 }
 
 var errEventCapacity = errors.New("run event capacity exhausted")
@@ -397,9 +418,27 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("generated duplicate run identifier")
 	}
 	if requiresApproval(plan) {
+		if m.auditFailed || m.config.Audit == nil {
+			m.mu.Unlock()
+			return Snapshot{}, &Error{Code: ErrAuditUnavailable}
+		}
 		if err := m.consumeApprovalLocked(approvalFingerprintValue, request.Approval, m.config.Now()); err != nil {
 			m.mu.Unlock()
 			return Snapshot{}, err
+		}
+		impact := mutationImpact(plan)
+		if impact == nil {
+			m.mu.Unlock()
+			return Snapshot{}, &Error{Code: ErrPolicyBlocked}
+		}
+		if err := m.config.Audit.Append(AuditEvent{
+			RunID: runID, Action: "approved", PackID: plan.PackID, CommandID: plan.CommandID,
+			Risk: string(plan.Risk), TargetLabel: impact.TargetLabel, Target: impact.Target,
+			Effect: impact.Effect, Scope: string(impact.Scope),
+		}); err != nil {
+			m.auditFailed = true
+			m.mu.Unlock()
+			return Snapshot{}, &Error{Code: ErrAuditUnavailable}
 		}
 	}
 
@@ -416,6 +455,7 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 		changed:            make(chan struct{}),
 		structuredSpec:     cloneStructuredSpec(plan.Output.Structured),
 		structuredRenderer: plan.Output.Renderer,
+		audited:            requiresApproval(plan),
 	}
 	m.runs[runID] = rec
 	m.order = append(m.order, runID)
@@ -654,6 +694,15 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 		if result.Status == executor.StatusExited {
 			code := result.ExitCode
 			rec.exitCode = &code
+		}
+	}
+	if rec.audited {
+		if err := m.config.Audit.Append(AuditEvent{
+			RunID: rec.runID, Action: "completed", Status: string(rec.status), ExitCode: cloneInt(rec.exitCode),
+		}); err != nil {
+			// An approved-but-unfinished record survives a journal failure.
+			// Block every subsequent mutation until the journal is repaired.
+			m.auditFailed = true
 		}
 	}
 	rec.structuredResult = parsed
