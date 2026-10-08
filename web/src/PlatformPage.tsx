@@ -23,16 +23,27 @@ const featureDetail: Record<PlatformFeatureID, string> = {
 
 /** Home for one dedicated CLI: what CLIHarbor adds on top of the generic workspace. */
 export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
-  const [target, setTarget] = useState<{ applianceUrl: string; account: string } | null>(null);
+  const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
+  const readiness = tool?.status ?? 'unavailable';
+  const [targetSnapshot, setTargetSnapshot] = useState<{
+    platformId: string; readiness: string; applianceUrl: string; account: string;
+  } | null>(null);
+  // Never render an environment snapshot obtained under a different platform or
+  // discovery state, even for the frame before an effect processes new props.
+  const target = targetSnapshot?.platformId === platform.id && targetSnapshot.readiness === readiness
+    ? targetSnapshot : null;
   useEffect(() => {
     if (platform.id !== 'conjur') return;
     const controller = new AbortController();
     void fetchSecretAudit(controller.signal).then((audit) => {
-      if (!controller.signal.aborted && audit.available && audit.target) setTarget(audit.target);
-    }).catch(() => { if (!controller.signal.aborted) setTarget(null); });
+      if (!controller.signal.aborted) {
+        setTargetSnapshot(audit.available && audit.target
+          ? { ...audit.target, platformId: platform.id, readiness }
+          : null);
+      }
+    }).catch(() => { if (!controller.signal.aborted) setTargetSnapshot(null); });
     return () => controller.abort();
-  }, [platform.id]);
-  const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
+  }, [platform.id, readiness]);
   const platformTasks = tasks.filter((task) => task.packId === platform.packId && task.toolId === platform.toolId);
   const taskCount = platformTasks.length;
   // All shortcuts are resolved from backend-advertised approved tasks, never

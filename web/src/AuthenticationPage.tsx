@@ -363,6 +363,9 @@ export function VendorSessionCard({
     activeRunRef.current = null;
     stdoutRef.current = '';
     stderrRef.current = '';
+    // A cancelled/lost stream may leave incomplete UTF-8 in the old decoder.
+    // Never let one vendor session check influence the next attempt.
+    decodersRef.current = { stdout: new TextDecoder(), stderr: new TextDecoder() };
     setCheck({ kind: 'checking' });
 
     try {
@@ -654,6 +657,14 @@ export function AuthenticationPage({
                 tool.toolId +
                 '/' +
                 tool.packVersion +
+                '/' +
+                tool.status +
+                '/' +
+                (tool.version ?? 'unknown-version') +
+                '/' +
+                (tool.credentialLogin?.method ?? 'external-login') +
+                '/' +
+                (tool.credentialLogin?.setupRequired ? 'setup' : 'configured') +
                 '/' +
                 (tool.sessionCheck?.commandId ?? 'no-check')
               }
