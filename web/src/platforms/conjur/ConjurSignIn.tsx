@@ -23,6 +23,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
   const [credentialAccount, setCredentialAccount] = useState('');
   const [credentialAuthnType, setCredentialAuthnType] = useState<'authn' | 'ldap'>('authn');
   const [credentialServiceID, setCredentialServiceID] = useState('');
+  const [showSaaSSetup, setShowSaaSSetup] = useState(false);
 
   // A verified session ends the "sign-in started" notice (and its focus re-check).
   // Adjusted during render, per React guidance, rather than in an effect.
@@ -171,7 +172,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
 
   return (
     <>
-      {ready && tool.credentialLogin?.method !== 'conjur-password' && (
+      {ready && (tool.credentialLogin?.method !== 'conjur-password' || showSaaSSetup) && (
         <ConjurBackendConnection
           status={status} tool={tool} ready={ready}
           onToolsChanged={onToolsChanged} invalidateSession={invalidateSession}
@@ -184,7 +185,14 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
         </p>
       )}
 
-      {tool.credentialLogin?.method === 'conjur-password' && ready && (
+      {tool.credentialLogin?.method === 'conjur-password' && ready &&
+        tool.credentialLogin.setupRequired === true && (
+        <button type="button" className="secondary-button"
+          onClick={() => setShowSaaSSetup((previous) => !previous)}>
+          {showSaaSSetup ? 'Use self-hosted connection instead' : 'Configure Secrets Manager SaaS API instead'}
+        </button>
+      )}
+      {tool.credentialLogin?.method === 'conjur-password' && ready && !showSaaSSetup && (
         <form
           className="credential-login-form"
           onSubmit={(event) => {
