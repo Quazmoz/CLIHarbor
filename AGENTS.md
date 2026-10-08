@@ -59,6 +59,12 @@ Do not introduce Electron/Tauri, a cloud backend, a database server, container r
 - Avoid telemetry by default. Any future telemetry must be opt-in and documented.
 - Never commit credentials, tenant URLs, internal hostnames, tokens, user identifiers, or example secrets.
 
+## GitHub Actions execution policy (explicit user authorization required)
+
+**Do not run GitHub Actions automatically during routine CLIHarbor development.** Repository workflows must be manual-only (`workflow_dispatch`); do not add `push`, `pull_request`, merge, tag, scheduled, or other automatic triggers, including temporary qualification workflows. Do not manually dispatch a workflow via GitHub UI, API, CLI, or automation unless the user **specifically authorizes GitHub Actions for that operation** (for example, production release qualification or a named exceptional CI check). Ordinary implementation, commits, PRs, merges, local validation failures, and a generic request to "test" or "continue" are **not** authorization to spend GitHub Actions minutes.
+
+During normal development, run the relevant repository-native checks locally and report which checks actually ran and which platform/runtime checks remain unverified. Preserve all release quality/security gates: when a production release is specifically requested and GitHub Actions are authorized, manually dispatch the necessary qualification workflow against the intended commit. Never claim release qualification from unexecuted checks. Do not create a new automatic CI workflow as a shortcut to run tests.
+
 ## Definition of done for a change
 
 A change is not complete until:
