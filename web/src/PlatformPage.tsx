@@ -19,7 +19,7 @@ export function PlatformPage({ platform, tasks, onOpenFeature, onOpenDiagnostics
   const taskCount = tasks.filter((task) => task.packId === platform.packId && task.toolId === platform.toolId).length;
   return (
     <section className="panel platform-page" aria-labelledby="platform-heading">
-      <p className="status-label">Dedicated CLI</p>
+      <p className="status-label">Built-in CLI</p>
       <h2 id="platform-heading">{platform.name}</h2>
       <p>{platform.summary}</p>
       <p role="status">

@@ -101,7 +101,7 @@ describe('OverviewPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /List containers/i }));
     expect(openTask).toHaveBeenCalledWith('docker/containers');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Review authentication' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review CLI sessions' }));
     expect(navigate).toHaveBeenCalledWith('authentication');
   });
 
@@ -120,7 +120,7 @@ describe('OverviewPage', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Sign in from CLIHarbor' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Connect your CLIs' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Open CyberArk Conjur sign-in' }));
@@ -147,7 +147,7 @@ describe('OverviewPage', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'CLI authentication' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'CLI session checks' })).toBeInTheDocument();
     expect(screen.getByText('2/2 ready')).toBeInTheDocument();
     expect(
       screen.getByText(/approved conjur flow, then use the session check/i),

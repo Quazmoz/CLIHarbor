@@ -15,7 +15,7 @@ interface ToolsPageProps {
   onInstall: (tool: ToolDiagnostic) => void;
   onInstallRoot: (key: string, value: string) => void;
   onOpenTasks: (key: string) => void;
-  onOpenAuthentication: () => void;
+  onOpenAuthentication: (tool: ToolDiagnostic) => void;
 }
 
 export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice, installRoots, tasksLocked,
@@ -61,7 +61,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                   {tool.status === 'ready' && (
                     <div className="tool-install-actions">
                       {taskCount > 0 && <button type="button" disabled={tasksLocked} onClick={() => onOpenTasks(key)}>Open {taskCount} {taskCount === 1 ? 'task' : 'tasks'}</button>}
-                      {tool.requiresVendorSession && <button type="button" className="secondary-button" onClick={onOpenAuthentication}>Check sign-in status</button>}
+                      {tool.requiresVendorSession && <button type="button" className="secondary-button" onClick={() => onOpenAuthentication(tool)}>Check {tool.toolId} session</button>}
                     </div>
                   )}
                   {tool.status === 'missing' && tool.install !== undefined && (

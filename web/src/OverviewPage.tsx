@@ -104,7 +104,7 @@ export function OverviewPage({
           <button type="button" className="secondary-button" onClick={() => onNavigate('tools')}>Add a CLI</button>
           {vendorSessionTools.length > 0 && (
             <button type="button" className="secondary-button" onClick={() => onNavigate('authentication')}>
-              Review authentication
+              Review CLI sessions
             </button>
           )}
         </div>
@@ -179,8 +179,8 @@ export function OverviewPage({
       {vendorSessionTools.length > 0 && (
         <section className="overview-login" aria-labelledby="overview-login-heading">
           <div className="route-heading">
-            <p className="status-label">CLI sign-in</p>
-            <h2 id="overview-login-heading">{hasGuidedCredentialLogin ? 'Sign in from CLIHarbor' : 'CLI authentication'}</h2>
+            <p className="status-label">Per-CLI sign-in</p>
+            <h2 id="overview-login-heading">{hasGuidedCredentialLogin ? 'Connect your CLIs' : 'CLI session checks'}</h2>
             <p>
               Connect your tools using their supported sign-in method, then check the session before running authenticated tasks.
             </p>
