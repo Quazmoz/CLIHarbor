@@ -1,5 +1,6 @@
 # No external test framework, vendor CLI, Go, or Node required.
-# Only uses -Stop against new isolated fixture directories (no PID markers).
+# Tests -Stop on fixture directories and simulates a failing frontend build;
+# never invokes a real Go toolchain or starts CLIHarbor.
 $ErrorActionPreference = 'Stop'
 $initialLocation = (Get-Location).ProviderPath
 $origin = (Resolve-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath 'dev-restart.ps1')).ProviderPath
@@ -38,7 +39,35 @@ try {
     & $hostExe -NoProfile -NonInteractive -Command $invalidCommand *> $null
     if ($LASTEXITCODE -ne 42) { throw "Expected invalid checkout rejection (42), got $LASTEXITCODE." }
 
-    Write-Host 'PASS: file invocation, inline checkout fallback, and fail-closed invalid root.'
+    # Emulate a failed web-build without downloading dependencies or killing a
+    # process. A deliberately malformed marker proves Stop-OwnedDev was not run.
+    $fakeBin = Join-Path -Path $temp -ChildPath 'fake-bin'
+    New-Item -ItemType Directory -Path $fakeBin | Out-Null
+    Set-Content -LiteralPath (Join-Path -Path $fakeBin -ChildPath 'go.cmd') -Value @(
+        '@echo off'
+        'echo simulated frontend validation failure'
+        'exit /b 23'
+    )
+    $markerFile = Join-Path -Path $temp -ChildPath 'bin\.cliharbor-dev.pid.json'
+    Set-Content -LiteralPath $markerFile -Value 'deliberately-invalid-marker'
+    $previousPath = $env:PATH
+    $failure = $null
+    try {
+        $env:PATH = $fakeBin + [IO.Path]::PathSeparator + $previousPath
+        & $fixture | Out-Null
+    } catch {
+        $failure = $_.Exception.Message
+    } finally {
+        $env:PATH = $previousPath
+    }
+    if ($failure -notlike '*frontend validation failed (exit code 23)*') {
+        throw "Expected frontend-specific build failure, got: $failure"
+    }
+    if ((Get-Content -LiteralPath $markerFile -Raw).Trim() -cne 'deliberately-invalid-marker') {
+        throw 'Failed frontend build touched the helper-owned PID marker.'
+    }
+
+    Write-Host 'PASS: file invocation, inline checkout fallback, invalid root, and safe frontend build failure.'
 } finally {
     Set-Location -LiteralPath $initialLocation
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
