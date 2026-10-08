@@ -984,6 +984,30 @@ describe('AuthenticationPage', () => {
     expect(screen.queryByRole('button', { name: 'Continue to tasks' })).not.toBeInTheDocument();
   });
 
+  test('clears password inputs when switching from password to vendor-owned sign-in and back', () => {
+    const page = (tool: ToolDiagnostic) => (
+      <AuthenticationPage
+        status={status}
+        tasks={[whoamiTask]}
+        tools={[tool]}
+        onOpenTasks={vi.fn()}
+        onOpenDiagnostics={vi.fn()}
+        signInFor={() => conjurSignIn}
+      />
+    );
+    const view = render(page(readyTool));
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'transient-password' } });
+    expect(screen.getByLabelText('Password')).toHaveValue('transient-password');
+
+    view.rerender(page({ ...readyTool, credentialLogin: { method: 'conjur-vendor-login' } }));
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Start official Conjur sign-in' })).toBeInTheDocument();
+
+    view.rerender(page(readyTool));
+    expect(screen.getByLabelText('Password')).toHaveValue('');
+    expect(screen.queryByRole('button', { name: 'Start official Conjur sign-in' })).not.toBeInTheDocument();
+  });
+
   test('reverts to first-run setup when the backend login capability changes', () => {
     const page = (setupRequired: boolean) => (
       <AuthenticationPage
