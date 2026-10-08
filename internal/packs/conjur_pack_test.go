@@ -20,7 +20,7 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if pack.Metadata.ID != "cyberark-conjur-v9" {
 		t.Fatalf("pack id = %q", pack.Metadata.ID)
 	}
-	if pack.Metadata.Version != "0.5.0" {
+	if pack.Metadata.Version != "0.6.0" {
 		t.Fatalf("pack version = %q", pack.Metadata.Version)
 	}
 	if !strings.Contains(pack.Metadata.Name, "Conjur") {
@@ -62,9 +62,11 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 		"issuer-delete",
 		"ldap-group-create",
 		"ldap-group-delete",
+		"ldap-group-list",
 		"ldap-group-show",
 		"ldap-user-create",
 		"ldap-user-delete",
+		"ldap-user-list",
 		"ldap-user-show",
 		"list-resources",
 		"resource-exists",
@@ -100,6 +102,13 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 		}
 		if !command.Requirements.RequiresAuth || command.Requirements.AuthMode != AuthModeVendorSession {
 			t.Fatalf("command %q auth = %#v", id, command.Requirements)
+		}
+	}
+
+	for _, id := range []string{"ldap-group-list", "ldap-user-list"} {
+		cmd := pack.Commands[id]
+		if cmd.Risk != RiskRead || len(cmd.Inputs) != 1 || cmd.Inputs[0].ID != "service-id" || !cmd.Inputs[0].Required || len(cmd.Argv) != 6 {
+			t.Fatalf("%s must bind one required LDAP service ID to a fixed read-only argv", id)
 		}
 	}
 
