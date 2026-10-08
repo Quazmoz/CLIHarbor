@@ -69,11 +69,6 @@ func (i *managedToolInstaller) InstallTool(ctx context.Context, request server.T
 	if path == "" {
 		return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallUnsupported}
 	}
-	if installRoot != "" {
-		if err := i.locations.Save(ref, installRoot); err != nil {
-			return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallUnavailable}
-		}
-	}
 	restartRequired := i.activate == nil
 	message := "Verified CLI installed for the current user. Restart CLIHarbor to activate it."
 	if i.activate != nil {
@@ -110,11 +105,23 @@ func (i *managedToolInstaller) InstallTool(ctx context.Context, request server.T
 			}
 		}
 		next := discovery.NewSnapshot(states)
+		// Do not persist a custom location until the discovered executable,
+		// version and pinned content have passed independent qualification.
+		if installRoot != "" {
+			if err := i.locations.Save(ref, installRoot); err != nil {
+				return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallUnavailable}
+			}
+		}
 		if err := i.activate(next, state); err != nil {
 			return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallUnavailable}
 		}
 		i.snapshot = next
 		message = "Verified CLI installed and ready. Its approved tasks are now available."
+	} else if installRoot != "" {
+		// Explicit restart-mode installation has no live activation contract.
+		if err := i.locations.Save(ref, installRoot); err != nil {
+			return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallUnavailable}
+		}
 	}
 	return server.ToolInstallResult{
 		Installed:       installed,
