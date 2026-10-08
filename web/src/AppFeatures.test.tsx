@@ -81,7 +81,7 @@ describe('command preview and retry workflows', () => {
     const sections = screen.getByRole('navigation', { name: 'CLI sections' });
     const builtIn = within(sections).getByRole('link', { name: /Built-in CLIs/ });
     const other = within(sections).getByRole('link', { name: /Other CLIs/ });
-    expect(other).toHaveAttribute('href', '/');
+    expect(other).toHaveAttribute('href', '/tools');
     expect(other).toHaveAttribute('aria-current', 'location');
     expect(builtIn).toHaveAttribute('href', '/dedicated/conjur');
     fireEvent.click(builtIn);
@@ -89,7 +89,8 @@ describe('command preview and retry workflows', () => {
     expect(builtIn).toHaveAttribute('aria-current', 'location');
     expect(other).not.toHaveAttribute('aria-current');
     fireEvent.click(other);
-    expect(window.location.pathname).toBe('/');
+    expect(window.location.pathname).toBe('/tools');
+    expect(screen.getByRole('heading', { name: 'Add a command-line tool' })).toBeInTheDocument();
     expect(other).toHaveAttribute('aria-current', 'location');
     expect(screen.getByRole('main')).toHaveFocus();
     expect(within(dedicated).queryByRole('combobox', { name: 'Switch built-in CLI' })).not.toBeInTheDocument();
