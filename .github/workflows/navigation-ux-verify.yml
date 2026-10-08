@@ -25,7 +25,7 @@ jobs:
       - run: npm test --prefix web
       - run: npm run build --prefix web
       - run: go run ./tools/task sync-web
-      - run: git status --porcelain=v1 -- internal/webui/static
+      - run: go run ./tools/task verify-web-sync
       - run: go test -timeout 2m ./internal/webui ./internal/platforms/... ./internal/packs/...
       - name: Export generated asset bytes
         shell: bash
