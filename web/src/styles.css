@@ -2925,7 +2925,8 @@ footer p {
   .section-switcher { flex: 1 1 100%; order: 2; }
   .section-switcher a span, .section-switcher-unavailable span { display: none; }
   .section-switcher > a, .section-switcher-unavailable { min-height: 2.6rem; align-items: center; }
-  .breadcrumbs { order: 3; width: 100%; }
+  .topbar-platform-picker { order: 3; flex: 1 1 100%; max-width: none; }
+  .breadcrumbs { order: 4; width: 100%; }
   .topbar-context { display: none; }
   .navigation-toggle { display: inline-flex; }
   .breadcrumbs a:first-child, .breadcrumb-divider, .connection-label { display: none; }
