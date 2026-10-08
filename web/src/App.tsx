@@ -660,6 +660,7 @@ export function App() {
 
   const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[], tools: ToolDiagnostic[]) => {
     setState({ kind: 'ready', status, tasks, tools });
+    setTaskSwitcherOpen(false);
     setTaskToolFilter('');
     previewRequestRef.current += 1;
     setCommandPreview(null);
@@ -726,6 +727,7 @@ export function App() {
   };
 
   const retryStatus = () => {
+    setTaskSwitcherOpen(false);
     setState({ kind: 'loading' });
     setRuntimeAttempt((current) => current + 1);
   };
@@ -807,10 +809,7 @@ export function App() {
   const taskSwitcherAvailable = state.kind === 'ready' && state.tasks.length > 0 && !starting && activeRunID === null;
 
   useEffect(() => {
-    if (!taskSwitcherAvailable) {
-      setTaskSwitcherOpen(false);
-      return;
-    }
+    if (!taskSwitcherAvailable) return;
     const openTaskSwitcher = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.repeat ||
           event.key.toLowerCase() !== 'k' || !(event.ctrlKey || event.metaKey) ||
@@ -905,6 +904,7 @@ export function App() {
       return;
     }
     startingRef.current = true;
+    setTaskSwitcherOpen(false);
     setStarting(true);
     if (failureTarget === 'task') {
       setTaskFailure(null);
