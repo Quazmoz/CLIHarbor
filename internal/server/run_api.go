@@ -582,6 +582,8 @@ func writeRunError(w http.ResponseWriter, err error) {
 		writeAPIError(w, http.StatusConflict, apperror.CodeApprovalRequired)
 	case runs.ErrContextUnavailable:
 		writeAPIError(w, http.StatusConflict, apperror.CodeExecutionContextUnavailable)
+	case runs.ErrAuditUnavailable:
+		writeAPIError(w, http.StatusServiceUnavailable, apperror.CodeInternalError)
 	case runs.ErrCapacity:
 		writeAPIError(w, http.StatusTooManyRequests, apperror.CodeRunCapacity)
 	case runs.ErrNotFound:

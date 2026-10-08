@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Quazmoz/CLIHarbor/internal/audittrail"
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms"
@@ -51,11 +52,17 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
+	auditPath, err := audittrail.DefaultPath()
+	if err!=nil { return fmt.Errorf("locate mutation audit trail: %w",err) }
+	audit, err := audittrail.Open(auditPath)
+	if err!=nil { return fmt.Errorf("open mutation audit trail: %w",err) }
+	defer audit.Close()
 	// Dedicated platforms layer vendor-specific behavior over the generic core.
 	conjurPlatform := conjur.New(ctx, runtimeState.Discovery)
 	dedicated := platforms.NewSet(runtimeState.Discovery, conjurPlatform)
 	runManager, err := runs.NewManager(ctx, runtimeState.Registry, runtimeState.Discovery, runs.Config{
 		ResolveExecutionContext: dedicated.ResolveExecutionContext,
+		Audit: audit,
 	})
 	if err != nil {
 		return fmt.Errorf("configure run manager: %w", err)
@@ -89,6 +96,7 @@ func Run(ctx context.Context, options Options) error {
 		Version:                    options.Version,
 		Frontend:                   frontend,
 		Runs:                       runManager,
+		Audit:                      audit,
 		Tasks:                      catalog,
 		Tools:                      catalog,
 		CredentialLogin:            credentialLogin,

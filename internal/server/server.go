@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/apperror"
+	"github.com/Quazmoz/CLIHarbor/internal/audittrail"
 )
 
 const (
@@ -39,6 +40,7 @@ type Config struct {
 	Now                        func() time.Time
 	Frontend                   http.Handler
 	Runs                       RunService
+	Audit                      interface{ List() []audittrail.Entry }
 	Tasks                      TaskService
 	Tools                      ToolService
 	CredentialLogin            CredentialLoginService
@@ -67,6 +69,7 @@ type Server struct {
 	sessionToken               string
 	csrfToken                  string
 	runs                       RunService
+	audit                      interface{ List() []audittrail.Entry }
 	tasks                      TaskService
 	tools                      ToolService
 	credentialLogin            CredentialLoginService
@@ -136,6 +139,7 @@ func New(config Config) (*Server, error) {
 		sessionToken:               sessionToken,
 		csrfToken:                  csrfToken,
 		runs:                       config.Runs,
+		audit:                      config.Audit,
 		tasks:                      config.Tasks,
 		tools:                      config.Tools,
 		credentialLogin:            config.CredentialLogin,
@@ -157,6 +161,9 @@ func New(config Config) (*Server, error) {
 		mux.Handle("/api/v1/runs/preview", s.requireSession(http.HandlerFunc(s.handleRunPreview)))
 		mux.Handle("/api/v1/runs", s.requireSession(http.HandlerFunc(s.handleRuns)))
 		mux.Handle("/api/v1/runs/", s.requireSession(http.HandlerFunc(s.handleRunByID)))
+	}
+	if s.audit != nil {
+		mux.Handle("/api/v1/audit", s.requireSession(http.HandlerFunc(s.handleAuditTrail)))
 	}
 	if s.tasks != nil {
 		mux.Handle("/api/v1/tasks", s.requireSession(http.HandlerFunc(s.handleTasks)))
