@@ -78,14 +78,15 @@ describe('command preview and retry workflows', () => {
     }));
     render(<App />);
     const dedicated = await screen.findByRole('navigation', { name: 'Dedicated CLIs' });
-    expect(within(dedicated).getByRole('combobox', { name: 'Dedicated CLI' })).toHaveValue('conjur');
+    expect(within(dedicated).queryByRole('combobox', { name: 'Switch built-in CLI' })).not.toBeInTheDocument();
     expect(within(dedicated).getByText('Built-in CLIs')).toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByText('CLI workspace')).toBeInTheDocument();
-    expect(within(screen.getByRole('navigation', { name: 'Task categories' }))
-      .getByText('Workspace CLI packs')).toHaveClass('nav-subgroup-label');
+    expect(within(screen.getByRole('navigation', { name: 'Primary' }))
+      .getByText('Set up & manage')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Task categories' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Sign in$/i })).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
-    expect(within(screen.getByRole('navigation', { name: 'Task categories' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
 
     fireEvent.click(within(dedicated).getByRole('link', { name: /CyberArk Conjur home/ }));
     expect(window.location.pathname).toBe('/dedicated/conjur');
@@ -101,10 +102,41 @@ describe('command preview and retry workflows', () => {
 
     fireEvent.click(within(dedicated).getByRole('button', { name: 'Conjur tasks' }));
     expect(window.location.pathname).toBe('/tasks');
+    expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeInTheDocument();
+    const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(breadcrumb).getByRole('link', { name: 'CyberArk Conjur' })).toHaveAttribute('href', '/dedicated/conjur');
+    expect(within(breadcrumb).getByText('Tasks · Conjur')).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('heading', { name: 'List variables' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Review conjur sign-in' }));
     expect(window.location.pathname).toBe('/dedicated/conjur/sign-in');
     expect(screen.getByRole('heading', { name: 'Sign in to CyberArk Conjur' })).toBeInTheDocument();
+  });
+
+  test('switching dedicated CLIs from another page opens the newly selected home', async () => {
+    window.history.replaceState({}, '', '/authentication');
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/platforms') return Promise.resolve(response(200, { platforms: [
+        { id: 'conjur', name: 'CyberArk Conjur', summary: 'Conjur tasks.', packId: 'cyberark-conjur-v9', toolId: 'conjur',
+          ready: true, features: [{ id: 'tasks', name: 'Conjur tasks' }, { id: 'sign-in', name: 'Sign in' }] },
+        { id: 'acme', name: 'Acme CLI', summary: 'Acme integration.', packId: 'acme-pack', toolId: 'acme',
+          ready: false, features: [] },
+      ] }));
+      return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
+    }));
+    render(<App />);
+    const dedicated = await screen.findByRole('navigation', { name: 'Dedicated CLIs' });
+    fireEvent.change(within(dedicated).getByRole('combobox', { name: 'Switch built-in CLI' }),
+      { target: { value: 'acme' } });
+    expect(window.location.pathname).toBe('/dedicated/acme');
+    expect(screen.getByRole('heading', { name: 'Acme CLI' })).toBeInTheDocument();
+    const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(breadcrumb).getByRole('link', { name: 'Built-in CLIs' })).toBeInTheDocument();
+    expect(within(breadcrumb).getByText('Acme CLI')).toHaveAttribute('aria-current', 'page');
+    expect(within(dedicated).getByRole('link', { name: /Acme CLI home/ })).toHaveAttribute('aria-current', 'page');
+    fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
+    expect(window.location.pathname).toBe('/');
+    expect(screen.getByRole('heading', { name: /get your clis ready|what would you like to do/i })).toBeInTheDocument();
   });
 
   test('Conjur sign-in lives in the dedicated section; generic Authentication links to it', async () => {
@@ -146,7 +178,7 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByRole('textbox', { name: 'Query' })).toBeInTheDocument();
   });
 
-  test('sidebar categories select a matching task and sessions open from the workspace', async () => {
+  test('task catalog filters CLIs without duplicating sidebar navigation', async () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
       if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [
@@ -158,12 +190,13 @@ describe('command preview and retry workflows', () => {
     }));
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: 'Query' }), { target: { value: 'old input' } });
-    const categories = screen.getByRole('navigation', { name: 'Task categories' });
-    fireEvent.click(within(categories).getByRole('button', { name: /Beta/ }));
+    expect(screen.queryByRole('navigation', { name: 'Task categories' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tool category' }), { target: { value: 'beta/beta' } });
     expect(screen.getByRole('heading', { name: 'Inspect beta' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Query' })).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Tool category' })).toHaveValue('beta/beta');
-    expect(within(categories).getByRole('button', { name: /Beta/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Showing Beta tasks')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
     expect(screen.getByRole('textbox', { name: 'Query' })).toHaveValue('');
     fireEvent.click(screen.getByRole('button', { name: /^Inspect beta/ }));
@@ -459,6 +492,8 @@ describe('managed CLI installation workflow', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<App />);
     const search = await screen.findByRole('searchbox', { name: 'Find a CLI' });
+    expect(screen.getByRole('link', { name: /Create a custom CLI pack/i })).toHaveAttribute('href', '#pack-authoring-heading');
+    expect(screen.getByRole('link', { name: /Install a supported CLI/i })).toHaveAttribute('href', '#supported-cli-list');
     expect(screen.queryByRole('button', { name: 'Install Manual tool' })).not.toBeInTheDocument();
     fireEvent.change(search, { target: { value: 'fixture' } });
     expect(screen.queryByText('Manual tool')).not.toBeInTheDocument();
@@ -469,7 +504,7 @@ describe('managed CLI installation workflow', () => {
     expect(submitted).toEqual({ packId: 'fixture-pack', toolId: 'fixture' });
     expect(fetchMock.mock.calls.filter(([input]) => requestPath(input) === '/api/v1/tools/install')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Install Fixture CLI' })).not.toBeInTheDocument();
-    expect(within(screen.getByRole('navigation', { name: 'Task categories' })).getByRole('button', { name: /Fixture CLI/ })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Task categories' })).not.toBeInTheDocument();
     fireEvent.click(openTasks);
     expect(window.location.pathname).toBe('/tasks');
     expect(screen.getByRole('heading', { name: 'Inspect newly installed CLI' })).toBeInTheDocument();

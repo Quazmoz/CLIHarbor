@@ -90,15 +90,14 @@ describe('App', () => {
     }));
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: /Target first/ }), { target: { value: 'first-context' } });
-    const categories = screen.getByRole('navigation', { name: 'Task categories' });
-    fireEvent.click(within(categories).getByRole('button', { name: /CLI Suite · second/ }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tool category' }), { target: { value: 'suite/second' } });
     expect(screen.getByRole('textbox', { name: /Target second/ })).toHaveValue('');
     expect(screen.queryByRole('textbox', { name: /Target first/ })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole('textbox', { name: /Target second/ }), { target: { value: 'second-context' } });
     fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
     await waitFor(() => expect(started).toEqual([{ packId: 'suite', commandId: 'second', values: { target: 'second-context' } }]));
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
-    expect(within(categories).getByRole('button', { name: /CLI Suite · first/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeDisabled();
     expect(screen.getByRole('combobox', { name: 'Tool category' })).toBeDisabled();
   });
 
@@ -128,9 +127,9 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByText('1.2.3-test')).toBeInTheDocument();
-    expect(screen.getByText('Authenticated local runtime')).toBeInTheDocument();
+    expect(screen.getByText('Local CLI workspace')).toBeInTheDocument();
     expect(screen.getByText('Local only')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Choose, verify, and run' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Find and run a task' })).toBeInTheDocument();
     expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(4);
@@ -196,7 +195,7 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retry status check' }));
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Choose, verify, and run' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Find and run a task' })).toBeInTheDocument());
     // status (failed), status, tasks, tools, dedicated platforms
     expect(fetchMock).toHaveBeenCalledTimes(5);
   });
@@ -1100,7 +1099,7 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Choose, verify, and run' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Find and run a task' })).toBeInTheDocument();
     expect(screen.queryByText(/Run curated CLI tasks without handing execution authority/i)).not.toBeInTheDocument();
     expect(screen.getByText('Read-only safe task')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'No active run' })).toBeInTheDocument();
@@ -1139,7 +1138,7 @@ describe('App shell accessibility', () => {
     );
 
     render(<App />);
-    await screen.findByRole('heading', { name: 'Choose, verify, and run' });
+    await screen.findByRole('heading', { name: 'Find and run a task' });
 
     expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
     expect(document.getElementById('main-content')).toHaveAttribute('tabindex', '-1');

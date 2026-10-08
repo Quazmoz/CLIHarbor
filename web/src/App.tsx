@@ -556,10 +556,10 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'overview', label: 'Overview', group: 'Workspace', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
   { route: 'tasks', label: 'Tasks', group: 'Workspace', icon: 'm5 6 5 6-5 6 M13 18h6' },
   { route: 'runs', label: 'Runs', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
-  { route: 'authentication', label: 'CLI sessions', group: 'Security', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
-  { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
   { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M12 5v14 M5 12h14' },
+  { route: 'authentication', label: 'CLI sessions', group: 'Manage', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
+  { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
   { route: 'platform', label: 'Dedicated CLI', group: 'Dedicated', icon: 'M4 6h16v12H4z M8 10l3 2-3 2 M13 14h3' },
   { route: 'platform-sign-in', label: 'Dedicated sign-in', group: 'Dedicated', icon: '' },
 ];
@@ -1138,14 +1138,14 @@ export function App() {
     mainRef.current?.focus({ preventScroll: true });
   }, [activePlatformID]);
 
-  const taskCategories = state.kind === 'ready'
-    ? Array.from(new Map(state.tasks.map((task) => [taskToolKey(task), task])).entries())
-    : [];
-
   const changeTaskCategory = (toolKey: string) => {
     if (starting || activeRunID !== null || state.kind !== 'ready' || toolKey === taskToolFilter) return;
     if (toolKey !== '' && !state.tasks.some((task) => taskToolKey(task) === toolKey)) return;
     setTaskToolFilter(toolKey);
+    // When filtering from the shared task browser, keep the built-in CLI
+    // navigation and breadcrumbs aligned with the chosen tool.
+    const platform = platforms.find((candidate) => taskToolKey(candidate) === toolKey);
+    if (platform !== undefined) setSelectedPlatformID(platform.id);
     const first = state.tasks.find((task) => toolKey === '' || taskToolKey(task) === toolKey);
     if (first) selectTaskByKey(first.packId + '/' + first.commandId, state.tasks);
     setTaskChosen(false);
@@ -1184,6 +1184,15 @@ export function App() {
     }
   };
 
+  const taskFilterLabel = state.kind === 'ready' && route === 'tasks' && taskToolFilter !== ''
+    ? state.tasks.find((task) => taskToolKey(task) === taskToolFilter)
+    : undefined;
+  const taskFilterPlatform = taskFilterLabel === undefined ? undefined : platforms.find((platform) =>
+    platform.packId === taskFilterLabel.packId && platform.toolId === taskFilterLabel.toolId);
+  const breadcrumbPlatform = route === 'tasks' && taskFilterPlatform !== undefined ? taskFilterPlatform : activePlatform;
+  const inDedicatedJourney = route === 'platform' || route === 'platform-sign-in' || route === 'secret-audit' ||
+    (route === 'tasks' && taskFilterPlatform !== undefined);
+
   const dedicatedSignInFor = (tool: ToolDiagnostic) => {
     const owner = platforms.find((platform) => platform.packId === tool.packId && platform.toolId === tool.toolId &&
       platform.features.some((feature) => feature.id === 'sign-in') && dedicatedSignIn[platform.id] !== undefined);
@@ -1204,64 +1213,58 @@ export function App() {
           <span className="brand-mark" aria-hidden="true">&gt;_</span>
           <div><h1>CLIHarbor</h1><span className="brand-caption">Your local CLI workspace</span></div>
         </div>
-        <div className="workspace-navigation">
         <nav className="primary-nav" aria-label="Primary">
-          <div className="nav-group">
-            <p className="nav-group-label">CLI workspace</p>
-            <p className="nav-section-description">Manage approved command-line tools and tasks.</p>
-            {navigationItems.filter((item) => item.group !== 'Dedicated').map((item) => (
-                <a
-                  key={item.route}
-                  href={routePaths[item.route]}
-                  aria-current={route === item.route ? 'page' : undefined}
-                  onClick={(event) => {
-                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-                      return;
-                    }
-                    event.preventDefault();
-                    if (item.route === 'tasks') changeTaskCategory('');
-                    navigate(item.route);
-                  }}
-                >
-                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
-                  <span>{item.label}</span>
-                  {item.route === 'runs' && activeRunID !== null && (
-                    <span className="nav-activity" aria-label="Task running">Live</span>
-                  )}
-                </a>
+          <p className="nav-group-label">CLI workspace</p>
+          <div className="nav-group" aria-label="Work">
+            <p className="nav-subgroup-label">Work</p>
+            {navigationItems.filter((item) => item.group === 'Workspace').map((item) => (
+              <a key={item.route} href={routePaths[item.route]}
+                aria-current={route === item.route ? 'page' : undefined}
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  event.preventDefault();
+                  if (item.route === 'tasks') changeTaskCategory('');
+                  navigate(item.route);
+                }}>
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
+                <span>{item.label}</span>
+                {item.route === 'runs' && activeRunID !== null && (
+                  <span className="nav-activity" aria-label="Task running">Live</span>
+                )}
+              </a>
+            ))}
+          </div>
+          <div className="nav-group" aria-label="Set up and manage">
+            <p className="nav-subgroup-label">Set up &amp; manage</p>
+            {navigationItems.filter((item) => item.group === 'Manage').map((item) => (
+              <a key={item.route} href={routePaths[item.route]}
+                aria-current={route === item.route ? 'page' : undefined}
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  event.preventDefault();
+                  navigate(item.route);
+                }}>
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
+                <span>{item.label}</span>
+              </a>
             ))}
           </div>
         </nav>
-        {taskCategories.length > 0 && (
-          <nav className="tool-categories" aria-label="Task categories">
-            <p className="nav-subgroup-label">Workspace CLI packs</p>
-            {taskCategories.map(([key, task]) => (
-              <div key={key}>
-                <button type="button" aria-pressed={route === 'tasks' && taskToolFilter === key}
-                  disabled={starting || activeRunID !== null}
-                  onClick={() => { changeTaskCategory(key); navigate('tasks'); }}>
-                  <span className="tool-category-mark" aria-hidden="true">{task.packName.slice(0, 1)}</span>
-                  <span>{task.packName} · {task.toolId}</span>
-                  <span className="category-count">{state.kind === 'ready' ? state.tasks.filter((candidate) => taskToolKey(candidate) === key).length : 0}</span>
-                </button>
-              </div>
-            ))}
-          </nav>
-        )}
-        </div>
         {activePlatform !== undefined && (
           <nav className="dedicated-platforms" aria-label="Dedicated CLIs">
             <p className="nav-group-label">Built-in CLIs</p>
             <p className="nav-section-description">Purpose-built integrations and workflows.</p>
-            <label className="dedicated-picker">
-              <span>Dedicated CLI</span>
-              <select value={activePlatform.id} onChange={(event) => {
-                setSelectedPlatformID(event.target.value);
-                if (route === 'platform' || route === 'platform-sign-in') navigate(route, event.target.value);
-              }}>
-                {platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
-              </select>
-            </label>
+            {platforms.length > 1 && (
+              <label className="dedicated-picker">
+                <span>Switch built-in CLI</span>
+                <select value={activePlatform.id} onChange={(event) => {
+                  setSelectedPlatformID(event.target.value);
+                  navigate('platform', event.target.value);
+                }}>
+                  {platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
+                </select>
+              </label>
+            )}
             <a href={pathForRoute('platform', activePlatform.id)} aria-current={route === 'platform' ? 'page' : undefined}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -1283,7 +1286,8 @@ export function App() {
                 }}>{feature.name}</a>
             ))}
             {activePlatform.features.some((feature) => feature.id === 'tasks') && (
-              <button type="button" disabled={starting || activeRunID !== null || (state.kind === 'ready' && !state.tasks.some((task) => taskToolKey(task) === taskToolKey(activePlatform)))}
+              <button type="button" aria-pressed={route === 'tasks' && taskToolFilter === taskToolKey(activePlatform)}
+                disabled={starting || activeRunID !== null || (state.kind === 'ready' && !state.tasks.some((task) => taskToolKey(task) === taskToolKey(activePlatform)))}
                 onClick={() => openPlatformFeature('tasks')}>
                 {activePlatform.features.find((feature) => feature.id === 'tasks')?.name}
               </button>
@@ -1300,11 +1304,35 @@ export function App() {
         <div className="topbar-location">
           <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
             onClick={() => setNavigationOpen((open) => !open)}>Menu</button>
-          <span className="workspace-label">{route === 'platform' || route === 'platform-sign-in' || route === 'secret-audit' ? 'Built-in CLIs' : 'CLI workspace'}</span><span className="breadcrumb-divider" aria-hidden="true">/</span>
-          <span className="current-page">{navigationItems.find((item) => item.route === route)?.label}</span>
+          <nav className="breadcrumbs" aria-label="Breadcrumb">
+            <a href={inDedicatedJourney && breadcrumbPlatform !== undefined ? pathForRoute('platform', breadcrumbPlatform.id) : '/'}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                if (inDedicatedJourney && breadcrumbPlatform !== undefined) navigate('platform', breadcrumbPlatform.id);
+                else navigate('overview');
+              }}>{inDedicatedJourney ? 'Built-in CLIs' : 'CLI workspace'}</a>
+            {inDedicatedJourney && breadcrumbPlatform !== undefined && route !== 'platform' && (
+              <>
+                <span className="breadcrumb-divider" aria-hidden="true">/</span>
+                <a href={pathForRoute('platform', breadcrumbPlatform.id)} onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  event.preventDefault();
+                  navigate('platform', breadcrumbPlatform.id);
+                }}>{breadcrumbPlatform.name}</a>
+              </>
+            )}
+            <span className="breadcrumb-divider" aria-hidden="true">/</span>
+            <span className="current-page" aria-current="page">{route === 'platform'
+              ? breadcrumbPlatform?.name ?? 'Built-in CLI'
+              : route === 'platform-sign-in' ? 'Sign in'
+              : route === 'secret-audit' ? 'Security audit'
+              : route === 'tasks' && taskFilterLabel !== undefined ? 'Tasks · ' + taskFilterLabel.packName
+              : navigationItems.find((item) => item.route === route)?.label}</span>
+          </nav>
         </div>
         <div className="topbar-context">
-          <span className="connection-label">{state.kind === 'ready' ? 'Runtime connected' : state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}</span>
+          <span className="connection-label">{state.kind === 'ready' ? 'Local runtime ready' : state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}</span>
         </div>
       </header>
 
@@ -1367,7 +1395,13 @@ export function App() {
         {state.kind === 'ready' && route === 'secret-audit' && (
           <SecretAuditPage
             csrfToken={state.status.csrfToken}
-            onOpenAuthentication={() => navigate('authentication')}
+            onOpenAuthentication={() => {
+              if (activePlatform !== undefined && activePlatform.id === 'conjur' && dedicatedSignIn[activePlatform.id] !== undefined) {
+                navigate('platform-sign-in', activePlatform.id);
+              } else {
+                navigate('authentication');
+              }
+            }}
             onOpenDiagnostics={() => navigate('diagnostics')}
           />
         )}
@@ -1407,16 +1441,16 @@ export function App() {
 
         {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && route !== 'secret-audit' && route !== 'platform' && route !== 'platform-sign-in' && (
           <>
-            <section className="runtime-overview" aria-labelledby="runtime-heading">
+            <section className={'runtime-overview' + (route === 'tasks' ? ' runtime-overview--task' : '')} aria-labelledby="runtime-heading">
               <div className="runtime-copy">
-                <p className="runtime-state">Authenticated local runtime</p>
+                <p className="runtime-state">Local CLI workspace</p>
                 <h2 id="runtime-heading">
-                  {route === 'tasks' ? 'Choose, verify, and run' : route === 'tools' ? 'Build your CLI workspace' : 'Tool readiness and setup'}
+                  {route === 'tasks' ? 'Find and run a task' : route === 'tools' ? 'Add a command-line tool' : 'Check your tools'}
                 </h2>
                 <p>
                   {route === 'tasks'
                     ? 'Choose an approved task, check its inputs, and review the result.'
-                    : route === 'tools' ? 'Install supported tools and open their approved tasks from one place.' : 'Review each configured CLI, fix setup or version issues, and keep authentication separate from executable readiness.'}
+                    : route === 'tools' ? 'Install an approved CLI or create a reviewable custom pack draft.' : 'See what is ready, what needs attention, and where to fix it.'}
                 </p>
               </div>
               <dl className="runtime-facts" aria-label="Runtime summary">
@@ -1436,6 +1470,17 @@ export function App() {
             </section>
 
             {route === 'tasks' && (
+              <>
+              {taskFilterLabel !== undefined && (
+                <div className="task-scope-banner" role="status">
+                  <div>
+                    <strong>Showing {taskFilterLabel.packName} tasks</strong>
+                    <p>Only tasks from {taskFilterLabel.packName} · {taskFilterLabel.toolId} are listed. You are still using the shared task runner.</p>
+                  </div>
+                  <button type="button" className="secondary-button" disabled={starting || activeRunID !== null}
+                    onClick={() => changeTaskCategory('')}>Show all CLIs</button>
+                </div>
+              )}
               <section className="workspace-grid">
               <article className="panel task-panel" aria-labelledby="task-heading">
                 <p className="status-label">1 · Select</p>
@@ -1797,6 +1842,7 @@ export function App() {
                 )}
               </article>
               </section>
+              </>
             )}
 
             {(route === 'diagnostics' || route === 'tools') && (

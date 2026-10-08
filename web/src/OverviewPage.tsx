@@ -94,19 +94,16 @@ export function OverviewPage({
       <div className="panel overview-hero">
         <div className="overview-hero-copy">
           <p className="status-label">Your workspace</p>
-          <h2 id="overview-heading">{workflowReady ? 'Ready for local operator work' : 'Local runtime is active'}</h2>
+          <h2 id="overview-heading">{workflowReady ? 'What would you like to do?' : 'Get your CLIs ready'}</h2>
           <p>
-            Your command-line tools, with a simpler way to work. Choose a task, review the inputs, and run it locally.
+            Pick an approved task to get started, or set up another CLI. Each command runs locally on this computer.
           </p>
         </div>
-        {/* The primary action lives once, in "Recommended next step" below. */}
         <div className="overview-hero-actions">
+          <button type="button" onClick={() => onNavigate(recommendedDestination)}>
+            {recommendedAction}
+          </button>
           <button type="button" className="secondary-button" onClick={() => onNavigate('tools')}>Add a CLI</button>
-          {vendorSessionTools.length > 0 && (
-            <button type="button" className="secondary-button" onClick={() => onNavigate('authentication')}>
-              Review CLI sessions
-            </button>
-          )}
         </div>
       </div>
 
@@ -134,19 +131,10 @@ export function OverviewPage({
 
       <div className="overview-layout">
         <article className="panel" aria-labelledby="next-step-heading">
-          <p className="status-label">Recommended next step</p>
+          <p className="status-label">Why this is next</p>
           <h2 id="next-step-heading">{recommendedTitle}</h2>
           <p>{recommendedCopy}</p>
-          <div className="overview-panel-actions">
-            <button type="button" onClick={() => onNavigate(recommendedDestination)}>
-              {recommendedAction}
-            </button>
-            {tasks.length > 0 && recommendedDestination !== 'tasks' && (
-              <button type="button" className="secondary-button" onClick={() => onNavigate('tasks')}>
-                Browse available tasks
-              </button>
-            )}
-          </div>
+          <p className="overview-hint">Use the primary action above to continue, or choose a specific task from your shortcuts.</p>
         </article>
 
         <article className="panel" aria-labelledby="quick-tasks-heading">

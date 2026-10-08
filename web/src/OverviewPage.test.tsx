@@ -94,15 +94,15 @@ describe('OverviewPage', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Ready for local operator work' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
     expect(screen.getByText('2/2 ready')).toBeInTheDocument();
     expect(screen.getByText('2 tasks')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /List containers/i }));
     expect(openTask).toHaveBeenCalledWith('docker/containers');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Review CLI sessions' }));
-    expect(navigate).toHaveBeenCalledWith('authentication');
+    fireEvent.click(screen.getByRole('button', { name: 'Open tasks' }));
+    expect(navigate).toHaveBeenCalledWith('tasks');
   });
 
   test('sends dedicated-platform CLIs to their dedicated sign-in instead of rendering vendor forms', () => {
@@ -175,7 +175,7 @@ describe('OverviewPage', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Resolve tool readiness' })).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review tool readiness' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Review tool readiness' }));
     expect(navigate).toHaveBeenCalledWith('diagnostics');
   });
 
@@ -186,7 +186,7 @@ describe('OverviewPage', () => {
         tools={[readyTools[0], { ...readyTools[1], status: 'missing' }]}
         preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
     );
-    expect(screen.getByRole('heading', { name: 'Ready for local operator work' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
     expect(screen.getByText('1/2 ready')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Open tasks' }));
     expect(navigate).toHaveBeenCalledWith('tasks');
