@@ -16,7 +16,7 @@ CLIHarbor
 │  ├─ Work: Overview, Tasks, Runs
 │  └─ Set up & manage: Add a CLI, CLI sessions, Diagnostics
 └─ Built-in CLIs
-   └─ CyberArk Conjur: Home, Sign in, Security audit, Conjur tasks
+   └─ CyberArk Conjur: Home, Sign in, Access explorer, Security audit, Conjur tasks
 ```
 
 The generic workspace accepts additional reviewed packs and shares a single safe task execution engine. **Add a CLI** leads with two clearly described destination cards (reviewed catalog installation versus creating a custom pack) linking to their respective sections; the latter downloads a locally generated, discovery-only YAML draft through **Create a custom CLI pack**. The wizard does not register, trust, validate, download vendor binaries, or execute any task; operator review, `pack validate`, `pack lint` and an explicit `--pack-file` restart are required. The Dedicated section is for vendor-specific, first-class workflows; Conjur's sign-in and security audit live there. Conjur tasks deliberately remain in the shared catalog and run on `/tasks`, including when opened from the Dedicated section, without a second execution or permission model. A dedicated platform is displayed only when its pack is registered. An unknown or removed dedicated platform deep link explicitly shows an unavailable integration instead of borrowing another registered vendor's sign-in or tasks. The document title follows the exact selected platform and updates when navigating between integrations. A redundant platform picker is hidden for one built-in integration; when multiple are registered, switching a picker option navigates directly to that platform's home.
@@ -347,6 +347,12 @@ The task search supports keyboard operation and a page-local `/` focus shortcut 
 ## Local testing on Windows and macOS
 
 The operator pages and responsive layout are shared across Windows and macOS. Normal startup always uses the embedded product packs; there is no demo launcher or fallback to synthetic tasks. The fixture CLI and example pack are retained only for automated development checks.
+
+### Conjur access explorer and operations dashboard
+
+The dedicated Conjur home shows the discovered CLI status and version, configured endpoint/account when available, and explicit session-verification guidance. Operators can navigate to access exploration, inventory and reviewed changes, the metadata-first regex explorer, sign-in/session checks, mutation audit via Runs, and Diagnostics.
+
+The first-class `/dedicated/conjur/access-explorer` route retains the inventory search context while opening resource and role detail. Inventory is limited to server-side pages of 25, 50 or 100 entries, with kind selection, search, and previous/next controls. Validated ID buttons navigate without mutation. Accessible forms, semantic labels, explicit loading/errors and responsive wrapping reuse existing components. Results are cleared on context change/visibility loss; partial or unauthorized reads never become "no access." Relationship labels distinguish resource-permitted roles, direct members and vendor-expanded memberships, without showing inferred access as effective authorization. Safe read-task prefill returns the user to ordinary task review.
 
 ### Conjur toolbox and pattern explorer
 
