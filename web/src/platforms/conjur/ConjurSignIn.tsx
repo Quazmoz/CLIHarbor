@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { configureCredentialConnection, launchInteractiveLogin, loginWithCredentials } from '../../api/authentication';
 import { normalizeError, type AppErrorDetail } from '../../api/errors';
 import type { ToolDiagnostic } from '../../api/tools';
@@ -15,6 +15,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
   const [credentialSubmitting, setCredentialSubmitting] = useState(false);
   const [credentialFailure, setCredentialFailure] = useState<AppErrorDetail | null>(null);
   const [vendorLoginOpened, setVendorLoginOpened] = useState(false);
+  const vendorLoginLeftPageRef = useRef(false);
   const [credentialConnectionReady, setCredentialConnectionReady] = useState(
     tool.credentialLogin?.method !== 'conjur-password' || tool.credentialLogin.setupRequired !== true,
   );
@@ -125,6 +126,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
     setCredentialSubmitting(true);
     setCredentialFailure(null);
     setVendorLoginOpened(false);
+    vendorLoginLeftPageRef.current = false;
     try {
       await launchInteractiveLogin(status.csrfToken, {
         packId: tool.packId,
@@ -138,20 +140,33 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
     }
   };
 
-  // The vendor flow finishes in another browser tab or terminal; verify as soon as
-  // the operator returns instead of requiring them to find Check session.
+  // A focus event is not proof the operator left to complete OIDC/MFA.
+  // Only re-check on a return from a previously blurred or hidden page.
   useEffect(() => {
-    if (!vendorLoginOpened) {
-      return undefined;
-    }
-    // One automatic re-check per vendor login; later focus events must not keep adding runs.
-    const recheck = () => {
+    if (!vendorLoginOpened) return undefined;
+    if (document.visibilityState === 'hidden') vendorLoginLeftPageRef.current = true;
+
+    const markAway = () => { vendorLoginLeftPageRef.current = true; };
+    const recheckOnReturn = () => {
+      if (!vendorLoginLeftPageRef.current || checking || document.visibilityState === 'hidden') return;
+      vendorLoginLeftPageRef.current = false;
       setVendorLoginOpened(false);
       void verifySession();
     };
-    window.addEventListener('focus', recheck);
-    return () => window.removeEventListener('focus', recheck);
-  }); // Re-subscribes each render so the listener always sees the current check state.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') markAway();
+      else recheckOnReturn();
+    };
+
+    window.addEventListener('blur', markAway);
+    window.addEventListener('focus', recheckOnReturn);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('blur', markAway);
+      window.removeEventListener('focus', recheckOnReturn);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [vendorLoginOpened, checking, verifySession]);
 
   return (
     <>
