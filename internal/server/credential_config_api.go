@@ -88,7 +88,7 @@ func (s *Server) handleCredentialConfiguration(w http.ResponseWriter, r *http.Re
 	// WriteTimeout; without this the browser sees a reset for a setup that succeeded.
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(slowResponseWriteTimeout))
 	err = s.credentialConfiguration.Configure(r.Context(), CredentialConfigurationRequest{
-		PackID:       request.PackID,
+		PackID:               request.PackID,
 		ToolID:               request.ToolID,
 		Environment:          request.Environment,
 		ApplianceURL:         request.ApplianceURL,
