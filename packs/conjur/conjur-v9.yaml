@@ -3,11 +3,11 @@ kind: CliPack
 metadata:
   id: cyberark-conjur-v9
   name: Conjur — CyberArk / Idira Secrets Manager CLI 9.x
-  version: 0.6.0
+  version: 0.7.0
   description: >-
     Reviewed Conjur CLI workflows verified from the official cyberark/conjur-cli-go
     v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
-    Read operations plus reviewed change/destructive workflows (secret variable
+    Read-only, page-bounded inventory shortcuts plus reviewed change/destructive workflows (secret variable
     create/delete/permission/value and LDAP mappings) are exposed. Mutations require
     backend-bound explicit approval; secret-returning and interactive commands remain
     excluded from executable browser authority.
@@ -219,6 +219,166 @@ commands:
             label: Count
             type: integer
             required: true
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  list-variables:
+    name: Browse secret variable IDs
+    description: >-
+      Review the visible variable inventory without retrieving secret values. Lists at most 100 entries per page and returns metadata only.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: limit
+        type: enum
+        label: Page size
+        required: true
+        validation:
+          enum: ["25", "50", "100"]
+          disallowLeadingDash: true
+      - id: offset
+        type: integer
+        label: Result offset
+        validation:
+          min: 0
+          max: 1000000000
+    argv:
+      - literal: list
+      - literal: --kind
+      - literal: variable
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - flag:
+          name: --offset
+          valueFrom: offset
+          omitWhenEmpty: true
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  list-policies:
+    name: Browse policies
+    description: >-
+      Discover visible policy resources and their identifiers. Lists at most 100 entries per page and returns metadata only.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: limit
+        type: enum
+        label: Page size
+        required: true
+        validation:
+          enum: ["25", "50", "100"]
+          disallowLeadingDash: true
+      - id: offset
+        type: integer
+        label: Result offset
+        validation:
+          min: 0
+          max: 1000000000
+    argv:
+      - literal: list
+      - literal: --kind
+      - literal: policy
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - flag:
+          name: --offset
+          valueFrom: offset
+          omitWhenEmpty: true
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  list-hosts:
+    name: Browse hosts
+    description: >-
+      Review registered Conjur host identities. Lists at most 100 entries per page and returns metadata only.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: limit
+        type: enum
+        label: Page size
+        required: true
+        validation:
+          enum: ["25", "50", "100"]
+          disallowLeadingDash: true
+      - id: offset
+        type: integer
+        label: Result offset
+        validation:
+          min: 0
+          max: 1000000000
+    argv:
+      - literal: list
+      - literal: --kind
+      - literal: host
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - flag:
+          name: --offset
+          valueFrom: offset
+          omitWhenEmpty: true
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  list-groups:
+    name: Browse groups
+    description: >-
+      Review visible access groups and group identifiers. Lists at most 100 entries per page and returns metadata only.
+    tool: conjur
+    risk: read
+    inputs:
+      - id: limit
+        type: enum
+        label: Page size
+        required: true
+        validation:
+          enum: ["25", "50", "100"]
+          disallowLeadingDash: true
+      - id: offset
+        type: integer
+        label: Result offset
+        validation:
+          min: 0
+          max: 1000000000
+    argv:
+      - literal: list
+      - literal: --kind
+      - literal: group
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - flag:
+          name: --offset
+          valueFrom: offset
+          omitWhenEmpty: true
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      renderer: raw
     requirements:
       requiresAuth: true
       authMode: vendor-session
