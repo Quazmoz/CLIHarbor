@@ -1,7 +1,8 @@
 name: CI
 
-# Full qualification is intentionally manual-only.
-# Run this immediately before a production release candidate is accepted.
+# Full qualification is intentionally manual-only. Do not add automatic triggers.
+# Dispatch only when the user explicitly authorizes GitHub Actions for a
+# production-release candidate or another specifically named CI exception.
 on:
   workflow_dispatch:
 
