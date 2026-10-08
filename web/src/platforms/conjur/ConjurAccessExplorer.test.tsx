@@ -21,9 +21,9 @@ vi.mock('../../api/runs', () => ({ createRun: vi.fn(), fetchRun: vi.fn(), cancel
 vi.mock('../../api/tools', () => ({ fetchTools: vi.fn() }));
 vi.mock('./secretAuditApi', () => ({ fetchSecretAudit: vi.fn() }));
 
-const read = (commandId: string, inputs: Task['inputs'] = []): Task =>
+const read = (commandId: string, inputs: Array<Pick<Task['inputs'][number], 'id' | 'type'>> = []): Task =>
   ({ packId: 'cyberark-conjur-v9', toolId: 'conjur', packName: 'Conjur', name: commandId,
-    risk: 'read', commandId, inputs });
+    risk: 'read', commandId, inputs: inputs.map((input) => ({ ...input, label: input.id })) });
 const tasks = [
   read('whoami'), read('list-resources', [{ id: 'limit', type: 'enum' },
     { id: 'kind', type: 'enum' }, { id: 'search', type: 'string' }, { id: 'offset', type: 'integer' }]),
