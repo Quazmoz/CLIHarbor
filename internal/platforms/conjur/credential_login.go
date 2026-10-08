@@ -73,7 +73,7 @@ func (s *CredentialLoginService) Capability() (string, string, server.Credential
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.enabled {
+	if !s.executableReady() {
 		return "", "", server.CredentialLoginCapability{}, false
 	}
 	config, err := s.loadConfig()
@@ -116,6 +116,10 @@ func (s *CredentialLoginService) Configure(ctx context.Context, request server.C
 	}
 	defer s.releaseAuthGate()
 
+	if !s.executableReady() {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+
 	select {
 	case <-ctx.Done():
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
@@ -131,7 +135,7 @@ func (s *CredentialLoginService) Configure(ctx context.Context, request server.C
 	if conjurConfigMatchesConnectionRequest(config, request) {
 		return nil
 	}
-	if !conjurConnectionSetupRequired(config) || s.toolPath == "" || !s.toolIdentity.Valid() || !s.toolIdentity.Matches(s.toolPath) {
+	if !conjurConnectionSetupRequired(config) {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 
@@ -177,6 +181,10 @@ func (s *CredentialLoginService) Login(ctx context.Context, request server.Crede
 	}
 	defer s.releaseAuthGate()
 
+	if !s.executableReady() {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+
 	select {
 	case <-ctx.Done():
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
@@ -207,6 +215,12 @@ func (s *CredentialLoginService) Login(ctx context.Context, request server.Crede
 	if err != nil {
 		return &server.CredentialLoginError{Code: classifyConjurCredentialLoginError(hadAPIKey, err)}
 	}
+	// A password exchanged for the previous Conjur account must not be treated
+	// as a successful login to a different account after an external config edit.
+	updated, loadErr := s.loadConfig()
+	if loadErr != nil || !sameConjurPasswordAuthContext(config, updated) {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
 	return nil
 }
 
@@ -227,6 +241,10 @@ func (s *CredentialLoginService) LaunchInteractive(ctx context.Context, request 
 	}
 	defer s.releaseAuthGate()
 
+	if !s.executableReady() {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+
 	select {
 	case <-ctx.Done():
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
@@ -236,9 +254,6 @@ func (s *CredentialLoginService) LaunchInteractive(ctx context.Context, request 
 	config, err := s.loadConfig()
 	if err != nil || !supportsConjurVendorLogin(config) {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
-	}
-	if s.toolPath == "" || !s.toolIdentity.Valid() || !s.toolIdentity.Matches(s.toolPath) {
-		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
 	}
 	// The reviewed upstream Conjur 9.x login command owns OIDC/JWT/SaaS
 	// interaction and vendor credential persistence. CLIHarbor supplies no
@@ -288,6 +303,23 @@ func classifyConjurCredentialLoginError(hadAPIKey bool, err error) server.Creden
 	// local storage/configuration failures are availability problems. Keep the
 	// vendor error body private and avoid misclassifying them as bad passwords.
 	return server.CredentialLoginUnavailable
+}
+
+// executableReady is the same trusted executable-identity boundary for all
+// browser credential capabilities, configuration, and sign-in operations.
+// A previously healthy discovery snapshot does not authorize a replaced file.
+func (s *CredentialLoginService) executableReady() bool {
+	return s.enabled && s.toolPath != "" && s.toolIdentity.Valid() && s.toolIdentity.Matches(s.toolPath)
+}
+
+func sameConjurPasswordAuthContext(before, after conjurapi.Config) bool {
+	return before.ApplianceURL == after.ApplianceURL &&
+		before.Account == after.Account &&
+		strings.EqualFold(strings.TrimSpace(before.AuthnType), strings.TrimSpace(after.AuthnType)) &&
+		before.ServiceID == after.ServiceID &&
+		before.Environment == after.Environment &&
+		before.CredentialStorage == after.CredentialStorage &&
+		before.CredentialStorageMode == after.CredentialStorageMode
 }
 
 func (s *CredentialLoginService) acquireAuthGate() bool {

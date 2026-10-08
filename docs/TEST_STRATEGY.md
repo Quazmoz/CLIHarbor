@@ -12,6 +12,10 @@ GitHub Actions are **manual-only** for CLIHarbor. No workflow should automatical
 
 Use local Go, TypeScript, frontend synchronization, regression, and browser checks for normal development. Explicitly report skipped or platform-unavailable tests. This policy changes *when and where* qualification runs, not the required tests or release acceptance criteria: once a production release and GitHub Actions use are explicitly authorized, manually run the full applicable workflow for the exact target commit before release.
 
+### Credential login consistency regressions
+
+The Conjur sign-in adapter requires a currently matching executable identity at operation time, not merely an earlier healthy discovery snapshot. Regression tests cover a replaced executable, configuration drift between password exchange and its response, sanitized unavailability when context changes, and deterministic single-flight rejection of overlapping logins. All authentication and connection setup remain behind the same backend authorization and vendor credential-storage boundaries.
+
 ### Generated frontend authority
 
 `web/` is the authoritative frontend source. Production generation replaces the complete `internal/webui/static` tree from `web/dist`, so obsolete content-hashed assets are removed rather than accumulated. The repository-owned `verify-web-sync` gate uses Git status scoped to the embedded tree and rejects tracked modifications/deletions **and** untracked generated files. `go run ./tools/task check` runs this gate immediately after the production frontend build/synchronization, and CI invokes the same repository-owned check on both Linux and Windows. Regression coverage verifies whole-tree replacement across changing content hashes plus tracked/untracked drift detection.

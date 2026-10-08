@@ -132,6 +132,8 @@ After a successful handoff, the UI immediately executes the existing reviewed `w
 
 The password adapter deliberately rejects OIDC, JWT, cloud/SaaS, certificate, IAM/Azure/GCP and read-only/disabled credential-storage configurations. On Windows, OIDC, JWT, and `cloud` configurations that can persist their vendor session may instead advertise the separate vendor-owned login launcher described below. Certificate, IAM, Azure, GCP, unknown modes, and read-only/disabled credential storage remain outside CLIHarbor's guided sign-in surfaces.
 
+The password bridge now revalidates the discovered Conjur executable's on-disk identity before connection setup, login or official vendor-login launch. A replaced, missing, or altered CLI fails closed even if earlier discovery reported it ready. After a successful password exchange, the bridge re-reads vendor configuration and refuses to report success if the endpoint, account, authentication mode, or writable credential-storage context changed during the attempt. A failed context reconciliation does not imply that a remote login was rolled back: run the reviewed session check before any task. These checks do not make external vendor configuration atomic, and do not replace real-tenant acceptance testing.
+
 ### Credential bridge invariants
 
 - vendor code owns credential validation and durable session storage;
