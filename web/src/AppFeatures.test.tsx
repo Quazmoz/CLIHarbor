@@ -78,7 +78,7 @@ describe('command preview and retry workflows', () => {
     }));
     render(<App />);
     const dedicated = await screen.findByRole('navigation', { name: 'Dedicated CLIs' });
-    expect(within(dedicated).getByRole('combobox', { name: 'Dedicated CLI' })).toHaveValue('conjur');
+    expect(within(dedicated).queryByRole('combobox', { name: 'Switch built-in CLI' })).not.toBeInTheDocument();
     expect(within(dedicated).getByText('Built-in CLIs')).toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByText('CLI workspace')).toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' }))
@@ -126,7 +126,7 @@ describe('command preview and retry workflows', () => {
     }));
     render(<App />);
     const dedicated = await screen.findByRole('navigation', { name: 'Dedicated CLIs' });
-    fireEvent.change(within(dedicated).getByRole('combobox', { name: 'Dedicated CLI' }),
+    fireEvent.change(within(dedicated).getByRole('combobox', { name: 'Switch built-in CLI' }),
       { target: { value: 'acme' } });
     expect(window.location.pathname).toBe('/dedicated/acme');
     expect(screen.getByRole('heading', { name: 'Acme CLI' })).toBeInTheDocument();

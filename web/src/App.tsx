@@ -1250,15 +1250,17 @@ export function App() {
           <nav className="dedicated-platforms" aria-label="Dedicated CLIs">
             <p className="nav-group-label">Built-in CLIs</p>
             <p className="nav-section-description">Purpose-built integrations and workflows.</p>
-            <label className="dedicated-picker">
-              <span>Dedicated CLI</span>
-              <select value={activePlatform.id} onChange={(event) => {
-                setSelectedPlatformID(event.target.value);
-                navigate('platform', event.target.value);
-              }}>
-                {platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
-              </select>
-            </label>
+            {platforms.length > 1 && (
+              <label className="dedicated-picker">
+                <span>Switch built-in CLI</span>
+                <select value={activePlatform.id} onChange={(event) => {
+                  setSelectedPlatformID(event.target.value);
+                  navigate('platform', event.target.value);
+                }}>
+                  {platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
+                </select>
+              </label>
+            )}
             <a href={pathForRoute('platform', activePlatform.id)} aria-current={route === 'platform' ? 'page' : undefined}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
