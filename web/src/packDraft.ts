@@ -22,7 +22,12 @@ const idPattern = /^[a-z][a-z0-9-]{0,62}$/;
 const executablePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const platformOrder: DraftPlatform[] = ['windows', 'linux', 'darwin'];
 const unsafeExecutable = /^(?:(?:cmd|powershell|pwsh|bash|sh|zsh|fish|python\d*|node|ruby|perl|java|cscript|wscript|mshta|rundll32|regsvr32)(?:\.exe|\.com)?|.*\.(?:bat|cmd|ps1|sh|py|js))$/i;
-const controlCharacters = /[\u0000-\u001f\u007f-\u009f]/;
+function hasControlCharacters(value: string): boolean {
+  return [...value].some((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code < 32 || (code >= 127 && code <= 159);
+  });
+}
 
 export function preparePackDraft(fields: DraftFields, registeredPackIds: readonly string[] = []): {
   yaml: string | null;
@@ -40,7 +45,7 @@ export function preparePackDraft(fields: DraftFields, registeredPackIds: readonl
   } else if (registeredPackIds.includes(packId)) {
     issues.push({ field: 'packId', message: 'This pack ID is already loaded. Choose a unique ID.' });
   }
-  if (!name || name.length > 120 || controlCharacters.test(name)) {
+  if (!name || name.length > 120 || hasControlCharacters(name)) {
     issues.push({ field: 'name', message: 'Enter a display name of at most 120 characters without control characters.' });
   }
   if (!idPattern.test(toolId)) {
