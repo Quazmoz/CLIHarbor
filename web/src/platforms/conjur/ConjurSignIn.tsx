@@ -3,12 +3,12 @@ import { configureCredentialConnection, launchInteractiveLogin, loginWithCredent
 import { normalizeError, type AppErrorDetail } from '../../api/errors';
 import type { ToolDiagnostic } from '../../api/tools';
 import type { SignInContext, ToolSignIn } from '../../AuthenticationPage';
-import { CyberArkPortalLink } from './CyberArkPortalLink';
+import { ConjurBackendConnection } from './ConjurBackendConnection';
 
 // Dedicated Conjur sign-in (ADR-034): the connection/password form and the
 // official vendor-login launcher. The generic Authentication page owns the
 // session check and renders this only inside the dedicated Conjur section.
-function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession, onToolsChanged }: SignInContext) {
+function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession, onToolsChanged, invalidateSession }: SignInContext) {
   const checking = checkKind === 'checking';
   const [credentialIdentity, setCredentialIdentity] = useState('');
   const [credentialSecret, setCredentialSecret] = useState('');
@@ -171,7 +171,12 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
 
   return (
     <>
-      {ready && <CyberArkPortalLink />}
+      {ready && tool.credentialLogin?.method !== 'conjur-password' && (
+        <ConjurBackendConnection
+          status={status} tool={tool} ready={ready}
+          onToolsChanged={onToolsChanged} invalidateSession={invalidateSession}
+        />
+      )}
       {ready && tool.credentialLogin === undefined && (
         <p className="auth-tool-meta">
           Sign in with your organization’s approved {tool.toolId} flow, then use the session check here to confirm it.
