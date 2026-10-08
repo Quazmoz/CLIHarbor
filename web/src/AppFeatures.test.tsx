@@ -465,6 +465,8 @@ describe('managed CLI installation workflow', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<App />);
     const search = await screen.findByRole('searchbox', { name: 'Find a CLI' });
+    expect(screen.getByRole('link', { name: /Create a custom CLI pack/i })).toHaveAttribute('href', '#pack-authoring-heading');
+    expect(screen.getByRole('link', { name: /Install a supported CLI/i })).toHaveAttribute('href', '#supported-cli-list');
     expect(screen.queryByRole('button', { name: 'Install Manual tool' })).not.toBeInTheDocument();
     fireEvent.change(search, { target: { value: 'fixture' } });
     expect(screen.queryByText('Manual tool')).not.toBeInTheDocument();

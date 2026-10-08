@@ -35,6 +35,16 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
       </div>
       {catalog && (
         <div className="cli-catalog-intro">
+          <div className="catalog-paths" aria-label="Ways to add a CLI">
+            <a href="#supported-cli-list">
+              <strong>Install a supported CLI</strong>
+              <span>Choose a reviewed tool and install it for your user.</span>
+            </a>
+            <a href="#pack-authoring-heading">
+              <strong>Create a custom CLI pack</strong>
+              <span>Not listed? Draft a YAML pack for operator review.</span>
+            </a>
+          </div>
           <h3>Install a supported CLI</h3>
           <p>Choose a CLI from the reviewed catalog. CLIHarbor verifies the official download and adds its approved tasks to your workspace.</p>
           <p>Installation is for your user only. Sign-in and service configuration remain separate.</p>
@@ -42,7 +52,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
           <p role="status">{visible.length} supported {visible.length === 1 ? 'CLI' : 'CLIs'}</p>
         </div>
       )}
-      <div className="diagnostics-body" aria-label="Configured CLI tool diagnostics">
+      <div id={catalog ? 'supported-cli-list' : undefined} className="diagnostics-body" aria-label="Configured CLI tool diagnostics">
         {visible.length === 0 ? (
           <p>{tools.length === 0 ? 'No tools are configured. Load a reviewed pack to add a CLI.' : 'No supported CLIs match your search.'}</p>
         ) : (
