@@ -510,3 +510,8 @@ After PATH has no match, macOS checks the bounded current-user Go/local/bin and 
 ## Durable approved-mutation audit (current implementation)
 
 The run manager requires a writable local mutation journal for all approved `change`/`destructive` commands. A metadata-only start record is fsynced before the vendor process can execute; an outcome record follows after the process terminates. An incomplete record is not success evidence. Journal failure blocks new mutations. The journal is current-user local and hash-chained, not remotely attested or tamper-proof. It intentionally excludes raw process output, argv, credentials and stdin, but targets/IDs are potentially sensitive operational metadata. See [Mutation audit and recovery](MUTATION_AUDIT.md). Automatic undo is not yet authorized.
+
+### Conjur pattern explorer boundary
+
+Default `id-regex` matching only reads the authenticated variable inventory and **never invokes** `RetrieveSecret` or `RetrieveBatchSecretsSafe`; it verifies the visible inventory has not drifted before publishing a result. Value regex is an explicit opt-in preserving backend equality validation, privilege checks, bounded value handling, and closed reason codes. Expressions are validated server-side as bounded RE2 and are excluded from snapshots, browser reports, logs and execution history. Matching a name or value does not imply a vulnerability. Conjur inventory shortcuts use fixed approved `list --kind` argument vectors and mandatory pagination, not shell execution.
+

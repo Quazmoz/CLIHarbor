@@ -18,7 +18,7 @@ import (
 
 const maxSecretAuditRequestBytes = 4 << 10
 
-// SecretAuditRequest selects a read-only value scan. Patterns are ephemeral
+// SecretAuditRequest selects a read-only inventory or value scan. Patterns are ephemeral
 // input: never copy them into snapshots, errors, logs, or exported reports.
 type SecretAuditRequest struct {
 	PackID            string `json:"packId"`
@@ -159,11 +159,11 @@ func ValidateSecretAuditRequest(request SecretAuditRequest) error {
 		if request.Pattern != "" {
 			return ErrSecretAuditInvalidRequest
 		}
-	case "contains", "exact", "regex":
+	case "contains", "exact", "regex", "id-regex":
 		if request.Pattern == "" {
 			return ErrSecretAuditInvalidRequest
 		}
-		if request.ScanType == "regex" {
+		if request.ScanType == "regex" || request.ScanType == "id-regex" {
 			if _, err := regexp.Compile(request.Pattern); err != nil {
 				return ErrSecretAuditInvalidRequest
 			}

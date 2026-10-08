@@ -873,3 +873,12 @@ CLIHarbor has two jobs that were tangled together: a generic workspace that work
 **Follow-up.** Consider namespacing the audit endpoint under `/api/v1/platforms/conjur/` with a compatibility alias.
 
 Verification: unit tests for `platforms.Set` routing and fail-closed behavior, unchanged ADR-025 runtime tests driving the platform-declared bootstrap (including Windows-only cases), the moved provisioner tests, generic-page sign-in links without vendor forms, the dedicated sign-in route, the platforms API session requirement, frontend parsing that rejects malformed IDs and drops unknown features, sidebar separation, legacy-route compatibility, generic workspace without any dedicated platform, and embedded-route allowlisting (including `/tools`, which was previously missing).
+
+## ADR-035 — Conjur metadata-first regex explorer and curated toolbox
+
+**Status:** Accepted.
+
+Replace the heuristic, all-values-first Conjur audit *UI default* with read-only, metadata-only variable-ID regex matching. Offer reviewed regex presets and an editable custom expression. Retain optional value-regex searches with conspicuous separate operator acknowledgement; preserve the original scan API types for existing callers. Both modes must use the same configured Conjur backend and authenticated vendor session, bounded Go/RE2 expressions, inventory drift checks and redacted output. Expressions and secret data cannot appear in report snapshots or logs. A regex match is a search result, not a security verdict.
+
+Add four vendor-verified, page-bounded read-only inventory commands (variables, policies, hosts and groups) to Conjur pack v0.7.0, and present approved tasks as navigation shortcuts in the Conjur home. Quick links cannot authorize or execute commands; the shared task planner and approval requirements remain authoritative.
+

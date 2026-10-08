@@ -347,3 +347,10 @@ The task search supports keyboard operation and a page-local `/` focus shortcut 
 ## Local testing on Windows and macOS
 
 The operator pages and responsive layout are shared across Windows and macOS. Normal startup always uses the embedded product packs; there is no demo launcher or fallback to synthetic tasks. The fixture CLI and example pack are retained only for automated development checks.
+
+### Conjur toolbox and pattern explorer
+
+The Conjur home groups quick links to **backend-authorized** inventory, access-inspection, and approved change tasks. Each link opens the shared task configuration without executing the CLI. The Conjur 9.x pack exposes paginated, read-only list tasks for variable IDs, policies, hosts, and groups, requiring page limits of 25/50/100.
+
+The Conjur security-audit route is now titled **Conjur pattern explorer**. It starts with a metadata-only **Variable IDs · regex** mode: Conjur resource IDs are listed and matched without ever retrieving secret values. Built-in editable presets cover credential-like names, production, service accounts, and legacy paths. A separate **Secret values · regex** mode requires explicit per-attempt acknowledgement and offers reference-URI and PEM-header patterns. Both modes use Go/RE2 expressions; matched results are variable IDs, never matched text or values. Regex criteria remain ephemeral. Search matches are not vulnerability findings. Older heuristic, contains and exact scan inputs remain accepted via the existing API for compatibility.
+

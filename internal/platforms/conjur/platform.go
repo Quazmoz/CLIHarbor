@@ -1,6 +1,6 @@
 // Package conjur is CLIHarbor's dedicated CyberArk Conjur platform: guided
 // sign-in, execution-context resolution for mutating commands, and the
-// read-only secret-value security audit. It builds on the generic pack
+// metadata-first regex explorer with explicit opt-in value scans. It builds on the generic pack
 // engine and the first-party cyberark-conjur-v9 pack.
 package conjur
 
@@ -40,7 +40,7 @@ func (p *Platform) Descriptor() server.Platform {
 	return server.Platform{
 		ID:      "conjur",
 		Name:    "CyberArk Conjur",
-		Summary: "Guided sign-in, approval-gated secret and policy tasks, and a read-only secret-value security audit, built and tested for the Conjur CLI.",
+		Summary: "Guided sign-in, approved inventory and access tools, approval-gated secret changes, and a metadata-first regex pattern explorer.",
 		PackID:  PackID,
 		ToolID:  ToolID,
 		Features: []server.PlatformFeature{

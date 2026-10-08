@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
@@ -53,6 +54,38 @@ func TestConjurPackBuildsDocumentedArgv(t *testing.T) {
 	want = []string{"resource", "permitted-roles", "account:variable:apps/prod/password", "read", "--output", "json"}
 	if !reflect.DeepEqual(plan.Args, want) {
 		t.Fatalf("resource args = %#v, want %#v", plan.Args, want)
+	}
+}
+
+func TestConjurInventoryShortcutsUseFixedKindAndBoundedPagination(t *testing.T) {
+	registry, snapshot := conjurPlannerFixture(t)
+	for id, kind := range map[string]string{
+		"list-variables": "variable",
+		"list-policies":  "policy",
+		"list-hosts":     "host",
+		"list-groups":    "group",
+	} {
+		t.Run(id, func(t *testing.T) {
+			plan, err := Build(registry, snapshot, Request{
+				PackID: "cyberark-conjur-v9", CommandID: id,
+				Values: map[string]json.RawMessage{
+					"limit": rawJSON(t, "25"), "offset": rawJSON(t, 50),
+				},
+			})
+			if err != nil {
+				t.Fatalf("Build(%s): %v", id, err)
+			}
+			want := []string{"list", "--kind", kind, "--limit", "25", "--offset", "50", "--output", "json"}
+			if !slices.Equal(plan.Args, want) || plan.Risk != packs.RiskRead {
+				t.Fatalf("%s argv = %v, risk = %s; want %v/read", id, plan.Args, plan.Risk, want)
+			}
+			if _, err := Build(registry, snapshot, Request{
+				PackID: "cyberark-conjur-v9", CommandID: id,
+				Values: map[string]json.RawMessage{"limit": rawJSON(t, "500")},
+			}); err == nil {
+				t.Fatal("unbounded inventory page accepted")
+			}
+		})
 	}
 }
 

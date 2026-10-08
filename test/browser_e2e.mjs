@@ -1134,24 +1134,26 @@ async function main() {
       'inPrimary: Array.from(document.querySelectorAll(".primary-nav a")).some((link) => link.textContent.includes("audit"))' +
     '}))()');
     assert.equal(auditSetup.backend, conjurURL, 'audit target should default to vendor configuration');
-    assert.deepEqual(auditSetup.scanTypes, ['references', 'contains', 'exact', 'regex']);
+    assert.deepEqual(auditSetup.scanTypes, ['id-regex', 'regex']);
     assert.equal(auditSetup.inDedicated, true, 'audit must live in the dedicated Conjur section');
     assert.equal(auditSetup.inPrimary, false);
+    assert.equal(await page.evaluate('document.querySelector("select[name=audit-scan-type]").value'), 'id-regex');
+    assert.equal(await page.evaluate('document.querySelector("select[name=audit-preset]").value'), 'credential-names');
     await page.evaluate('(() => {' +
-      'const select = document.querySelector("select[name=audit-scan-type]");' +
-      'select.value = "regex"; select.dispatchEvent(new Event("change", { bubbles: true }));' +
+      'const select = document.querySelector("select[name=audit-preset]");' +
+      'select.value = "custom"; select.dispatchEvent(new Event("change", { bubbles: true }));' +
     '})()');
-    await waitJS(page, 'custom audit pattern', 'document.querySelector("input[name=audit-pattern]") !== null');
-    await setTextInput(page, 'Value pattern', '^team[./].*/password$');
+    await waitJS(page, 'custom inventory regex', 'document.querySelector("select[name=audit-preset]").value === "custom"');
+    await setTextInput(page, 'Regex pattern (Go / RE2)', '^team[./].*/password$');
     await setTextInput(page, 'CyberArk backend URL', 'https://other.invalid');
     await page.evaluate('document.querySelector(".secret-audit-ack input").click()');
     const auditRequestPromise = page.waitEvent('Network.requestWillBeSent',
       (params) => params.request?.url === baseURL + '/api/v1/conjur/secret-audit' && params.request?.method === 'POST');
-    await clickButton(page, 'Start read-only audit');
+    await clickButton(page, 'Start pattern search');
     const auditRequest = await auditRequestPromise;
     assert.deepEqual(JSON.parse(auditRequest.request.postData), {
       packId: 'cyberark-conjur-v9', toolId: 'conjur', minimumConfidence: 'high',
-      applianceUrl: 'https://other.invalid', scanType: 'regex', pattern: '^team[./].*/password$',
+      applianceUrl: 'https://other.invalid', scanType: 'id-regex', pattern: '^team[./].*/password$',
     });
     assert.equal(await waitHTTPStatus(page, auditRequest.requestId), 202);
     await waitJS(page, 'audit refuses mismatched backend', 'document.querySelector("#secret-audit-result-heading")?.textContent.includes("Sign in to the selected backend")');
@@ -1189,3 +1191,4 @@ main().catch((error) => {
   console.error(message);
   process.exitCode = 1;
 });
+

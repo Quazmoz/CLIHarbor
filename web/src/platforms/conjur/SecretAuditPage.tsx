@@ -4,7 +4,6 @@ import {
   cancelSecretAudit,
   fetchSecretAudit,
   startSecretAudit,
-  type SecretAuditConfidence,
   type SecretAuditScanType,
   type SecretAuditSnapshot,
 } from './secretAuditApi';
@@ -21,14 +20,48 @@ const reasonText: Record<string, string> = {
   contains_text_match: 'Value contains the specified text.',
   exact_text_match: 'Value exactly matches the specified text.',
   regex_match: 'Value matches the specified regular expression.',
+  regex_variable_id_match: 'Variable ID matches the specified regular expression (no secret value was retrieved).',
 };
 
 const scanTypeText: Record<SecretAuditScanType, string> = {
   references: 'Secret references and paths',
   contains: 'Contains text',
   exact: 'Exact text',
-  regex: 'Regular expression',
+  regex: 'Secret values · regex (reads values)',
+  'id-regex': 'Variable IDs · regex (metadata only)',
 };
+
+
+interface ScanPreset {
+  id: string;
+  label: string;
+  description: string;
+  mode: 'id-regex' | 'regex';
+  pattern: string;
+}
+
+// Examples are syntactic filters, not vulnerability or secret-exposure verdicts.
+// RE2-compatible expressions; never insert server-supplied patterns into this list.
+const scanPresets: ScanPreset[] = [
+  { id: 'credential-names', label: 'Credential-like names', mode: 'id-regex',
+    description: 'Paths containing password, token, API key or secret field names.',
+    pattern: '(?i)(?:^|[/._-])(?:password|passwd|token|api[_-]?key|secret|credential)(?:$|[/._-])' },
+  { id: 'production', label: 'Production paths', mode: 'id-regex',
+    description: 'IDs labeled prod or production, across folders and separators.',
+    pattern: '(?i)(?:^|[/._-])(?:prod|production)(?:$|[/._-])' },
+  { id: 'service-accounts', label: 'Service-account paths', mode: 'id-regex',
+    description: 'IDs identifying service, automation or robot accounts.',
+    pattern: '(?i)(?:^|[/._-])(?:svc|service[_-]?account|robot|automation)(?:$|[/._-])' },
+  { id: 'legacy', label: 'Legacy paths', mode: 'id-regex',
+    description: 'IDs labeled old, deprecated, retired or legacy.',
+    pattern: '(?i)(?:^|[/._-])(?:legacy|deprecated|retired|old)(?:$|[/._-])' },
+  { id: 'reference-values', label: 'Reference URI values', mode: 'regex',
+    description: 'Values that resemble Conjur/CyberArk/Idira reference URLs; requires executing secrets.',
+    pattern: '(?i)^(?:conjur|cyberark|idira)://[^\\s]+$' },
+  { id: 'pem-values', label: 'PEM header values', mode: 'regex',
+    description: 'Values containing PEM BEGIN markers; requires executing secrets.',
+    pattern: '-----BEGIN (?:[A-Z ]+ )?(?:PRIVATE KEY|CERTIFICATE)-----' },
+];
 
 const failureCodeText: Record<string, string> = {
   no_value: 'No value has been set yet.',
@@ -116,9 +149,9 @@ interface SecretAuditPageProps {
 export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnostics }: SecretAuditPageProps) {
   const [snapshot, setSnapshot] = useState<SecretAuditSnapshot | null>(null);
   const [failure, setFailure] = useState<AppErrorDetail | null>(null);
-  const [minimum, setMinimum] = useState<SecretAuditConfidence>('medium');
-  const [scanType, setScanType] = useState<SecretAuditScanType>('references');
-  const [pattern, setPattern] = useState('');
+  const [scanType, setScanType] = useState<'id-regex' | 'regex'>('id-regex');
+  const [pattern, setPattern] = useState(scanPresets[0].pattern);
+  const [presetID, setPresetID] = useState(scanPresets[0].id);
   const [applianceURL, setApplianceURL] = useState<string | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -189,12 +222,10 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
   const header = (
     <div className="route-heading">
       <p className="status-label">Conjur maintenance · read-only</p>
-      <h2 id="secret-audit-heading">Conjur security audit</h2>
-      <p>
-        Scan secret values for references, path patterns, or text you choose. CLIHarbor reads and checks each value
-        on this computer. This page only ever
-        receives variable IDs and the reason each one was flagged. Values are never shown, copied, or saved.
-      </p>
+      <h2 id="secret-audit-heading">Conjur pattern explorer</h2>
+      <p>Search Conjur variable IDs using a regex preset or custom expression without reading secret values.
+        Optional secret-value regex matching is separately selected and acknowledged. Results contain IDs and reason codes,
+        not secret values or matching excerpts. A match is not a security verdict.</p>
     </div>
   );
 
@@ -241,7 +272,7 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
       <div className="secret-audit-layout">
         <article className="panel" aria-labelledby="secret-audit-setup-heading">
           <p className="status-label">{running ? 'In progress' : 'Set up'}</p>
-          <h3 id="secret-audit-setup-heading">{running ? 'Audit running' : 'Run an audit'}</h3>
+          <h3 id="secret-audit-setup-heading">{running ? 'Search running' : 'Search patterns'}</h3>
 
           <dl className="secret-audit-target" aria-label="Audit target">
             <div>
@@ -254,7 +285,7 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
             </div>
             <div>
               <dt>Scope</dt>
-              <dd>Every variable your signed-in identity can see</dd>
+              <dd>{scanType === 'id-regex' ? 'Visible variable IDs · metadata only' : 'All readable values · explicit access'}</dd>
             </div>
           </dl>
 
@@ -262,19 +293,19 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
             <div className="secret-audit-progress">
               {/* Announce phase changes only; the count updates every poll and would be noisy. */}
               <p role="status" aria-live="polite">{phaseText[snapshot.phase ?? ''] ?? 'Working'}</p>
-              {snapshot.phase === 'reading' && (
+              {(snapshot.phase === 'reading' || snapshot.phase === 'matching') && (
                 <p aria-hidden="true">
                   {snapshot.processed.toLocaleString()} of {snapshot.total.toLocaleString()} variables
                 </p>
               )}
               <progress
                 max={100}
-                value={snapshot.phase === 'reading' || snapshot.phase === 'verifying' ? percent : undefined}
+                value={snapshot.phase === 'reading' || snapshot.phase === 'matching' || snapshot.phase === 'verifying' ? percent : undefined}
                 aria-label="Audit progress"
-                aria-valuetext={snapshot.phase === 'reading' ? `${snapshot.processed} of ${snapshot.total} variables` : undefined}
+                aria-valuetext={snapshot.phase === 'reading' || snapshot.phase === 'matching' ? `${snapshot.processed} of ${snapshot.total} variables` : undefined}
               />
               <button type="button" className="secondary-button" disabled={busy} onClick={() => void act(() => cancelSecretAudit(csrfToken))}>
-                {busy ? 'Cancelling…' : 'Cancel audit'}
+                {busy ? 'Cancelling…' : 'Cancel search'}
               </button>
             </div>
           ) : (
@@ -282,18 +313,19 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
               className="form-stack"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (busy || !acknowledged || snapshot.packId === undefined || snapshot.toolId === undefined) return;
+                if (busy || !acknowledged || !pattern || snapshot.packId === undefined || snapshot.toolId === undefined) return;
                 setFilter('');
                 setCopied('');
                 void act(async () => {
                   const next = await startSecretAudit(csrfToken, {
                     packId: snapshot.packId!, toolId: snapshot.toolId!,
-                    minimumConfidence: scanType === 'references' ? minimum : 'high',
+                    minimumConfidence: 'high',
                     applianceUrl: (applianceURL ?? snapshot.target?.applianceUrl ?? '').trim(),
                     scanType,
-                    ...(scanType !== 'references' ? { pattern } : {}),
+                    pattern,
                   });
                   setPattern('');
+                  setPresetID('custom');
                   setAcknowledged(false);
                   return next;
                 });
@@ -314,62 +346,59 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
                 <button type="button" className="secondary-button" disabled={busy} onClick={onOpenAuthentication}>Connection and sign-in</button>
               </div>
               <label className="field">
-                <span>Secret value scan</span>
+                <span>Search target</span>
                 <select name="audit-scan-type" value={scanType} disabled={busy} onChange={(event) => {
-                  setScanType(event.target.value as SecretAuditScanType);
-                  setPattern('');
+                  const mode = event.target.value as 'id-regex' | 'regex';
+                  setScanType(mode);
+                  const suggested = scanPresets.find((preset) => preset.mode === mode);
+                  setPattern(suggested?.pattern ?? '');
+                  setPresetID(suggested?.id ?? 'custom');
                   setAcknowledged(false);
                 }}>
-                  {Object.entries(scanTypeText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  <option value="id-regex">{scanTypeText['id-regex']}</option>
+                  <option value="regex">{scanTypeText.regex}</option>
                 </select>
               </label>
-              {scanType !== 'references' && (
-                <>
-                  <label className="field">
-                    <span>{scanType === 'regex' ? 'Value pattern' : 'Text to match'}</span>
-                    <input type="text" name="audit-pattern" required maxLength={1024} value={pattern} disabled={busy}
-                      autoComplete="off" spellCheck={false} aria-describedby="audit-pattern-help"
-                      placeholder={scanType === 'regex' ? '^team[./].*/password$' : undefined}
-                      onChange={(event) => { setPattern(event.target.value); setAcknowledged(false); }} />
-                  </label>
-                  <p id="audit-pattern-help" className="field-help">
-                    {scanType === 'regex'
-                      ? 'Use a Go regular expression for paths or other value shapes. Add ^ and $ to match the entire value; (?i) makes it case-insensitive.'
-                      : 'Text matching is case-sensitive and preserves spaces.'}
-                    {' '}Only matching variable IDs are returned. Scan text is cleared after starting and excluded from reports.
-                  </p>
-                </>
-              )}
-              {scanType === 'references' && <fieldset className="field-group secret-audit-choice">
-                <legend>What to report</legend>
-                <label className="checkbox-row">
-                  <input type="radio" name="minimum" checked={minimum === 'medium'} disabled={busy}
-                    onChange={() => { setMinimum('medium'); setAcknowledged(false); }} />
-                  <span>
-                    <strong>Likely and possible references</strong> (recommended)
-                    <small>Also includes paths that only look like references, so review each one.</small>
-                  </span>
-                </label>
-                <label className="checkbox-row">
-                  <input type="radio" name="minimum" checked={minimum === 'high'} disabled={busy}
-                    onChange={() => { setMinimum('high'); setAcknowledged(false); }} />
-                  <span>
-                    <strong>Likely references only</strong>
-                    <small>Only values that match another variable or use a conjur:// style reference.</small>
-                  </span>
-                </label>
-              </fieldset>}
-
+              <p className="field-help">{scanType === 'id-regex'
+                ? 'Searches only inventory IDs. No secret values are fetched and execute privilege is not required.'
+                : 'Sensitive: retrieves readable secret values into backend memory. Each read may be audited by Conjur. No matching content is returned.'}</p>
+              <label className="field">
+                <span>Pattern preset</span>
+                <select name="audit-preset" value={presetID} disabled={busy} onChange={(event) => {
+                  const preset = scanPresets.find((candidate) => candidate.mode === scanType && candidate.id === event.target.value);
+                  setPresetID(preset?.id ?? 'custom');
+                  setPattern(preset?.pattern ?? '');
+                  setAcknowledged(false);
+                }}>
+                  <option value="custom">Custom expression</option>
+                  {scanPresets.filter((preset) => preset.mode === scanType).map((preset) =>
+                    <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+                </select>
+              </label>
+              {presetID !== 'custom' && <p className="field-help">{scanPresets.find((preset) => preset.id === presetID)?.description}</p>}
+              <label className="field">
+                <span>Regex pattern (Go / RE2)</span>
+                <input type="text" name="audit-pattern" required maxLength={1024} value={pattern} disabled={busy}
+                  autoComplete="off" spellCheck={false} aria-describedby="audit-pattern-help"
+                  placeholder="(?i)(?:^|/)prod(?:/|$)"
+                  onChange={(event) => { setPattern(event.target.value); setPresetID('custom'); setAcknowledged(false); }} />
+              </label>
+              <p id="audit-pattern-help" className="field-help">
+                RE2 syntax: ^ and $ anchor matches, (?i) ignores case. Lookarounds and backreferences are unsupported.
+                Editing a preset creates a custom expression. Criteria are cleared after submission and excluded from reports.
+              </p>
               <label className="checkbox-row secret-audit-ack">
                 <input type="checkbox" checked={acknowledged} disabled={busy} onChange={(event) => setAcknowledged(event.target.checked)} />
                 <span>
-                  I’m authorized to read every variable this identity can see. Conjur records each read in its audit log.
+                  {scanType === 'id-regex'
+                    ? 'I’m authorized to inspect visible Conjur variable identifiers.'
+                    : 'I’m authorized to read every variable this identity can execute. Conjur records each read in its audit log.'}
                 </span>
               </label>
 
               <div className="secret-audit-actions">
-                <button type="submit" disabled={!acknowledged || busy || !(applianceURL ?? snapshot.target?.applianceUrl) || (scanType !== 'references' && pattern === '')}>
-                  {busy ? 'Starting…' : completed || snapshot.state !== 'idle' ? 'Run audit again' : 'Start read-only audit'}
+                <button type="submit" disabled={!acknowledged || busy || !(applianceURL ?? snapshot.target?.applianceUrl) || pattern === ''}>
+                  {busy ? 'Starting…' : completed || snapshot.state !== 'idle' ? 'Search again' : 'Start pattern search'}
                 </button>
               </div>
             </form>
@@ -387,13 +416,13 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
           <article className="panel secret-audit-results" aria-labelledby="secret-audit-result-heading">
             <p className="status-label">Result</p>
             <h3 id="secret-audit-result-heading" ref={resultHeadingRef} tabIndex={-1}>
-              {snapshot.state === 'cancelled' && 'Audit cancelled'}
+              {snapshot.state === 'cancelled' && 'Search cancelled'}
               {auditFailure?.title}
               {completed &&
                 (snapshot.findings.length === 0
                   ? snapshot.failures.length === 0
-                    ? 'No values matched the selected scan'
-                    : 'No readable values matched the selected scan'
+                    ? 'No variables matched the pattern'
+                    : 'No readable values matched the pattern'
                   : `${snapshot.findings.length.toLocaleString()} ${snapshot.findings.length === 1 ? 'variable needs' : 'variables need'} review`)}
             </h3>
 
@@ -456,10 +485,9 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
 
                 {snapshot.findings.length > 0 && (
                   <section aria-labelledby="secret-audit-findings-heading">
-                    <h4 id="secret-audit-findings-heading">Values to review</h4>
+                    <h4 id="secret-audit-findings-heading">Matching variables</h4>
                     <p className="field-help">
-                      These are heuristics, not proof. Check each value with the owning team, then put the real secret
-                      in place through your approved change process. CLIHarbor never changes variables.
+                      Matches are search results, not security verdicts. CLIHarbor never changes variables or reveals matching values.
                     </p>
                     {snapshot.findings.length > 8 && (
                       <label className="task-search secret-audit-filter">

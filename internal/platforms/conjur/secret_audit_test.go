@@ -154,6 +154,35 @@ func runSecretAudit(t *testing.T, client *fakeSecretAuditClient, clientErr error
 	return snapshot
 }
 
+func TestInventoryRegexNeverRetrievesSecretValues(t *testing.T) {
+	client := &fakeSecretAuditClient{
+		ids:    []string{"acct:variable:app/prod/password", "acct:variable:app/dev/name", "acct:variable:app/PROD/token"},
+		values: map[string]string{"acct:variable:app/prod/password": secretSentinel},
+		errs:   map[string]error{"acct:variable:app/prod/password": &response.ConjurError{Code: http.StatusForbidden}},
+	}
+	snapshot := runSecretAudit(t, client, nil, "high", server.SecretAuditRequest{
+		ScanType: "id-regex", Pattern: `(?i)(?:^|/)prod(?:/|$)`,
+	})
+	if snapshot.State != "completed" || snapshot.ScanType != "id-regex" ||
+		snapshot.Total != 3 || snapshot.Processed != 3 || snapshot.Inspected != 3 ||
+		len(snapshot.Failures) != 0 || len(snapshot.Findings) != 2 {
+		t.Fatalf("inventory regex snapshot = %+v", snapshot)
+	}
+	for _, finding := range snapshot.Findings {
+		if finding.Confidence != "high" || finding.Reason != "regex_variable_id_match" ||
+			!strings.Contains(strings.ToLower(finding.VariableID), "/prod/") {
+			t.Fatalf("incorrect ID match: %+v", finding)
+		}
+	}
+	if client.singleCalls != 0 || client.batchCalls != 0 {
+		t.Fatalf("inventory-only search attempted secret retrieval: single=%d batch=%d", client.singleCalls, client.batchCalls)
+	}
+	encoded, _ := json.Marshal(snapshot)
+	if strings.Contains(string(encoded), "prod(?:/|$)") || strings.Contains(string(encoded), secretSentinel) {
+		t.Fatal("inventory results leaked query or secret value")
+	}
+}
+
 func TestSecretAuditCustomScansKeepValuesAndPatternsOutOfSnapshots(t *testing.T) {
 	for _, scan := range []struct{ kind, pattern, value, reason string }{
 		{"contains", secretSentinel, "prefix " + secretSentinel + " suffix", "contains_text_match"},

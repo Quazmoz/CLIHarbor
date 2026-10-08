@@ -1505,6 +1505,14 @@ export function App() {
             tasks={state.tasks}
             onOpenFeature={openPlatformFeature}
             onOpenDiagnostics={() => navigate('diagnostics')}
+            onOpenTask={(key) => {
+              if (starting || activeRunID !== null) return;
+              setTaskToolFilter(taskToolKey(activePlatform));
+              setSelectedPlatformID(activePlatform.id);
+              focusConfigurationRef.current = true;
+              selectTaskByKey(key, state.tasks);
+              navigate('tasks', activePlatform.id);
+            }}
           />
         ) : null)}
 

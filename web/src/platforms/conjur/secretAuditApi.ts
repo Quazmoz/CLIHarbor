@@ -2,7 +2,7 @@ import { clientError, errorFromResponse } from '../../api/errors';
 
 export type SecretAuditState = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type SecretAuditConfidence = 'high' | 'medium';
-export type SecretAuditScanType = 'references' | 'contains' | 'exact' | 'regex';
+export type SecretAuditScanType = 'references' | 'contains' | 'exact' | 'regex' | 'id-regex';
 
 export interface SecretAuditFinding {
   variableId: string;
@@ -88,7 +88,7 @@ export function parseSecretAuditSnapshot(payload: unknown): SecretAuditSnapshot 
     if (!isRecord(item) || !safeText(item.variableId) || !safeText(item.code, 64)) throw clientError('invalid_response');
     return { variableId: item.variableId, code: item.code };
   });
-  if (payload.scanType !== undefined && !['references', 'contains', 'exact', 'regex'].includes(payload.scanType as string)) {
+  if (payload.scanType !== undefined && !['references', 'contains', 'exact', 'regex', 'id-regex'].includes(payload.scanType as string)) {
     throw clientError('invalid_response');
   }
   return {

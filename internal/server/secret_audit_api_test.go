@@ -106,7 +106,7 @@ func TestSecretAuditValidatesScanConfiguration(t *testing.T) {
 		PackID: "cyberark-conjur-v9", ToolID: "conjur", MinimumConfidence: "high",
 		ApplianceURL: "https://conjur.example.test", ScanType: "regex", Pattern: `^team[./].*/password$`,
 	}
-	for _, kind := range []string{"contains", "exact", "regex", "references", ""} {
+	for _, kind := range []string{"contains", "exact", "regex", "id-regex", "references", ""} {
 		request := valid
 		request.ScanType = kind
 		if kind == "references" || kind == "" {
@@ -124,6 +124,7 @@ func TestSecretAuditValidatesScanConfiguration(t *testing.T) {
 		func(r *SecretAuditRequest) { r.ScanType = "script" },
 		func(r *SecretAuditRequest) { r.Pattern = "" },
 		func(r *SecretAuditRequest) { r.ScanType = "references" },
+		func(r *SecretAuditRequest) { r.ScanType = "id-regex"; r.Pattern = "(?=secret)" },
 		func(r *SecretAuditRequest) { r.Pattern = "[" },
 		func(r *SecretAuditRequest) { r.Pattern = `(?=password)` },
 		func(r *SecretAuditRequest) { r.Pattern = strings.Repeat("x", 1025) },

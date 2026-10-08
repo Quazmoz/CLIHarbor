@@ -3119,3 +3119,20 @@ footer p {
   .task-switcher-heading { flex-direction: column; }
   .task-switcher-close { align-self: flex-end; }
 }
+
+/* Dedicated Conjur toolbox: approved-task shortcuts, not an execution surface. */
+.platform-toolbox { margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
+.platform-toolbox-section { margin-top: 1.25rem; }
+.platform-toolbox-section h3 { color: var(--text-strong); font-size: 0.95rem; margin: 0 0 0.7rem; }
+.platform-toolbox-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 0.7rem; }
+.platform-tool-button {
+  display: grid; justify-items: start; align-content: start; gap: 0.45rem;
+  min-width: 0; min-height: 8rem; padding: 0.9rem;
+  background: var(--surface-3); border: 1px solid var(--border);
+  border-radius: var(--radius-md); color: var(--text); text-align: left; font-weight: 400;
+}
+.platform-tool-button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--accent); }
+.platform-tool-button strong { color: var(--text-strong); font-size: 0.9rem; }
+.platform-tool-button span { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; overflow-wrap: anywhere; }
+.platform-tool-button small { align-self: end; font-size: 0.7rem; color: var(--accent); }
+.platform-tool-button:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
