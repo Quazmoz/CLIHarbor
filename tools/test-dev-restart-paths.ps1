@@ -1,6 +1,7 @@
 # No external test framework, vendor CLI, Go, or Node required.
 # Only uses -Stop against new isolated fixture directories (no PID markers).
 $ErrorActionPreference = 'Stop'
+$initialLocation = (Get-Location).ProviderPath
 $origin = (Resolve-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath 'dev-restart.ps1')).ProviderPath
 $temp = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath ('cliharbor-dev-restart-' + [Guid]::NewGuid().ToString('N'))
 $tools = Join-Path -Path $temp -ChildPath 'tools'
@@ -38,6 +39,6 @@ try {
 
     Write-Host 'PASS: file invocation, inline checkout fallback, and fail-closed invalid root.'
 } finally {
-    Set-Location -LiteralPath $PSScriptRoot
+    Set-Location -LiteralPath $initialLocation
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }
