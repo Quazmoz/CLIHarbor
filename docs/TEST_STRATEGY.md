@@ -14,7 +14,7 @@ Use local Go, TypeScript, frontend synchronization, regression, and browser chec
 
 ### Development restart path regressions
 
-`tools/test-dev-restart-paths.ps1` uses temporary fixture checkouts to exercise the Windows helper's `-Stop` path without building or starting a runtime. It verifies that direct script-file invocation works from an unrelated current directory, that inline evaluation from the repository root works without `$PSScriptRoot`, and that invalid inline working directories fail closed before any build or process stop. Run it using Windows PowerShell or PowerShell 7 on Windows; it is not a substitute for a live Windows stop/build/start acceptance run.
+`tools/test-dev-restart-paths.ps1` uses temporary fixture checkouts to exercise the Windows helper's `-Stop` path without building or starting a runtime. It verifies that direct script-file invocation works from an unrelated current directory, that inline evaluation from the repository root works without `$PSScriptRoot`, and that invalid inline working directories fail closed before any build or process stop. Run it using Windows PowerShell or PowerShell 7 on Windows; it also covers a simulated pre-stop frontend build failure and verifies the PID marker is not touched. It is not a substitute for a live Windows stop/build/start acceptance run. The Go task runner labels the failed npm/typecheck/lint/Vitest/Vite/embed/compile stage to support actionable log collection.
 
 ### Credential login consistency regressions
 
