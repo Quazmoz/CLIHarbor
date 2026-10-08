@@ -1192,6 +1192,9 @@ export function App() {
   const breadcrumbPlatform = route === 'tasks' && taskFilterPlatform !== undefined ? taskFilterPlatform : activePlatform;
   const inDedicatedJourney = route === 'platform' || route === 'platform-sign-in' || route === 'secret-audit' ||
     (route === 'tasks' && taskFilterPlatform !== undefined);
+  // An old dedicated deep link may be opened without a registered platform.
+  // Keep the generic section selected rather than highlighting a broken target.
+  const headerDedicatedJourney = inDedicatedJourney && breadcrumbPlatform !== undefined;
 
   const dedicatedSignInFor = (tool: ToolDiagnostic) => {
     const owner = platforms.find((platform) => platform.packId === tool.packId && platform.toolId === tool.toolId &&
@@ -1304,6 +1307,34 @@ export function App() {
         <div className="topbar-location">
           <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
             onClick={() => setNavigationOpen((open) => !open)}>Menu</button>
+          <nav className="section-switcher" aria-label="CLI sections">
+            {activePlatform !== undefined ? (
+              <a href={pathForRoute('platform', activePlatform.id)}
+                aria-current={headerDedicatedJourney ? 'location' : undefined}
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  event.preventDefault();
+                  navigate('platform', activePlatform.id);
+                }}>
+                <strong>Built-in CLIs</strong>
+                <span>{activePlatform.name}</span>
+              </a>
+            ) : (
+              <span className="section-switcher-unavailable" aria-disabled="true">
+                <strong>Built-in CLIs</strong>
+                <span>No integration loaded</span>
+              </span>
+            )}
+            <a href="/tools" aria-current={!headerDedicatedJourney ? 'location' : undefined}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                navigate('tools');
+              }}>
+              <strong>Other CLIs</strong>
+              <span>Included catalog &amp; custom</span>
+            </a>
+          </nav>
           <nav className="breadcrumbs" aria-label="Breadcrumb">
             <a href={inDedicatedJourney && breadcrumbPlatform !== undefined ? pathForRoute('platform', breadcrumbPlatform.id) : '/'}
               onClick={(event) => {
