@@ -88,18 +88,42 @@ if ($Pull) {
     git pull --ff-only
     if ($LASTEXITCODE -ne 0) { throw 'git pull --ff-only failed; no restart attempted.' }
 }
-if (-not $Stop -and -not (Test-Path -LiteralPath $pidFile)) {
-    Write-Host 'No helper-owned CLIHarbor instance recorded; building and starting a fresh instance.'
-}
-Stop-OwnedDev
 if ($Stop) {
+    Stop-OwnedDev
     Write-Host 'Helper-owned CLIHarbor stopped (if one was running).'
     exit 0
 }
+if (-not (Test-Path -LiteralPath $pidFile)) {
+    Write-Host 'No helper-owned CLIHarbor instance recorded; building and starting a fresh instance.'
+}
 
-# Regenerate embedded frontend and rebuild executable; never launch stale bin.
-go run ./tools/task build
-if ($LASTEXITCODE -ne 0) { throw 'CLIHarbor source build/validation failed.' }
+# Validate and regenerate the frontend while the current version is still
+# running. On Windows, the current executable must be stopped before Go can
+# replace it; failed npm/typecheck/lint/tests must not take a healthy app down.
+Write-Host 'CLIHarbor: validating and rebuilding frontend (npm ci, typecheck, lint, tests, Vite, embed)...'
+try {
+    & go run ./tools/task web-build
+} catch {
+    throw "CLIHarbor frontend validation could not start Go: $($_.Exception.Message)"
+}
+$buildExit = $LASTEXITCODE
+if ($buildExit -ne 0) {
+    throw "CLIHarbor frontend validation failed (exit code $buildExit). Review the 'task:' error above; run 'go run ./tools/task web-build' to reproduce. Existing CLIHarbor was not stopped."
+}
+
+# Only this helper's verified previous instance may be stopped. Never launch
+# an old binary after a failed build.
+Stop-OwnedDev
+Write-Host 'CLIHarbor: compiling fresh Go executable...'
+try {
+    & go run ./tools/task go-build
+} catch {
+    throw "CLIHarbor Go compilation could not start: $($_.Exception.Message)"
+}
+$buildExit = $LASTEXITCODE
+if ($buildExit -ne 0) {
+    throw "CLIHarbor Go compilation failed (exit code $buildExit). Review the 'task:' error above; run 'go run ./tools/task go-build' to reproduce. No stale executable was launched."
+}
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw 'CLIHarbor executable is missing.' }
 foreach ($path in @($pidFile, $stdoutFile, $stderrFile)) {
     if ((Test-Path -LiteralPath $path) -and
