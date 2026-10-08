@@ -1272,7 +1272,7 @@ describe('App routing', () => {
     });
 
     expect(await screen.findByText(/Check this CLI's session before retrying/i)).toBeInTheDocument();
-    const reviewButtons = screen.getAllByRole('button', { name: 'Review conjur sign-in' });
+    const reviewButtons = screen.getAllByRole('button', { name: 'Review fixture sign-in' });
     fireEvent.click(reviewButtons[reviewButtons.length - 1]);
     expect(window.location.pathname).toBe('/authentication');
   });
