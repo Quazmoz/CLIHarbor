@@ -84,7 +84,7 @@ test('search shortcut does not hijack typing and native dismiss leaves the route
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   fireEvent.click(trigger);
   const dialog = screen.getByRole('dialog', { name: 'Find a task' });
-  fireEvent.close(dialog);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Close task search' }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(window.location.pathname).toBe('/tools');
 });
