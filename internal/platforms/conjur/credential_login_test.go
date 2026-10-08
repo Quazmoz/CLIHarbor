@@ -867,3 +867,29 @@ func TestConjurSaaSRejectsNonSaaSModeReplacement(t *testing.T) {
 		t.Fatalf("unsafe replacement %v", err)
 	}
 }
+
+
+func TestConjurSaaSRefusesEnvironmentOverriddenConnection(t *testing.T) {
+	t.Setenv("CONJUR_APPLIANCE_URL", "https://overridden.secretsmgr.cyberark.cloud/api")
+	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
+	config := configuredSaaSTestConfig("https://old.secretsmgr.cyberark.cloud/api")
+	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
+	service.runInit = func(_ context.Context, _ string, _ []string) error {
+		t.Fatal("CLI init must not overwrite an environment-controlled endpoint")
+		return nil
+	}
+	details, err := service.Connection()
+	if err != nil { t.Fatal(err) }
+	if details.Configurable {
+		t.Fatal("SaaS endpoint controlled through env unexpectedly editable")
+	}
+	err = service.Configure(context.Background(), server.CredentialConfigurationRequest{
+		PackID: PackID, ToolID: ToolID, Environment: "saas", Account: "conjur",
+		AuthnType: "cloud", ApplianceURL: "https://new.secretsmgr.cyberark.cloud",
+		ExpectedApplianceURL: "https://old.secretsmgr.cyberark.cloud/api",
+	})
+	var loginErr *server.CredentialLoginError
+	if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
+		t.Fatalf("unexpected result for env override: %v", err)
+	}
+}
