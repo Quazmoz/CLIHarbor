@@ -647,7 +647,6 @@ func TestConjurVendorOwnedLoginRevalidatesExecutableIdentity(t *testing.T) {
 	}
 }
 
-
 func TestConjurCredentialLoginRejectsReplacedExecutableBeforeCredentialExchange(t *testing.T) {
 	snapshot := readyConjurSnapshotWithExecutable(t)
 	service := NewCredentialLoginService(snapshot)
