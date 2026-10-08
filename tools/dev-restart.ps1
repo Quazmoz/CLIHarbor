@@ -101,9 +101,13 @@ if (-not (Test-Path -LiteralPath $pidFile)) {
 # running. On Windows, the current executable must be stopped before Go can
 # replace it; failed npm/typecheck/lint/tests must not take a healthy app down.
 Write-Host 'CLIHarbor: validating and rebuilding frontend (npm ci, typecheck, lint, tests, Vite, embed)...'
+$LASTEXITCODE = 0
 try {
     & go run ./tools/task web-build
 } catch {
+    if ($LASTEXITCODE -ne 0) {
+        throw "CLIHarbor frontend validation failed (exit code $LASTEXITCODE). Review the 'task:' error above; existing CLIHarbor was not stopped."
+    }
     throw "CLIHarbor frontend validation could not start Go: $($_.Exception.Message)"
 }
 $buildExit = $LASTEXITCODE
@@ -115,9 +119,13 @@ if ($buildExit -ne 0) {
 # an old binary after a failed build.
 Stop-OwnedDev
 Write-Host 'CLIHarbor: compiling fresh Go executable...'
+$LASTEXITCODE = 0
 try {
     & go run ./tools/task go-build
 } catch {
+    if ($LASTEXITCODE -ne 0) {
+        throw "CLIHarbor Go compilation failed (exit code $LASTEXITCODE). Review the 'task:' error above; no stale executable was launched."
+    }
     throw "CLIHarbor Go compilation could not start: $($_.Exception.Message)"
 }
 $buildExit = $LASTEXITCODE
