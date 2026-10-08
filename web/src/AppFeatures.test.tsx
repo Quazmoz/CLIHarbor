@@ -62,7 +62,7 @@ describe('command preview and retry workflows', () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
       if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [
-        { packId: 'cyberark-conjur-v9', packName: 'Conjur', commandId: 'list', name: 'List variables', toolId: 'conjur', inputs: [] },
+        { packId: 'cyberark-conjur-v9', packName: 'Conjur', commandId: 'list', name: 'List variables', toolId: 'conjur', requiresAuth: true, inputs: [] },
         { packId: 'fixture', packName: 'Fixture', commandId: 'inspect', name: 'Inspect fixture', toolId: 'fixture', inputs: [] },
       ] }));
       if (path === '/api/v1/platforms') return Promise.resolve(response(200, { platforms: [{
@@ -79,6 +79,9 @@ describe('command preview and retry workflows', () => {
     render(<App />);
     const dedicated = await screen.findByRole('navigation', { name: 'Dedicated CLIs' });
     expect(within(dedicated).getByRole('combobox', { name: 'Dedicated CLI' })).toHaveValue('conjur');
+    expect(within(dedicated).getByText('Built-in CLIs')).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByText('CLI workspace')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Sign in$/i })).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Task categories' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
 
@@ -97,6 +100,9 @@ describe('command preview and retry workflows', () => {
     fireEvent.click(within(dedicated).getByRole('button', { name: 'Conjur tasks' }));
     expect(window.location.pathname).toBe('/tasks');
     expect(screen.getByRole('heading', { name: 'List variables' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Review conjur sign-in' }));
+    expect(window.location.pathname).toBe('/dedicated/conjur/sign-in');
+    expect(screen.getByRole('heading', { name: 'Sign in to CyberArk Conjur' })).toBeInTheDocument();
   });
 
   test('Conjur sign-in lives in the dedicated section; generic Authentication links to it', async () => {
@@ -118,7 +124,7 @@ describe('command preview and retry workflows', () => {
       return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
     }));
     render(<App />);
-    expect(await screen.findByRole('heading', { name: 'Authentication' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'CLI sessions' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Open CyberArk Conjur sign-in' }));
     expect(window.location.pathname).toBe('/dedicated/conjur/sign-in');
@@ -138,7 +144,7 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByRole('textbox', { name: 'Query' })).toBeInTheDocument();
   });
 
-  test('sidebar categories select a matching task and Sign in opens authentication', async () => {
+  test('sidebar categories select a matching task and sessions open from the workspace', async () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
       if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [
@@ -164,9 +170,10 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByRole('heading', { name: 'Inspect beta' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
     expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(screen.queryByRole('button', { name: /^Sign in$/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'CLI sessions' }));
     expect(window.location.pathname).toBe('/authentication');
-    expect(screen.getByRole('heading', { name: 'Authentication' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'CLI sessions' })).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveFocus();
     expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
   });

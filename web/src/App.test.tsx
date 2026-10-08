@@ -1198,7 +1198,7 @@ describe('App routing', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Authentication' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'CLI sessions' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/authentication');
     expect(document.querySelector('input[type="password"]')).toBeNull();
 
@@ -1210,9 +1210,9 @@ describe('App routing', () => {
     expect(window.location.pathname).toBe('/runs');
     expect(await screen.findByRole('heading', { name: 'Recent runs' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('link', { name: 'Authentication' }));
+    fireEvent.click(screen.getByRole('link', { name: 'CLI sessions' }));
     expect(window.location.pathname).toBe('/authentication');
-    expect(await screen.findByRole('heading', { name: 'Authentication' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'CLI sessions' })).toBeInTheDocument();
   });
 
   test('guides nonzero auth-required task runs back to Authentication without declaring the cause', async () => {
@@ -1271,8 +1271,8 @@ describe('App routing', () => {
       exitCode: 1,
     });
 
-    expect(await screen.findByText(/Check Authentication to verify the session is still usable/i)).toBeInTheDocument();
-    const reviewButtons = screen.getAllByRole('button', { name: 'Review authentication' });
+    expect(await screen.findByText(/Check this CLI's session before retrying/i)).toBeInTheDocument();
+    const reviewButtons = screen.getAllByRole('button', { name: 'Review fixture sign-in' });
     fireEvent.click(reviewButtons[reviewButtons.length - 1]);
     expect(window.location.pathname).toBe('/authentication');
   });

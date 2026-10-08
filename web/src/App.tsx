@@ -556,7 +556,7 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'overview', label: 'Overview', group: 'Workspace', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
   { route: 'tasks', label: 'Tasks', group: 'Workspace', icon: 'm5 6 5 6-5 6 M13 18h6' },
   { route: 'runs', label: 'Runs', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
-  { route: 'authentication', label: 'Authentication', group: 'Security', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
+  { route: 'authentication', label: 'CLI sessions', group: 'Security', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
   { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
   { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M12 5v14 M5 12h14' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
@@ -1169,6 +1169,21 @@ export function App() {
 
   const featureRoute: Record<PlatformFeatureID, AppRoute> = { tasks: 'tasks', 'sign-in': 'platform-sign-in', 'security-audit': 'secret-audit' };
 
+  // Prefer the exact CLI's dedicated sign-in; otherwise check this CLI's vendor session.
+  const openSessionsForTool = (packId: string, toolId: string) => {
+    const platform = platforms.find((candidate) =>
+      candidate.packId === packId && candidate.toolId === toolId &&
+      candidate.features.some((feature) => feature.id === 'sign-in') &&
+      dedicatedSignIn[candidate.id] !== undefined,
+    );
+    if (platform !== undefined) {
+      setSelectedPlatformID(platform.id);
+      navigate('platform-sign-in', platform.id);
+    } else {
+      navigate('authentication');
+    }
+  };
+
   const dedicatedSignInFor = (tool: ToolDiagnostic) => {
     const owner = platforms.find((platform) => platform.packId === tool.packId && platform.toolId === tool.toolId &&
       platform.features.some((feature) => feature.id === 'sign-in') && dedicatedSignIn[platform.id] !== undefined);
@@ -1190,10 +1205,10 @@ export function App() {
           <div><h1>CLIHarbor</h1><span className="brand-caption">Your local CLI workspace</span></div>
         </div>
         <nav className="primary-nav" aria-label="Primary">
-          {['Workspace', 'Security', 'Manage'].map((group) => (
-            <div className="nav-group" key={group}>
-              <p className="nav-group-label">{group}</p>
-              {navigationItems.filter((item) => item.group === group).map((item) => (
+          <div className="nav-group">
+            <p className="nav-group-label">CLI workspace</p>
+            <p className="nav-section-description">Manage approved command-line tools and tasks.</p>
+            {navigationItems.filter((item) => item.group !== 'Dedicated').map((item) => (
                 <a
                   key={item.route}
                   href={routePaths[item.route]}
@@ -1213,13 +1228,12 @@ export function App() {
                     <span className="nav-activity" aria-label="Task running">Live</span>
                   )}
                 </a>
-              ))}
-            </div>
-          ))}
+            ))}
+          </div>
         </nav>
         {taskCategories.length > 0 && (
           <nav className="tool-categories" aria-label="Task categories">
-            <p className="nav-group-label">Tools</p>
+            <p className="nav-group-label">Workspace CLI packs</p>
             {taskCategories.map(([key, task]) => (
               <div key={key}>
                 <button type="button" aria-pressed={route === 'tasks' && taskToolFilter === key}
@@ -1235,7 +1249,8 @@ export function App() {
         )}
         {activePlatform !== undefined && (
           <nav className="dedicated-platforms" aria-label="Dedicated CLIs">
-            <p className="nav-group-label">Dedicated</p>
+            <p className="nav-group-label">Built-in CLIs</p>
+            <p className="nav-section-description">Purpose-built integrations and workflows.</p>
             <label className="dedicated-picker">
               <span>Dedicated CLI</span>
               <select value={activePlatform.id} onChange={(event) => {
@@ -1283,15 +1298,11 @@ export function App() {
         <div className="topbar-location">
           <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
             onClick={() => setNavigationOpen((open) => !open)}>Menu</button>
-          <span className="workspace-label">Workspace</span><span className="breadcrumb-divider" aria-hidden="true">/</span>
+          <span className="workspace-label">{route === 'platform' || route === 'platform-sign-in' || route === 'secret-audit' ? 'Built-in CLIs' : 'CLI workspace'}</span><span className="breadcrumb-divider" aria-hidden="true">/</span>
           <span className="current-page">{navigationItems.find((item) => item.route === route)?.label}</span>
         </div>
         <div className="topbar-context">
           <span className="connection-label">{state.kind === 'ready' ? 'Runtime connected' : state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}</span>
-          <button type="button" className="sign-in-button" onClick={() => navigate('authentication')}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
-            Sign in
-          </button>
         </div>
       </header>
 
@@ -1329,6 +1340,8 @@ export function App() {
             onOpenDiagnostics={() => navigate('diagnostics')}
             onToolsChanged={refreshTools}
             dedicatedSignInFor={dedicatedSignInFor}
+            heading="CLI sessions"
+            intro="Check the session for each configured CLI. Sign-in belongs to the selected CLI, not CLIHarbor as a whole."
           />
         )}
 
@@ -1494,8 +1507,8 @@ export function App() {
                           {selectedTask.requiresAuth && (
                             <div className="task-auth-callout">
                               <span>This task requires sign-in. CLIHarbor will not assume an installed tool is already authenticated.</span>
-                              <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
-                                Review authentication
+                              <button type="button" className="secondary-button" onClick={() => openSessionsForTool(selectedTask.packId, selectedTask.toolId)}>
+                                Review {selectedTask.toolId} sign-in
                               </button>
                             </div>
                           )}
@@ -1742,9 +1755,11 @@ export function App() {
                       run.snapshot.exitCode !== undefined &&
                       run.snapshot.exitCode !== 0 && (
                         <div className="task-auth-callout task-auth-callout--run">
-                          <span>This task requires a vendor session and failed. Check Authentication to verify the session is still usable.</span>
-                          <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
-                            Review authentication
+                          <span>This task requires a vendor session and failed. Check this CLI's session before retrying; the failure alone does not prove sign-out.</span>
+                          <button type="button" className="secondary-button" onClick={() => {
+                            if (runTask !== undefined) openSessionsForTool(runTask.packId, runTask.toolId);
+                          }}>
+                            Review {runTask?.toolId ?? 'CLI'} sign-in
                           </button>
                         </div>
                       )}
@@ -1789,7 +1804,7 @@ export function App() {
                 onInstall={(tool) => void installManagedCLI(tool)}
                 onInstallRoot={(key, value) => setToolInstallRoots((current) => ({ ...current, [key]: value }))}
                 onOpenTasks={(key) => { changeTaskCategory(key); navigate('tasks'); }}
-                onOpenAuthentication={() => navigate('authentication')} />
+                onOpenAuthentication={(tool) => openSessionsForTool(tool.packId, tool.toolId)} />
             )}
           </>
         )}

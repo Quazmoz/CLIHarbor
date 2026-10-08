@@ -77,7 +77,7 @@ The declared command must belong to the same tool, be read-only, have no browser
 
 This metadata is exposed through the sanitized tool diagnostics API so the browser can become pack-driven without gaining executable, argv, or credential authority.
 
-The `/authentication` page consumes this metadata generically for every loaded tool that exposes browser-runnable `vendor-session` work. It keeps two trust boundaries explicit:
+The `/authentication` route (displayed as **CLI sessions**) consumes this metadata generically for every loaded tool that exposes browser-runnable `vendor-session` work. It keeps two trust boundaries explicit:
 
 - **CLIHarbor local session** — the HttpOnly loopback browser session established by CLIHarbor bootstrap;
 - **vendor CLI session** — authentication state owned by the official CLI, its configuration, and its OS/vendor credential facilities.

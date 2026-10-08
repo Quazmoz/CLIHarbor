@@ -8,22 +8,20 @@ The UI should preserve the transparency and precision of a CLI while reducing me
 
 ## 2. Core navigation
 
-The implemented left sidebar has two product areas, although the generic links are subdivided into Workspace, Security, Manage, and Tools:
+The left sidebar explicitly separates **CLI workspace** (reviewed generic packs, shared tasks, runs, per-tool session checks, adding tools, and diagnostics) from **Built-in CLIs** (first-class, vendor-specific workflows):
 
 ```text
 CLIHarbor
-├─ Generic CLI workspace
-│  ├─ Workspace: Overview, Tasks, Runs
-│  ├─ Security: Authentication
-│  ├─ Manage: Add a CLI, Diagnostics
-│  └─ Tools: task categories from reviewed CLI packs
-└─ Dedicated CLIs
+├─ CLI workspace
+│  ├─ Overview, Tasks, Runs, CLI sessions, Add a CLI, Diagnostics
+│  └─ Workspace CLI packs: tasks from reviewed CLI packs
+└─ Built-in CLIs
    └─ CyberArk Conjur: Home, Sign in, Security audit, Conjur tasks
 ```
 
 The generic workspace accepts additional reviewed packs and shares a single safe task execution engine. **Add a CLI** is a catalog of approved installs, not an arbitrary-script runner or unrestricted pack importer. The Dedicated section is for vendor-specific, first-class workflows; Conjur's sign-in and security audit live there. Conjur tasks deliberately remain in the shared catalog and run on `/tasks`, including when opened from the Dedicated section, without a second execution or permission model. A dedicated platform is displayed only when its pack is registered.
 
-The top bar shows the current page, runtime connection state, and a **Sign in** button linking to Authentication. This button opens tool sign-in; it never claims a vendor session is authenticated. On narrow windows, **Menu** toggles the sidebar. Navigation preserves native links, page titles, and focus to main content.
+The top bar shows the current page and **local runtime connection status**, with **no global Sign in button**. Authentication is scoped to each CLI: built-in platforms offer sign-in in their own section, and the generic **CLI sessions** page (backwards-compatible `/authentication`) checks individual vendor sessions without acting as an application-wide login. Task and diagnostics sign-in links open the matching dedicated CLI when available; otherwise they open per-tool session checks. On narrow windows, **Menu** toggles the sidebar. Navigation preserves native links, page titles, and focus to main content.
 
 Tool categories filter only the current authorized catalog by exact pack/tool identity. Each executable has its own category, including when a reviewed pack contains several tools or different packs use the same tool ID. Labels show the pack name and executable tool ID. Selecting a category resets the form to a task in that category, and **All tools** restores the full catalog. Search, Favorites, and Recently used obey the same category filter. Category changes are disabled while a task is starting or running. These filters are transient navigation state and create no execution authority.
 
