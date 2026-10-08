@@ -77,8 +77,11 @@ describe('command preview and retry workflows', () => {
       return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
     }));
     render(<App />);
-    const dedicated = await screen.findByRole('navigation', { name: 'Dedicated CLIs' });
-    const sections = screen.getByRole('navigation', { name: 'CLI sections' });
+    const sections = await screen.findByRole('navigation', { name: 'CLI sections' });
+    expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('complementary')).queryByText('Built-in CLIs')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Overview' })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Tasks' })).toBeInTheDocument();
     const builtIn = within(sections).getByRole('link', { name: /Built-in CLIs/ });
     const other = within(sections).getByRole('link', { name: /Other CLIs/ });
     expect(other).toHaveAttribute('href', '/tools');
@@ -93,8 +96,7 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByRole('heading', { name: 'Add a command-line tool' })).toBeInTheDocument();
     expect(other).toHaveAttribute('aria-current', 'location');
     expect(screen.getByRole('main')).toHaveFocus();
-    expect(within(dedicated).queryByRole('combobox', { name: 'Switch built-in CLI' })).not.toBeInTheDocument();
-    expect(within(dedicated).getByText('Built-in CLIs')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Switch built-in CLI' })).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByText('CLI workspace')).toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' }))
       .getByText('Set up & manage')).toBeInTheDocument();
@@ -103,19 +105,17 @@ describe('command preview and retry workflows', () => {
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
 
-    fireEvent.click(within(dedicated).getByRole('link', { name: /CyberArk Conjur home/ }));
+    fireEvent.click(builtIn);
     expect(window.location.pathname).toBe('/dedicated/conjur');
     expect(screen.getByRole('heading', { name: 'CyberArk Conjur' })).toBeInTheDocument();
 
-    const link = within(dedicated).getByRole('link', { name: 'Security audit' });
-    expect(link).toHaveAttribute('href', '/dedicated/conjur/security-audit');
+    const link = screen.getByRole('button', { name: 'Open security audit' });
     fireEvent.click(link);
     expect(window.location.pathname).toBe('/dedicated/conjur/security-audit');
     expect(await screen.findByRole('heading', { name: 'Conjur pattern explorer' })).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveFocus();
-    expect(link).toHaveAttribute('aria-current', 'page');
-
-    fireEvent.click(within(dedicated).getByRole('button', { name: 'Conjur tasks' }));
+    fireEvent.click(builtIn);
+    fireEvent.click(screen.getByRole('button', { name: 'Browse 1 approved tasks' }));
     expect(window.location.pathname).toBe('/tasks');
     expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeInTheDocument();
     const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
@@ -140,15 +140,17 @@ describe('command preview and retry workflows', () => {
       return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
     }));
     render(<App />);
-    const dedicated = await screen.findByRole('navigation', { name: 'Dedicated CLIs' });
-    fireEvent.change(within(dedicated).getByRole('combobox', { name: 'Switch built-in CLI' }),
+    const topbar = await screen.findByRole('banner');
+    expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
+    fireEvent.change(within(topbar).getByRole('combobox', { name: 'Switch built-in CLI' }),
       { target: { value: 'acme' } });
     expect(window.location.pathname).toBe('/dedicated/acme');
     expect(screen.getByRole('heading', { name: 'Acme CLI' })).toBeInTheDocument();
     const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(within(breadcrumb).getByRole('link', { name: 'Built-in CLIs' })).toBeInTheDocument();
     expect(within(breadcrumb).getByText('Acme CLI')).toHaveAttribute('aria-current', 'page');
-    expect(within(dedicated).getByRole('link', { name: /Acme CLI home/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(screen.getByRole('navigation', { name: 'CLI sections' })).getByRole('link', { name: /Built-in CLIs/ }))
+      .toHaveAttribute('href', '/dedicated/acme');
     fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
     expect(window.location.pathname).toBe('/');
     expect(screen.getByRole('heading', { name: /get your clis ready|what would you like to do/i })).toBeInTheDocument();
@@ -203,8 +205,9 @@ describe('command preview and retry workflows', () => {
     expect(window.location.pathname).toBe('/dedicated/conjur/sign-in');
     expect(screen.getByRole('heading', { name: 'Sign in to CyberArk Conjur' })).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
-    const dedicated = screen.getByRole('navigation', { name: 'Dedicated CLIs' });
-    expect(within(dedicated).getByRole('link', { name: 'Sign in' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'CLI sections' })).getByRole('link', { name: /Built-in CLIs/ }))
+      .toHaveAttribute('aria-current', 'location');
   });
 
   test('legacy Conjur audit URL still opens the dedicated audit, and the generic workspace works with no dedicated CLI', async () => {

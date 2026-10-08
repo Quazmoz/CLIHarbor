@@ -66,6 +66,9 @@ stop_owned() {
 if [[ "$mode" == '--pull' ]]; then
   git pull --ff-only
 fi
+if [[ "$mode" != '--stop' && ! -e "$pid_file" && ! -L "$pid_file" ]]; then
+  echo 'No helper-owned CLIHarbor instance recorded; building and starting a fresh instance.'
+fi
 stop_owned
 if [[ "$mode" == '--stop' ]]; then
   echo 'Helper-owned CLIHarbor stopped (if one was running).'

@@ -538,7 +538,7 @@ const routePaths: Record<AppRoute, string> = {
 };
 
 // The app has two halves: the generic workspace above works with any CLI, and
-// a dedicated CLI (picked in the sidebar) adds functionality built and tested
+// a dedicated CLI (selected from the top bar) adds functionality built and tested
 // for that one platform. Platform IDs come from /api/v1/platforms.
 const dedicatedPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})$/;
 const dedicatedSignInPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})\/sign-in$/;
@@ -1189,7 +1189,7 @@ export function App() {
     if (toolKey !== '' && !state.tasks.some((task) => taskToolKey(task) === toolKey)) return;
     setTaskToolFilter(toolKey);
     // When filtering from the shared task browser, keep the built-in CLI
-    // navigation and breadcrumbs aligned with the chosen tool.
+    // top-bar selection and breadcrumbs aligned with the chosen tool.
     const platform = platforms.find((candidate) => taskToolKey(candidate) === toolKey);
     if (platform !== undefined) setSelectedPlatformID(platform.id);
     const first = state.tasks.find((task) => toolKey === '' || taskToolKey(task) === toolKey);
@@ -1215,8 +1215,6 @@ export function App() {
         return;
     }
   };
-
-  const featureRoute: Record<PlatformFeatureID, AppRoute> = { tasks: 'tasks', 'sign-in': 'platform-sign-in', 'security-audit': 'secret-audit', 'access-explorer': 'access-explorer' };
 
   // Prefer the exact CLI's dedicated sign-in; otherwise check this CLI's vendor session.
   const openSessionsForTool = (packId: string, toolId: string) => {
@@ -1302,50 +1300,6 @@ export function App() {
             ))}
           </div>
         </nav>
-        {activePlatform !== undefined && (
-          <nav className="dedicated-platforms" aria-label="Dedicated CLIs">
-            <p className="nav-group-label">Built-in CLIs</p>
-            <p className="nav-section-description">Purpose-built integrations and workflows.</p>
-            {platforms.length > 1 && (
-              <label className="dedicated-picker">
-                <span>Switch built-in CLI</span>
-                <select value={activePlatform.id} onChange={(event) => {
-                  setSelectedPlatformID(event.target.value);
-                  navigate('platform', event.target.value);
-                }}>
-                  {platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
-                </select>
-              </label>
-            )}
-            <a href={pathForRoute('platform', activePlatform.id)} aria-current={route === 'platform' ? 'page' : undefined}
-              onClick={(event) => {
-                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                event.preventDefault();
-                navigate('platform');
-              }}>
-              <span>{activePlatform.name} home</span>
-              <span className={'platform-readiness platform-readiness--' + (activePlatform.ready ? 'ready' : 'blocked')}>
-                {activePlatform.ready ? 'Ready' : 'Setup needed'}
-              </span>
-            </a>
-            {activePlatform.features.filter((feature) => feature.id !== 'tasks').map((feature) => (
-              <a key={feature.id} href={pathForRoute(featureRoute[feature.id], activePlatform.id)}
-                aria-current={route === featureRoute[feature.id] ? 'page' : undefined}
-                onClick={(event) => {
-                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                  event.preventDefault();
-                  openPlatformFeature(feature.id);
-                }}>{feature.name}</a>
-            ))}
-            {activePlatform.features.some((feature) => feature.id === 'tasks') && (
-              <button type="button" aria-pressed={route === 'tasks' && taskToolFilter === taskToolKey(activePlatform)}
-                disabled={starting || activeRunID !== null || (state.kind === 'ready' && !state.tasks.some((task) => taskToolKey(task) === taskToolKey(activePlatform)))}
-                onClick={() => openPlatformFeature('tasks')}>
-                {activePlatform.features.find((feature) => feature.id === 'tasks')?.name}
-              </button>
-            )}
-          </nav>
-        )}
         <div className="sidebar-footer" aria-label="Runtime boundary">
           <span className="local-badge">Local only</span>
           <p>Runs on this computer</p>
@@ -1392,6 +1346,17 @@ export function App() {
               <span>Included catalog &amp; custom</span>
             </a>
           </nav>
+          {platforms.length > 1 && activePlatform !== undefined && (
+            <label className="topbar-platform-picker">
+              <span>Switch built-in CLI</span>
+              <select value={activePlatform.id} onChange={(event) => {
+                setSelectedPlatformID(event.target.value);
+                navigate('platform', event.target.value);
+              }}>
+                {platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
+              </select>
+            </label>
+          )}
           <nav className="breadcrumbs" aria-label="Breadcrumb">
             <a href={inDedicatedJourney && breadcrumbPlatform !== undefined ? pathForRoute('platform', breadcrumbPlatform.id) : '/'}
               onClick={(event) => {

@@ -62,6 +62,9 @@ if ($Pull) {
     git pull --ff-only
     if ($LASTEXITCODE -ne 0) { throw 'git pull --ff-only failed; no restart attempted.' }
 }
+if (-not $Stop -and -not (Test-Path -LiteralPath $pidFile)) {
+    Write-Host 'No helper-owned CLIHarbor instance recorded; building and starting a fresh instance.'
+}
 Stop-OwnedDev
 if ($Stop) {
     Write-Host 'Helper-owned CLIHarbor stopped (if one was running).'
