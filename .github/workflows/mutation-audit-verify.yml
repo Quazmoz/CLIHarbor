@@ -26,7 +26,9 @@ jobs:
       - run: go run ./tools/task sync-web
       - name: Ensure committed Go source is formatted
         run: |
-          test -z "$(gofmt -l internal/audittrail/*.go internal/runs/manager.go internal/runs/manager_test.go internal/runs/approval_test.go internal/server/server.go internal/server/run_api.go internal/server/audit_api.go internal/server/audit_api_test.go internal/app/app.go internal/app/app_test.go internal/app/browser_e2e_test.go internal/app/conjur_secret_tasks_integration_test.go)"
+          test -z "$(gofmt -l internal/audittrail/*.go internal/apperror/error.go internal/apperror/error_test.go internal/runs/manager.go internal/runs/manager_test.go internal/runs/approval_test.go internal/server/server.go internal/server/run_api.go internal/server/audit_api.go internal/server/audit_api_test.go internal/app/app.go internal/app/app_test.go internal/app/browser_e2e_test.go internal/app/conjur_secret_tasks_integration_test.go)"
+      - run: go run ./tools/task verify-web-sync
+      - run: test -z "$(git status --porcelain -- internal/webui/static)"
       - name: Normalize touched Go source
         run: gofmt -w internal/audittrail/*.go internal/apperror/error.go internal/apperror/error_test.go internal/runs/manager.go internal/runs/manager_test.go internal/runs/approval_test.go internal/server/server.go internal/server/run_api.go internal/server/audit_api.go internal/server/audit_api_test.go internal/app/app.go internal/app/app_test.go internal/app/browser_e2e_test.go internal/app/conjur_secret_tasks_integration_test.go
       - name: Export formatted Go sources
