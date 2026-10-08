@@ -1325,11 +1325,11 @@ export function App() {
                 <span>No integration loaded</span>
               </span>
             )}
-            <a href="/" aria-current={!headerDedicatedJourney ? 'location' : undefined}
+            <a href="/tools" aria-current={!headerDedicatedJourney ? 'location' : undefined}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();
-                navigate('overview');
+                navigate('tools');
               }}>
               <strong>Other CLIs</strong>
               <span>Included catalog &amp; custom</span>
