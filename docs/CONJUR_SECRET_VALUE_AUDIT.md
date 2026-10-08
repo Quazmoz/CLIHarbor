@@ -1,6 +1,6 @@
 # Conjur Security Audit
 
-CLIHarbor provides a read-only audit of Conjur secret values using a reference detector or operator-supplied text/pattern criteria. It applies to any configured Conjur backend and account, with no organization-specific scope. The standalone `tools/audit-conjur-secret-values.ps1` remains a reference-only operator audit.
+CLIHarbor provides a **metadata-only regex Pattern Explorer by default** and separate explicitly authorized secret-value scans using a reference detector or operator-supplied text/pattern criteria. It applies to any configured Conjur backend and account, with no organization-specific scope. The standalone `tools/audit-conjur-secret-values.ps1` remains a reference-only operator audit.
 
 A representative bad value is:
 
@@ -12,7 +12,7 @@ The audit is intentionally separate from CLIHarbor's browser task authority. CLI
 
 ## Run it from CLIHarbor (Windows and macOS)
 
-When the trusted Conjur pack is loaded, open **Tools → Conjur → Security audit** (`/conjur/security-audit`). The previous `/secret-audit` link still works.
+When the trusted Conjur pack is loaded, open **Built-in CLIs → CyberArk Conjur → Security audit** (`/dedicated/conjur/security-audit`). The legacy `/conjur/security-audit` and `/secret-audit` links also work. The initial **Variable IDs · regex** scan uses metadata only; selecting **Secret values · regex** or another value mode is a separate explicit opt-in and requires renewed authorization. The Access & Permissions Explorer at `/dedicated/conjur/access-explorer` never retrieves values.
 
 1. Sign in on **Authentication** first. The audit reuses the session that the Conjur CLI stored.
 2. Enter or confirm the **CyberArk backend URL** and check the account shown. The URL must match your Conjur CLI configuration (a trailing slash is accepted). To use a different backend, configure and authenticate the official Conjur CLI for that backend/account first. CLIHarbor refuses a mismatch before creating a client; editing the audit URL never forwards an existing credential or token to another backend.
