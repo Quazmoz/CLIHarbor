@@ -1185,6 +1185,7 @@ export function App() {
     : undefined;
   const taskFilterPlatform = taskFilterLabel === undefined ? undefined : platforms.find((platform) =>
     platform.packId === taskFilterLabel.packId && platform.toolId === taskFilterLabel.toolId);
+  const breadcrumbPlatform = route === 'tasks' && taskFilterPlatform !== undefined ? taskFilterPlatform : activePlatform;
   const inDedicatedJourney = route === 'platform' || route === 'platform-sign-in' || route === 'secret-audit' ||
     (route === 'tasks' && taskFilterPlatform !== undefined);
 
@@ -1298,26 +1299,26 @@ export function App() {
           <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
             onClick={() => setNavigationOpen((open) => !open)}>Menu</button>
           <nav className="breadcrumbs" aria-label="Breadcrumb">
-            <a href={inDedicatedJourney && activePlatform !== undefined ? pathForRoute('platform', activePlatform.id) : '/'}
+            <a href={inDedicatedJourney && breadcrumbPlatform !== undefined ? pathForRoute('platform', breadcrumbPlatform.id) : '/'}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();
-                if (inDedicatedJourney && activePlatform !== undefined) navigate('platform', activePlatform.id);
+                if (inDedicatedJourney && breadcrumbPlatform !== undefined) navigate('platform', breadcrumbPlatform.id);
                 else navigate('overview');
               }}>{inDedicatedJourney ? 'Built-in CLIs' : 'CLI workspace'}</a>
-            {inDedicatedJourney && activePlatform !== undefined && route !== 'platform' && (
+            {inDedicatedJourney && breadcrumbPlatform !== undefined && route !== 'platform' && (
               <>
                 <span className="breadcrumb-divider" aria-hidden="true">/</span>
-                <a href={pathForRoute('platform', activePlatform.id)} onClick={(event) => {
+                <a href={pathForRoute('platform', breadcrumbPlatform.id)} onClick={(event) => {
                   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                   event.preventDefault();
-                  navigate('platform', activePlatform.id);
-                }}>{activePlatform.name}</a>
+                  navigate('platform', breadcrumbPlatform.id);
+                }}>{breadcrumbPlatform.name}</a>
               </>
             )}
             <span className="breadcrumb-divider" aria-hidden="true">/</span>
             <span className="current-page" aria-current="page">{route === 'platform'
-              ? activePlatform?.name ?? 'Built-in CLI'
+              ? breadcrumbPlatform?.name ?? 'Built-in CLI'
               : route === 'platform-sign-in' ? 'Sign in'
               : route === 'secret-audit' ? 'Security audit'
               : route === 'tasks' && taskFilterLabel !== undefined ? 'Tasks · ' + taskFilterLabel.packName

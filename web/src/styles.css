@@ -135,7 +135,6 @@ button:disabled {
 
 .brand-caption { font-size: 0.68rem; color: var(--text-muted); }
 
-.workspace-navigation { display: grid; gap: 0.2rem; }
 .primary-nav { display: grid; gap: 0.95rem; }
 .nav-subgroup-label {
   margin: 0 0 0.35rem;
@@ -2853,7 +2852,7 @@ footer p {
   background: var(--surface-3);
   color: var(--text);
 }
-.tool-categories button:focus-visible, .task-category-filter select:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.task-category-filter select:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 
 /* Fit the sidebar and workbench on standard enterprise laptop displays. */
 @media (max-width: 1180px) {
@@ -2871,7 +2870,6 @@ footer p {
   .sidebar--open { display: flex; }
   .sidebar .brand-block, .sidebar-footer { display: none; }
   .primary-nav { grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
-  .tool-categories { margin-top: 1.25rem; }
   .topbar { grid-row: 1; padding: 0.75rem 1rem; min-height: 4rem; }
   .navigation-toggle { display: inline-flex; }
   .breadcrumbs a:first-child, .breadcrumb-divider, .connection-label { display: none; }

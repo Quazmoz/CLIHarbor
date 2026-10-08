@@ -8,7 +8,7 @@ The UI should preserve the transparency and precision of a CLI while reducing me
 
 ## 2. Core navigation
 
-The left sidebar explicitly separates **CLI workspace** (reviewed generic packs, shared tasks, runs, per-tool session checks, adding tools, and diagnostics) from **Built-in CLIs** (first-class, vendor-specific workflows):
+The left sidebar explicitly separates **CLI workspace** (grouped Work and Set up & manage links) from **Built-in CLIs** (first-class, vendor-specific workflows). The task catalog owns per-CLI filters rather than duplicating them as sidebar destinations:
 
 ```text
 CLIHarbor
