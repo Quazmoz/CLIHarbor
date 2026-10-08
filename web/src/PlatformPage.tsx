@@ -13,6 +13,7 @@ const featureDetail: Record<PlatformFeatureID, string> = {
   tasks: 'Approved commands from the reviewed pack, with target context shown before any change runs.',
   'sign-in': 'Guided sign-in that keeps the session owned by the vendor CLI.',
   'security-audit': 'Custom regex explorer with metadata-only inventory presets and opt-in secret-value matching.',
+  'access-explorer': 'Read-only resource and role navigation with bounded inventory and clearly labeled permission relationships.',
 };
 
 /** Home for one dedicated CLI: what CLIHarbor adds on top of the generic workspace. */
@@ -48,7 +49,7 @@ export function PlatformPage({ platform, tasks, onOpenFeature, onOpenDiagnostics
               onClick={() => onOpenFeature(feature.id)}
               disabled={feature.id === 'tasks' && taskCount === 0}>
               {feature.id === 'tasks' ? 'Browse ' + taskCount + ' approved tasks' :
-                feature.id === 'sign-in' ? 'Open sign-in' : 'Open security audit'}
+                feature.id === 'sign-in' ? 'Open sign-in' : feature.id === 'access-explorer' ? 'Open Access Explorer' : 'Open security audit'}
             </button>
           </li>
         ))}
