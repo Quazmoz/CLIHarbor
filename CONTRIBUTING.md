@@ -83,9 +83,13 @@ go test -race ./...
 
 When frontend source changes, commit the synchronized files under `internal/webui/static/`. CI rebuilds the frontend on Windows and Linux and fails if generated assets differ from committed output.
 
-## CI gates
+## CI gates (manual dispatch only)
 
-GitHub Actions runs on Windows and Linux and validates:
+GitHub Actions **must not** run on every commit, push, pull request, or merge. The repository's workflows use `workflow_dispatch` only. Run them **only after the user explicitly requests GitHub Actions** for production-release qualification or another specifically authorized case; merely requesting development, testing, or a merge does not permit a dispatch. Do not introduce temporary push-triggered CI workflows.
+
+For routine development, run repository-native checks locally (for example, `go run ./tools/task check`, targeted Go/React tests, and frontend synchronization). Retain the full release qualification gates and run them when explicitly authorized. If a particular OS or integration cannot be tested locally, state that limitation rather than running GitHub Actions without approval.
+
+When explicitly authorized, the full manual GitHub Actions CI matrix validates:
 
 - `npm ci` from the lockfile;
 - frontend TypeScript typecheck;
