@@ -32,10 +32,11 @@ try {
     $quotedElsewhere = "'" + $elsewhere.Replace("'", "''") + "'"
     $quotedFixture = "'" + $fixture.Replace("'", "''") + "'"
     $invalidCommand = 'Set-Location -LiteralPath ' + $quotedElsewhere +
-        '; & ([ScriptBlock]::Create((Get-Content -LiteralPath ' + $quotedFixture + ' -Raw))) -Stop'
-    # An inline invocation outside a checkout must reject rather than guess a root.
+        '; try { & ([ScriptBlock]::Create((Get-Content -LiteralPath ' + $quotedFixture +
+        ' -Raw))) -Stop; exit 0 } catch { if ($_.Exception.Message -like ''Cannot locate CLIHarbor*'') { exit 42 }; exit 99 }'
+    # Assert the expected location rejection, not an unrelated syntax/runtime error.
     & $hostExe -NoProfile -NonInteractive -Command $invalidCommand *> $null
-    if ($LASTEXITCODE -eq 0) { throw 'Inline evaluation outside a checkout unexpectedly succeeded.' }
+    if ($LASTEXITCODE -ne 42) { throw "Expected invalid checkout rejection (42), got $LASTEXITCODE." }
 
     Write-Host 'PASS: file invocation, inline checkout fallback, and fail-closed invalid root.'
 } finally {
