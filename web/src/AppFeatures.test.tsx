@@ -57,7 +57,7 @@ afterEach(() => {
 });
 
 describe('command preview and retry workflows', () => {
-  test('dedicated Conjur section is separate from the generic workspace and opens its security audit', async () => {
+  test('built-in Conjur is only in the top bar while workspace navigation stays in the sidebar', async () => {
     window.history.replaceState({}, '', '/');
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
@@ -77,7 +77,8 @@ describe('command preview and retry workflows', () => {
       return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
     }));
     render(<App />);
-    const sections = await screen.findByRole('navigation', { name: 'CLI sections' });
+    const sections = screen.getByRole('navigation', { name: 'CLI sections' });
+    await within(sections).findByRole('link', { name: /Built-in CLIs/ });
     expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
     expect(within(screen.getByRole('complementary')).queryByText('Built-in CLIs')).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Overview' })).toBeInTheDocument();
@@ -102,7 +103,6 @@ describe('command preview and retry workflows', () => {
       .getByText('Set up & manage')).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Task categories' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Sign in$/i })).not.toBeInTheDocument();
-    expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
 
     fireEvent.click(builtIn);
@@ -140,7 +140,8 @@ describe('command preview and retry workflows', () => {
       return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
     }));
     render(<App />);
-    const topbar = await screen.findByRole('banner');
+    const topbar = screen.getByRole('banner');
+    await within(topbar).findByRole('combobox', { name: 'Switch built-in CLI' });
     expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
     fireEvent.change(within(topbar).getByRole('combobox', { name: 'Switch built-in CLI' }),
       { target: { value: 'acme' } });
