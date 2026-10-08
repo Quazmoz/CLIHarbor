@@ -21,6 +21,7 @@ const (
 	FeatureTasks         = "tasks"
 	FeatureSignIn        = "sign-in"
 	FeatureSecurityAudit = "security-audit"
+	FeatureAccessExplorer = "access-explorer"
 )
 
 // Platform bundles the Conjur-specific services behind platforms.Platform.
@@ -47,6 +48,7 @@ func (p *Platform) Descriptor() server.Platform {
 			{ID: FeatureTasks, Name: "Conjur tasks"},
 			{ID: FeatureSignIn, Name: "Sign in"},
 			{ID: FeatureSecurityAudit, Name: "Security audit"},
+			{ID: FeatureAccessExplorer, Name: "Access & permissions"},
 		},
 	}
 }
