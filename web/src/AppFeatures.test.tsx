@@ -130,8 +130,10 @@ describe('command preview and retry workflows', () => {
       { target: { value: 'acme' } });
     expect(window.location.pathname).toBe('/dedicated/acme');
     expect(screen.getByRole('heading', { name: 'Acme CLI' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Built-in CLIs / Acme CLI');
-    expect(within(dedicated).getByRole('link', { name: 'Acme CLI home' })).toHaveAttribute('aria-current', 'page');
+    const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(breadcrumb).getByRole('link', { name: 'Built-in CLIs' })).toBeInTheDocument();
+    expect(within(breadcrumb).getByText('Acme CLI')).toHaveAttribute('aria-current', 'page');
+    expect(within(dedicated).getByRole('link', { name: /Acme CLI home/ })).toHaveAttribute('aria-current', 'page');
     fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
     expect(window.location.pathname).toBe('/');
     expect(screen.getByRole('heading', { name: /get your clis ready|what would you like to do/i })).toBeInTheDocument();
