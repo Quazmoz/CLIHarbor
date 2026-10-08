@@ -1441,7 +1441,7 @@ export function App() {
 
         {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && route !== 'secret-audit' && route !== 'platform' && route !== 'platform-sign-in' && (
           <>
-            <section className="runtime-overview" aria-labelledby="runtime-heading">
+            <section className={'runtime-overview' + (route === 'tasks' ? ' runtime-overview--task' : '')} aria-labelledby="runtime-heading">
               <div className="runtime-copy">
                 <p className="runtime-state">Local CLI workspace</p>
                 <h2 id="runtime-heading">

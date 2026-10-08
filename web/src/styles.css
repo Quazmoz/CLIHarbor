@@ -444,6 +444,11 @@ main:focus { outline: none; }
   margin-bottom: var(--space-4);
 }
 
+.runtime-overview--task { padding: var(--space-3) var(--space-4); gap: var(--space-3); }
+.runtime-overview--task .runtime-copy h2 { font-size: 1.3rem; }
+.runtime-overview--task .runtime-copy p { font-size: 0.84rem; }
+.runtime-overview--task .runtime-facts > div { padding: 0.45rem 0.6rem; }
+
 .runtime-copy {
   min-width: 0;
 }
