@@ -161,7 +161,7 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
       throw new Error('Current authenticated identity could not be verified.');
     }
     const account = (identity as Record<string, unknown>).account;
-    if (account !== undefined && account !== audit.target.account) {
+    if (account !== audit.target.account) {
       throw new Error('The CLI session account differs from its configured connection.');
     }
     return {
