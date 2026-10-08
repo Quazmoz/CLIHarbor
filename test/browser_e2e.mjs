@@ -1134,24 +1134,64 @@ async function main() {
       'inPrimary: Array.from(document.querySelectorAll(".primary-nav a")).some((link) => link.textContent.includes("audit"))' +
     '}))()');
     assert.equal(auditSetup.backend, conjurURL, 'audit target should default to vendor configuration');
-    assert.deepEqual(auditSetup.scanTypes, ['references', 'contains', 'exact', 'regex']);
+    assert.deepEqual(auditSetup.scanTypes, ['id-regex', 'regex']);
     assert.equal(auditSetup.inDedicated, true, 'audit must live in the dedicated Conjur section');
     assert.equal(auditSetup.inPrimary, false);
+    assert.equal(await page.evaluate('document.querySelector("select[name=audit-scan-type]").value'), 'id-regex');
+    assert.equal(await page.evaluate('document.querySelector("select[name=audit-preset]").value'), 'credential-names');
     await page.evaluate('(() => {' +
-      'const select = document.querySelector("select[name=audit-scan-type]");' +
-      'select.value = "regex"; select.dispatchEvent(new Event("change", { bubbles: true }));' +
+      'const select = document.querySelector("select[name=audit-preset]");' +
+      'select.value = "custom"; select.dispatchEvent(new Event("change", { bubbles: true }));' +
     '})()');
-    await waitJS(page, 'custom audit pattern', 'document.querySelector("input[name=audit-pattern]") !== null');
-    await setTextInput(page, 'Value pattern', '^team[./].*/password$');
+    await waitJS(page, 'custom inventory regex', 'document.querySelector("select[name=audit-preset]").value === "custom"');
+    await setTextInput(page, 'Regex pattern (Go / RE2)', '^team[./].*/password$');
     await setTextInput(page, 'CyberArk backend URL', 'https://other.invalid');
     await page.evaluate('document.querySelector(".secret-audit-ack input").click()');
     const auditRequestPromise = page.waitEvent('Network.requestWillBeSent',
       (params) => params.request?.url === baseURL + '/api/v1/conjur/secret-audit' && params.request?.method === 'POST');
-    await clickButton(page, 'Start read-only audit');
+    await clickButton(page, 'Start pattern search');
     const auditRequest = await auditRequestPromise;
     assert.deepEqual(JSON.parse(auditRequest.request.postData), {
       packId: 'cyberark-conjur-v9', toolId: 'conjur', minimumConfidence: 'high',
-      applianceUrl: 'https://other.invalid', scanType: 'regex', pattern: '^team[./].*/password$',
+      applianceUrl: 'https://other.invalid', scanType: 'id-regex', pattern: '^team[./].*/password
+    });
+    assert.equal(await waitHTTPStatus(page, auditRequest.requestId), 202);
+    await waitJS(page, 'audit refuses mismatched backend', 'document.querySelector("#secret-audit-result-heading")?.textContent.includes("Sign in to the selected backend")');
+    assert.equal(await page.evaluate('document.querySelector("input[name=audit-pattern]").value'), '', 'scan text must be cleared after starting');
+
+    stage('responsive operator pages');
+    for (const width of [1024, 390, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      for (const route of ['/', '/authentication', '/runs', '/diagnostics', '/conjur/security-audit']) {
+        await navigate(page, baseURL + route);
+        await waitJS(page, route + ' ready', 'document.querySelector("main").getAttribute("aria-busy") === "false" && document.querySelector("main h2") !== null');
+        assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, route + ' must fit at ' + width + 'px');
+        await capture((route === '/' ? 'overview' : route.slice(1).replaceAll('/', '-')) + '-' + width);
+      }
+    }
+
+    stage('complete');
+    console.log('CLIHarbor production browser E2E passed');
+  } finally {
+    for (const page of pages) {
+      page.close();
+    }
+    // The attacker page may keep an HTTP connection open after its CDP socket is closed.
+    // Terminate Chrome before awaiting the local attacker server so cleanup cannot deadlock
+    // and hide the assertion that actually failed.
+    await chrome.close();
+    if (attackerServer) {
+      await closeHTTPServer(attackerServer);
+    }
+  }
+}
+
+main().catch((error) => {
+  const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  console.error(message);
+  process.exitCode = 1;
+});
+,
     });
     assert.equal(await waitHTTPStatus(page, auditRequest.requestId), 202);
     await waitJS(page, 'audit refuses mismatched backend', 'document.querySelector("#secret-audit-result-heading")?.textContent.includes("Sign in to the selected backend")');
