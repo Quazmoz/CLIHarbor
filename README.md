@@ -448,6 +448,34 @@ go run ./cmd/cliharbor serve
 
 Use `go run ./cmd/cliharbor help <command>` (or `<command> --help`) for command-specific operator guidance; nested command help such as `help pack init` is also available.
 
+### Reliable clean restart after code changes
+
+CLIHarbor serves **generated Vite assets embedded into the Go executable** by default. Simply re-running `go run ./cmd/cliharbor serve` does **not** rebuild React, and re-opening an old browser tab may connect to an old or stopped loopback instance. The local HTTP server already sends `Cache-Control: no-store`; the common stale-UI cause is an old executable or unsynchronized embedded assets, not a browser cache you need to delete.
+
+For ordinary development/testing, use the repo-owned helpers **from the repository root**. They run `go run ./tools/task build` (frontend dependency install, typecheck, lint, tests, Vite production build, embedded-asset replacement and Go executable build), stop only a previously helper-launched CLIHarbor process, and start the newly built executable on a new ephemeral loopback port. The helpers use `--no-auto-setup` to avoid an unexpected vendor dependency download during development. They do **not** dispatch GitHub Actions.
+
+**macOS / Linux (bash):**
+
+```bash
+bash tools/dev-restart.sh --pull  # Optional: ff-only pull, then stop/build/start
+bash tools/dev-restart.sh         # After local edits: stop/build/start, no pull
+bash tools/dev-restart.sh --stop  # Stop only this helper's instance
+```
+
+**Windows PowerShell (development machine with approved Go/Node toolchains):**
+
+```powershell
+.\tools\dev-restart.ps1 -Pull     # Optional: ff-only pull, then stop/build/start
+.\tools\dev-restart.ps1           # After local edits: stop/build/start
+.\tools\dev-restart.ps1 -Stop     # Stop only this helper's instance
+```
+
+**First migration from manual starts:** Stop previously launched `go run ./cmd/cliharbor serve`, `bin/cliharbor serve`, or Vite development terminals yourself (usually **Ctrl+C**). The helpers deliberately do not `pkill` arbitrary processes, stop unrelated listeners, purge browser profiles, or delete cached vendor credentials/Conjur sessions. On Windows, stopping a *helper-owned* process uses Windows process termination; only use it when no CLI task, Conjur login or approval-gated mutation is in flight.
+
+The helper's PID and private startup log live under ignored `bin/`. If a PID belongs to another process, it **refuses to kill it**. If a restart reports a build/test failure, resolve it rather than running an old executable. Use the **new browser tab**; old tabs point to old per-process ports. If the browser does not open automatically, consult the private log for its one-time bootstrap URL and do not share that URL.
+
+**Important:** The local helper produces freshly built assets **in your working tree**. If `internal/webui/static/` changes, commit those generated assets along with source changes before merging/releasing. The helper is not a substitute for repository quality gates or real enterprise/Windows acceptance. Do not reset/clean away unsaved code to make `--pull` work; resolve local changes first. If corporate PowerShell execution policy blocks the helper, use the approved manual build/start procedure rather than changing security policy.
+
 Frontend development:
 
 ```bash
