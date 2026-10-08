@@ -6,6 +6,12 @@ CLIHarbor sits between a browser and powerful local CLIs. Tests must preserve us
 
 The highest-risk code is pack validation/trust, tool discovery, execution planning/process lifecycle, auth orchestration, and untrusted output handling—not static UI markup.
 
+### GitHub Actions authorization and execution cadence
+
+GitHub Actions are **manual-only** for CLIHarbor. No workflow should automatically run on commits, pushes, PRs, merges, tags, or schedules, including short-lived feature qualification workflows. Do not dispatch Actions from an agent, GitHub API/CLI, or UI without the user's specific instruction authorizing CI for a production-release candidate or another named exception. Development requests are not standing CI authorization.
+
+Use local Go, TypeScript, frontend synchronization, regression, and browser checks for normal development. Explicitly report skipped or platform-unavailable tests. This policy changes *when and where* qualification runs, not the required tests or release acceptance criteria: once a production release and GitHub Actions use are explicitly authorized, manually run the full applicable workflow for the exact target commit before release.
+
 ### Generated frontend authority
 
 `web/` is the authoritative frontend source. Production generation replaces the complete `internal/webui/static` tree from `web/dist`, so obsolete content-hashed assets are removed rather than accumulated. The repository-owned `verify-web-sync` gate uses Git status scoped to the embedded tree and rejects tracked modifications/deletions **and** untracked generated files. `go run ./tools/task check` runs this gate immediately after the production frontend build/synchronization, and CI invokes the same repository-owned check on both Linux and Windows. Regression coverage verifies whole-tree replacement across changing content hashes plus tracked/untracked drift detection.
