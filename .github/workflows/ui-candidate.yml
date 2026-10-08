@@ -23,6 +23,7 @@ jobs:
       - run: npm run typecheck --prefix web
       - run: npm run lint --prefix web
       - run: npm test --prefix web
+      - run: npm run build --prefix web
       - run: go run ./tools/task sync-web
       - run: go run ./tools/task verify-web-sync
       - run: go test -timeout 2m ./internal/webui ./internal/platforms/...
