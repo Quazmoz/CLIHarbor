@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { App } from './App';
 
@@ -48,6 +48,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   if (showModalDescriptor) Object.defineProperty(HTMLDialogElement.prototype, 'showModal', showModalDescriptor);
   else Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
   if (closeDescriptor) Object.defineProperty(HTMLDialogElement.prototype, 'close', closeDescriptor);
@@ -62,7 +63,9 @@ test('Ctrl+K opens search across CLIs and selects an existing task without execu
   const trigger = await screen.findByRole('button', { name: /Find task/ });
   expect(trigger).toBeEnabled();
 
-  fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true });
+  // Exercise the header trigger first; then confirm the keyboard shortcut
+  // on the already-mounted application after the first navigation.
+  fireEvent.click(trigger);
   const dialog = screen.getByRole('dialog', { name: 'Find a task' });
   const search = within(dialog).getByRole('searchbox', { name: 'Search tasks and CLIs' });
   expect(search).toHaveFocus();
@@ -73,6 +76,8 @@ test('Ctrl+K opens search across CLIs and selects an existing task without execu
   expect(window.location.pathname).toBe('/tasks');
   expect(screen.getByRole('heading', { name: 'List variables', level: 3 })).toBeInTheDocument();
   expect(requests.some((path) => path === '/api/v1/runs' || path === '/api/v1/runs/preview')).toBe(false);
+  fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true });
+  expect(await screen.findByRole('dialog', { name: 'Find a task' })).toBeInTheDocument();
 });
 
 test('search shortcut does not hijack typing and native dismiss leaves the route unchanged', async () => {
