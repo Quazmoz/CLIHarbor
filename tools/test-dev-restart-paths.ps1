@@ -25,7 +25,7 @@ try {
     $hostExe = (Get-Process -Id $PID).Path
     $quotedRoot = "'" + $temp.Replace("'", "''") + "'"
     $command = 'Set-Location -LiteralPath ' + $quotedRoot +
-        '; & ([ScriptBlock]::Create((Get-Content -LiteralPath .\\tools\\dev-restart.ps1 -Raw))) -Stop'
+        '; & ([ScriptBlock]::Create((Get-Content -LiteralPath .\tools\dev-restart.ps1 -Raw))) -Stop'
     & $hostExe -NoProfile -NonInteractive -Command $command | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Inline evaluation from the checkout root failed.' }
 
