@@ -105,7 +105,7 @@ func (s *CredentialLoginService) Configure(ctx context.Context, request server.C
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.executableReady() || request.PackID != PackID || request.ToolID != ToolID {
+	if !s.enabled || request.PackID != PackID || request.ToolID != ToolID {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	if !validConjurConnectionRequest(request) {
@@ -115,6 +115,10 @@ func (s *CredentialLoginService) Configure(ctx context.Context, request server.C
 		return &server.CredentialLoginError{Code: server.CredentialLoginBusy}
 	}
 	defer s.releaseAuthGate()
+
+	if !s.executableReady() {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
 
 	select {
 	case <-ctx.Done():
@@ -169,13 +173,17 @@ func (s *CredentialLoginService) Login(ctx context.Context, request server.Crede
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.executableReady() || request.PackID != PackID || request.ToolID != ToolID {
+	if !s.enabled || request.PackID != PackID || request.ToolID != ToolID {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	if !s.acquireAuthGate() {
 		return &server.CredentialLoginError{Code: server.CredentialLoginBusy}
 	}
 	defer s.releaseAuthGate()
+
+	if !s.executableReady() {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
 
 	select {
 	case <-ctx.Done():
@@ -222,7 +230,7 @@ func (s *CredentialLoginService) LaunchInteractive(ctx context.Context, request 
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.executableReady() || request.PackID != PackID || request.ToolID != ToolID {
+	if !s.enabled || request.PackID != PackID || request.ToolID != ToolID {
 		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
 	}
 	if s.interactiveSupported == nil || !s.interactiveSupported() || s.launchInteractive == nil {
@@ -232,6 +240,10 @@ func (s *CredentialLoginService) LaunchInteractive(ctx context.Context, request 
 		return &server.CredentialLoginError{Code: server.CredentialLoginBusy}
 	}
 	defer s.releaseAuthGate()
+
+	if !s.executableReady() {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
 
 	select {
 	case <-ctx.Done():
