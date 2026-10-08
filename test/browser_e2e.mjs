@@ -1191,41 +1191,4 @@ main().catch((error) => {
   console.error(message);
   process.exitCode = 1;
 });
-,
-    });
-    assert.equal(await waitHTTPStatus(page, auditRequest.requestId), 202);
-    await waitJS(page, 'audit refuses mismatched backend', 'document.querySelector("#secret-audit-result-heading")?.textContent.includes("Sign in to the selected backend")');
-    assert.equal(await page.evaluate('document.querySelector("input[name=audit-pattern]").value'), '', 'scan text must be cleared after starting');
 
-    stage('responsive operator pages');
-    for (const width of [1024, 390, 320]) {
-      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
-      for (const route of ['/', '/authentication', '/runs', '/diagnostics', '/conjur/security-audit']) {
-        await navigate(page, baseURL + route);
-        await waitJS(page, route + ' ready', 'document.querySelector("main").getAttribute("aria-busy") === "false" && document.querySelector("main h2") !== null');
-        assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, route + ' must fit at ' + width + 'px');
-        await capture((route === '/' ? 'overview' : route.slice(1).replaceAll('/', '-')) + '-' + width);
-      }
-    }
-
-    stage('complete');
-    console.log('CLIHarbor production browser E2E passed');
-  } finally {
-    for (const page of pages) {
-      page.close();
-    }
-    // The attacker page may keep an HTTP connection open after its CDP socket is closed.
-    // Terminate Chrome before awaiting the local attacker server so cleanup cannot deadlock
-    // and hide the assertion that actually failed.
-    await chrome.close();
-    if (attackerServer) {
-      await closeHTTPServer(attackerServer);
-    }
-  }
-}
-
-main().catch((error) => {
-  const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
-  console.error(message);
-  process.exitCode = 1;
-});
