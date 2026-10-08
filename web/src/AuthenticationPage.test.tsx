@@ -850,4 +850,147 @@ describe('AuthenticationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open CyberArk Conjur sign-in' }));
     expect(open).toHaveBeenCalledTimes(1);
   });
+
+  test('does not auto-check vendor login from unrelated focus; verifies once after returning', async () => {
+    const vendorTool: ToolDiagnostic = {
+      ...readyTool,
+      credentialLogin: { method: 'conjur-vendor-login' },
+    };
+    let sessionChecks = 0;
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/auth/interactive') return Promise.resolve(new Response(null, { status: 204 }));
+      if (path === '/api/v1/runs') {
+        sessionChecks += 1;
+        return Promise.resolve(response(202, {
+          runId: '99999999999999999999999999999999',
+          packId: whoamiTask.packId, toolId: 'conjur', commandId: 'whoami',
+          status: 'exited', exitCode: 0,
+        }));
+      }
+      return Promise.resolve(response(404, {}));
+    }));
+
+    renderAuth([whoamiTask], [vendorTool]);
+    fireEvent.click(screen.getByRole('button', { name: 'Start official Conjur sign-in' }));
+    expect(await screen.findByText('Official Conjur sign-in started.')).toBeInTheDocument();
+
+    fireEvent.focus(window);
+    expect(sessionChecks).toBe(0);
+    expect(screen.getByText('Official Conjur sign-in started.')).toBeInTheDocument();
+
+    fireEvent.blur(window);
+    fireEvent.focus(window);
+    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+    expect(sessionChecks).toBe(1);
+
+    fireEvent.blur(window);
+    fireEvent.focus(window);
+    expect(sessionChecks).toBe(1);
+  });
+
+  test('invalidates prior authenticated evidence when tool status changes', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      if (requestPath(input) === '/api/v1/runs') {
+        return Promise.resolve(response(202, {
+          runId: 'abababababababababababababababab',
+          packId: whoamiTask.packId, toolId: 'conjur', commandId: 'whoami',
+          status: 'exited', exitCode: 0,
+        }));
+      }
+      return Promise.resolve(response(404, {}));
+    }));
+    const page = (tool: ToolDiagnostic) => (
+      <AuthenticationPage
+        status={status}
+        tasks={[whoamiTask]}
+        tools={[tool]}
+        onOpenTasks={vi.fn()}
+        onOpenDiagnostics={vi.fn()}
+        signInFor={() => conjurSignIn}
+      />
+    );
+    const view = render(page(readyTool));
+    fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
+    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue to tasks' })).toBeInTheDocument();
+
+    view.rerender(page({ ...readyTool, status: 'missing', version: undefined, credentialLogin: undefined }));
+    expect(screen.getByRole('heading', { name: 'Tool unavailable' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue to tasks' })).not.toBeInTheDocument();
+
+    view.rerender(page(readyTool));
+    expect(screen.getByRole('heading', { name: 'Authentication not verified' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue to tasks' })).not.toBeInTheDocument();
+  });
+
+  test('reverts to first-run setup when the backend login capability changes', () => {
+    const page = (setupRequired: boolean) => (
+      <AuthenticationPage
+        status={status}
+        tasks={[whoamiTask]}
+        tools={[{ ...readyTool, credentialLogin: { method: 'conjur-password' as const, setupRequired } }]}
+        onOpenTasks={vi.fn()}
+        onOpenDiagnostics={vi.fn()}
+        signInFor={() => conjurSignIn}
+      />
+    );
+    const view = render(page(false));
+    expect(document.querySelector('input[type="password"]')).not.toBeNull();
+    view.rerender(page(true));
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Conjur server URL' })).toBeInTheDocument();
+  });
+
+  test('a cancelled partial UTF-8 stream does not corrupt the next session check', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const firstRun = '10101010101010101010101010101010';
+    let attempts = 0;
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/runs') {
+        attempts += 1;
+        return Promise.resolve(response(202, attempts === 1
+          ? {
+              runId: firstRun, packId: whoamiTask.packId, toolId: 'conjur',
+              commandId: 'whoami', status: 'running',
+            }
+          : {
+              runId: '20202020202020202020202020202020',
+              packId: whoamiTask.packId, toolId: 'conjur', commandId: 'whoami',
+              status: 'exited', exitCode: 0,
+              events: [{
+                runId: '20202020202020202020202020202020', sequence: 1,
+                type: 'stdout.chunk', timestamp: '2026-10-08T10:00:00Z',
+                dataBase64: btoa('{"account":"restored"}'),
+              }],
+            }));
+      }
+      if (path === '/api/v1/runs/' + firstRun + '/cancel') {
+        return Promise.resolve(response(202, {
+          runId: firstRun, packId: whoamiTask.packId, toolId: 'conjur',
+          commandId: 'whoami', status: 'cancelled',
+        }));
+      }
+      return Promise.resolve(response(404, {}));
+    }));
+
+    renderAuth();
+    fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    act(() => {
+      FakeEventSource.instances[0].emit('run-event', {
+        runId: firstRun, type: 'stdout.chunk', sequence: 1,
+        timestamp: '2026-10-08T10:00:00Z',
+        dataBase64: btoa(String.fromCharCode(0xc3)),
+      });
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel check' }));
+    expect(await screen.findByRole('heading', { name: 'Authentication check cancelled' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Re-check session' }));
+    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+    expect(screen.getByText('restored')).toBeInTheDocument();
+    expect(attempts).toBe(2);
+  });
 });
