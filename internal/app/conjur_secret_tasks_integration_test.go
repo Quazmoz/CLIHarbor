@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Quazmoz/CLIHarbor/internal/audittrail"
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
@@ -62,8 +63,13 @@ if [ "$1" = "variable" ]; then printf 'Value added\n'; else printf '{"created_ro
 	if err != nil {
 		t.Fatalf("prepareRuntime() error = %v", err)
 	}
+	auditPath := filepath.Join(tempDir, "audit.jsonl")
+	audit, err := audittrail.Open(auditPath)
+	if err != nil { t.Fatal(err) }
+	defer audit.Close()
 	manager, err := runs.NewManager(t.Context(), state.Registry, state.Discovery, runs.Config{
 		ResolveExecutionContext: conjur.ResolveExecutionContext,
+		Audit: audit,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -129,5 +135,13 @@ if [ "$1" = "variable" ]; then printf 'Value added\n'; else printf '{"created_ro
 		"ARGS:variable set --id apps/myapp/db/password --file -\nSTDIN:" + secret + "\nEND\n"
 	if string(logged) != want {
 		t.Fatalf("conjur saw:\n%s\nwant:\n%s", logged, want)
+	}
+	audited, err := os.ReadFile(auditPath)
+	if err != nil { t.Fatal(err) }
+	if strings.Contains(string(audited), secret) || strings.Contains(string(audited), "STDIN:") {
+		t.Fatal("audit journal retained sensitive stdin or command output")
+	}
+	if len(audit.List()) != 6 {
+		t.Fatalf("audit entries = %d; wanted start/completion pairs", len(audit.List()))
 	}
 }
