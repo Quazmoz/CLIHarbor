@@ -25,7 +25,7 @@ CyberArk release binaries render the reviewed release as `9.3.1-<commit>`. That 
 
 ## Zero-config startup
 
-Pack version `0.4.0` supports installed Conjur on Windows and macOS using the same reviewed 9.x argv/version contract. The upstream [v9.3.1 release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) publishes darwin builds. The automatic pinned fallback and guided external vendor-login launcher remain Windows-specific; on macOS, install an approved official CLI and complete interactive login in your terminal. See [Windows and macOS setup](CROSS_PLATFORM.md).
+Pack version `0.6.0` supports installed Conjur on Windows and macOS using the same reviewed 9.x argv/version contract. The upstream [v9.3.1 release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) publishes darwin builds. The automatic pinned fallback and guided external vendor-login launcher remain Windows-specific; on macOS, install an approved official CLI and complete interactive login in your terminal. See [Windows and macOS setup](CROSS_PLATFORM.md).
 
 Normal Windows startup is:
 
