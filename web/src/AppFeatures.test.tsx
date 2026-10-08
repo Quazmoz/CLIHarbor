@@ -112,6 +112,31 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByRole('heading', { name: 'Sign in to CyberArk Conjur' })).toBeInTheDocument();
   });
 
+  test('switching dedicated CLIs from another page opens the newly selected home', async () => {
+    window.history.replaceState({}, '', '/authentication');
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/platforms') return Promise.resolve(response(200, { platforms: [
+        { id: 'conjur', name: 'CyberArk Conjur', summary: 'Conjur tasks.', packId: 'cyberark-conjur-v9', toolId: 'conjur',
+          ready: true, features: [{ id: 'tasks', name: 'Conjur tasks' }, { id: 'sign-in', name: 'Sign in' }] },
+        { id: 'acme', name: 'Acme CLI', summary: 'Acme integration.', packId: 'acme-pack', toolId: 'acme',
+          ready: false, features: [] },
+      ] }));
+      return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
+    }));
+    render(<App />);
+    const dedicated = await screen.findByRole('navigation', { name: 'Dedicated CLIs' });
+    fireEvent.change(within(dedicated).getByRole('combobox', { name: 'Dedicated CLI' }),
+      { target: { value: 'acme' } });
+    expect(window.location.pathname).toBe('/dedicated/acme');
+    expect(screen.getByRole('heading', { name: 'Acme CLI' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Built-in CLIs / Acme CLI');
+    expect(within(dedicated).getByRole('link', { name: 'Acme CLI home' })).toHaveAttribute('aria-current', 'page');
+    fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
+    expect(window.location.pathname).toBe('/');
+    expect(screen.getByRole('heading', { name: /get your clis ready|what would you like to do/i })).toBeInTheDocument();
+  });
+
   test('Conjur sign-in lives in the dedicated section; generic Authentication links to it', async () => {
     window.history.replaceState({}, '', '/authentication');
     const conjurTool = {
