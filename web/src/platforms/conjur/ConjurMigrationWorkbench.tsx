@@ -62,6 +62,7 @@ const playbooks: Array<{ name: string; description: string; actions: TaskShortcu
     actions: [
       { id: 'whoami', label: 'Verify identity', risk: 'read' },
       { id: 'list-variables', label: 'Variable IDs', risk: 'read' },
+      { id: 'list-resources', label: 'Filtered variable inventory', risk: 'read', prefill: { kind: 'variable', limit: '25' } },
       { id: 'list-policies', label: 'Policy inventory', risk: 'read' },
       { id: 'count-resources', label: 'Resource counts', risk: 'read' },
     ],
