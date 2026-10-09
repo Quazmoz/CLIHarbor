@@ -17,7 +17,8 @@ export function ConjurBackendConnection(props: Props) {
   // Remount on a new vendor capability snapshot: no previous tenant state,
   // confirmation or in-flight response may be reused across tool changes.
   const { ready, tool } = props;
-  const contextKey = JSON.stringify([ready, tool.packId, tool.toolId, tool.packVersion]);
+  const contextKey = JSON.stringify([ready, tool.packId, tool.toolId, tool.packVersion,
+    tool.status, tool.version, tool.credentialLogin?.method, tool.credentialLogin?.setupRequired]);
   return <ConjurBackendConnectionForm key={contextKey} {...props} />;
 }
 
