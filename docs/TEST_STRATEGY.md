@@ -481,6 +481,14 @@ Backend regressions cover the original reference detector, custom exact/contains
 
 Component acceptance covers the audit link beneath Conjur, canonical route and focus, editable backend URL, scan-type controls, consent reset, request shape, match labels, and clearing scan text after start. The production Chrome harness verifies the configured URL default, custom regex submission, backend mismatch refusal, and responsive layout at 1,024/390/320 pixels. The old route remains covered by embedded-frontend routing tests. These fixtures do not qualify a real Conjur appliance or native Windows interaction.
 
+## Custom CLI pack draft download recovery
+
+The browser-only custom pack wizard handles URL creation and download failures
+without crashing the interface, claiming a download succeeded, or losing the
+non-executable YAML preview. It surfaces a manual copy-and-save recovery message
+and clears that error when the operator changes draft fields. It does not
+install, register, load, or execute the drafted pack.
+
 ## Shared CLI task catalog integrity
 
 The frontend `/api/v1/tasks` client rejects duplicate pack/command identities
