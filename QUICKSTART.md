@@ -191,6 +191,8 @@ Pinned toolchain:
 - Node **24.21.0**
 - npm **>=11.6.0 <12**
 
+A production frontend rebuild records `internal/webui/static/web-source.sha256`. The standalone `verify-web-sync` check rejects missing or outdated fingerprints even in a clean checkout; it is a drift check, not a substitute for running `web-build` and verifying the actual embedded browser UI. Until issue #59 is fully qualified, do not use an older evaluation artifact to assess recent Conjur sign-in behavior.
+
 ```bash
 git clone https://github.com/Quazmoz/CLIHarbor.git
 cd CLIHarbor

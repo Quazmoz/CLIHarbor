@@ -2,6 +2,8 @@
 
 This is the controlled first CLIHarbor run on a company-managed Windows 10/11 laptop.
 
+**Prerequisite:** Issue #59 remains a release blocker until the matching React production frontend is rebuilt, the `web-source.sha256` marker and generated bundle are committed together, all pinned-toolchain quality gates pass, and a new qualified Windows evaluation artifact exists. Do not use an older bundle to validate newer Conjur connection/sign-in screens; a fingerprint alone is not browser E2E evidence.
+
 The target laptop does **not** need Go, Node/npm, Git, PowerShell, administrator rights, a Windows service, or machine-wide installation. The evaluation executable is unsigned. Do not disable, bypass, or weaken Defender, EDR, AppLocker, WDAC, SmartScreen, proxy policy, browser policy, firewall policy, or another company security control to run it.
 
 Run CLIHarbor from the **currently signed-in user's normal, non-elevated session**. Do not use **Run as administrator** or enter separate Windows administrator credentials merely to make CLIHarbor start or install its managed Conjur fallback.

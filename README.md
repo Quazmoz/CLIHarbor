@@ -5,6 +5,8 @@ A local browser UI for safely exposing curated workflows from official command-l
 **Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation/lint/contract-test tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x integration (read-only inventory, approved changes and an opt-in value scanner) are implemented.
 
 > **Source/binary qualification:** The latest React source is not guaranteed to be present in a previously downloaded Windows evaluation executable. [Release blocker #59](https://github.com/Quazmoz/CLIHarbor/issues/59) tracks regeneration of `internal/webui/static/`, pinned-toolchain verification, and target-host validation after recent Conjur sign-in changes. Do not treat an older artifact as an acceptance test of those changes or publish it as the latest build. The GitHub Actions pipeline is manual-only and must not be dispatched without specific authorization.
+>
+> **Stale-bundle guard:** The task runner now embeds `web-source.sha256` in the generated frontend and compares it against current `web/` inputs, even when Git reports a clean checkout. This guard is intentionally failing until assets are regenerated and committed with the pinned toolchain. The fingerprint does **not** prove npm/Vite built the assets: use `go run ./tools/task web-build`, verify the generated bundle and run all quality gates before using it for evaluation.
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 

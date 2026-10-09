@@ -2,6 +2,8 @@
 
 CLIHarbor's foundation, first real vendor read-only integration, and zero-config first-party startup path are implemented. The roadmap is therefore organized around managed-environment qualification and controlled capability expansion rather than generic infrastructure invention.
 
+**Release qualification blocker (issue #59):** Preventive source-drift detection is implemented through the `web-source.sha256` marker written by `sync-web`. Regenerating the committed production bundle with the pinned Go/Node/npm toolchains, passing frontend/Go/browser gates, and completing managed-Windows and corporate Conjur acceptance are separate outstanding steps. A committed source fix, marker alone, or a clean Git tree is not proof that the embedded JavaScript implements the latest sign-in UI.
+
 ## Stage 0 — Foundation
 
 **Status: complete.**
