@@ -147,7 +147,38 @@ try {
         throw "Expected updated helper to execute after pull, got: $pullFailure"
     }
 
-    Write-Host 'PASS: file/inline invocation, pull reexecution, invalid root, frontend failure, staged build failure, and missing artifact.'
+    # Parse the real helper and exercise its checksum function against a
+    # disposable fixture, including a second write after replacement. This
+    # catches accidental recursion and manifest drift without starting a CLI.
+    $parseTokens = $null
+    $parseErrors = $null
+    $helperAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        $origin, [ref]$parseTokens, [ref]$parseErrors
+    )
+    if ($parseErrors.Count -ne 0) { throw "Restart helper has PowerShell parse errors: $parseErrors" }
+    $checksumDef = $helperAst.Find({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq 'Write-DevChecksum'
+    }, $true)
+    if ($null -eq $checksumDef) { throw 'Restart helper checksum function is missing.' }
+
+    $bin = Join-Path -Path $temp -ChildPath 'checksum-fixture'
+    New-Item -ItemType Directory -Path $bin -Force | Out-Null
+    $exe = Join-Path -Path $bin -ChildPath 'cliharbor.exe'
+    $checksum = Join-Path -Path $bin -ChildPath 'SHA256SUMS'
+    . ([ScriptBlock]::Create($checksumDef.Extent.Text))
+    foreach ($contents in @('old-binary', 'replacement-binary')) {
+        Set-Content -LiteralPath $exe -Value $contents
+        Write-DevChecksum
+        $expected = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant() +
+            '  cliharbor.exe'
+        if ((Get-Content -LiteralPath $checksum -Raw).Trim() -cne $expected) {
+            throw 'Restart helper wrote an invalid or stale SHA256SUMS entry.'
+        }
+    }
+
+    Write-Host 'PASS: parse, invocation, pull reexecution, fail-safe builds, and checksum synchronization.'
 } finally {
     Set-Location -LiteralPath $initialLocation
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
