@@ -20,9 +20,9 @@ export interface MigrationDraft {
 
 // Do not interpolate untrusted identifiers as YAML syntax. A conservative
 // single-line subset prevents ambiguous policy branches and review drift.
-function validID(value: string, maxLength: number): boolean {
+function validID(value: string, maxLength: number, absolute = false): boolean {
   return value.length > 0 && value.length <= maxLength &&
-    /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(value) &&
+    (absolute ? /^\/?[A-Za-z0-9][A-Za-z0-9_.:/-]*$/ : /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/).test(value) &&
     !value.split('/').some((part) => part === '.' || part === '..');
 }
 
@@ -35,7 +35,7 @@ export function generateConjurPolicyDraft(draft: MigrationDraft): string | null 
     lines.push('- !variable', '  id: ' + JSON.stringify(draft.variableId));
   }
   if (draft.kind !== 'variable') {
-    if (!validID(draft.roleId, 2048) ||
+    if (!validID(draft.roleId, 2048, true) ||
         !['group', 'host', 'user', 'layer'].includes(draft.roleKind) ||
         !['read', 'execute', 'read, execute', 'update', 'read, execute, update'].includes(draft.privileges)) {
       return null;
@@ -215,6 +215,10 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
             </label>
             <div className="conjur-migration-actions">
               <button type="button" className="secondary-button" onClick={() => {
+                if (!navigator.clipboard?.writeText) {
+                  setCopyStatus('Clipboard unavailable; select and copy the reviewed text above.');
+                  return;
+                }
                 void navigator.clipboard.writeText(yaml).then(
                   () => setCopyStatus('Copied non-secret policy draft.'),
                   () => setCopyStatus('Clipboard unavailable; select and copy the reviewed text above.'),
