@@ -24,6 +24,15 @@ export function ConjurBackendConnection({ status, tool, ready, onToolsChanged, i
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    // A changed tool or failed refresh must never retain the previous tenant's
+    // endpoint or leave its reconfiguration action available.
+    setConnection(null);
+    setEditing(false);
+    setEndpoint('');
+    setConfirmed(false);
+    setSaved(false);
+    setSaveError(null);
+    setLoadError(false);
     if (!ready) return;
     const controller = new AbortController();
     void getVendorConnection(controller.signal).then((current) => {
@@ -31,10 +40,15 @@ export function ConjurBackendConnection({ status, tool, ready, onToolsChanged, i
       setConnection(current);
       setEditing(current.environment === 'unconfigured' && current.configurable);
       setEndpoint(current.environment === 'saas' ? current.applianceUrl : '');
-      setLoadError(false);
-    }).catch(() => { if (!controller.signal.aborted) setLoadError(true); });
+    }).catch(() => {
+      if (controller.signal.aborted) return;
+      setConnection(null);
+      setEditing(false);
+      setEndpoint('');
+      setLoadError(true);
+    });
     return () => controller.abort();
-  }, [ready, tool.packId, tool.toolId]);
+  }, [ready, tool.packId, tool.toolId, tool.packVersion]);
 
   if (!ready) return null;
   const existingURL = connection?.environment === 'saas' ? connection.applianceUrl : '';
