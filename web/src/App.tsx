@@ -648,8 +648,10 @@ export function App() {
     const values = initialValues(task);
     for (const input of task.inputs) {
       const candidate = prefill?.[input.id];
-      if (input.type === 'string' && candidate !== undefined && candidate.length <= (input.validation?.maxLength ?? 2048) &&
+      if (candidate === undefined) continue;
+      if (input.type === 'string' && candidate.length <= (input.validation?.maxLength ?? 2048) &&
           !/[\p{Cc}\p{Cf}]/u.test(candidate) && !candidate.startsWith('-')) values[input.id] = candidate;
+      if (input.type === 'enum' && input.validation?.enum?.includes(candidate)) values[input.id] = candidate;
     }
     setFormValues(values);
     previewRequestRef.current += 1;
@@ -1504,12 +1506,12 @@ export function App() {
             onOpenRuns={() => navigate('runs')}
             onOpenFeature={openPlatformFeature}
             onOpenDiagnostics={() => navigate('diagnostics')}
-            onOpenTask={(key) => {
+            onOpenTask={(key, prefill) => {
               if (starting || activeRunID !== null) return;
               setTaskToolFilter(taskToolKey(activePlatform));
               setSelectedPlatformID(activePlatform.id);
               focusConfigurationRef.current = true;
-              selectTaskByKey(key, state.tasks);
+              selectTaskByKey(key, state.tasks, prefill);
               navigate('tasks', activePlatform.id);
             }}
           />
