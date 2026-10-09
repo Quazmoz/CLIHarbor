@@ -13,7 +13,15 @@ export function normalizeConjurSaaSAPIURL(input: string): string | null {
 
 type Props = Pick<SignInContext, 'status' | 'tool' | 'ready' | 'onToolsChanged' | 'invalidateSession'>;
 
-export function ConjurBackendConnection({ status, tool, ready, onToolsChanged, invalidateSession }: Props) {
+export function ConjurBackendConnection(props: Props) {
+  // Remount on a new vendor capability snapshot: no previous tenant state,
+  // confirmation or in-flight response may be reused across tool changes.
+  const { ready, tool } = props;
+  const contextKey = JSON.stringify([ready, tool.packId, tool.toolId, tool.packVersion]);
+  return <ConjurBackendConnectionForm key={contextKey} {...props} />;
+}
+
+function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, invalidateSession }: Props) {
   const [connection, setConnection] = useState<VendorConnection | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -24,15 +32,6 @@ export function ConjurBackendConnection({ status, tool, ready, onToolsChanged, i
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    // A changed tool or failed refresh must never retain the previous tenant's
-    // endpoint or leave its reconfiguration action available.
-    setConnection(null);
-    setEditing(false);
-    setEndpoint('');
-    setConfirmed(false);
-    setSaved(false);
-    setSaveError(null);
-    setLoadError(false);
     if (!ready) return;
     const controller = new AbortController();
     void getVendorConnection(controller.signal).then((current) => {
