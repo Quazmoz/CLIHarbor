@@ -67,7 +67,87 @@ try {
         throw 'Failed frontend build touched the helper-owned PID marker.'
     }
 
-    Write-Host 'PASS: file invocation, inline checkout fallback, invalid root, and safe frontend build failure.'
+    # A failed second-stage Go compilation must not stop or mutate the
+    # previously running instance. The malformed PID marker detects any
+    # attempt to enter Stop-OwnedDev.
+    Set-Content -LiteralPath (Join-Path -Path $fakeBin -ChildPath 'go.cmd') -Value @(
+        '@echo off'
+        'if "%3"=="web-build" exit /b 0'
+        'if "%3"=="go-build-staged" exit /b 47'
+        'exit /b 98'
+    )
+    $stageFailure = $null
+    try {
+        $env:PATH = $fakeBin + [IO.Path]::PathSeparator + $previousPath
+        & $fixture | Out-Null
+    } catch {
+        $stageFailure = $_.Exception.Message
+    } finally {
+        $env:PATH = $previousPath
+    }
+    if ($stageFailure -notlike '*staged Go compilation failed (exit code 47)*') {
+        throw "Expected staged Go compilation failure, got: $stageFailure"
+    }
+    if ((Get-Content -LiteralPath $markerFile -Raw).Trim() -cne 'deliberately-invalid-marker') {
+        throw 'Failed staged Go compilation touched the helper-owned PID marker.'
+    }
+
+    # Even if a build task incorrectly reports success without emitting the
+    # requested binary, the helper must refuse to stop the existing instance.
+    Set-Content -LiteralPath (Join-Path -Path $fakeBin -ChildPath 'go.cmd') -Value @(
+        '@echo off'
+        'if "%3"=="web-build" exit /b 0'
+        'if "%3"=="go-build-staged" exit /b 0'
+        'exit /b 98'
+    )
+    $missingArtifact = $null
+    try {
+        $env:PATH = $fakeBin + [IO.Path]::PathSeparator + $previousPath
+        & $fixture | Out-Null
+    } catch {
+        $missingArtifact = $_.Exception.Message
+    } finally {
+        $env:PATH = $previousPath
+    }
+    if ($missingArtifact -notlike '*Staged CLIHarbor executable is missing*') {
+        throw "Expected missing staged artifact rejection, got: $missingArtifact"
+    }
+    if ((Get-Content -LiteralPath $markerFile -Raw).Trim() -cne 'deliberately-invalid-marker') {
+        throw 'Missing staged artifact touched the helper-owned PID marker.'
+    }
+
+    # -Pull must execute the newly checked-out version of the helper, not
+    # continue running the old parsed script after git updates it.
+    $reexecFixture = Join-Path -Path $tools -ChildPath 'updated-helper.ps1'
+    Set-Content -LiteralPath $reexecFixture -Value @(
+        'param([switch]$Pull)'
+        'if ($Pull) { throw ''updated helper was incorrectly reinvoked with -Pull'' }'
+        'throw ''updated-helper-executed'''
+    )
+    Set-Content -LiteralPath (Join-Path -Path $fakeBin -ChildPath 'git.cmd') -Value @(
+        '@echo off'
+        'if not "%1"=="pull" exit /b 96'
+        'copy /Y "%CLIHARBOR_TEST_UPDATED_HELPER%" "%CLIHARBOR_TEST_RUNNING_HELPER%" >nul'
+        'exit /b %errorlevel%'
+    )
+    $pullFailure = $null
+    try {
+        $env:CLIHARBOR_TEST_UPDATED_HELPER = $reexecFixture
+        $env:CLIHARBOR_TEST_RUNNING_HELPER = $fixture
+        $env:PATH = $fakeBin + [IO.Path]::PathSeparator + $previousPath
+        & $fixture -Pull | Out-Null
+    } catch {
+        $pullFailure = $_.Exception.Message
+    } finally {
+        $env:PATH = $previousPath
+        Remove-Item Env:CLIHARBOR_TEST_UPDATED_HELPER -ErrorAction SilentlyContinue
+        Remove-Item Env:CLIHARBOR_TEST_RUNNING_HELPER -ErrorAction SilentlyContinue
+    }
+    if ($pullFailure -ne 'updated-helper-executed') {
+        throw "Expected updated helper to execute after pull, got: $pullFailure"
+    }
+
+    Write-Host 'PASS: file/inline invocation, pull reexecution, invalid root, frontend failure, staged build failure, and missing artifact.'
 } finally {
     Set-Location -LiteralPath $initialLocation
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue

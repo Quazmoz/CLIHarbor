@@ -41,6 +41,8 @@ func main() {
 		err = check(root)
 	case "go-build":
 		err = goBuild(root)
+	case "go-build-staged":
+		err = goBuildStaged(root)
 	case "fixture-build":
 		_, err = fixtureBuild(root)
 	case "windows-eval":
@@ -63,7 +65,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|verify-web-sync|check|go-build|fixture-build|windows-eval|verify-windows-eval|verify-windows-eval-repro|build>")
+	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|verify-web-sync|check|go-build|go-build-staged|fixture-build|windows-eval|verify-windows-eval|verify-windows-eval-repro|build>")
 }
 
 func fatal(err error) {
@@ -187,6 +189,20 @@ func goBuild(root string) error {
 		return err
 	}
 	return writeSHA256Sums(artifact, checksum)
+}
+
+// goBuildStaged validates a replacement while the existing Windows executable
+// may still be running. Promotion and process ownership remain the restart
+// helper's responsibility; do not invalidate existing release checksums here.
+func goBuildStaged(root string) error {
+	if runtime.GOOS != "windows" {
+		return fmt.Errorf("go-build-staged is supported only on Windows")
+	}
+	artifact := filepath.Join(root, "bin", ".cliharbor-dev-next.exe")
+	if err := os.MkdirAll(filepath.Dir(artifact), 0o755); err != nil {
+		return err
+	}
+	return buildExecutable(root, artifact, "", "", "local-unsigned", "dev")
 }
 
 func fixtureBuild(root string) (string, error) {
