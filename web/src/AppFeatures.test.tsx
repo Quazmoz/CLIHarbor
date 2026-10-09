@@ -56,6 +56,39 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('Conjur migration inventory presets', () => {
+  test('opens only a backend-advertised read task with validated enum inputs, never a run', async () => {
+    window.history.replaceState({}, '', '/dedicated/conjur');
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/platforms') return Promise.resolve(response(200, { platforms: [{
+        id: 'conjur', name: 'CyberArk Conjur', summary: 'Reviewed workflows.',
+        packId: 'cyberark-conjur-v9', toolId: 'conjur', ready: true,
+        features: [{ id: 'tasks', name: 'Conjur tasks' }],
+      }] }));
+      if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [{
+        packId: 'cyberark-conjur-v9', packName: 'Conjur', toolId: 'conjur',
+        commandId: 'list-resources', name: 'List resources', risk: 'read', requiresAuth: true,
+        inputs: [
+          { id: 'kind', type: 'enum', label: 'Resource kind', validation: { enum: ['host', 'variable'] } },
+          { id: 'limit', type: 'enum', label: 'Page size', required: true, validation: { enum: ['25', '50', '100'] } },
+        ],
+      }] }));
+      return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'CyberArk Conjur' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Migration playbooks & templates' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Filtered variable inventory' }));
+
+    expect(window.location.pathname).toBe('/tasks');
+    expect(screen.getByRole('combobox', { name: 'Resource kind' })).toHaveValue('variable');
+    expect(screen.getByRole('combobox', { name: 'Page size' })).toHaveValue('25');
+    expect(fetchMock.mock.calls.every(([input]) => requestPath(input) !== '/api/v1/runs')).toBe(true);
+  });
+});
+
 describe('command preview and retry workflows', () => {
   test('built-in Conjur is only in the top bar while workspace navigation stays in the sidebar', async () => {
     window.history.replaceState({}, '', '/');
