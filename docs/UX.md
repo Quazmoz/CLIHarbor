@@ -6,6 +6,23 @@ CLIHarbor should make powerful CLI workflows feel like a deliberate operator con
 
 The UI should preserve the transparency and precision of a CLI while reducing memorization, typo risk, and context mistakes.
 
+## Conjur migration planning and templates
+
+The Conjur dedicated home has a collapsible **Migration playbooks & templates**
+workbench (not another global navigation destination). It groups pre-built,
+backend-advertised tasks into four operator-driven stages: inventory, access/LDAP
+comparison, destination preparation and cutover verification. Missing or
+risk-mismatched tasks remain visibly unavailable. These are shortcuts to the
+existing task form, not new browser execution authority.
+
+The workbench also constructs review-only, non-secret `!variable` and `!permit`
+policy fragments from strict input fields. It clearly distinguishes the policy
+branch from policy YAML, exposes one manual copy action, and links into the
+existing approval-gated create/grant task forms with validated, prefilled
+inputs. No task runs without an explicit operator action on the task page,
+backend preview and authorization. Secret values are never accepted by the
+template builder, cached in a migration plan, or exported.
+
 ## 2. Core navigation
 
 The left sidebar is reserved for the standard **CLI workspace** routes. **Built-in CLIs** appears only in the top bar alongside **Other CLIs**; it must never be duplicated in the left navigation:
