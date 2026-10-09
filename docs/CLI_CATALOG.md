@@ -58,7 +58,7 @@ kubectl needs its normal kubeconfig/context and cluster access.
 
 ## Artifact evidence
 
-Reviewed 2026-10-06. Pins are in `packs/conjur/conjur-v9.yaml` (pack 0.5.0),
+Portable artifact pins reviewed 2026-10-06. Current declarations are in `packs/conjur/conjur-v9.yaml` (pack 0.7.0),
 `packs/kubectl/kubectl.yaml` (pack 0.4.0), and `packs/github/github.yaml`
 (pack 0.2.0); the existing pack schema is unchanged. Conjur macOS pins use
 the official v9.3.1 release API digest and exact size. Its install version matches
