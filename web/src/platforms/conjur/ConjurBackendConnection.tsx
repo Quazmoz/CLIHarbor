@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { configureCredentialConnection, getVendorConnection, type VendorConnection } from '../../api/authentication';
 import { normalizeError } from '../../api/errors';
 import type { SignInContext } from '../../AuthenticationPage';
@@ -34,12 +34,21 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [readRevision, setReadRevision] = useState(0);
+  const saveInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!ready) return;
     const controller = new AbortController();
     void getVendorConnection(controller.signal).then((current) => {
       if (controller.signal.aborted) return;
+      setLoadError(false);
       setConnection(current);
       setEditing(current.environment === 'unconfigured' && current.configurable);
       setEndpoint(current.environment === 'saas' ? current.applianceUrl : '');
@@ -51,7 +60,7 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
       setLoadError(true);
     });
     return () => controller.abort();
-  }, [ready, tool.packId, tool.toolId, tool.packVersion]);
+  }, [ready, tool.packId, tool.toolId, tool.packVersion, readRevision]);
 
   if (!ready) return null;
   const existingURL = connection?.environment === 'saas' ? connection.applianceUrl : '';
@@ -60,7 +69,8 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
   const canSave = connection?.configurable === true && normalizedURL !== null &&
     normalizedURL !== existingURL && (!replacing || confirmed) && !saving;
   const save = async () => {
-    if (!canSave || normalizedURL === null || !connection) return;
+    if (!canSave || normalizedURL === null || !connection || saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     setSaving(true);
     setSaveError(null);
     setSaved(false);
@@ -79,7 +89,9 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
       });
       // Do not claim success from the init process alone: reconcile effective
       // vendor configuration and invalidate stale session evidence first.
+      if (!mountedRef.current) return;
       const updated = await getVendorConnection();
+      if (!mountedRef.current) return;
       if (updated.environment !== 'saas' || updated.applianceUrl !== normalizedURL) {
         setSaveError('The CLI did not report the requested endpoint. Inspect the official Conjur configuration.');
         return;
@@ -91,9 +103,20 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
       setSaved(true);
       onToolsChanged?.();
     } catch (error) {
-      setSaveError(normalizeError(error).detail.message);
+      // A request can time out after vendor init committed its configuration.
+      // Hide previously read endpoint/approval evidence until an authoritative
+      // reread; never let the operator retry against an assumed old target.
+      if (mountedRef.current) {
+        setSaveError(normalizeError(error).detail.message);
+        setConnection(null);
+        setEditing(false);
+        setEndpoint('');
+        setConfirmed(false);
+        setLoadError(true);
+      }
     } finally {
-      setSaving(false);
+      saveInFlightRef.current = false;
+      if (mountedRef.current) setSaving(false);
     }
   };
 
@@ -117,7 +140,19 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
           <p>Environment: {connection.environment} · Account: {connection.account || 'Not configured'}</p>
         </div>
       )}
-      {loadError && <p className="credential-login-help">Unable to read the current vendor configuration. Review Diagnostics; no settings were changed.</p>}
+      {loadError && (
+        <div className="credential-login-error" role="alert">
+          <p>Unable to read the current vendor configuration. The active endpoint is unverified; review Diagnostics before retrying a change.</p>
+          {saveError && <p>{saveError}</p>}
+          <button type="button" className="secondary-button" disabled={saving}
+            onClick={() => {
+              invalidateSession?.();
+              setLoadError(false);
+              setSaveError(null);
+              setReadRevision((previous) => previous + 1);
+            }}>Retry reading CLI configuration</button>
+        </div>
+      )}
       {connection?.configurable === false && (
         <p className="credential-login-help">
           This configuration cannot be changed through the SaaS wizard. Existing self-hosted,

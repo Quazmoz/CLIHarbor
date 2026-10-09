@@ -256,6 +256,46 @@ describe('Conjur API backend connection', () => {
     expect(reads).toBe(2);
   });
 
+  test('hides stale endpoint after a timed-out write until authoritative reread', async () => {
+    let reads = 0;
+    let writes = 0;
+    const invalidate = vi.fn();
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        writes += 1;
+        // The request failed after vendor init may already have persisted a new endpoint.
+        return Promise.reject(new Error('connection interrupted after vendor write'));
+      }
+      reads += 1;
+      return Promise.resolve(response({
+        environment: 'saas', applianceUrl: reads === 1 ? old : next,
+        account: 'conjur', configurable: true,
+      }));
+    }));
+
+    render(<ConjurBackendConnection status={status} tool={tool} ready
+      invalidateSession={invalidate} />);
+    expect(await screen.findByText(old)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Change API endpoint' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Secrets Manager API URL' }), {
+      target: { value: next },
+    });
+    fireEvent.click(screen.getByRole('checkbox', { name: /replace the existing vendor CLI connection/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Replace CLI API endpoint' }));
+
+    expect(await screen.findByText(/Unable to read the current vendor configuration/)).toBeInTheDocument();
+    expect(screen.queryByText(old)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change API endpoint' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Replace CLI API endpoint' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry reading CLI configuration' }));
+    expect(await screen.findByText(next)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change API endpoint' })).toBeEnabled();
+    expect(reads).toBe(2);
+    expect(writes).toBe(1);
+    expect(invalidate).toHaveBeenCalledTimes(2);
+  });
+
   test('does not offer reconfiguration for an unsupported externally managed mode', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response({
       environment: 'other', applianceUrl: 'https://custom.example.test',
