@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { fetchTasks } from './tasks';
+import { fetchTasks, type Task } from './tasks';
 
 afterEach(() => vi.unstubAllGlobals());
 
-function task(commandId: string, packId = 'fixture') {
+function task(commandId: string, packId = 'fixture'): Task {
   return {
     packId,
     packName: packId,
