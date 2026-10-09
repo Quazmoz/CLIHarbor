@@ -5,7 +5,7 @@ CLIHarbor uses the same Go runtime, embedded React UI, loopback security, truste
 ## Normal macOS startup
 
 ```bash
-go run ./tools/task go-build
+go run ./tools/task build
 ./bin/cliharbor self-test
 ./bin/cliharbor doctor
 ./bin/cliharbor serve --no-auto-setup
@@ -38,7 +38,7 @@ macOS/Linux groups clean up descendants that retain their process group on cance
 
 ## Builds and verification
 
-`go run ./tools/task go-build` builds for the native Go host and writes `bin/SHA256SUMS`. CI runs quality checks on Windows/macOS/Linux, the production Chrome browser gate on macOS/Linux, and the existing Windows evaluation qualification. The macOS quality job uploads an unsigned native executable plus its checksum as `cliharbor-macos-<runner-arch>-<commit-sha>`; it is not the Windows evaluation bundle.
+`go run ./tools/task build` runs the frontend checks, rebuilds embedded assets, then builds for the native Go host and writes `bin/SHA256SUMS`. The narrower `go-build` command compiles against existing embedded assets and does not regenerate the UI. When explicitly authorized and manually dispatched, CI runs quality checks on Windows/macOS/Linux, the production Chrome browser gate on macOS/Linux, and the existing Windows evaluation qualification. The macOS quality job uploads an unsigned native executable plus its checksum as `cliharbor-macos-<runner-arch>-<commit-sha>`; it is not the Windows evaluation bundle.
 
 For an explicit Intel or Apple Silicon build from macOS:
 
