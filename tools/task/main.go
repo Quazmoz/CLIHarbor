@@ -150,6 +150,9 @@ func check(root string) error {
 }
 
 func verifyWebSync(root string) error {
+	if err := verifyWebSourceFingerprint(root); err != nil {
+		return err
+	}
 	cmd := exec.Command("git", "status", "--porcelain=v1", "--untracked-files=all", "--", "internal/webui/static")
 	cmd.Dir = root
 	output, err := cmd.CombinedOutput()
@@ -579,6 +582,10 @@ func syncWeb(root string) error {
 	if err := copyTree(source, staging); err != nil {
 		_ = os.RemoveAll(staging)
 		return err
+	}
+	if err := writeWebSourceFingerprint(root, staging); err != nil {
+		_ = os.RemoveAll(staging)
+		return fmt.Errorf("record frontend source fingerprint: %w", err)
 	}
 
 	hadDestination := true

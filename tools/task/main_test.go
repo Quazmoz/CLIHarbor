@@ -245,6 +245,9 @@ func TestSyncWebReplacesTreeAndRemovesStaleAssets(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(source, "assets"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(root, "web", "package.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.MkdirAll(filepath.Join(destination, "assets"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -306,6 +309,15 @@ func TestVerifyWebSyncDetectsTrackedAndUntrackedDrift(t *testing.T) {
 	}
 	tracked := filepath.Join(staticDir, "index.html")
 	if err := os.WriteFile(tracked, []byte("baseline"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "web"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "web", "package.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeWebSourceFingerprint(root, staticDir); err != nil {
 		t.Fatal(err)
 	}
 
