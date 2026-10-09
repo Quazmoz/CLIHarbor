@@ -481,6 +481,22 @@ Backend regressions cover the original reference detector, custom exact/contains
 
 Component acceptance covers the audit link beneath Conjur, canonical route and focus, editable backend URL, scan-type controls, consent reset, request shape, match labels, and clearing scan text after start. The production Chrome harness verifies the configured URL default, custom regex submission, backend mismatch refusal, and responsive layout at 1,024/390/320 pixels. The old route remains covered by embedded-frontend routing tests. These fixtures do not qualify a real Conjur appliance or native Windows interaction.
 
+## Shared CLI task catalog integrity
+
+The frontend `/api/v1/tasks` client rejects duplicate pack/command identities
+(across all supported CLIs), duplicate or malformed input IDs, task forms
+exceeding the pack's 64-input bound, contradictory numeric and length bounds,
+unsafe/nonintegral numeric constraints, and malformed or duplicate enum
+options. It rejects unrecognized validation metadata rather than silently
+discarding rules that the operator expects the browser to enforce.
+Distinct packs may legitimately reuse the same command ID; risk/impact
+validation and all backend execution-authority checks remain in force.
+
+These regressions are frontend contract tests: they don't grant execution
+authority or replace live vendor qualification. A malformed catalog
+fails closed with `invalid_response` rather than partially rendering
+an ambiguous task selector.
+
 ## Global quick-task navigation acceptance
 
 The header Find task shortcut and Ctrl/Command+K modal consume only the server-authorized task list. React tests validate multi-term search, favorite/recent ordering, auth/risk labels, empty catalogs, typed-input shortcut suppression, and selecting a task without issuing run/preview API calls. The production-embedded Chrome E2E opens the native modal, searches a fixture task, checks its 320 px layout, and confirms that selection returns to the existing task form with no execution side effect. The existing task-catalog `/` shortcut must not focus background inputs while this modal is open.
