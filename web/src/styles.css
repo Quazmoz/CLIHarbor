@@ -3117,3 +3117,20 @@ footer p {
   .conjur-access { padding-inline: 1rem; }
   .conjur-access .platform-toolbox-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Conjur migration preparation remains within the dedicated integration. */
+.conjur-migration-details > summary { cursor: pointer; font-weight: 700; color: var(--text-strong); padding: 0.4rem 0; }
+.conjur-migration { margin-top: 1rem; }
+.conjur-migration .route-heading h3 { margin: 0.3rem 0; }
+.conjur-migration-stage { border: 1px solid var(--border); border-radius: 0.55rem; padding: 1rem; }
+.conjur-migration-stage h4, .conjur-migration-template h4 { margin: 0 0 0.6rem; color: var(--text-strong); }
+.conjur-migration-stage p { color: var(--text-muted); font-size: 0.84rem; line-height: 1.5; }
+.conjur-migration-actions { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 0.75rem; }
+.conjur-migration-actions button { text-align: left; max-width: 100%; }
+.conjur-migration-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 0.85rem; margin: 1rem 0; }
+.conjur-migration-form label, .conjur-migration-preview { display: grid; gap: 0.4rem; font-size: 0.86rem; }
+.conjur-migration-form input, .conjur-migration-form select, .conjur-migration-preview textarea {
+  width: 100%; min-width: 0; padding: 0.65rem; border: 1px solid var(--border-strong);
+  border-radius: 0.4rem; background: var(--surface); color: var(--text-strong);
+}
+.conjur-migration-preview textarea { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.82rem; }
