@@ -143,14 +143,16 @@ describe('Conjur API backend connection', () => {
     expect(screen.queryByText(/endpoint saved and verified/i)).not.toBeInTheDocument();
   });
 
-  test('does not claim success if post-init vendor readback disagrees', async () => {
+  test('does not claim success or retain the old endpoint if vendor readback disagrees', async () => {
     const invalidate = vi.fn();
+    const unexpected = 'https://unexpected.secretsmgr.cyberark.cloud/api';
     let reads = 0;
     vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'POST') return Promise.resolve(new Response(null, { status: 204 }));
       reads += 1;
       return Promise.resolve(response({
-        environment: 'saas', applianceUrl: old, account: 'conjur', configurable: true,
+        environment: 'saas', applianceUrl: reads === 1 ? old : unexpected,
+        account: 'conjur', configurable: true,
       }));
     }));
     render(<ConjurBackendConnection status={status} tool={tool} ready invalidateSession={invalidate} />);
@@ -164,6 +166,9 @@ describe('Conjur API backend connection', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('The CLI did not report the requested endpoint');
     expect(invalidate).toHaveBeenCalledTimes(1);
     expect(reads).toBe(2);
+    expect(screen.getByText(unexpected)).toBeInTheDocument();
+    expect(screen.queryByText(old)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Replace CLI API endpoint' })).not.toBeInTheDocument();
     expect(screen.queryByText(/endpoint saved and verified/i)).not.toBeInTheDocument();
   });
 

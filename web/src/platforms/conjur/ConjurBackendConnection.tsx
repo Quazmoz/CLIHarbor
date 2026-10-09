@@ -93,7 +93,14 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
       const updated = await getVendorConnection();
       if (!mountedRef.current) return;
       if (updated.environment !== 'saas' || updated.applianceUrl !== normalizedURL) {
+        // The vendor configuration is authoritative even when it differs from
+        // the attempted write. Never leave the old confirmation actionable.
+        setConnection(updated);
+        setEndpoint(updated.environment === 'saas' ? updated.applianceUrl : '');
+        setEditing(false);
+        setConfirmed(false);
         setSaveError('The CLI did not report the requested endpoint. Inspect the official Conjur configuration.');
+        onToolsChanged?.();
         return;
       }
       setConnection(updated);
@@ -160,6 +167,7 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
         </p>
       )}
       {saved && <p role="status">Conjur API endpoint saved and verified. Sign in again and check the session before running tasks.</p>}
+      {!loadError && saveError && <p className="credential-login-error" role="alert">{saveError}</p>}
       {connection?.configurable && !editing && (
         <button type="button" className="secondary-button" onClick={() => { setEditing(true); setSaved(false); setSaveError(null); }}>
           Change API endpoint
@@ -185,7 +193,6 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
               <span>I understand that this will replace the existing vendor CLI connection. I will sign in again to verify the new tenant.</span>
             </label>
           )}
-          {saveError && <p className="credential-login-error" role="alert">{saveError}</p>}
           <div className="credential-login-actions">
             <button type="submit" disabled={!canSave}>{saving ? 'Configuring API endpoint…' : replacing ? 'Replace CLI API endpoint' : 'Configure CLI API endpoint'}</button>
             {replacing && <button type="button" className="secondary-button" disabled={saving}
