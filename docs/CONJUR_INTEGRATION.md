@@ -113,6 +113,39 @@ The trusted pack records fixed `--help` evidence probes for the root, `list`, `r
 
 Windows evaluation CI also runs the exact pinned v9.3.1 binary through the `list` help probe and requires the Stage 5 `--members-of`, `--permitted-roles`, and `--privilege` flags to remain present. This checks the reviewed release directly rather than relying only on historical documentation.
 
+## GUI migration workbench (preparation only)
+
+Open **Built-in CLIs → CyberArk Conjur → Migration playbooks & templates**.
+Four guided playbooks launch only backend-advertised approved Conjur tasks: source inventory
+(bounded variable/policy pages and counts), role and LDAP mapping comparison,
+destination preparation, and post-cutover verification. Tasks absent from the
+server catalog are disabled, not simulated. Each button opens the ordinary CLIHarbor
+task form; no Conjur command is executed simply by opening a playbook.
+
+The **policy template builder** creates non-secret, review-only YAML fragments from
+the already qualified `!variable` and `!permit` statement shapes. It supports
+variable declaration, access grant, or declaration plus grant, and collects an
+explicit policy branch, variable ID, role kind/ID and fixed privilege selection.
+Identifiers are length-bounded single-line scalars and serialized as quoted YAML;
+malformed values cannot produce a draft. The branch is deliberately shown
+**outside** the YAML because it belongs to the reviewed Conjur `policy update --branch`
+operation, not to a policy statement. The copy action requires an explicit click.
+
+**Review variable creation** and **Review access grant** send only validated
+prefill candidates into the existing task form. The user must verify the target
+environment, request the backend preview, and complete the existing approval gate
+before any change can run. The builder does not submit its YAML to Conjur:
+CLIHarbor's backend still generates the authoritative fixed template. A template
+is not evidence of environment compatibility, server-side dry-run, or successful
+migration. There is no secret extraction, automatic source/destination connection,
+bulk execution, unattended migration, or rollback automation.
+
+Migration acceptance: test template shape and identifier validation, prevent
+cross-pack task spoofing, disable unavailable tasks, verify enum/string prefill
+boundaries, and prove that opening a playbook or template never calls a run
+endpoint. After source changes rebuild the embedded frontend; native Windows
+and Conjur-environment acceptance remain required.
+
 ## Implemented browser workflows
 
 The current pack exposes reviewed non-secret reads and separately approved change/destructive workflows:
