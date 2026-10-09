@@ -1,6 +1,6 @@
 # CLIHarbor Quickstart
 
-For macOS setup and local development, see [Windows and macOS setup](docs/CROSS_PLATFORM.md). From a checkout with the pinned Go and Node/npm toolchains, `go run ./tools/task build` validates and embeds the frontend and builds the native CLIHarbor executable; start it with `./bin/cliharbor serve --no-auto-setup` on macOS/Linux or `.\\bin\\cliharbor.exe serve --no-auto-setup` on Windows. This does not install a vendor CLI.
+For macOS setup and local development, see [Windows and macOS setup](docs/CROSS_PLATFORM.md). From a checkout with the pinned Go and Node/npm toolchains, `go run ./tools/task build` validates and embeds the frontend and builds the native CLIHarbor executable; start it with `./bin/cliharbor serve --no-auto-setup` on macOS/Linux or `.\bin\cliharbor.exe serve --no-auto-setup` on Windows. This does not install a vendor CLI.
 
 The normal Windows path is intentionally simple: **download CLIHarbor once, extract it, run preflight, then start CLIHarbor with no pack or Conjur install arguments.** CLIHarbor carries its reviewed Conjur pack inside the executable and can provision the pinned official Conjur CLI for the current user when Conjur is genuinely missing.
 
