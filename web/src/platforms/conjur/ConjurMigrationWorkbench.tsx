@@ -48,6 +48,81 @@ export function generateConjurPolicyDraft(draft: MigrationDraft): string | null 
   return lines.join('\n') + '\n';
 }
 
+type TemplateCategory = 'all' | 'variables' | 'access' | 'identity';
+
+interface PolicyStarter {
+  id: string;
+  category: 'variables' | 'access';
+  title: string;
+  description: string;
+  kind: TemplateKind;
+  roleKind: RoleKind;
+  privileges: Privileges;
+}
+
+interface MappingStarter {
+  id: string;
+  category: 'identity';
+  title: string;
+  description: string;
+  taskId: 'ldap-group-create' | 'ldap-user-create';
+}
+
+type GalleryStarter = PolicyStarter | MappingStarter;
+
+// These are presentation presets, not new Conjur policy statements or executable
+// commands. Identifier fields are intentionally cleared on every selection.
+const templateGallery: GalleryStarter[] = [
+  {
+    id: 'application-onboarding', category: 'variables',
+    title: 'Application secret onboarding',
+    description: 'Declare one application variable and prepare read/execute access for its consuming group.',
+    kind: 'variable-grant', roleKind: 'group', privileges: 'read, execute',
+  },
+  {
+    id: 'database-credential', category: 'variables',
+    title: 'Database credential variable',
+    description: 'Declare a database credential variable without a value. Set its value separately using the approved task.',
+    kind: 'variable', roleKind: 'group', privileges: 'read, execute',
+  },
+  {
+    id: 'service-access', category: 'access',
+    title: 'Service identity access',
+    description: 'Prepare read/execute permission for one existing host identity on an existing variable.',
+    kind: 'grant', roleKind: 'host', privileges: 'read, execute',
+  },
+  {
+    id: 'developer-metadata', category: 'access',
+    title: 'Developer metadata access',
+    description: 'Prepare read-only metadata access for a group; do not grant secret-value execution.',
+    kind: 'grant', roleKind: 'group', privileges: 'read',
+  },
+  {
+    id: 'environment-layer', category: 'variables',
+    title: 'Environment-scoped application',
+    description: 'Declare a variable and prepare access for a layer, using a branch explicitly chosen for this environment.',
+    kind: 'variable-grant', roleKind: 'layer', privileges: 'read, execute',
+  },
+  {
+    id: 'rotation-operator', category: 'access',
+    title: 'Credential rotation operator',
+    description: 'Prepare update privilege for a group. This is high-impact access; review scope and account carefully.',
+    kind: 'grant', roleKind: 'group', privileges: 'update',
+  },
+  {
+    id: 'ldap-group', category: 'identity',
+    title: 'LDAP group mapping',
+    description: 'Open the approved Conjur group-to-role mapping form. No policy YAML is generated.',
+    taskId: 'ldap-group-create',
+  },
+  {
+    id: 'ldap-user', category: 'identity',
+    title: 'LDAP user mapping',
+    description: 'Open the approved LDAP user-to-role mapping form. No policy YAML is generated.',
+    taskId: 'ldap-user-create',
+  },
+];
+
 interface TaskShortcut {
   id: string;
   label: string;
@@ -114,6 +189,8 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
     roleKind: 'group', roleId: '', privileges: 'read, execute',
   });
   const [copyStatus, setCopyStatus] = useState('');
+  const [templateCategory, setTemplateCategory] = useState<TemplateCategory>('all');
+  const [selectedTemplateID, setSelectedTemplateID] = useState<string | null>(null);
   const yaml = generateConjurPolicyDraft(draft);
   const availableTasks = tasks.filter((task) => task.packId === packId && task.toolId === toolId);
   const findTask = (id: string, risk: TaskRisk) =>
@@ -127,7 +204,21 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
 
   const update = <K extends keyof MigrationDraft>(key: K, value: MigrationDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
+    setSelectedTemplateID(null);
     setCopyStatus('');
+  };
+
+  const usePolicyTemplate = (template: PolicyStarter) => {
+    setDraft({
+      kind: template.kind,
+      branch: '',
+      variableId: '',
+      roleKind: template.roleKind,
+      roleId: '',
+      privileges: template.privileges,
+    });
+    setCopyStatus('');
+    setSelectedTemplateID(template.id);
   };
 
   return (
@@ -158,6 +249,52 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
           </section>
         ))}
       </div>
+      <section className="platform-toolbox-section conjur-template-gallery" aria-label="Conjur template gallery">
+        <h4>Template gallery</h4>
+        <p>Choose a reviewed starter. Policy templates use only the existing variable and permission shapes;
+          LDAP starters open an approved task form. Selection clears previous policy identifiers, not vendor state.
+          None of these templates runs a command or transfers secret values.</p>
+        <label className="conjur-template-category">Browse templates
+          <select value={templateCategory} onChange={(event) =>
+            setTemplateCategory(event.target.value as TemplateCategory)}>
+            <option value="all">All templates</option>
+            <option value="variables">Variables and applications</option>
+            <option value="access">Access permissions</option>
+            <option value="identity">LDAP mappings</option>
+          </select>
+        </label>
+        <div className="conjur-template-grid">
+          {templateGallery.filter((template) => templateCategory === 'all' ||
+            template.category === templateCategory).map((template) => {
+            const mapping = 'taskId' in template;
+            const available = !mapping || findTask(template.taskId, 'change') !== undefined;
+            return (
+              <article key={template.id}
+                className={'conjur-template-card' +
+                  (selectedTemplateID === template.id ? ' conjur-template-card--selected' : '')}>
+                <h5>{template.title}</h5>
+                <p>{template.description}</p>
+                <small>{mapping ? 'Approved mapping form · change approval' : 'Non-secret policy starter · review required'}</small>
+                <button type="button" className="secondary-button"
+                  disabled={!available}
+                  aria-pressed={!mapping && selectedTemplateID === template.id}
+                  onClick={() => {
+                    if (mapping) {
+                      openApproved({ id: template.taskId, label: template.title, risk: 'change' });
+                    } else {
+                      usePolicyTemplate(template);
+                    }
+                  }}>
+                  {mapping ? available ? 'Open ' + template.title : 'Unavailable in task catalog' :
+                    'Use ' + template.title}
+                </button>
+              </article>
+            );
+          })}
+        </div>
+        {selectedTemplateID !== null &&
+          <p role="status">Template loaded. Enter the policy branch and identifiers below; nothing has been submitted.</p>}
+      </section>
       <section className="platform-toolbox-section conjur-migration-template" aria-label="Policy template builder">
         <h4>Draft a reviewed policy fragment</h4>
         <p>Only reviewed <code>!variable</code> and <code>!permit</code> shapes are offered.
