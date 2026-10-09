@@ -48,9 +48,8 @@ describe('custom CLI pack wizard', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Download pack draft (.yaml)' }));
       expect(screen.getByRole('alert')).toHaveTextContent('Your browser could not start the download');
-      expect(screen.getByLabelText('Generated YAML — no runnable tasks')).toHaveValue(
-        expect.stringContaining('commands: {}'),
-      );
+      expect((screen.getByLabelText('Generated YAML — no runnable tasks') as HTMLTextAreaElement).value)
+        .toContain('commands: {}');
       expect(screen.queryByText('Draft download started. This file has not been validated, trusted, or loaded.'))
         .not.toBeInTheDocument();
 
