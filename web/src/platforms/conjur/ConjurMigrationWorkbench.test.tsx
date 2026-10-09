@@ -133,6 +133,7 @@ test('loading a policy starter resets stale identifiers and requires fresh scope
   const useTemplate = within(gallery).getByRole('button', { name: 'Use Developer metadata access' });
   fireEvent.click(useTemplate);
   expect(useTemplate).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('heading', { name: 'Draft a reviewed policy fragment' })).toHaveFocus();
   expect(screen.getByRole('combobox', { name: 'Template' })).toHaveValue('grant');
   expect(screen.getByRole('combobox', { name: 'Role kind' })).toHaveValue('group');
   expect(screen.getByRole('combobox', { name: 'Privileges' })).toHaveValue('read');
