@@ -61,3 +61,22 @@ test('Conjur environment overview clears stale account and endpoint on unavailab
   expect(screen.queryByText('previous')).not.toBeInTheDocument();
   expect(screen.getAllByText('Not available')).toHaveLength(2);
 });
+
+test('Conjur homepage reveals migration playbooks without dispatching any CLI operation', () => {
+  const onOpenTask = vi.fn();
+  const props = {
+    platform, tasks, onOpenFeature: vi.fn(), onOpenDiagnostics: vi.fn(), onOpenTask,
+  };
+  render(<PlatformPage {...props} />);
+  const section = document.getElementById('conjur-migration');
+  expect(section).not.toBeNull();
+  expect(section).not.toHaveAttribute('open');
+  fireEvent.click(screen.getByRole('button', { name: 'Migration playbooks & templates' }));
+  expect(section).toHaveAttribute('open');
+  expect(screen.getByRole('heading', { name: 'Migration playbooks and policy templates' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Variable IDs · unavailable' })).not.toBeInTheDocument();
+  const stage = screen.getByRole('region', { name: '1 · Inventory the source' });
+  expect(within(stage).getByRole('button', { name: 'Variable IDs' })).toBeEnabled();
+  fireEvent.click(within(stage).getByRole('button', { name: 'Variable IDs' }));
+  expect(onOpenTask).toHaveBeenCalledExactlyOnceWith('cyberark-conjur-v9/list-variables', undefined);
+});
