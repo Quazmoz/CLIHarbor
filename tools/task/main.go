@@ -174,6 +174,9 @@ func goBuild(root string) error {
 	}
 	artifact := filepath.Join(root, "bin", name)
 	checksum := filepath.Join(root, "bin", "SHA256SUMS")
+	if err := validateBuildDestination(artifact); err != nil {
+		return err
+	}
 	if err := removeGeneratedChecksum(filepath.Join(root, evaluationManifestName)); err != nil {
 		return err
 	}
@@ -193,6 +196,9 @@ func fixtureBuild(root string) (string, error) {
 	}
 	artifact := filepath.Join(root, "bin", name)
 	if err := os.MkdirAll(filepath.Dir(artifact), 0o755); err != nil {
+		return "", err
+	}
+	if err := validateBuildDestination(artifact); err != nil {
 		return "", err
 	}
 	return artifact, run(root, "go", "build", "-trimpath", "-o", artifact, "./cmd/cliharbor-fixture")
@@ -243,6 +249,29 @@ func windowsEvalBuild(root string) error {
 	return verifyWindowsEvaluation(root)
 }
 
+// validateBuildDestination rejects redirected or special-file build targets before
+// an external build command can write outside the intended artifact directory.
+func validateBuildDestination(artifact string) error {
+	parent, err := os.Lstat(filepath.Dir(artifact))
+	if err != nil {
+		return fmt.Errorf("inspect build output directory: %w", err)
+	}
+	if !parent.IsDir() || parent.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("build output directory must be a real, non-symlink directory")
+	}
+	info, err := os.Lstat(artifact)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect existing build output: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("build output must be a regular file, not a symlink or special file")
+	}
+	return nil
+}
+
 func buildExecutable(root, artifact, goos, goarch, mode, defaultVersion string) error {
 	return buildExecutableWithEnv(root, artifact, goos, goarch, mode, defaultVersion, nil)
 }
@@ -254,6 +283,9 @@ func buildExecutableWithEnv(
 	binDir := filepath.Dir(artifact)
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return fmt.Errorf("create bin directory: %w", err)
+	}
+	if err := validateBuildDestination(artifact); err != nil {
+		return err
 	}
 	version := os.Getenv("CLIHARBOR_VERSION")
 	if version == "" {
