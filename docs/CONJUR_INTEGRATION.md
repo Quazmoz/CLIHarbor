@@ -122,6 +122,26 @@ destination preparation, and post-cutover verification. Tasks absent from the
 server catalog are disabled, not simulated. Each button opens the ordinary CLIHarbor
 task form; no Conjur command is executed simply by opening a playbook.
 
+### Curated template gallery
+
+The migration workbench now includes a **Template gallery** with category filters.
+Policy starters cover application secret onboarding, database credential variables,
+service identity access, developer metadata-only access, environment-scoped
+application variables, and a deliberately labeled higher-privilege credential
+rotation operator grant. Each selection chooses one of the existing reviewed
+`!variable` / `!permit` shapes, role kinds and privilege enums; it **clears**
+the policy branch, variable ID and role ID rather than carrying values from a
+previous template. The operator must enter the identifiers explicitly and review
+the resulting non-secret policy YAML. Combined templates are only review drafts:
+create and grant remain separate approval-gated tasks.
+
+Two additional cards link to the existing approved LDAP group/user mapping forms;
+these **do not** generate policy YAML or prefill usernames, groups, service IDs,
+or role lists. The cards remain disabled unless the backend advertises the exact
+Conjur tool, command and change-risk contract. Selecting a template never performs
+a Conjur operation; the backend still generates authoritative policy statements
+and enforces review, target verification and individual approvals.
+
 The **policy template builder** creates non-secret, review-only YAML fragments from
 the already qualified `!variable` and `!permit` statement shapes. It supports
 variable declaration, access grant, or declaration plus grant, and collects an
