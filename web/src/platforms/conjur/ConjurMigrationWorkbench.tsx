@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Task, TaskRisk } from '../../api/tasks';
 
 /**
@@ -189,6 +189,7 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
     roleKind: 'group', roleId: '', privileges: 'read, execute',
   });
   const [copyStatus, setCopyStatus] = useState('');
+  const policyHeadingRef = useRef<HTMLHeadingElement>(null);
   const [templateCategory, setTemplateCategory] = useState<TemplateCategory>('all');
   const [selectedTemplateID, setSelectedTemplateID] = useState<string | null>(null);
   const yaml = generateConjurPolicyDraft(draft);
@@ -219,6 +220,7 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
     });
     setCopyStatus('');
     setSelectedTemplateID(template.id);
+    policyHeadingRef.current?.focus();
   };
 
   return (
@@ -296,7 +298,7 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
           <p role="status">Template loaded. Enter the policy branch and identifiers below; nothing has been submitted.</p>}
       </section>
       <section className="platform-toolbox-section conjur-migration-template" aria-label="Policy template builder">
-        <h4>Draft a reviewed policy fragment</h4>
+        <h4 ref={policyHeadingRef} tabIndex={-1}>Draft a reviewed policy fragment</h4>
         <p>Only reviewed <code>!variable</code> and <code>!permit</code> shapes are offered.
           This preview is not submitted, checked against a Conjur server, or automatically run.
           Never enter secret values. Resource IDs are relative to the selected policy branch.</p>
