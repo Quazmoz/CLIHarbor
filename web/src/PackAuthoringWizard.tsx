@@ -22,24 +22,33 @@ export function PackAuthoringWizard({ registeredPackIds }: PackAuthoringWizardPr
   const [expanded, setExpanded] = useState(false);
   const [fields, setFields] = useState<DraftFields>(defaultDraft);
   const [downloaded, setDownloaded] = useState(false);
+  const [downloadFailed, setDownloadFailed] = useState(false);
   const { yaml, issues } = preparePackDraft(fields, registeredPackIds);
   const fileName = fields.packId.trim() + '.yaml';
   const setField = (key: 'packId' | 'name' | 'toolId' | 'executable', value: string) => {
     setFields((current) => ({ ...current, [key]: value }));
     setDownloaded(false);
+    setDownloadFailed(false);
   };
   const issueFor = (field: keyof DraftFields) => issues.find((issue) => issue.field === field)?.message;
   const download = () => {
     if (yaml === null) return;
-    const objectURL = URL.createObjectURL(new Blob([yaml], { type: 'application/yaml;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = objectURL;
-    link.download = fileName;
+    let objectURL: string | null = null;
     try {
+      objectURL = URL.createObjectURL(new Blob([yaml], { type: 'application/yaml;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = objectURL;
+      link.download = fileName;
       link.click();
       setDownloaded(true);
+      setDownloadFailed(false);
+    } catch {
+      setDownloaded(false);
+      setDownloadFailed(true);
     } finally {
-      URL.revokeObjectURL(objectURL);
+      if (objectURL !== null) {
+        try { URL.revokeObjectURL(objectURL); } catch { /* Best-effort browser cleanup. */ }
+      }
     }
   };
 
@@ -99,6 +108,7 @@ export function PackAuthoringWizard({ registeredPackIds }: PackAuthoringWizardPr
                           : current.platforms.filter((platform) => platform !== id),
                       }));
                       setDownloaded(false);
+                      setDownloadFailed(false);
                     }} />
                   {label}
                 </label>
@@ -119,6 +129,7 @@ export function PackAuthoringWizard({ registeredPackIds }: PackAuthoringWizardPr
             )}
             <button type="button" disabled={yaml === null} onClick={download}>Download pack draft (.yaml)</button>
             {downloaded && <p role="status">Draft download started. This file has not been validated, trusted, or loaded.</p>}
+            {downloadFailed && <p role="alert">Your browser could not start the download. Select and copy the non-executable YAML preview above, then save it as a .yaml file using approved software.</p>}
           </div>
           <div className="pack-authoring-next">
             <h4>4. Validate and enable intentionally</h4>
