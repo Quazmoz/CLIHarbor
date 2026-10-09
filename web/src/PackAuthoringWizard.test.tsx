@@ -31,4 +31,38 @@ describe('custom CLI pack wizard', () => {
     expect(screen.getByText(/not a path, script, shell/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download pack draft (.yaml)' })).toBeDisabled();
   });
+  test('recovers from a blocked browser download and retains the inert YAML preview', () => {
+    const original = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => { throw new Error('Download denied by browser policy'); }),
+    });
+    try {
+      render(<PackAuthoringWizard registeredPackIds={[]} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Start authoring' }));
+      fireEvent.change(screen.getByLabelText('Pack ID'), { target: { value: 'acme-cli' } });
+      fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Acme CLI' } });
+      fireEvent.change(screen.getByLabelText('Tool ID'), { target: { value: 'acme' } });
+      fireEvent.change(screen.getByLabelText('Executable filename (basename only)'),
+        { target: { value: 'acme' } });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Download pack draft (.yaml)' }));
+      expect(screen.getByRole('alert')).toHaveTextContent('Your browser could not start the download');
+      expect(screen.getByLabelText('Generated YAML — no runnable tasks')).toHaveValue(
+        expect.stringContaining('commands: {}'),
+      );
+      expect(screen.queryByText('Draft download started. This file has not been validated, trusted, or loaded.'))
+        .not.toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Updated CLI' } });
+      expect(screen.queryByText('Your browser could not start the download')).not.toBeInTheDocument();
+    } finally {
+      if (original) {
+        Object.defineProperty(URL, 'createObjectURL', original);
+      } else {
+        Reflect.deleteProperty(URL, 'createObjectURL');
+      }
+    }
+  });
+
 });
