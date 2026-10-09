@@ -4,11 +4,11 @@ Use this document as the canonical read order for development agents.
 
 ## Current repository state
 
-CLIHarbor has completed the **Phase 1 local-runtime foundation**, **Phase 2 pack-schema/loader foundation**, **Phase 3 tool-discovery/version-probing foundation**, and the **Phase 4 low-level planner/executor foundation**. The repository now contains a Go command/runtime, IPv4 loopback listener, one-time browser bootstrap/session boundary, Host/Origin/CSRF protections, hardened browser headers, an authenticated status API, graceful shutdown, a React/TypeScript/Vite UI, locally embedded production frontend assets, automatic default-browser launch, a loopback-only frontend development proxy, cross-platform task tooling, Windows/Linux CI, a versioned trusted-pack model with strict validation/loading, and fail-closed local executable discovery with bounded version probes and `cliharbor doctor`.
+CLIHarbor is a Go local-first launcher with an embedded React/TypeScript interface, a reviewed declarative pack registry, loopback-only authenticated APIs, bounded direct executable discovery/planning/execution, Windows process-tree containment, and an explicit run approval/audit boundary. The runtime ships four first-party packs: Conjur, Docker, kubectl and GitHub CLI. The Conjur dedicated UI includes reviewed vendor-owned sign-in, read-only metadata and access exploration, regex-pattern auditing, and guarded change workflows. Browser-side custom pack authoring produces only discovery-only drafts requiring separate review and explicit trusted loading.
 
-The pack foundation supports schema version `cliharbor.dev/v1`, built-in pack bytes, and explicitly requested local YAML files/directories. Tool discovery considers only absolute PATH entries or explicit backend-only overrides tied to declared pack/tool IDs; it rejects ambiguity rather than taking the first match. Version probes are fixed pack-authored argv with bounded time/output and no shell. Repository/cwd packs still receive no implicit trust.
+**Qualification is not the same as implementation.** Corporate Conjur authentication/MFA, target-host policy, and real Docker/kubectl/GitHub environments require on-device acceptance. The Windows evaluation bundle remains unsigned. The latest source may exceed the committed embedded frontend: [issue #59](https://github.com/Quazmoz/CLIHarbor/issues/59) tracks the release-blocking asset rebuild and verification. Never release an executable until the production browser bundle is regenerated from the matching React source and the applicable pinned-toolchain checks are observed passing.
 
-The internal planner/executor exists for the constrained read-only safety envelope, and Phase 4b proves the explicit-local pack → discovery/version probe → planner → executor path with two isolated synthetic pack/tool scenarios using distinct tool IDs, versions, and command shapes. Phase 4c-A adds authenticated create/get/cancel run APIs backed by a bounded in-memory run manager. Phase 4c-B adds bounded authenticated SSE replay plus safe task metadata and a minimal React task/run UI. Phase 5 adds a generic bounded structured-output path: strict pack-declared scalar JSON is parsed only after execution into a normalized run DTO, temporary parser buffers are released after normalization, the result is bound to the same authenticated SSE completion for that run, and raw stdout/stderr remain available with inert React cards for successful parsing. Browser requests and parsed output still cannot choose executable/path/argv authority. Auth execution, secret-bearing structured handling, mutating/destructive execution, persisted run state, and verified Idira/CyberArk workflows do **not** exist yet. Never infer that a planned component is implemented merely because it appears in the specifications.
+For current feature status and non-goals, use [ROADMAP.md](ROADMAP.md), [SECURITY.md](SECURITY.md), [AUTHENTICATION.md](AUTHENTICATION.md) and the live implementation; do not infer the product's present capabilities from historical phase milestones below.
 
 ## Read order
 
@@ -122,7 +122,7 @@ Use to understand existing tools, upstream Idira/CyberArk status, and demand evi
 - Repository code is source of truth for implemented behavior.
 - `schemas/pack.v1.schema.json` plus `internal/packs` are source of truth for the currently supported pack format and pack validation.
 - `internal/discovery` is source of truth for current local tool discovery/version semantics and discovery-time executable identity, including the SHA-256 replacement-detection fingerprint.
-- `internal/planner` and `internal/executor` are source of truth for the implemented low-level read-only execution boundary.
+- `internal/planner`, `internal/executor`, and `internal/runs` are source of truth for current execution, approval, and lifecycle boundaries.
 - PRD/spec docs are source of truth for intended behavior not yet implemented.
 - `DECISIONS.md` is source of truth for accepted architectural decisions.
 - Upstream vendor documentation wins over old assumptions about CLI flags/commands.
@@ -130,23 +130,16 @@ Use to understand existing tools, upstream Idira/CyberArk status, and demand evi
 
 ## Current implementation checkpoint
 
-Phases 1-4 low-level foundations and the generic Phase 5 structured-output foundation are implemented. The runtime keeps `/bootstrap` and `/api/*` server-owned; frontend production assets are embedded in the executable; development frontend traffic is proxied only from an explicitly configured `http://127.0.0.1:<port>` Vite origin; browser launch failure degrades to the explicit short-lived local bootstrap URL.
+The core has progressed beyond its initial Phase 0–5 read-only foundation. Current ownership and verification entry points:
 
-The pack layer parses bounded UTF-8 YAML, rejects aliases/anchors/merge keys/multiple documents and duplicate mapping keys, validates against the embedded strict v1 JSON Schema, applies cross-reference and execution-shape checks, and produces an effectively immutable deterministic registry. Local loading is explicit, non-recursive, symlink-rejecting, and fail-closed.
+- `internal/packs/`, `schemas/`, and `packs/`: trusted-pack validation and the reviewed first-party CLI declarations; explicit custom packs never gain authority from captured help text.
+- `internal/discovery/`, `internal/planner/`, `internal/executor/`, and `internal/runs/`: executable identity/version checks, typed argv, direct process lifecycle, bounded streaming, approval gating, and retained run state.
+- `internal/platforms/conjur/` and `internal/server/`: Conjur-specific configuration/authentication/audit adapters behind the generic loopback security boundary.
+- `web/src/`: generic task discovery, command previews, output inspection, diagnostics, install catalog and safe custom-pack draft UX; `web/src/platforms/conjur/` owns dedicated Conjur screens.
+- `internal/webui/static/`: **generated** embedded browser artifacts, not authoritative React source. Build and synchronize them only with the repository task tooling; do not hand-edit the bundle.
+- `tools/task/`, `test/`, `web/src/**/*.test.ts*`, and `.github/workflows/`: local qualification commands, integration/browser harness, and manual-only CI workflows.
 
-The discovery layer resolves declared executable basenames across absolute PATH entries or explicit `pack/tool=/absolute/path` overrides, reports fail-closed discovery states, captures an in-memory executable file identity for ready tools, uses direct bounded version probes, fails closed on ambiguous semantic-version output, and exposes exact diagnostic evidence through `cliharbor doctor`. The synthetic example pack still ships no fixture executable and is not vendor evidence.
-
-The planner accepts only validated pack commands plus current ready discovery state, validates typed runtime values, constructs exact argv, and currently permits read-only/non-auth/non-secret commands only. The executor revalidates executable filesystem identity plus SHA-256 content fingerprint, invokes the executable directly without a shell, bounds output/time, preserves exit semantics, and owns Windows descendants through a per-run Job Object established before the process resumes.
-
-Phase 4b integration coverage uses an explicitly trusted local fixture pack, backend-only executable override, fixed version probe/constraint, typed planner request, and real executor; it compares stdout/stderr/exit behavior to direct invocation and exercises cancellation after observable output.
-
-Phase 4c-A exposes authenticated create/get/cancel run APIs with strict JSON/UTF-8/duplicate-key/body-size validation, existing Host/Origin/CSRF/session protections, Base64 output events in bounded snapshots, bounded concurrency/retention, and application-owned shutdown cancellation.
-
-Phase 4c-B adds `GET /api/v1/runs/{runId}/events` with bounded manager-backed SSE replay, strict `Last-Event-ID` parsing, independent slow-client writes, explicit stream-disconnect/server-shutdown semantics, and bounded browser recovery. `GET /api/v1/tasks` exposes only currently runnable read-only/non-auth/non-secret metadata. The React client keeps CSRF only in runtime memory, derives typed controls from server metadata, streams stdout/stderr as inert text, caps automatic EventSource recovery at five consecutive failures, reconciles retained snapshot output/state, and requires an explicit action for another live-stream attempt. The task form can request a planner-backed invocation preview that exposes only the executable basename plus validated argv tokens, never the executable path. The active run view retains its typed form/request snapshot only in browser memory so a completed retained run can be retried with the same inputs without widening persisted run-history data. The request boundary rejects every non-empty foreign `Origin`, including read/SSE traffic; mutations still require exact same-origin plus CSRF.
-
-Local `go-build`/`build` now also emit `bin/SHA256SUMS` for the built executable. CI additionally verifies Go module checksums, audits the locked npm tree, runs pinned `govulncheck@v1.8.0`, and qualifies the production embedded server/UI in real headless Chrome/Chromium with the synthetic fixture pack. That browser gate covers bootstrap, Host/Origin/CSRF, task loading, typed execution, SSE replay/reconnect/reconciliation, cancellation, eviction, single-execution semantics, and inert hostile output without adding vendor authority. The next product milestone is the first verified read-only Idira workflow after Phase 0 inventory. Authentication orchestration and real vendor structured schemas remain subsequent milestones.
-
-Do not begin with marketplace work, universal AI extraction, a cloud backend, an embedded terminal, or guessed Idira/CyberArk commands.
+Use `go run ./tools/task check` with the pinned Go/Node/npm versions, then verify embedded frontend synchronization and perform relevant Windows/browser acceptance before considering release. GitHub Actions may be dispatched **only with specific user authorization**; routine commits/merges must not auto-trigger workflows. The older Phase 0 procedures below remain useful for isolated managed-laptop discovery and evidence review, but are not a current feature inventory.
 
 ### Phase 0 work-laptop test-readiness checkpoint
 
@@ -166,7 +159,7 @@ The repository now implements the pre-vendor-integration work-laptop evaluation 
 - evidence/diagnostics from a managed-laptop run belong outside the immutable extracted evaluation bundle so exact-layout preflight remains meaningful;
 - the exact laptop procedure is `WORK_LAPTOP_EVALUATION.md`.
 
-The next product step is to run this artifact on the actual company-managed Windows laptop and return the reviewed Phase 0 evidence. Real Idira/CyberArk command definitions remain blocked on that evidence; do not guess them.
+Managed-laptop preflight and evidence collection remain available independently of the newer reviewed Conjur v9 pack. Neither upstream command documentation nor a green synthetic test proves employer approval, current vendor session state, or native Windows acceptance.
 
 ### Phase 0 evidence-consumption checkpoint
 
