@@ -7,6 +7,58 @@ import (
 	"testing"
 )
 
+func TestValidateBuildDestinationRejectsRedirectedAndSpecialTargets(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	if err := os.Mkdir(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	artifact := filepath.Join(bin, "cliharbor.exe")
+	if err := validateBuildDestination(artifact); err != nil {
+		t.Fatalf("nonexistent target in a real directory rejected: %v", err)
+	}
+	if err := os.WriteFile(artifact, []byte("previous build"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateBuildDestination(artifact); err != nil {
+		t.Fatalf("existing regular artifact rejected: %v", err)
+	}
+	if err := os.Remove(artifact); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(artifact, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateBuildDestination(artifact); err == nil {
+		t.Fatal("directory occupying build target was accepted")
+	}
+	if err := os.Remove(artifact); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(root, "outside.exe")
+	if err := os.WriteFile(outside, []byte("untouched"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, artifact); err == nil {
+		if err := validateBuildDestination(artifact); err == nil {
+			t.Fatal("symlinked build target was accepted")
+		}
+		if err := os.Remove(artifact); err != nil {
+			t.Fatal(err)
+		}
+	}
+	linkedBin := filepath.Join(root, "linked-bin")
+	if err := os.Symlink(bin, linkedBin); err == nil {
+		if err := validateBuildDestination(filepath.Join(linkedBin, "cliharbor.exe")); err == nil {
+			t.Fatal("symlinked build output directory was accepted")
+		}
+	}
+	if got, err := os.ReadFile(outside); err != nil || string(got) != "untouched" {
+		t.Fatalf("outside artifact changed: %q, %v", got, err)
+	}
+}
+
 func TestHasExpectedModuleLineAcceptsCommonLineEndings(t *testing.T) {
 	t.Parallel()
 
