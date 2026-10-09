@@ -265,6 +265,7 @@ describe('Conjur API backend connection', () => {
     let reads = 0;
     let writes = 0;
     const invalidate = vi.fn();
+    const refresh = vi.fn();
     vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'POST') {
         writes += 1;
@@ -279,7 +280,7 @@ describe('Conjur API backend connection', () => {
     }));
 
     render(<ConjurBackendConnection status={status} tool={tool} ready
-      invalidateSession={invalidate} />);
+      invalidateSession={invalidate} onToolsChanged={refresh} />);
     expect(await screen.findByText(old)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Change API endpoint' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Secrets Manager API URL' }), {
@@ -299,6 +300,7 @@ describe('Conjur API backend connection', () => {
     expect(reads).toBe(2);
     expect(writes).toBe(1);
     expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   test('does not offer reconfiguration for an unsupported externally managed mode', async () => {

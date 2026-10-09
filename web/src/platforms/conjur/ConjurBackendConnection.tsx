@@ -154,6 +154,9 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
           <button type="button" className="secondary-button" disabled={saving}
             onClick={() => {
               invalidateSession?.();
+              // Vendor configuration may have changed even if the write
+              // response was lost. Refresh the parent capability snapshot.
+              onToolsChanged?.();
               setLoadError(false);
               setSaveError(null);
               setReadRevision((previous) => previous + 1);
