@@ -155,6 +155,13 @@ official installed or exact verified managed CLI
 
 **Conjur Access & Permissions Explorer:** Open **Built-in CLIs → CyberArk Conjur → Access & permissions**. Search visible inventory by kind and text using bounded server-side pages, inspect individual resources and roles, follow Conjur-permitted roles and direct/expanded role relationships, copy full IDs, and export only whitelisted metadata. The explorer checks CLI and vendor identity/context before and after each read, and discards incomplete or stale results. Role relationships are not proof of effective access; the vendor's native authorization still applies. See [Conjur integration](docs/CONJUR_INTEGRATION.md#access--permissions-explorer).
 
+**Conjur template gallery:** In the migration workbench, filter ready-made
+starters for application secrets, database variables, service or developer
+permissions, environment-scoped variables, rotation access, and LDAP group/user
+mapping. Policy starters clear environment-specific identifiers and use only
+reviewed variable/grant shapes. LDAP starters open the existing approved forms;
+no template auto-executes or handles secret values.
+
 **Conjur migration workbench:** Open **Built-in CLIs → CyberArk Conjur → Migration playbooks & templates** for guided inventory, LDAP/role comparison, destination preparation and cutover verification. Generate review-only variable/grant policy YAML without secret values, or open the existing approval-gated Conjur tasks with safe prefilled fields. These shortcuts do not execute a migration, transfer secrets, or skip the backend approval process.
 
 **Conjur pattern explorer:** Open **Built-in CLIs → CyberArk Conjur → Security audit**. The default **Variable IDs · regex** mode uses metadata-only Conjur inventory searches, with credential-name, production, service-account and legacy-path presets plus custom Go/RE2 expressions. It never reads secret values. Select **Secret values · regex** only when an authorized value scan is necessary; it requires explicit acknowledgement and returns only variable IDs and match reasons, never values. The Conjur home also has read-only, paginated shortcuts for variables, policies, hosts and groups and links to reviewed access/change tasks. All commands still go through the shared task confirmation path.
