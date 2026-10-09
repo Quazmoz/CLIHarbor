@@ -15,6 +15,12 @@ comparison, destination preparation and cutover verification. Missing or
 risk-mismatched tasks remain visibly unavailable. These are shortcuts to the
 existing task form, not new browser execution authority.
 
+The Template gallery offers searchable-by-category curated starters as responsive
+cards. Selecting a policy starter resets environment-specific identifiers and
+moves keyboard focus to the existing policy builder. Identity-mapping cards
+open only matching backend-advertised approval-gated LDAP forms, never invent
+new commands or collect identity details in gallery state.
+
 The workbench also constructs review-only, non-secret `!variable` and `!permit`
 policy fragments from strict input fields. It clearly distinguishes the policy
 branch from policy YAML, exposes one manual copy action, and links into the
