@@ -33,7 +33,7 @@ Future purpose-built integrations belong in the dedicated platform registry, not
 
 ## macOS startup
 
-From a checkout with Go installed:
+From a checkout with the pinned Go and Node/npm toolchains:
 
 ```bash
 go run ./tools/task build  # Rebuild, validate, and embed the frontend before compiling CLIHarbor
