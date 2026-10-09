@@ -121,7 +121,7 @@ function parseTask(value: unknown): Task {
       for (const key of ['min', 'max', 'minLength', 'maxLength'] as const) {
         const current = validation[key];
         if (current !== undefined) {
-          if (!Number.isSafeInteger(current) ||
+          if (typeof current !== 'number' || !Number.isSafeInteger(current) ||
               ((key === 'minLength' || key === 'maxLength') &&
                 (current < 0 || current > 4096))) {
             throw clientError('invalid_response');
