@@ -85,7 +85,16 @@ function Stop-OwnedDev {
 }
 
 function Write-DevChecksum {
-    Write-DevChecksum
+    $digest = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+    $checksumTemp = Join-Path $bin ('.cliharbor-dev-checksum-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        Set-Content -LiteralPath $checksumTemp -Encoding Ascii -Value ("$digest  cliharbor.exe")
+        Move-Item -LiteralPath $checksumTemp -Destination $checksum -Force -ErrorAction Stop
+    } finally {
+        if (Test-Path -LiteralPath $checksumTemp) {
+            Remove-Item -LiteralPath $checksumTemp -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 if ($Pull) {
@@ -175,18 +184,8 @@ try {
     Move-Item -LiteralPath $stagedExe -Destination $exe -ErrorAction Stop
     $installedReplacement = $true
 
-    # Keep the existing local checksum contract synchronized with the exact
-    # executable being launched, without invoking another compiler pass.
-    $digest = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-    $checksumTemp = Join-Path $bin ('.cliharbor-dev-checksum-' + [Guid]::NewGuid().ToString('N'))
-    try {
-        Set-Content -LiteralPath $checksumTemp -Encoding Ascii -Value ("$digest  cliharbor.exe")
-        Move-Item -LiteralPath $checksumTemp -Destination $checksum -Force -ErrorAction Stop
-    } finally {
-        if (Test-Path -LiteralPath $checksumTemp) {
-            Remove-Item -LiteralPath $checksumTemp -ErrorAction SilentlyContinue
-        }
-    }
+    # Preserve the normal SHA256SUMS format for the exact launched artifact.
+    Write-DevChecksum
 
     $child = Start-Process -FilePath $exe -ArgumentList @('serve', '--no-auto-setup') -WorkingDirectory $root -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
     $childInfo = Get-DevProcess $child.Id
