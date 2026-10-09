@@ -202,6 +202,31 @@ describe('Conjur API backend connection', () => {
     expect(reads).toBe(3);
   });
 
+  test('remounts when the password setup requirement changes', async () => {
+    let reads = 0;
+    vi.stubGlobal('fetch', vi.fn(() => {
+      reads += 1;
+      return Promise.resolve(response({
+        environment: 'saas', applianceUrl: reads === 1 ? old : next,
+        account: 'conjur', configurable: true,
+      }));
+    }));
+    const passwordTool: ToolDiagnostic = {
+      ...tool, credentialLogin: { method: 'conjur-password' },
+    };
+    const { rerender } = render(
+      <ConjurBackendConnection status={status} tool={passwordTool} ready />,
+    );
+    expect(await screen.findByText(old)).toBeInTheDocument();
+
+    rerender(<ConjurBackendConnection status={status}
+      tool={{ ...passwordTool, credentialLogin: { method: 'conjur-password', setupRequired: true } }}
+      ready />);
+    expect(screen.queryByText(old)).not.toBeInTheDocument();
+    expect(await screen.findByText(next)).toBeInTheDocument();
+    expect(reads).toBe(2);
+  });
+
   test('clears stale tenant configuration when refreshed vendor state is unavailable', async () => {
     let reads = 0;
     vi.stubGlobal('fetch', vi.fn(() => {
