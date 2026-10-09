@@ -167,6 +167,35 @@ describe('Conjur API backend connection', () => {
     expect(screen.queryByText(/endpoint saved and verified/i)).not.toBeInTheDocument();
   });
 
+  test('clears stale tenant configuration when refreshed vendor state is unavailable', async () => {
+    let reads = 0;
+    vi.stubGlobal('fetch', vi.fn(() => {
+      reads += 1;
+      return reads === 1
+        ? Promise.resolve(response({
+          environment: 'saas', applianceUrl: old, account: 'conjur', configurable: true,
+        }))
+        : Promise.reject(new Error('vendor config read failed'));
+    }));
+
+    const { rerender } = render(
+      <ConjurBackendConnection status={status} tool={tool} ready />,
+    );
+    expect(await screen.findByText(old)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change API endpoint' })).toBeEnabled();
+
+    // A new pack/tool capability snapshot may point at a different vendor
+    // configuration. A failed read must not leave the old tenant actionable.
+    rerender(<ConjurBackendConnection status={status}
+      tool={{ ...tool, packVersion: '0.2.0' }} ready />);
+    expect(await screen.findByText(/Unable to read the current vendor configuration/))
+      .toBeInTheDocument();
+    expect(screen.queryByText(old)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change API endpoint' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Replace CLI API endpoint/ })).not.toBeInTheDocument();
+    expect(reads).toBe(2);
+  });
+
   test('does not offer reconfiguration for an unsupported externally managed mode', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response({
       environment: 'other', applianceUrl: 'https://custom.example.test',
