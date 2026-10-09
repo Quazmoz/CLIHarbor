@@ -83,7 +83,7 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
           <button type="button" className="secondary-button" onClick={() => onOpenFeature('security-audit')}>Regex pattern explorer</button>
           <button type="button" className="secondary-button" onClick={() => {
             setMigrationOpen(true);
-            document.getElementById('conjur-migration')?.scrollIntoView({ block: 'start' });
+            document.getElementById('conjur-migration')?.scrollIntoView?.({ block: 'start' });
           }}>Migration playbooks &amp; templates</button>
           <button type="button" className="secondary-button" onClick={() => onOpenFeature('tasks')}>Inventory &amp; approved changes</button>
           <button type="button" className="secondary-button" onClick={() => onOpenFeature('sign-in')}>Session check</button>
