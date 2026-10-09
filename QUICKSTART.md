@@ -1,6 +1,6 @@
 # CLIHarbor Quickstart
 
-For macOS setup and a credential-free testing CLI on either platform, see [Windows and macOS setup](docs/CROSS_PLATFORM.md). From a checkout with Go installed, `go run ./tools/task demo` builds both executables and opens the local testing UI.
+For macOS setup and local development, see [Windows and macOS setup](docs/CROSS_PLATFORM.md). From a checkout with the pinned Go and Node/npm toolchains, `go run ./tools/task build` validates and embeds the frontend and builds the native CLIHarbor executable; start it with `./bin/cliharbor serve --no-auto-setup` on macOS/Linux or `.\\bin\\cliharbor.exe serve --no-auto-setup` on Windows. This does not install a vendor CLI.
 
 The normal Windows path is intentionally simple: **download CLIHarbor once, extract it, run preflight, then start CLIHarbor with no pack or Conjur install arguments.** CLIHarbor carries its reviewed Conjur pack inside the executable and can provision the pinned official Conjur CLI for the current user when Conjur is genuinely missing.
 
@@ -15,7 +15,7 @@ Do **not** use **Run as administrator** merely to launch CLIHarbor. If applicati
 ### 1. Download one qualified artifact
 
 1. Open the repository's [CI workflow](https://github.com/Quazmoz/CLIHarbor/actions/workflows/ci.yml).
-2. Select a **successful `main` run** for the commit you intend to evaluate.
+2. Select a **successful, explicitly authorized manually dispatched `main` run** for the commit you intend to evaluate (the workflow does not run on pushes).
 3. Download `cliharbor-windows-x64-evaluation-<commit-sha>` from **Artifacts**.
 4. Record that commit SHA with your test notes.
 
