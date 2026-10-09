@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ConjurBackendConnection, normalizeConjurSaaSAPIURL } from './ConjurBackendConnection';
 import type { RuntimeStatus } from '../../api/status';
 import type { ToolDiagnostic } from '../../api/tools';
@@ -165,6 +165,41 @@ describe('Conjur API backend connection', () => {
     expect(invalidate).toHaveBeenCalledTimes(1);
     expect(reads).toBe(2);
     expect(screen.queryByText(/endpoint saved and verified/i)).not.toBeInTheDocument();
+  });
+
+  test('ignores an out-of-order read from a superseded CLI capability snapshot', async () => {
+    let reads = 0;
+    let finishSupersededRead: (value: Response) => void = () => {
+      throw new Error('superseded read was never started');
+    };
+    vi.stubGlobal('fetch', vi.fn(() => {
+      reads += 1;
+      if (reads === 2) {
+        return new Promise<Response>((resolve) => { finishSupersededRead = resolve; });
+      }
+      return Promise.resolve(response({
+        environment: 'saas', applianceUrl: reads === 1 ? old : next,
+        account: 'conjur', configurable: true,
+      }));
+    }));
+    const { rerender } = render(<ConjurBackendConnection status={status} tool={tool} ready />);
+    expect(await screen.findByText(old)).toBeInTheDocument();
+
+    rerender(<ConjurBackendConnection status={status}
+      tool={{ ...tool, packVersion: '0.2.0' }} ready />);
+    expect(screen.queryByText(old)).not.toBeInTheDocument();
+    rerender(<ConjurBackendConnection status={status}
+      tool={{ ...tool, packVersion: '0.3.0' }} ready />);
+    expect(await screen.findByText(next)).toBeInTheDocument();
+
+    await act(async () => {
+      finishSupersededRead(response({
+        environment: 'saas', applianceUrl: old, account: 'conjur', configurable: true,
+      }));
+    });
+    expect(screen.getByText(next)).toBeInTheDocument();
+    expect(screen.queryByText(old)).not.toBeInTheDocument();
+    expect(reads).toBe(3);
   });
 
   test('clears stale tenant configuration when refreshed vendor state is unavailable', async () => {
