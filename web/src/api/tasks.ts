@@ -63,7 +63,8 @@ function parseTask(value: unknown): Task {
     (risk !== undefined && !['read', 'change', 'destructive'].includes(String(risk))) ||
     (impact !== undefined && !isRecord(impact)) ||
     (requiresAuth !== undefined && typeof requiresAuth !== 'boolean') ||
-    !Array.isArray(inputs)
+    !Array.isArray(inputs) ||
+    inputs.length > 64
   ) {
     throw clientError('invalid_response');
   }
@@ -90,6 +91,7 @@ function parseTask(value: unknown): Task {
     throw clientError('invalid_response');
   }
 
+  const inputIDs = new Set<string>();
   const parsedInputs = inputs.map((input): TaskInput => {
     if (!isRecord(input)) {
       throw clientError('invalid_response');
@@ -97,6 +99,8 @@ function parseTask(value: unknown): Task {
     const { id, type, label, required, validation } = input;
     if (
       typeof id !== 'string' ||
+      !/^[a-z][a-z0-9-]{0,62}$/.test(id) ||
+      inputIDs.has(id) ||
       typeof label !== 'string' ||
       !['string', 'integer', 'boolean', 'enum', 'multiselect', 'secret'].includes(String(type)) ||
       (required !== undefined && typeof required !== 'boolean') ||
@@ -105,25 +109,37 @@ function parseTask(value: unknown): Task {
       throw clientError('invalid_response');
     }
 
+    inputIDs.add(id);
     const parsedValidation: TaskInputValidation = {};
     if (isRecord(validation)) {
+      const allowed = new Set([
+        'min', 'max', 'minLength', 'maxLength', 'pattern', 'enum', 'disallowLeadingDash',
+      ]);
+      if (Object.keys(validation).some((key) => !allowed.has(key))) {
+        throw clientError('invalid_response');
+      }
       for (const key of ['min', 'max', 'minLength', 'maxLength'] as const) {
         const current = validation[key];
         if (current !== undefined) {
-          if (typeof current !== 'number' || !Number.isFinite(current)) {
+          if (!Number.isSafeInteger(current) ||
+              ((key === 'minLength' || key === 'maxLength') &&
+                (current < 0 || current > 4096))) {
             throw clientError('invalid_response');
           }
           parsedValidation[key] = current;
         }
       }
       if (validation.pattern !== undefined) {
-        if (typeof validation.pattern !== 'string') {
+        if (typeof validation.pattern !== 'string' || validation.pattern.length > 256) {
           throw clientError('invalid_response');
         }
         parsedValidation.pattern = validation.pattern;
       }
       if (validation.enum !== undefined) {
-        if (!Array.isArray(validation.enum) || validation.enum.some((item) => typeof item !== 'string')) {
+        if (!Array.isArray(validation.enum) ||
+            validation.enum.length === 0 || validation.enum.length > 64 ||
+            validation.enum.some((item) => typeof item !== 'string' || item.length > 256) ||
+            new Set(validation.enum).size !== validation.enum.length) {
           throw clientError('invalid_response');
         }
         parsedValidation.enum = [...validation.enum];
@@ -134,6 +150,15 @@ function parseTask(value: unknown): Task {
         }
         parsedValidation.disallowLeadingDash = validation.disallowLeadingDash;
       }
+    }
+
+    if (
+      (parsedValidation.min !== undefined && parsedValidation.max !== undefined &&
+        parsedValidation.min > parsedValidation.max) ||
+      (parsedValidation.minLength !== undefined && parsedValidation.maxLength !== undefined &&
+        parsedValidation.minLength > parsedValidation.maxLength)
+    ) {
+      throw clientError('invalid_response');
     }
 
     return {
@@ -174,5 +199,16 @@ export async function fetchTasks(signal?: AbortSignal): Promise<Task[]> {
   if (!isRecord(payload) || !Array.isArray(payload.tasks)) {
     throw clientError('invalid_response');
   }
-  return payload.tasks.map(parseTask);
+  const tasks = payload.tasks.map(parseTask);
+  // Navigation, favorites and prefill all identify tasks by pack + command.
+  // Ambiguous duplicate IDs must never silently pick the first definition.
+  const seen = new Set<string>();
+  for (const task of tasks) {
+    const key = JSON.stringify([task.packId, task.commandId]);
+    if (seen.has(key)) {
+      throw clientError('invalid_response');
+    }
+    seen.add(key);
+  }
+  return tasks;
 }
