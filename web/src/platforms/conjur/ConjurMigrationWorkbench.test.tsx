@@ -52,7 +52,11 @@ test('only opens matching backend-advertised tasks and never directly creates a 
   expect(within(planning).getByRole('button', { name: 'Variable IDs · unavailable' })).toBeDisabled();
   expect(within(planning).getByRole('button', { name: 'Set value separately · unavailable' })).toBeDisabled();
   expect(within(planning).getByRole('button', { name: 'Create variable declaration · approval required' })).toBeEnabled();
-  expect(within(planning).getByRole('button', { name: 'Review access grant · approval required' })).toBeDisabled();
+  fireEvent.change(screen.getByRole('textbox', { name: 'Variable ID (relative to branch)' }),
+    { target: { value: 'db/password' } });
+  fireEvent.change(screen.getByRole('textbox', { name: /Role ID/ }),
+    { target: { value: '/operators' } });
+  expect(within(planning).getByRole('button', { name: 'Review access grant · approval required' })).toBeEnabled();
   expect(onOpenTask).toHaveBeenCalledTimes(1);
 });
 
