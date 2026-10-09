@@ -36,7 +36,7 @@ Future purpose-built integrations belong in the dedicated platform registry, not
 From a checkout with Go installed:
 
 ```bash
-go run ./tools/task go-build
+go run ./tools/task build  # Rebuild, validate, and embed the frontend before compiling CLIHarbor
 ./bin/cliharbor
 ```
 
@@ -47,7 +47,7 @@ Conjur, Docker, kubectl, and GitHub CLI packs load automatically. Open **Add a C
 For the normal managed-Windows user path:
 
 1. Open the repository's [CI workflow](https://github.com/Quazmoz/CLIHarbor/actions/workflows/ci.yml).
-2. Choose a **successful `main` run**.
+2. Choose a **successful, explicitly authorized manually dispatched `main` workflow run** (workflows do not run automatically).
 3. Download `cliharbor-windows-x64-evaluation-<commit-sha>` from **Artifacts**.
 4. Extract it to a user-writable directory.
 5. Open Command Prompt normally — **not** as administrator.
