@@ -3,6 +3,7 @@ import type { Platform, PlatformFeatureID } from './api/platforms';
 import type { ToolDiagnostic } from './api/tools';
 import { fetchSecretAudit } from './platforms/conjur/secretAuditApi';
 import type { Task } from './api/tasks';
+import { ConjurMigrationWorkbench } from './platforms/conjur/ConjurMigrationWorkbench';
 
 interface PlatformPageProps {
   platform: Platform;
@@ -11,7 +12,7 @@ interface PlatformPageProps {
   onOpenRuns?: () => void;
   onOpenFeature: (feature: PlatformFeatureID) => void;
   onOpenDiagnostics: () => void;
-  onOpenTask: (taskKey: string) => void;
+  onOpenTask: (taskKey: string, prefill?: Record<string, string>) => void;
 }
 
 const featureDetail: Record<PlatformFeatureID, string> = {
@@ -25,6 +26,7 @@ const featureDetail: Record<PlatformFeatureID, string> = {
 export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
   const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
   const readiness = tool?.status ?? 'unavailable';
+  const [migrationOpen, setMigrationOpen] = useState(false);
   const [targetSnapshot, setTargetSnapshot] = useState<{
     platformId: string; readiness: string; applianceUrl: string; account: string;
   } | null>(null);
@@ -79,6 +81,10 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
         <div className="platform-toolbox-grid">
           <button type="button" className="secondary-button" onClick={() => onOpenFeature('access-explorer')}>Access &amp; permissions</button>
           <button type="button" className="secondary-button" onClick={() => onOpenFeature('security-audit')}>Regex pattern explorer</button>
+          <button type="button" className="secondary-button" onClick={() => {
+            setMigrationOpen(true);
+            document.getElementById('conjur-migration')?.scrollIntoView({ block: 'start' });
+          }}>Migration playbooks &amp; templates</button>
           <button type="button" className="secondary-button" onClick={() => onOpenFeature('tasks')}>Inventory &amp; approved changes</button>
           <button type="button" className="secondary-button" onClick={() => onOpenFeature('sign-in')}>Session check</button>
           {onOpenRuns && <button type="button" className="secondary-button" onClick={onOpenRuns}>Runs &amp; mutation audit</button>}
@@ -99,6 +105,14 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
           </li>
         ))}
       </ul>
+      {platform.id === 'conjur' && (
+        <details id="conjur-migration" className="platform-toolbox conjur-migration-details"
+          open={migrationOpen} onToggle={(event) => setMigrationOpen(event.currentTarget.open)}>
+          <summary>Migration playbooks &amp; policy templates</summary>
+          <ConjurMigrationWorkbench tasks={platformTasks} packId={platform.packId}
+            toolId={platform.toolId} onOpenTask={onOpenTask} />
+        </details>
+      )}
       {platform.id === 'conjur' && (
         <section className="platform-toolbox" aria-label="Conjur toolbox">
           <div className="route-heading">
