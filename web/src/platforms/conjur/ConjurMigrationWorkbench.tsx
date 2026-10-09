@@ -231,26 +231,6 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
         <p>Plan an inventory, compare access and prepare scoped policy changes without exporting secret values.
           Run each step manually against the intended source or destination CLI context.</p>
       </div>
-      <div className="platform-toolbox-grid">
-        {playbooks.map((playbook) => (
-          <section key={playbook.name} className="platform-toolbox-section conjur-migration-stage" aria-label={playbook.name}>
-            <h4>{playbook.name}</h4>
-            <p>{playbook.description}</p>
-            <div className="conjur-migration-actions">
-              {playbook.actions.map((action) => {
-                const available = findTask(action.id, action.risk) !== undefined;
-                return (
-                  <button key={action.id} className="secondary-button" type="button"
-                    disabled={!available}
-                    onClick={() => openApproved(action)}>
-                    {action.label}{!available ? ' · unavailable' : action.risk === 'read' ? '' : ' · approval required'}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </div>
       <section className="platform-toolbox-section conjur-template-gallery" aria-label="Conjur template gallery">
         <h4>Template gallery</h4>
         <p>Choose a reviewed starter. Policy templates use only the existing variable and permission shapes;
@@ -297,6 +277,26 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
         {selectedTemplateID !== null &&
           <p role="status">Template loaded. Enter the policy branch and identifiers below; nothing has been submitted.</p>}
       </section>
+      <div className="platform-toolbox-grid">
+        {playbooks.map((playbook) => (
+          <section key={playbook.name} className="platform-toolbox-section conjur-migration-stage" aria-label={playbook.name}>
+            <h4>{playbook.name}</h4>
+            <p>{playbook.description}</p>
+            <div className="conjur-migration-actions">
+              {playbook.actions.map((action) => {
+                const available = findTask(action.id, action.risk) !== undefined;
+                return (
+                  <button key={action.id} className="secondary-button" type="button"
+                    disabled={!available}
+                    onClick={() => openApproved(action)}>
+                    {action.label}{!available ? ' · unavailable' : action.risk === 'read' ? '' : ' · approval required'}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
       <section className="platform-toolbox-section conjur-migration-template" aria-label="Policy template builder">
         <h4 ref={policyHeadingRef} tabIndex={-1}>Draft a reviewed policy fragment</h4>
         <p>Only reviewed <code>!variable</code> and <code>!permit</code> shapes are offered.
