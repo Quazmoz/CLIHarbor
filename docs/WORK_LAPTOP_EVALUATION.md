@@ -8,7 +8,7 @@ Run CLIHarbor from the **currently signed-in user's normal, non-elevated session
 
 ## 1. Download one qualified artifact
 
-Choose a successful `main` run in the repository CI workflow and download:
+Choose an explicitly authorized, manually dispatched and successful `main` run in the repository CI workflow (no automatic workflow runs) and download:
 
 ```text
 cliharbor-windows-x64-evaluation-<commit-sha>
