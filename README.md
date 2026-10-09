@@ -1,3 +1,13 @@
+# CLIHarbor
+
+A local browser UI for safely exposing curated workflows from official command-line tools on Windows and macOS.
+
+**Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation/lint/contract-test tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x integration (read-only inventory, approved changes and an opt-in value scanner) are implemented.
+
+> **Source/binary qualification:** The latest React source is not guaranteed to be present in a previously downloaded Windows evaluation executable. [Release blocker #59](https://github.com/Quazmoz/CLIHarbor/issues/59) tracks regeneration of `internal/webui/static/`, pinned-toolchain verification, and target-host validation after recent Conjur sign-in changes. Do not treat an older artifact as an acceptance test of those changes or publish it as the latest build. The GitHub Actions pipeline is manual-only and must not be dispatched without specific authorization.
+
+CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
+
 ## Browser-managed CLI installation
 
 CLIHarbor can install a CLI from the local browser UI **only when the loaded trusted pack declares an immutable portable artifact contract** for the current OS/architecture.
@@ -7,14 +17,6 @@ The browser supplies the pack/tool identity and may optionally choose an absolut
 When a missing tool has a supported install contract, open **Add a CLI** and use the offered **Install <tool>** action. Leave **Install base directory** blank for CLIHarbor's default current-user cache, or enter an absolute directory under your user home. CLIHarbor downloads and byte-verifies the declared artifact, persists only the selected managed base directory, and immediately publishes the qualified tool and its tasks. On the next startup it re-verifies the managed copy without network access before selecting it as a backend-only tool override.
 
 This path is designed for locked-down work laptops where user-context portable executables are permitted. It does not bypass application control or organizational policy. If the device blocks the artifact or the pack has no reviewed artifact for that platform, CLIHarbor fails closed and leaves the normal explicit `--tool-path` / vendor installation path available.
-
-# CLIHarbor
-
-A local browser UI for safely exposing curated workflows from official command-line tools on Windows and macOS.
-
-**Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation/lint/contract-test tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x integration (read-only inventory, approved changes and an opt-in value scanner) are implemented.
-
-CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
 ## Output inspection and copying
 
