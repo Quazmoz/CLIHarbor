@@ -28,11 +28,15 @@ test('generates only fixed reviewed variable and permit YAML with quoted identif
 });
 
 test('rejects policy injection, multiline IDs, malformed branch and unapproved privilege values', () => {
-  for (const malicious of ['db/password\n- !delete', 'db/../password', '-delete', 'db/#comment', '', 'a'.repeat(2049)]) {
+  for (const malicious of ['db/password\n- !delete', 'db/../password', 'db//password', 'db/password/', '-delete', 'db/#comment', '', 'a'.repeat(2049)]) {
     expect(generateConjurPolicyDraft({ ...draft, variableId: malicious })).toBeNull();
   }
   expect(generateConjurPolicyDraft({ ...draft, branch: 'apps\nroot' })).toBeNull();
+  expect(generateConjurPolicyDraft({ ...draft, branch: 'apps//root' })).toBeNull();
+  expect(generateConjurPolicyDraft({ ...draft, branch: 'apps/' })).toBeNull();
   expect(generateConjurPolicyDraft({ ...draft, roleId: '/../../admins' })).toBeNull();
+  expect(generateConjurPolicyDraft({ ...draft, roleId: '/operators//admins' })).toBeNull();
+  expect(generateConjurPolicyDraft({ ...draft, roleId: '/operators/' })).toBeNull();
   expect(generateConjurPolicyDraft({ ...draft, privileges: 'admin' as MigrationDraft['privileges'] })).toBeNull();
   expect(generateConjurPolicyDraft({ ...draft, roleKind: 'admin' as MigrationDraft['roleKind'] })).toBeNull();
   expect(generateConjurPolicyDraft({ ...draft, kind: 'unknown' as MigrationDraft['kind'] })).toBeNull();

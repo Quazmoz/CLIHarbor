@@ -23,7 +23,8 @@ export interface MigrationDraft {
 function validID(value: string, maxLength: number, absolute = false): boolean {
   return value.length > 0 && value.length <= maxLength &&
     (absolute ? /^\/?[A-Za-z0-9][A-Za-z0-9_.:/-]*$/ : /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/).test(value) &&
-    !value.split('/').some((part) => part === '.' || part === '..');
+    !value.split('/').some((part, index) =>
+      part === '.' || part === '..' || (part === '' && !(absolute && index === 0)));
 }
 
 export function generateConjurPolicyDraft(draft: MigrationDraft): string | null {
