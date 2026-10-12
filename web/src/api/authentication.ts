@@ -18,6 +18,16 @@ export interface VendorConnection {
   configurable: boolean;
 }
 
+// Match the vendor response contract: reject ASCII C0 controls and DEL without
+// disabling ESLint's control-character regex protection.
+function containsAsciiControl(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
+
 export async function getVendorConnection(signal?: AbortSignal): Promise<VendorConnection> {
   const response = await fetch('/api/v1/auth/configure', {
     method: 'GET',
@@ -33,8 +43,8 @@ export async function getVendorConnection(signal?: AbortSignal): Promise<VendorC
       typeof value.applianceUrl !== 'string' || value.applianceUrl.length > 2048 ||
       typeof value.account !== 'string' || value.account.length > 256 ||
       typeof value.configurable !== 'boolean' ||
-      /[\u0000-\u001f\u007f]/.test(value.applianceUrl) ||
-      /[\u0000-\u001f\u007f]/.test(value.account)) {
+      containsAsciiControl(value.applianceUrl) ||
+      containsAsciiControl(value.account)) {
     throw clientError('invalid_response');
   }
   return value as unknown as VendorConnection;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { loginWithCredentials } from './authentication';
+import { getVendorConnection, loginWithCredentials } from './authentication';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -70,5 +70,42 @@ describe('loginWithCredentials', () => {
         category: 'security',
       },
     });
+  });
+});
+
+describe('getVendorConnection', () => {
+  const valid = {
+    environment: 'saas',
+    applianceUrl: 'https://example.invalid',
+    account: 'team-ops',
+    configurable: true,
+  };
+
+  test.each([
+    ['applianceUrl', '\u0000'],
+    ['applianceUrl', '\u001f'],
+    ['applianceUrl', '\u007f'],
+    ['account', '\u0000'],
+    ['account', '\u001f'],
+    ['account', '\u007f'],
+  ])('rejects ASCII control characters in %s (%j)', async (field, control) => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(
+      JSON.stringify({ ...valid, [field]: 'before' + control + 'after' }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))));
+
+    await expect(getVendorConnection()).rejects.toMatchObject({
+      detail: { code: 'invalid_response' },
+    });
+  });
+
+  test('accepts valid vendor response fields, including printable Unicode', async () => {
+    const response = { ...valid, account: 'team-ops Δ', applianceUrl: 'https://example.invalid/app' };
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(
+      JSON.stringify(response),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))));
+
+    await expect(getVendorConnection()).resolves.toEqual(response);
   });
 });

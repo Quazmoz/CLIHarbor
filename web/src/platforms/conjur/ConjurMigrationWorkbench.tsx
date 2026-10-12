@@ -209,7 +209,7 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
     setCopyStatus('');
   };
 
-  const usePolicyTemplate = (template: PolicyStarter) => {
+  const applyPolicyTemplate = (template: PolicyStarter) => {
     setDraft({
       kind: template.kind,
       branch: '',
@@ -264,7 +264,7 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
                     if (mapping) {
                       openApproved({ id: template.taskId, label: template.title, risk: 'change' });
                     } else {
-                      usePolicyTemplate(template);
+                      applyPolicyTemplate(template);
                     }
                   }}>
                   {mapping ? available ? 'Open ' + template.title : 'Unavailable in task catalog' :
