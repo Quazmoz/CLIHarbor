@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { decodeRunOutput, subscribeRunEvents, type RunSnapshot } from './runs';
+import { cancelRun, createRun, decodeRunOutput, fetchRun, previewRun, subscribeRunEvents, type RunSnapshot } from './runs';
 
 const runId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const timestamp = '2026-10-05T10:00:00Z';
@@ -121,5 +121,59 @@ describe('run stream lifecycle', () => {
     expect(onEvent).not.toHaveBeenCalled();
     expect(onComplete).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
+  });
+});
+
+describe('run API request/response identity', () => {
+  const request = { packId: 'fixture', commandId: 'inspect', values: {} };
+  const preview = {
+    packId: 'fixture', commandId: 'inspect', toolId: 'fixture',
+    executableName: 'fixture', args: [], risk: 'read',
+  };
+  const serve = (payload: unknown) => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify(payload), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  };
+
+  test.each([
+    ['pack', { ...preview, packId: 'other-pack' }],
+    ['command', { ...preview, commandId: 'other-command' }],
+  ])('rejects a preview for the wrong %s', async (_identity, payload) => {
+    serve(payload);
+    await expect(previewRun('csrf', request)).rejects.toMatchObject({
+      detail: { code: 'invalid_response' },
+    });
+  });
+
+  test.each([
+    ['pack', { ...base, packId: 'other-pack' }],
+    ['command', { ...base, commandId: 'other-command' }],
+  ])('rejects creation responses for the wrong %s', async (_identity, payload) => {
+    serve(payload);
+    await expect(createRun('csrf', request)).rejects.toMatchObject({
+      detail: { code: 'invalid_response' },
+    });
+  });
+
+  test.each(['fetch', 'cancel'] as const)('rejects %s responses for another run', async (operation) => {
+    serve({ ...base, runId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' });
+    const result = operation === 'fetch' ? fetchRun(runId) : cancelRun('csrf', runId);
+    await expect(result).rejects.toMatchObject({
+      detail: { code: 'invalid_response' },
+    });
+  });
+
+  test('accepts matching task and run identities', async () => {
+    serve(preview);
+    await expect(previewRun('csrf', request)).resolves.toMatchObject({
+      packId: request.packId, commandId: request.commandId,
+    });
+    serve(base);
+    await expect(createRun('csrf', request)).resolves.toMatchObject({ runId });
+    await expect(fetchRun(runId)).resolves.toMatchObject({ runId });
+    await expect(cancelRun('csrf', runId)).resolves.toMatchObject({ runId });
   });
 });

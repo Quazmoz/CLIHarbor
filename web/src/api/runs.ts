@@ -558,15 +558,22 @@ async function mutation(path: string, csrfToken: string, body?: unknown): Promis
 }
 
 export async function previewRun(csrfToken: string, request: CreateRunRequest): Promise<RunPreview> {
-  return parsePreview(await mutation('/api/v1/runs/preview', csrfToken, request));
+  const preview = parsePreview(await mutation('/api/v1/runs/preview', csrfToken, request));
+  // A mismatched preview must never authorize or describe a different task.
+  if (preview.packId !== request.packId || preview.commandId !== request.commandId) invalidResponse();
+  return preview;
 }
 
 export async function createRun(csrfToken: string, request: CreateRunRequest): Promise<RunSnapshot> {
-  return parseSnapshot(await mutation('/api/v1/runs', csrfToken, request));
+  const snapshot = parseSnapshot(await mutation('/api/v1/runs', csrfToken, request));
+  if (snapshot.packId !== request.packId || snapshot.commandId !== request.commandId) invalidResponse();
+  return snapshot;
 }
 
 export async function cancelRun(csrfToken: string, runId: string): Promise<RunSnapshot> {
-  return parseSnapshot(await mutation(`/api/v1/runs/${encodeURIComponent(runId)}/cancel`, csrfToken));
+  const snapshot = parseSnapshot(await mutation(`/api/v1/runs/${encodeURIComponent(runId)}/cancel`, csrfToken));
+  if (snapshot.runId !== runId) invalidResponse();
+  return snapshot;
 }
 
 export async function fetchRuns(signal?: AbortSignal): Promise<RunSummary[]> {
@@ -599,7 +606,9 @@ export async function fetchRun(runId: string, signal?: AbortSignal): Promise<Run
   if (!response.ok) {
     throw await errorFromResponse(response);
   }
-  return parseSnapshot(await response.json());
+  const snapshot = parseSnapshot(await response.json());
+  if (snapshot.runId !== runId) invalidResponse();
+  return snapshot;
 }
 
 const maxStreamFailures = 5;
