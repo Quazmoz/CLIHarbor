@@ -92,6 +92,10 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
   const abortRef = useRef<AbortController | null>(null);
   const taskMap = new Map(tasks.filter((task) => task.packId === PACK && task.toolId === TOOL &&
     task.risk === 'read' && READ_COMMANDS.has(task.commandId)).map((task) => [task.commandId, task]));
+  // These are navigation shortcuts only. Read-only explorer queries never use them.
+  const changeTasks = new Map(tasks.filter((task) => task.packId === PACK && task.toolId === TOOL &&
+    task.risk === 'change' && ['secret-permit', 'secret-deny'].includes(task.commandId))
+    .map((task) => [task.commandId, task]));
 
   useEffect(() => {
     // Navigating away, hiding the tab, or changing the runtime invalidates displayed access evidence.
@@ -280,6 +284,20 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
       <p className="status-label">Conjur · Read-only</p>
       <h2 id="access-heading">Access &amp; Permissions Explorer</h2>
       <p>Explore visible resources and Conjur-returned relationships. A permitted-role list is not a verified effective-access decision. An empty or incomplete result does not prove denial.</p>
+      <section className="conjur-permission-next" aria-label="Permission change shortcuts">
+        <h3>Change secret variable permissions</h3>
+        <p>Inspect access below, then prepare a grant or revoke in the existing task form. To replace a privilege, review each change separately and re-check the result. Revocation only applies to grants from the same policy branch.</p>
+        <div className="platform-toolbox-grid">
+          <button type="button" disabled={working || !changeTasks.has('secret-permit')}
+            onClick={() => { if (!working && changeTasks.has('secret-permit')) onOpenTask('secret-permit', {}); }}>
+            Grant secret permission · Approval required
+          </button>
+          <button type="button" className="secondary-button" disabled={working || !changeTasks.has('secret-deny')}
+            onClick={() => { if (!working && changeTasks.has('secret-deny')) onOpenTask('secret-deny', {}); }}>
+            Revoke secret permission · Approval required
+          </button>
+        </div>
+      </section>
       <div className="platform-toolbox-grid">
         <form onSubmit={(event: FormEvent) => { event.preventDefault(); browse(0); }} className="form-stack">
           <h3>Inventory</h3>
