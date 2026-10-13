@@ -118,7 +118,7 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
         <details id="conjur-migration" className="platform-toolbox conjur-migration-details"
           open={migrationOpen} onToggle={(event) => setMigrationOpen(event.currentTarget.open)}>
           <summary>Migration playbooks &amp; policy templates</summary>
-          <ConjurMigrationWorkbench tasks={platformTasks} packId={platform.packId}
+          <ConjurMigrationWorkbench key={discoveryKey} tasks={platformTasks} packId={platform.packId}
             toolId={platform.toolId} onOpenTask={onOpenTask} />
         </details>
       )}

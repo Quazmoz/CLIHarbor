@@ -123,3 +123,36 @@ test('Conjur overview invalidates a changed ready CLI and ignores late supersede
   expect(screen.queryByText('https://foreign.example.test')).not.toBeInTheDocument();
   expect(screen.getAllByText('Not available')).toHaveLength(2);
 });
+
+test('Conjur migration draft identifiers are discarded when the vendor context changes', () => {
+  const tool: ToolDiagnostic = {
+    packId: platform.packId, packName: 'Conjur', packVersion: '1.0',
+    toolId: platform.toolId, status: 'ready', version: '9.3.1',
+  };
+  const onOpenTask = vi.fn();
+  const props = {
+    platform, tasks, onOpenFeature: vi.fn(), onOpenDiagnostics: vi.fn(), onOpenTask,
+  };
+  const view = render(<PlatformPage {...props} tools={[tool]} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Migration playbooks & templates' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Policy branch' }), {
+    target: { value: 'previous/prod' },
+  });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Variable ID (relative to branch)' }), {
+    target: { value: 'old/secret' },
+  });
+  fireEvent.change(screen.getByRole('textbox', { name: /Role ID/ }), {
+    target: { value: '/old-group' },
+  });
+  expect(screen.getByRole('textbox', { name: 'Review-only policy YAML' }))
+    .toHaveDisplayValue(/old\/secret/);
+
+  // A changed CLI must not reuse identifiers entered for the previous target.
+  view.rerender(<PlatformPage {...props} tools={[{ ...tool, version: '9.3.2' }]} />);
+  expect(screen.getByRole('textbox', { name: 'Policy branch' })).toHaveValue('root');
+  expect(screen.getByRole('textbox', { name: 'Variable ID (relative to branch)' })).toHaveValue('');
+  expect(screen.getByRole('textbox', { name: /Role ID/ })).toHaveValue('');
+  expect(screen.queryByRole('textbox', { name: 'Review-only policy YAML' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Review access grant · approval required' })).not.toBeInTheDocument();
+  expect(onOpenTask).not.toHaveBeenCalled();
+});
