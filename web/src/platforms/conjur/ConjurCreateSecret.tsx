@@ -183,6 +183,14 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, contextKey }: Pr
 
   async function apply() {
     if (busyRef.current || !allowed || !approved || !reviewed || !plan || !account || !inputReady) return;
+    // The second independent approval must remain valid while the first run completes.
+    // Refuse stale reviews before mutating anything; preserve input for a fresh review.
+    if (Math.min(Date.parse(plan.create.approval!.expiresAt), Date.parse(plan.set.approval!.expiresAt)) <= Date.now() + MAX_RUN_MS + 5_000) {
+      setError('The reviewed approvals are too close to expiry. Review both changes again before proceeding.');
+      setPlan(null);
+      setApproved(false);
+      return;
+    }
     busyRef.current = true;
     setBusy(true);
     setError('');
@@ -242,7 +250,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, contextKey }: Pr
       </button>
       {open && (
         <form className="conjur-create-form" onSubmit={(event) => void review(event)} autoComplete="off">
-          <p>Provide the destination and secret value once. No command runs until you review and approve both changes. This is not an atomic Conjur transaction.</p>
+          <p>Provide the destination and secret value once. No change runs until you review and approve both operations; review checks existence using an approved read-only command. This is not an atomic Conjur transaction.</p>
           <label>Policy branch
             <input required maxLength={512} value={branch} disabled={busy} spellCheck={false}
               onChange={(event) => changed(() => setBranch(event.target.value))} />
