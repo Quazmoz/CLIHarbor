@@ -16,6 +16,7 @@ interface Props {
   tasks: Task[];
   csrfToken: string;
   account?: string;
+  endpoint?: string;
   contextKey: string;
 }
 
@@ -107,7 +108,7 @@ function safeMessage(error: unknown): string {
   return 'The operation was not confirmed. Review Runs and the Conjur variable before trying again.';
 }
 
-export function ConjurCreateSecret({ tasks, csrfToken, account, contextKey }: Props) {
+export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contextKey }: Props) {
   const [open, setOpen] = useState(false);
   const [branch, setBranch] = useState('root');
   const [variable, setVariable] = useState('');
@@ -125,7 +126,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, contextKey }: Pr
     return () => { alive.current = false; };
   }, []);
 
-  const allowed = Boolean(account) &&
+  const allowed = Boolean(account && endpoint) &&
     supportedTask(tasks, 'resource-exists', 'read', { 'resource-id': 'string' }) &&
     supportedTask(tasks, 'secret-create', 'change', {
       'policy-branch': 'string', 'variable-id': 'string', 'dry-run': 'boolean',
@@ -169,6 +170,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, contextKey }: Pr
           !create.context || !set.context || !create.impact || !set.impact ||
           create.impact.target !== variable || set.impact.target !== fullID ||
           JSON.stringify(create.context.fields) !== JSON.stringify(set.context.fields) ||
+          create.context.fields.find((field) => field.label === 'Account')?.value !== account ||
+          create.context.fields.find((field) => field.label === 'Endpoint')?.value.replace(/\\/$/u, '') !== endpoint?.replace(/\\/$/u, '') ||
           !create.stdin || set.stdin !== undefined) {
         throw new Error('Conjur did not return matching approved plans for both operations.');
       }
