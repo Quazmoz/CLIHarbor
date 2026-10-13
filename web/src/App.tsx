@@ -1503,6 +1503,7 @@ export function App() {
             platform={activePlatform}
             tasks={state.tasks}
             tools={state.tools}
+            csrfToken={state.status.csrfToken}
             onOpenRuns={() => navigate('runs')}
             onOpenFeature={openPlatformFeature}
             onOpenDiagnostics={() => navigate('diagnostics')}
