@@ -19,6 +19,13 @@ function requestPath(input: RequestInfo | URL): string {
   return new URL(input.url).pathname;
 }
 
+function configuredVendorConnection(): Response {
+  return response(200, {
+    environment: 'self-hosted', applianceUrl: 'https://conjur.example.test',
+    account: 'engineering', configurable: false,
+  });
+}
+
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
   readonly url: string;
@@ -799,6 +806,9 @@ describe('AuthenticationPage', () => {
     let interactiveRequest: unknown;
     let interactiveHeaders: HeadersInit | undefined;
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (requestPath(input) === '/api/v1/auth/configure') {
+        return Promise.resolve(configuredVendorConnection());
+      }
       if (requestPath(input) === '/api/v1/auth/interactive') {
         interactiveRequest = JSON.parse(String(init?.body));
         interactiveHeaders = init?.headers;
@@ -835,6 +845,9 @@ describe('AuthenticationPage', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
+        if (requestPath(input) === '/api/v1/auth/configure') {
+          return Promise.resolve(configuredVendorConnection());
+        }
         if (requestPath(input) === '/api/v1/auth/interactive') {
           return Promise.resolve(
             response(503, {
@@ -889,6 +902,7 @@ describe('AuthenticationPage', () => {
     let sessionChecks = 0;
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
+      if (path === '/api/v1/auth/configure') return Promise.resolve(configuredVendorConnection());
       if (path === '/api/v1/auth/interactive') return launchPending;
       if (path === '/api/v1/runs') {
         sessionChecks += 1;
@@ -904,7 +918,9 @@ describe('AuthenticationPage', () => {
 
     renderAuth([whoamiTask], [vendorTool]);
     fireEvent.click(screen.getByRole('button', { name: 'Start official Conjur sign-in' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(
+      fetchMock.mock.calls.filter(([input]) => requestPath(input) === '/api/v1/auth/interactive'),
+    ).toHaveLength(1));
     fireEvent.blur(window);
     expect(sessionChecks).toBe(0);
 
@@ -923,6 +939,7 @@ describe('AuthenticationPage', () => {
     let sessionChecks = 0;
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
+      if (path === '/api/v1/auth/configure') return Promise.resolve(configuredVendorConnection());
       if (path === '/api/v1/auth/interactive') return Promise.resolve(new Response(null, { status: 204 }));
       if (path === '/api/v1/runs') {
         sessionChecks += 1;
