@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Quazmoz/CLIHarbor/internal/runs"
 )
 
 func TestMutationAuditLockPersistsAndReacquires(t *testing.T) {
@@ -111,6 +113,13 @@ func TestMutationAuditLockChild(t *testing.T) {
 		t.Fatalf("child acquire: %v", err)
 	}
 	defer s.Close()
+	if err := s.Append(runs.AuditEvent{
+		RunID: strings.Repeat("f", 32), Action: "approved", PackID: "fixture",
+		CommandID: "fixture-change", Risk: "change", TargetLabel: "Fixture target",
+		Target: "fixture/one", Effect: "simulated change", Scope: "single",
+	}); err != nil {
+		t.Fatalf("child journal sync: %v", err)
+	}
 	fmt.Println("AUDIT_LOCK_ACQUIRED")
 	_, _ = io.Copy(io.Discard, os.Stdin)
 }
@@ -165,6 +174,10 @@ func TestMutationAuditLockReleasedAfterHardKill(t *testing.T) {
 	s, err := Open(path)
 	if err != nil {
 		t.Fatalf("OS lock was not released after hard kill: %v", err)
+	}
+	entries := s.List()
+	if len(entries) != 1 || entries[0].Action != "approved" || entries[0].RunID != strings.Repeat("f", 32) {
+		t.Fatalf("pending mutation evidence was lost or incorrectly completed: %#v", entries)
 	}
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
