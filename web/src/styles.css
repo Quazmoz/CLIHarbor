@@ -3187,3 +3187,34 @@ footer p {
 .conjur-template-card small { margin-top: auto; color: var(--text-muted); }
 .conjur-template-card button { align-self: flex-start; white-space: normal; text-align: left; }
 .conjur-template-card:focus-within { border-color: var(--accent); }
+
+
+/* First-class Conjur CRUD; secret values never appear in overview cards. */
+.conjur-crud-panel {
+  margin: 1.25rem 0; padding: 1.1rem;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.conjur-crud-panel .route-heading { margin-bottom: 0.9rem; }
+.conjur-crud-panel h3 { margin: 0 0 0.4rem; color: var(--text-strong); }
+.conjur-crud-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem; align-items: start;
+}
+.conjur-crud-grid .platform-tool-button { width: 100%; min-height: 10rem; }
+.conjur-crud-grid .platform-tool-button:disabled { opacity: 0.65; cursor: not-allowed; }
+.conjur-create-secret { min-width: 0; }
+.conjur-create-secret:has(.conjur-create-form) { grid-column: 1 / -1; }
+.conjur-create-form { display: grid; gap: 0.75rem; margin-top: 0.75rem; padding: 1rem;
+  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-3); }
+.conjur-create-form label { display: grid; gap: 0.3rem; font-weight: 600; }
+.conjur-create-form input[type="text"], .conjur-create-form input[type="password"],
+.conjur-create-form label > input:not([type]) { width: 100%; min-width: 0; }
+.conjur-create-form p { margin: 0; overflow-wrap: anywhere; }
+.conjur-create-form pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.conjur-create-form .mutation-approval { display: grid; gap: 0.6rem; min-width: 0; }
+.conjur-create-form .conjur-create-consent { display: flex; gap: 0.65rem; align-items: flex-start; }
+.conjur-create-form .conjur-create-consent input { flex-shrink: 0; margin-top: 0.3rem; }
+@media (max-width: 560px) {
+  .conjur-crud-grid { grid-template-columns: minmax(0, 1fr); }
+}
