@@ -123,3 +123,17 @@ test('absent approved capability disables the create entry point', () => {
     csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="current" />);
   expect(screen.getByRole('button', { name: /Create secret/ })).toBeDisabled();
 });
+
+test('a preview for a different Conjur account fails closed before any write', async () => {
+  vi.mocked(previewRun).mockImplementation(async (_, request) => ({
+    ...preview(request.commandId),
+    context: { fields: [{ label: 'Account', value: 'other-tenant' },
+      { label: 'Endpoint', value: 'https://example.test' }] },
+  }));
+  const region = setup();
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('matching approved plans'));
+  expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.commandId))
+    .toEqual(['resource-exists']);
+  expect(within(region).queryByRole('button', { name: 'Create secret and store value' })).not.toBeInTheDocument();
+});
