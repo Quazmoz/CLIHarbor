@@ -66,6 +66,59 @@ func TestConjurProvisionerDownloadsVerifiesAndReusesManagedCopy(t *testing.T) {
 	}
 }
 
+func TestConjurProvisionerResolveInstalledLegacyCache(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte("verified-legacy-conjur")
+	digest := sha256.Sum256(payload)
+	p := &ConjurProvisioner{
+		rootDir:      t.TempDir(),
+		expectedSHA:  hex.EncodeToString(digest[:]),
+		expectedSize: int64(len(payload)),
+		goos:         "windows",
+		goarch:       "amd64",
+	}
+	path, err := p.targetPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if foundPath, found := p.ResolveInstalled(ConjurRef); found || foundPath != "" {
+		t.Fatalf("absent legacy cache returned %q, found=%v", foundPath, found)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, payload, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if foundPath, found := p.ResolveInstalled(ConjurRef); !found || foundPath != path {
+		t.Fatalf("verified legacy cache returned %q, found=%v, want %q", foundPath, found, path)
+	}
+	if foundPath, found := p.ResolveInstalled(discoveryRef("other", "conjur")); found || foundPath != "" {
+		t.Fatalf("foreign pack selected Conjur cache: %q, found=%v", foundPath, found)
+	}
+	p.goarch = "arm64"
+	if foundPath, found := p.ResolveInstalled(ConjurRef); found || foundPath != "" {
+		t.Fatalf("unsupported architecture selected Conjur cache: %q, found=%v", foundPath, found)
+	}
+	p.goarch = "amd64"
+
+	// A same-size replacement must never be treated as an approved CLI.
+	corrupt := []byte("corrupt-legacy-conjur!")
+	if len(corrupt) != len(payload) {
+		t.Fatal("test fixture must preserve size")
+	}
+	if err := os.WriteFile(path, corrupt, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if foundPath, found := p.ResolveInstalled(ConjurRef); found || foundPath != "" {
+		t.Fatalf("corrupt legacy cache selected: %q, found=%v", foundPath, found)
+	}
+	if current, err := os.ReadFile(path); err != nil || string(current) != string(corrupt) {
+		t.Fatalf("read-only legacy lookup modified cache: content=%q, err=%v", current, err)
+	}
+}
+
 func TestConjurProvisionerRepairsWrongHashManagedCopy(t *testing.T) {
 	t.Parallel()
 
