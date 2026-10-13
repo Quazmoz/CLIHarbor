@@ -74,7 +74,7 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 					}
 				}
 			}
-			if !found && ref == conjur.ConjurRef {
+			if !found && usingDefaultPacks && ref == conjur.ConjurRef {
 				// Older versions stored the byte-pinned Windows Conjur CLI at a
 				// dedicated cache path. Reuse it without network or mutation;
 				// ordinary discovery still validates executable identity/version.
