@@ -24,7 +24,7 @@ const tasks: Task[] = [
   task('secret-set-value', 'change', [['variable-id', 'string'], ['value', 'secret']]),
 ];
 const approval = { id: 'a'.repeat(32), mode: 'explicit' as const, expiresAt: '2026-11-01T00:00:00Z' };
-const context = { fields: [{ label: 'Conjur account', value: 'dev' }, { label: 'Endpoint', value: 'https://example.test' }] };
+const context = { fields: [{ label: 'Account', value: 'dev' }, { label: 'Endpoint', value: 'https://example.test' }] };
 const preview = (commandId: string): RunPreview => ({
   packId: PACK, commandId, toolId: 'conjur', executableName: 'conjur',
   args: ['policy'], risk: 'change',
@@ -41,7 +41,7 @@ const snapshot = (commandId: string, ok = true): RunSnapshot => ({
   } } : {}),
 });
 const setup = () => {
-  render(<ConjurCreateSecret tasks={tasks} csrfToken="test-csrf" account="dev" contextKey="current" />);
+  render(<ConjurCreateSecret tasks={tasks} csrfToken="test-csrf" account="dev" endpoint="https://example.test" contextKey="current" />);
   const region = screen.getByRole('region', { name: 'Create Conjur secret' });
   fireEvent.click(within(region).getByRole('button', { name: /Create secret/ }));
   fireEvent.change(within(region).getByRole('textbox', { name: /Policy branch/ }), {
@@ -120,6 +120,6 @@ test('existing variable prevents all mutating previews and execution', async () 
 
 test('absent approved capability disables the create entry point', () => {
   render(<ConjurCreateSecret tasks={tasks.filter((entry) => entry.commandId !== 'secret-set-value')}
-    csrfToken="csrf" account="dev" contextKey="current" />);
+    csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="current" />);
   expect(screen.getByRole('button', { name: /Create secret/ })).toBeDisabled();
 });
