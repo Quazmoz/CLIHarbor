@@ -61,6 +61,12 @@ test('Conjur permission changes remain unavailable when CLI is missing or tasks 
     onOpenFeature={onOpenFeature} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
   actions = screen.getByRole('region', { name: 'Conjur permission management' });
   expect(within(actions).getAllByRole('button').every((button) => button.hasAttribute('disabled'))).toBe(true);
+  // A stale platform-ready snapshot cannot override a missing CLI diagnostic.
+  view.rerender(<PlatformPage platform={platform} tasks={permissions}
+    tools={[{ packId: platform.packId, toolId: platform.toolId, packName: 'Conjur', packVersion: '0.7.0', status: 'missing' }]}
+    onOpenFeature={onOpenFeature} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
+  actions = screen.getByRole('region', { name: 'Conjur permission management' });
+  expect(within(actions).getAllByRole('button').every((button) => button.hasAttribute('disabled'))).toBe(true);
   expect(onOpenTask).not.toHaveBeenCalled();
   expect(onOpenFeature).not.toHaveBeenCalled();
 });
