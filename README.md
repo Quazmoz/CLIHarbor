@@ -84,8 +84,9 @@ CLIHarbor discovery is deterministic and intentionally tiered:
 1. explicit backend `--tool-path` override;
 2. exact verified CLIHarbor-managed copy in the default user cache;
 3. exact verified CLIHarbor-managed copy in the persisted custom user-home location;
-4. exact pack-declared executable names on absolute `PATH` entries;
-5. only when `PATH` has no match, common user-level CLI locations such as `~/go/bin`, `~/.local/bin`, `~/bin`, Windows WinGet links, and Scoop shims.
+4. for the embedded first-party Conjur pack on Windows amd64 only, the exact-byte-verified legacy bootstrap cache;
+5. exact pack-declared executable names on absolute `PATH` entries;
+6. only when `PATH` has no match, common user-level CLI locations such as `~/go/bin`, `~/.local/bin`, `~/bin`, Windows WinGet links, and Scoop shims.
 
 Fallback locations never override a valid `PATH` match and are not recursively scanned. Multiple candidates within the active discovery tier still fail closed as ambiguous.
 
