@@ -77,7 +77,8 @@ test('Conjur toolbox only shows backend-advertised tasks owned by this platform'
   const toolbox = screen.getByRole('region', { name: 'Conjur toolbox' });
   expect(within(toolbox).getByRole('button', { name: /Browse secret variable IDs/ })).toBeInTheDocument();
   expect(within(toolbox).getByRole('button', { name: /List role members/ })).toBeInTheDocument();
-  expect(within(toolbox).getByRole('button', { name: /Delete secret variable/ })).toHaveTextContent('Approval required');
+  const crud = screen.getByRole('region', { name: 'Conjur secret management' });
+  expect(within(crud).getByRole('button', { name: /Delete secret/ })).toHaveTextContent('Approval required');
   expect(within(toolbox).queryByText('Spoof task')).not.toBeInTheDocument();
   fireEvent.click(within(toolbox).getByRole('button', { name: /Browse secret variable IDs/ }));
   expect(onOpenTask).toHaveBeenCalledExactlyOnceWith('cyberark-conjur-v9/list-variables');
@@ -225,4 +226,21 @@ test('Conjur migration draft identifiers are discarded when the vendor context c
   expect(screen.queryByRole('textbox', { name: 'Review-only policy YAML' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Review access grant · approval required' })).not.toBeInTheDocument();
   expect(onOpenTask).not.toHaveBeenCalled();
+});
+
+test('Conjur main page exposes all four guarded CRUD operations', () => {
+  const onOpenTask = vi.fn();
+  render(<PlatformPage platform={platform} tasks={[...tasks, ...permissions,
+    { packId: platform.packId, packName: 'Conjur', toolId: platform.toolId,
+      commandId: 'secret-set-value', name: 'Update value', risk: 'change', inputs: [] }]}
+    onOpenFeature={() => {}} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
+  const crud = screen.getByRole('region', { name: 'Conjur secret management' });
+  expect(within(crud).getByText('Create secret')).toBeInTheDocument();
+  fireEvent.click(within(crud).getByRole('button', { name: /Read \/ browse/ }));
+  fireEvent.click(within(crud).getByRole('button', { name: /Update value/ }));
+  fireEvent.click(within(crud).getByRole('button', { name: /Delete secret/ }));
+  expect(onOpenTask.mock.calls.map(([id]) => id)).toEqual([
+    'cyberark-conjur-v9/list-variables', 'cyberark-conjur-v9/secret-set-value',
+    'cyberark-conjur-v9/secret-delete',
+  ]);
 });
