@@ -119,6 +119,40 @@ func TestConjurProvisionerResolveInstalledLegacyCache(t *testing.T) {
 	}
 }
 
+func TestConjurProvisionerResolveInstalledRejectsSymlink(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte("verified-legacy-conjur")
+	digest := sha256.Sum256(payload)
+	p := &ConjurProvisioner{
+		rootDir:      t.TempDir(),
+		expectedSHA:  hex.EncodeToString(digest[:]),
+		expectedSize: int64(len(payload)),
+		goos:         "windows",
+		goarch:       "amd64",
+	}
+	target, err := p.targetPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "approved-bytes.exe")
+	if err := os.WriteFile(outside, payload, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, target); err != nil {
+		t.Skipf("symlink creation unavailable: %v", err)
+	}
+	if path, found := p.ResolveInstalled(ConjurRef); found || path != "" {
+		t.Fatalf("symlink cache was accepted: %q, found=%v", path, found)
+	}
+	if data, err := os.ReadFile(outside); err != nil || string(data) != string(payload) {
+		t.Fatalf("legacy lookup modified symlink target: data=%q, err=%v", data, err)
+	}
+}
+
 func TestConjurProvisionerRepairsWrongHashManagedCopy(t *testing.T) {
 	t.Parallel()
 
