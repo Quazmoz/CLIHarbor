@@ -185,7 +185,13 @@ export function OverviewPage({
                 <li key={taskKey(task)}>
                   <button type="button" className="quick-task-button" disabled={navigationLocked} onClick={() => onOpenTask(taskKey(task))}>
                     <strong>{task.name}</strong>
-                    <span>{task.packName}{task.requiresAuth ? ' · Sign-in required' : ''}</span>
+                    <span>{task.packName} · {task.toolId}</span>
+                    <span className="quick-task-flags">
+                      <span className={'task-risk-badge task-risk-badge--' + task.risk}>
+                        {task.risk === 'read' ? 'Read-only' : task.risk === 'change' ? 'Change · approval required' : 'Destructive · approval required'}
+                      </span>
+                      {task.requiresAuth && <span className="task-auth-badge">Sign-in required</span>}
+                    </span>
                   </button>
                 </li>
               ))}

@@ -312,6 +312,23 @@ describe('OverviewPage', () => {
     expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
   });
 
+  test('flags destructive favorites and vendor sign-in before opening configuration', () => {
+    const openTask = vi.fn();
+    const risky: Task = {
+      ...tasks[0], commandId: 'delete', name: 'Delete secret', risk: 'destructive',
+    };
+    render(
+      <OverviewPage status={status} tasks={[risky]} tools={[readyTools[0]]}
+        preferences={{ favorites: [{ packId: 'conjur', commandId: 'delete' }], recent: [] }}
+        onNavigate={vi.fn()} onOpenTask={openTask} onOpenTool={vi.fn()} />,
+    );
+    const quickLink = screen.getByRole('button', { name: /Delete secret/i });
+    expect(quickLink).toHaveTextContent('Destructive · approval required');
+    expect(quickLink).toHaveTextContent('Sign-in required');
+    fireEvent.click(quickLink);
+    expect(openTask).toHaveBeenCalledExactlyOnceWith('conjur/delete');
+  });
+
   test('renders version strings without inventing a duplicate prefix', () => {
     render(
       <OverviewPage status={status} tasks={tasks} tools={[{ ...readyTools[0], version: 'v9.3.1' }]}

@@ -1188,7 +1188,7 @@ export function App() {
   }, [activePlatformID]);
 
   const changeTaskCategory = (toolKey: string) => {
-    if (starting || activeRunID !== null || state.kind !== 'ready') return;
+    if (startingRef.current || starting || activeRunID !== null || state.kind !== 'ready') return;
     if (toolKey !== '' && !state.tasks.some((task) => taskToolKey(task) === toolKey)) return;
     if (toolKey === taskToolFilter) {
       // The task catalog owns its open state. Remount only on an explicit repeat
@@ -1537,12 +1537,12 @@ export function App() {
             dedicatedSignInFor={dedicatedSignInFor}
             navigationLocked={starting || activeRunID !== null}
             onOpenTool={(key) => {
-              if (starting || activeRunID !== null) return;
+              if (startingRef.current || starting || activeRunID !== null) return;
               changeTaskCategory(key);
               navigate('tasks');
             }}
             onOpenTask={(taskKey) => {
-              if (starting || activeRunID !== null) return;
+              if (startingRef.current || starting || activeRunID !== null) return;
               setTaskToolFilter('');
               selectTaskByKey(taskKey, state.tasks);
               navigate('tasks');

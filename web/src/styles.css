@@ -2468,10 +2468,16 @@ footer p {
   color: var(--text-strong);
 }
 
-.quick-task-button span {
+.quick-task-button > span:not(.quick-task-flags) {
   color: var(--text-subtle);
   font-size: 0.8rem;
   font-weight: 550;
+}
+.quick-task-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
 }
 
 .overview-empty {
