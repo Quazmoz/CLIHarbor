@@ -171,7 +171,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
           create.impact.target !== variable || set.impact.target !== fullID ||
           JSON.stringify(create.context.fields) !== JSON.stringify(set.context.fields) ||
           create.context.fields.find((field) => field.label === 'Account')?.value !== account ||
-          create.context.fields.find((field) => field.label === 'Endpoint')?.value.replace(/\\/$/u, '') !== endpoint?.replace(/\\/$/u, '') ||
+          create.context.fields.find((field) => field.label === 'Endpoint')?.value.replace(/\/$/u, '') !== endpoint?.replace(/\/$/u, '') ||
           !create.stdin || set.stdin !== undefined) {
         throw new Error('Conjur did not return matching approved plans for both operations.');
       }
