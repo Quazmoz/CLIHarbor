@@ -140,7 +140,7 @@ If company policy prohibits application-managed vendor downloads:
 bin\cliharbor-windows-x64-evaluation.exe serve --no-auto-setup
 ```
 
-CLIHarbor still loads the embedded trusted pack but does not download a missing Conjur executable.
+CLIHarbor still loads the embedded trusted pack but does not download a missing Conjur executable. The Windows development restart helper also uses `--no-auto-setup`: it recognizes approved PATH/override installations and both byte-verified CLIHarbor managed-cache layouts, but will not install Conjur merely by restarting. If the dedicated Conjur page still says **missing**, open **Add a CLI → CyberArk Conjur → Install** to install the pinned current-user binary (only if your organization's application policy permits it), or restart CLIHarbor with an explicitly approved `--tool-path`. Neither action signs in to Conjur.
 
 ### Pin an approved existing Conjur executable
 
