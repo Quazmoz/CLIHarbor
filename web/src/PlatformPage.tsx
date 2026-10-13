@@ -56,12 +56,17 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
   }, [platform.id, platform.packId, platform.toolId, discoveryKey]);
   const platformTasks = tasks.filter((task) => task.packId === platform.packId && task.toolId === platform.toolId);
   const taskCount = platformTasks.length;
+  const permissionTasks = new Map(platformTasks.filter((task) =>
+    task.risk === 'change' && ['secret-permit', 'secret-deny'].includes(task.commandId),
+  ).map((task) => [task.commandId, task]));
+  const permissionReady = platform.ready && (tool === undefined || tool.status === 'ready');
+  const explorerAvailable = permissionReady && platform.features.some((feature) => feature.id === 'access-explorer');
   // All shortcuts are resolved from backend-advertised approved tasks, never
   // from an independent command list that could bypass runtime policy.
   const groups = [
     { name: 'Resource inventory', ids: ['list-variables', 'list-policies', 'list-hosts', 'list-groups', 'list-resources', 'count-resources'] },
     { name: 'Access inspection', ids: ['resource-show', 'resource-permitted-roles', 'role-show', 'role-members', 'role-memberships'] },
-    { name: 'Reviewed changes', ids: ['secret-create', 'secret-delete', 'secret-permit', 'secret-deny', 'secret-set-value'] },
+    { name: 'Other reviewed changes', ids: ['secret-create', 'secret-delete', 'secret-set-value'] },
   ];
   return (
     <section className="panel platform-page" aria-labelledby="platform-heading">
@@ -75,6 +80,44 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
       </p>
       {!platform.ready && (
         <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>Open Diagnostics</button>
+      )}
+      {platform.id === 'conjur' && (
+        <section className="conjur-permission-panel" aria-label="Conjur permission management">
+          <div className="route-heading">
+            <p className="status-label">Primary workflow · Secret variables</p>
+            <h3>Manage secret permissions</h3>
+            <p>Grant, revoke, or review Conjur variable permissions. Policy changes require a separate preview and approval in the task runner.</p>
+          </div>
+          <div className="conjur-permission-grid">
+            <button type="button" className="platform-tool-button conjur-permission-action"
+              disabled={!permissionReady || !permissionTasks.has('secret-permit')}
+              onClick={() => {
+                const task = permissionTasks.get('secret-permit');
+                if (permissionReady && task) onOpenTask(task.packId + '/' + task.commandId);
+              }}>
+              <strong>Grant permission</strong>
+              <span>Allow a selected host, group, layer, or user to read, execute, or update a secret variable.</span>
+              <small>{permissionReady && permissionTasks.has('secret-permit') ? 'Open grant form · Approval required' : 'Unavailable until the approved task is ready'}</small>
+            </button>
+            <button type="button" className="platform-tool-button conjur-permission-action"
+              disabled={!permissionReady || !permissionTasks.has('secret-deny')}
+              onClick={() => {
+                const task = permissionTasks.get('secret-deny');
+                if (permissionReady && task) onOpenTask(task.packId + '/' + task.commandId);
+              }}>
+              <strong>Revoke permission</strong>
+              <span>Remove selected variable privileges granted by the same policy branch. Verify the original granting branch.</span>
+              <small>{permissionReady && permissionTasks.has('secret-deny') ? 'Open revoke form · Approval required' : 'Unavailable until the approved task is ready'}</small>
+            </button>
+            <button type="button" className="platform-tool-button conjur-permission-action"
+              disabled={!explorerAvailable}
+              onClick={() => { if (explorerAvailable) onOpenFeature('access-explorer'); }}>
+              <strong>Change permissions</strong>
+              <span>Inspect Conjur-reported access, then open separate grant or revoke approvals. No automatic permission swap.</span>
+              <small>{explorerAvailable ? 'Review access first · Read-only inspection' : 'Unavailable until Access Explorer is ready'}</small>
+            </button>
+          </div>
+        </section>
       )}
       {platform.id === 'conjur' && <section className="platform-toolbox-section" aria-label="Conjur environment">
         <h3>Operations overview</h3>
