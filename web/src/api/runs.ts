@@ -289,6 +289,26 @@ function parseSnapshot(value: unknown): RunSnapshot {
   ) {
     invalidResponse();
   }
+  // A retained snapshot is the replay authority after a broken SSE stream.
+  // Apply the same no-gap invariant as the live stream before trusting its output.
+  let nextSequence = 1;
+  const parsedEvents = Array.isArray(events)
+    ? events.map((event) => {
+        if (!isRecord(event) || (event.runId !== undefined && event.runId !== runId)) {
+          invalidResponse();
+        }
+        const parsed = parseEvent({ ...event, runId });
+        if (parsed.sequence !== nextSequence) invalidResponse();
+        nextSequence += 1;
+        return {
+          sequence: parsed.sequence,
+          type: parsed.type,
+          timestamp: parsed.timestamp,
+          dataBase64: parsed.dataBase64,
+          exitCode: parsed.exitCode,
+        };
+      })
+    : undefined;
   return {
     runId,
     packId,
@@ -301,21 +321,7 @@ function parseSnapshot(value: unknown): RunSnapshot {
     exitCode,
     structured: structured === undefined ? undefined : parseStructured(structured),
     failure: parseFailure(failure),
-    events: Array.isArray(events)
-      ? events.map((event) => {
-          if (!isRecord(event)) {
-            invalidResponse();
-          }
-          const parsed = parseEvent({ ...event, runId });
-          return {
-            sequence: parsed.sequence,
-            type: parsed.type,
-            timestamp: parsed.timestamp,
-            dataBase64: parsed.dataBase64,
-            exitCode: parsed.exitCode,
-          };
-        })
-      : undefined,
+    events: parsedEvents,
   };
 }
 

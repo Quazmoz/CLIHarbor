@@ -200,6 +200,31 @@ describe('run API request/response identity', () => {
     });
   });
 
+
+  test.each([
+    ['missing first event', [{ sequence: 2, type: 'stdout.chunk', timestamp }]],
+    ['skipped event', [{ sequence: 1, type: 'stdout.chunk', timestamp }, { sequence: 3, type: 'stdout.chunk', timestamp }]],
+    ['duplicate event', [{ sequence: 1, type: 'stdout.chunk', timestamp }, { sequence: 1, type: 'stderr.chunk', timestamp }]],
+    ['out-of-order events', [{ sequence: 2, type: 'stdout.chunk', timestamp }, { sequence: 1, type: 'stderr.chunk', timestamp }]],
+    ['foreign run identity', [{ runId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', sequence: 1, type: 'stdout.chunk', timestamp }]],
+  ])('rejects retained snapshot with %s', async (_caseName, events) => {
+    serve({ ...base, events });
+    await expect(fetchRun(runId)).rejects.toMatchObject({
+      detail: { code: 'invalid_response' },
+    });
+  });
+
+  test('accepts a complete ordered snapshot, including matching optional run identity', async () => {
+    serve({ ...base, events: [
+      { runId, sequence: 1, type: 'stdout.chunk', timestamp, dataBase64: btoa('first') },
+      { sequence: 2, type: 'stderr.chunk', timestamp, dataBase64: btoa('second') },
+    ] });
+    await expect(fetchRun(runId)).resolves.toMatchObject({
+      runId,
+      events: [{ sequence: 1 }, { sequence: 2 }],
+    });
+  });
+
   test('accepts matching task and run identities', async () => {
     serve(preview);
     await expect(previewRun('csrf', request)).resolves.toMatchObject({

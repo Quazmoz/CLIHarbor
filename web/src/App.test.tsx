@@ -957,7 +957,7 @@ describe('App', () => {
 
     FakeEventSource.latest?.emit('run-complete', {
       runId: runID,
-      sequence: 2,
+      sequence: 1,
       status: 'timed-out',
     });
 
@@ -1030,9 +1030,13 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
     expect(screen.getByRole('button', { name: 'Cancellation requested' })).toBeDisabled();
 
+    FakeEventSource.latest?.emit('run-event', {
+      runId: runID, sequence: 1, type: 'process.started',
+      timestamp: '2026-10-13T09:00:00Z',
+    });
     FakeEventSource.latest?.emit('run-complete', {
       runId: runID,
-      sequence: 2,
+      sequence: 1,
       status: 'cancelled',
     });
     expect(await screen.findByRole('heading', { name: 'Cancelled' })).toBeInTheDocument();
@@ -1266,6 +1270,10 @@ describe('App routing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
 
+    FakeEventSource.latest?.emit('run-event', {
+      runId: '99999999999999999999999999999999',
+      sequence: 1, type: 'process.started', timestamp: '2026-10-13T09:00:00Z',
+    });
     FakeEventSource.latest?.emit('run-complete', {
       runId: '99999999999999999999999999999999',
       sequence: 1,

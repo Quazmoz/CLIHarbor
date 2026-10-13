@@ -393,6 +393,10 @@ describe('AuthenticationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Re-check session' }));
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
     const second = FakeEventSource.instances[1];
+    second.emit('run-event', {
+      runId: '88888888888888888888888888888888',
+      sequence: 1, type: 'process.started', timestamp: '2026-10-13T09:00:00Z',
+    });
     second.emit('run-complete', {
       runId: '88888888888888888888888888888888',
       sequence: 1,
