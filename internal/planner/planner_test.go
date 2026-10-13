@@ -2,6 +2,7 @@ package planner
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -342,5 +343,29 @@ func assertPlannerCode(t *testing.T, err error, want ErrorCode) {
 	}
 	if plannerErr.Code != want {
 		t.Fatalf("code = %s, want %s (error %v)", plannerErr.Code, want, err)
+	}
+}
+
+func TestDeriveMutationImpactRejectsSpoofedTargetDisplay(t *testing.T) {
+	command := packs.Command{Impact: &packs.Impact{
+		TargetInput: "target", TargetLabel: "Resource", Effect: "delete", Scope: packs.ImpactScopeSingle,
+	}}
+	for _, target := range []string{
+		"prod\u202eevil", "prod\u2066test\u2069", "prod\u200bhidden",
+		"prod\u2028other", "prod\u2029other", "prod\u0085other",
+		string([]byte{0xff}),
+	} {
+		t.Run(fmt.Sprintf("%q", target), func(t *testing.T) {
+			_, err := deriveMutationImpact(command, map[string]value{
+				"target": {present: true, argument: target},
+			})
+			assertPlannerCode(t, err, ErrInvalidInput)
+		})
+	}
+	impact, err := deriveMutationImpact(command, map[string]value{
+		"target": {present: true, argument: "team/café-雪"},
+	})
+	if err != nil || impact == nil || impact.Target != "team/café-雪" {
+		t.Fatalf("valid Unicode target rejected: impact = %#v, err = %v", impact, err)
 	}
 }

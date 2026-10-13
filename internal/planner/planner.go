@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
@@ -298,12 +299,12 @@ func deriveMutationImpact(command packs.Command, values map[string]value) (*Muta
 		return nil, &Error{Code: ErrInvalidPlanState, Path: "commandId", Message: "validated mutation impact target is unavailable"}
 	}
 	target := current.argument
-	if strings.TrimSpace(target) != target {
-		return nil, &Error{Code: ErrInvalidInput, Path: "values." + command.Impact.TargetInput, Message: "mutation target cannot have leading or trailing whitespace"}
+	if !utf8.ValidString(target) || strings.TrimSpace(target) != target {
+		return nil, &Error{Code: ErrInvalidInput, Path: "values." + command.Impact.TargetInput, Message: "mutation target is not valid display text"}
 	}
 	for _, character := range target {
-		if character <= 0x1f || character == 0x7f {
-			return nil, &Error{Code: ErrInvalidInput, Path: "values." + command.Impact.TargetInput, Message: "mutation target cannot contain control characters"}
+		if unicode.IsControl(character) || unicode.Is(unicode.Cf, character) || character == '\u2028' || character == '\u2029' {
+			return nil, &Error{Code: ErrInvalidInput, Path: "values." + command.Impact.TargetInput, Message: "mutation target contains unsafe control or formatting characters"}
 		}
 	}
 	return &MutationImpact{

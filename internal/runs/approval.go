@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
 	"github.com/Quazmoz/CLIHarbor/internal/planner"
@@ -149,11 +151,13 @@ func validateExecutionContext(context ExecutionContext) error {
 }
 
 func safeContextText(value string, max int) bool {
-	if value == "" || len(value) > max || strings.TrimSpace(value) != value {
+	if value == "" || len(value) > max || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
 		return false
 	}
 	for _, character := range value {
-		if character <= 0x1f || character == 0x7f {
+		// Invisible/bidirectional formatting and line separators can misrepresent
+		// the target or account the operator is approving.
+		if unicode.IsControl(character) || unicode.Is(unicode.Cf, character) || character == '\u2028' || character == '\u2029' {
 			return false
 		}
 	}
