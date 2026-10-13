@@ -64,6 +64,25 @@ func NewConjurProvisioner() *ConjurProvisioner {
 	return p
 }
 
+// ResolveInstalled reuses the verified Conjur cache location written by the
+// original Windows bootstrap. The generic pack installer now uses a different
+// cache layout; existing reviewed bytes must remain discoverable offline.
+// Never download, repair, or return unverified files on this read-only path.
+func (p *ConjurProvisioner) ResolveInstalled(ref discovery.ToolRef) (string, bool) {
+	if p == nil || ref != ConjurRef || p.goos != "windows" || p.goarch != "amd64" {
+		return "", false
+	}
+	target, err := p.targetPath()
+	if err != nil {
+		return "", false
+	}
+	valid, err := p.verifyFile(target)
+	if err != nil || !valid {
+		return "", false
+	}
+	return target, true
+}
+
 func (p *ConjurProvisioner) Ensure(ctx context.Context, ref discovery.ToolRef) (string, bool, error) {
 	if p == nil || ref != ConjurRef || p.goos != "windows" || p.goarch != "amd64" {
 		return "", false, nil
