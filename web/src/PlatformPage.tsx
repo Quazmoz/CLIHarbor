@@ -153,43 +153,49 @@ export function PlatformPage({ platform, tasks, tools = [], csrfToken, onOpenRun
           </div>
         </section>
       )}
-      {platform.id === 'conjur' && <section className="platform-toolbox-section" aria-label="Conjur environment">
-        <h3>Operations overview</h3>
-        <dl>
-          <div><dt>CLI discovery</dt><dd>{tool?.status ?? (platform.ready ? 'Ready' : 'Not ready')}</dd></div>
-          <div><dt>CLI version</dt><dd>{tool?.version ?? 'Not verified'}</dd></div>
-          <div><dt>Configured endpoint</dt><dd>{target?.applianceUrl ?? 'Not available'}</dd></div>
-          <div><dt>Configured account</dt><dd>{target?.account ?? 'Not available'}</dd></div>
-          <div><dt>Authenticated identity</dt><dd>Verify on Conjur sign-in / session</dd></div>
-          <div><dt>Session</dt><dd>Not inferred from CLI discovery; check the vendor session</dd></div>
-        </dl>
-        <div className="platform-toolbox-grid">
-          <button type="button" className="secondary-button" onClick={() => onOpenFeature('access-explorer')}>Access &amp; permissions</button>
-          <button type="button" className="secondary-button" onClick={() => onOpenFeature('security-audit')}>Regex pattern explorer</button>
-          <button type="button" className="secondary-button" onClick={() => {
-            setMigrationOpen(true);
-            document.getElementById('conjur-migration')?.scrollIntoView?.({ block: 'start' });
-          }}>Migration playbooks &amp; templates</button>
-          <button type="button" className="secondary-button" onClick={() => onOpenFeature('tasks')}>Inventory &amp; approved changes</button>
-          <button type="button" className="secondary-button" onClick={() => onOpenFeature('sign-in')}>Session check</button>
-          {onOpenRuns && <button type="button" className="secondary-button" onClick={onOpenRuns}>Runs &amp; mutation audit</button>}
-          <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>Diagnostics</button>
-        </div>
-      </section>}
-      <ul className="platform-features">
-        {platform.features.map((feature) => (
-          <li key={feature.id}>
-            <h3>{feature.name}</h3>
-            <p>{featureDetail[feature.id]}{feature.id === 'tasks' ? ` ${taskCount} available.` : ''}</p>
-            <button type="button" className={feature.id === 'tasks' ? undefined : 'secondary-button'}
-              onClick={() => onOpenFeature(feature.id)}
-              disabled={feature.id === 'tasks' && taskCount === 0}>
-              {feature.id === 'tasks' ? 'Browse ' + taskCount + ' approved tasks' :
-                feature.id === 'sign-in' ? 'Open sign-in' : feature.id === 'access-explorer' ? 'Open Access Explorer' : 'Open security audit'}
-            </button>
-          </li>
-        ))}
-      </ul>
+      {platform.id === 'conjur' && (
+        <section className="platform-environment platform-toolbox-section" aria-label="Conjur environment">
+          <h3>Operations overview</h3>
+          <dl className="platform-environment-facts">
+            <div><dt>CLI discovery</dt><dd>{tool?.status ?? (platform.ready ? 'Ready' : 'Not ready')}</dd></div>
+            <div><dt>CLI version</dt><dd>{tool?.version ?? 'Not verified'}</dd></div>
+            <div><dt>Configured endpoint</dt><dd>{target?.applianceUrl ?? 'Not available'}</dd></div>
+            <div><dt>Configured account</dt><dd>{target?.account ?? 'Not available'}</dd></div>
+            <div><dt>Authenticated identity</dt><dd>Verify on Conjur sign-in / session</dd></div>
+            <div><dt>Session</dt><dd>Not inferred from CLI discovery; check the vendor session</dd></div>
+          </dl>
+        </section>
+      )}
+      <section className="platform-feature-section" aria-label="Conjur features">
+        <h3>Explore {platform.name}</h3>
+        <ul className="platform-features">
+          {platform.features.map((feature) => (
+            <li key={feature.id}>
+              <h3>{feature.name}</h3>
+              <p>{featureDetail[feature.id]}{feature.id === 'tasks' ? ` ${taskCount} available.` : ''}</p>
+              <button type="button" className={feature.id === 'tasks' ? undefined : 'secondary-button'}
+                onClick={() => onOpenFeature(feature.id)}
+                disabled={feature.id === 'tasks' && taskCount === 0}>
+                {feature.id === 'tasks' ? 'Browse ' + taskCount + ' approved tasks' :
+                  feature.id === 'sign-in' ? 'Open sign-in' : feature.id === 'access-explorer' ? 'Open Access Explorer' : 'Open security audit'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+      {platform.id === 'conjur' && (
+        <section className="platform-utility-section" aria-label="More Conjur tools">
+          <h3>More tools</h3>
+          <div className="platform-utility-buttons">
+            <button type="button" className="secondary-button" onClick={() => {
+              setMigrationOpen(true);
+              document.getElementById('conjur-migration')?.scrollIntoView?.({ block: 'start' });
+            }}>Migration playbooks &amp; templates</button>
+            {onOpenRuns && <button type="button" className="secondary-button" onClick={onOpenRuns}>Runs &amp; mutation audit</button>}
+            <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>Diagnostics</button>
+          </div>
+        </section>
+      )}
       {platform.id === 'conjur' && (
         <details id="conjur-migration" className="platform-toolbox conjur-migration-details"
           open={migrationOpen} onToggle={(event) => setMigrationOpen(event.currentTarget.open)}>

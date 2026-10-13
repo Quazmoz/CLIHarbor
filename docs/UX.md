@@ -44,6 +44,14 @@ command. Shortcuts are disabled for unavailable CLI discovery, unadvertised
 commands or mismatched risk classification. Other Conjur tools remain available
 lower on the page, and the generic CLI workspace is unchanged.
 
+The dedicated home uses two roomy columns for the CRUD and permission actions on
+desktop, collapsing to one on narrow windows. The operations overview displays
+endpoint and account evidence in wrapping fact cards instead of squeezed
+right-aligned rows. One feature-card section provides the dedicated sign-in,
+audit, access, and task navigation; a smaller **More tools** area retains
+Migration, Runs, and Diagnostics without duplicating the same destinations in
+another button grid. CLI discovery must still never imply authentication.
+
 ## 2. Core navigation
 
 The left sidebar is reserved for the standard **CLI workspace** routes. **Built-in CLIs** appears only in the top bar alongside **Other CLIs**; it must never be duplicated in the left navigation:

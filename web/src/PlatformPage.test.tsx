@@ -244,3 +244,33 @@ test('Conjur main page exposes all four guarded CRUD operations', () => {
     'cyberark-conjur-v9/secret-delete',
   ]);
 });
+
+test('Conjur home separates environment facts, feature navigation and secondary tools', () => {
+  const onOpenFeature = vi.fn();
+  const onOpenRuns = vi.fn();
+  const onOpenDiagnostics = vi.fn();
+  const onOpenTask = vi.fn();
+  render(<PlatformPage platform={platform} tasks={tasks}
+    onOpenFeature={onOpenFeature} onOpenRuns={onOpenRuns}
+    onOpenDiagnostics={onOpenDiagnostics} onOpenTask={onOpenTask} />);
+
+  const environment = screen.getByRole('region', { name: 'Conjur environment' });
+  expect(within(environment).getByRole('heading', { name: 'Operations overview' })).toBeInTheDocument();
+  expect(within(environment).getByText('Configured endpoint')).toBeInTheDocument();
+  expect(within(environment).queryByRole('button')).not.toBeInTheDocument();
+
+  const features = screen.getByRole('region', { name: 'Conjur features' });
+  expect(within(features).getAllByRole('button')).toHaveLength(platform.features.length);
+  fireEvent.click(within(features).getByRole('button', { name: 'Open security audit' }));
+  fireEvent.click(within(features).getByRole('button', { name: 'Open sign-in' }));
+  expect(onOpenFeature.mock.calls).toEqual([['security-audit'], ['sign-in']]);
+
+  const utilities = screen.getByRole('region', { name: 'More Conjur tools' });
+  expect(within(utilities).getAllByRole('button')).toHaveLength(3);
+  fireEvent.click(within(utilities).getByRole('button', { name: 'Runs & mutation audit' }));
+  fireEvent.click(within(utilities).getByRole('button', { name: 'Diagnostics' }));
+  expect(onOpenRuns).toHaveBeenCalledOnce();
+  expect(onOpenDiagnostics).toHaveBeenCalledOnce();
+  expect(onOpenTask).not.toHaveBeenCalled();
+});
+
