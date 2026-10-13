@@ -158,6 +158,18 @@ exact executable + argv[]
 official installed or exact verified managed CLI
 ```
 
+**Conjur secret management (CRUD):** Open **Built-in CLIs → CyberArk Conjur**.
+The top **Manage secrets** panel provides **Create secret**, **Read / browse**,
+**Update value**, and **Delete secret**. Create collects the policy branch,
+relative variable ID, and initial secret value in one form, then presents two
+reviewed Conjur mutations for a single explicit user approval. The backend
+runs variable declaration first and writes the value only after confirmed
+success. These are not atomic writes: if the value update fails, the variable
+may exist without the desired value. Read/browse intentionally returns
+metadata only, not stored secret values; destructive delete retains typed
+confirmation. Live Conjur acceptance testing is still required. See
+[Conjur integration](docs/CONJUR_INTEGRATION.md).
+
 **Conjur Access & Permissions Explorer:** Open **Built-in CLIs → CyberArk Conjur → Access & permissions**. Search visible inventory by kind and text using bounded server-side pages, inspect individual resources and roles, follow Conjur-permitted roles and direct/expanded role relationships, copy full IDs, and export only whitelisted metadata. The explorer checks CLI and vendor identity/context before and after each read, and discards incomplete or stale results. Role relationships are not proof of effective access; the vendor's native authorization still applies. See [Conjur integration](docs/CONJUR_INTEGRATION.md#access--permissions-explorer).
 
 **Conjur template gallery:** In the migration workbench, filter ready-made
