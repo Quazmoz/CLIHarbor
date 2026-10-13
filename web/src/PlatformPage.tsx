@@ -25,7 +25,6 @@ const featureDetail: Record<PlatformFeatureID, string> = {
 /** Home for one dedicated CLI: what CLIHarbor adds on top of the generic workspace. */
 export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
   const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
-  const readiness = tool?.status ?? 'unavailable';
   // A ready CLI may still switch version, pack contract, or login capability.
   // Never show the previous vendor endpoint under a changed discovery context.
   const discoveryKey = JSON.stringify([
