@@ -93,6 +93,7 @@ export function PlatformPage({ platform, tasks, tools = [], csrfToken, onOpenRun
             {csrfToken ? (
               <ConjurCreateSecret key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
                 tasks={platformTasks} csrfToken={csrfToken} account={permissionReady ? target?.account : undefined}
+                endpoint={permissionReady ? target?.applianceUrl : undefined}
                 contextKey={discoveryKey + '/' + (target?.applianceUrl ?? '') + '/' + (target?.account ?? '')} />
             ) : <div className="platform-tool-button"><strong>Create secret</strong><span>Requires a verified browser session.</span></div>}
             {([
