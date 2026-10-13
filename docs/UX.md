@@ -122,7 +122,7 @@ Each task shows:
 - auth requirement;
 - optional tags.
 
-Search should match task names, descriptions, and CLI terminology. While a query is active, the browser shows one non-duplicated Search results section instead of repeating the same match under Favorites, Recently used, and All tasks. Empty Favorites/Recently used groups stay hidden until they contain useful shortcuts, and a catalog count keeps the operator oriented without exposing execution authority.
+Search should match task names, descriptions, and CLI terminology, with whitespace-separated terms matching across metadata in any order (consistent with the global task switcher). While a query is active, the browser shows one non-duplicated Search results section instead of repeating the same match under Favorites, Recently used, and All tasks. Empty Favorites/Recently used groups stay hidden until they contain useful shortcuts, and a catalog count keeps the operator oriented without exposing execution authority.
 
 The catalog opens for initial discovery, then collapses after explicit selection so configuration stays within reach. **Change task** reopens it; `/` also opens the catalog and focuses search. Selection moves focus to the configuration heading. Mobile runtime counts stay in one compact row.
 

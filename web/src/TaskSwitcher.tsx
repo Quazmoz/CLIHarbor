@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Task } from './api/tasks';
-import { searchableText } from './TaskDiscovery';
+import { searchableText, taskQueryTerms } from './TaskDiscovery';
 import { taskIdentityKey, type TaskPreferences } from './taskPreferences';
 
 interface TaskSwitcherProps {
@@ -37,7 +37,7 @@ export function TaskSwitcher({ tasks, preferences, onSelect, onClose }: TaskSwit
     });
     return positions;
   }, [preferences.favorites, preferences.recent]);
-  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const terms = taskQueryTerms(query);
   const matching = tasks.filter((task) => terms.every((term) => searchableText(task).includes(term)))
     .sort((a, b) => (order.get(taskIdentityKey(a)) ?? Infinity) - (order.get(taskIdentityKey(b)) ?? Infinity));
   const visible = matching.slice(0, maxVisibleResults);

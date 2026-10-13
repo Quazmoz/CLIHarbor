@@ -252,4 +252,16 @@ describe('OverviewPage', () => {
     expect(navigate).toHaveBeenCalledWith('diagnostics');
   });
 
+  test('keeps one clear Add a CLI action when no reviewed tools are configured', () => {
+    const navigate = vi.fn();
+    render(
+      <OverviewPage status={status} tasks={[]} tools={[]}
+        preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
+    );
+    expect(screen.getByRole('heading', { name: 'Get your CLIs ready' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Add a CLI' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Add a CLI' }));
+    expect(navigate).toHaveBeenCalledWith('tools');
+  });
+
 });

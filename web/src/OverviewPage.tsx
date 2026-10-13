@@ -157,9 +157,6 @@ export function OverviewPage({
         {tools.length === 0 ? (
           <div className="overview-empty">
             <p>No reviewed CLI tools are configured. Add a supported CLI to get started.</p>
-            <div className="overview-panel-actions">
-              <button type="button" className="secondary-button" onClick={() => onNavigate('tools')}>Add a CLI</button>
-            </div>
           </div>
         ) : (
           <ul className="overview-tool-grid" aria-label="Configured command-line tools">
