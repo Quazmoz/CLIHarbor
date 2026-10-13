@@ -217,7 +217,8 @@ describe('OverviewPage', () => {
         onNavigate={navigate} onOpenTask={vi.fn()} onOpenTool={openTool} />,
     );
     expect(screen.getByRole('heading', { name: 'Your command-line tools' })).toBeInTheDocument();
-    expect(screen.getAllByText('Detected')).toHaveLength(2);
+    const toolList = screen.getByRole('list', { name: 'Configured command-line tools' });
+    expect(toolList.querySelectorAll('.overview-tool--ready')).toHaveLength(2);
     expect(screen.getByText('1 approved task available. Vendor sign-in is checked separately.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Browse Conjur conjur tasks' }));
     expect(openTool).toHaveBeenCalledWith('conjur/conjur');
