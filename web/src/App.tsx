@@ -1526,6 +1526,10 @@ export function App() {
             preferences={taskPreferences}
             onNavigate={navigate}
             dedicatedSignInFor={dedicatedSignInFor}
+            onOpenTool={(key) => {
+              changeTaskCategory(key);
+              navigate('tasks');
+            }}
             onOpenTask={(taskKey) => {
               setTaskToolFilter('');
               selectTaskByKey(taskKey, state.tasks);

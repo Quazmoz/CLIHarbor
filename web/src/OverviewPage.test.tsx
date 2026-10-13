@@ -208,4 +208,48 @@ describe('OverviewPage', () => {
     expect(screen.queryByText(/^Authenticated$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Signed in$/i)).not.toBeInTheDocument();
   });
+
+  test('shows every CLI independently and opens the selected approved tool catalog', () => {
+    const navigate = vi.fn();
+    const openTool = vi.fn();
+    render(
+      <OverviewPage status={status} tasks={tasks} tools={readyTools} preferences={preferences}
+        onNavigate={navigate} onOpenTask={vi.fn()} onOpenTool={openTool} />,
+    );
+    expect(screen.getByRole('heading', { name: 'Your command-line tools' })).toBeInTheDocument();
+    expect(screen.getAllByText('Detected')).toHaveLength(2);
+    expect(screen.getByText('1 approved task available. Vendor sign-in is checked separately.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Browse Conjur conjur tasks' }));
+    expect(openTool).toHaveBeenCalledWith('conjur/conjur');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  test('distinguishes an unavailable tool from a usable CLI without claiming sign-in', () => {
+    const navigate = vi.fn();
+    const openTool = vi.fn();
+    render(
+      <OverviewPage status={status} tasks={[tasks[0]]}
+        tools={[readyTools[0], { ...readyTools[1], status: 'ambiguous', message: 'Multiple installations need review.' }]}
+        preferences={{ favorites: [], recent: [] }} onNavigate={navigate}
+        onOpenTask={vi.fn()} onOpenTool={openTool} />,
+    );
+    expect(screen.getByText('Multiple installations need review.')).toBeInTheDocument();
+    expect(screen.getByText('ambiguous')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Diagnose Docker docker' }));
+    expect(navigate).toHaveBeenCalledWith('diagnostics');
+    expect(openTool).not.toHaveBeenCalled();
+    expect(screen.queryByText(/^Signed in$/i)).not.toBeInTheDocument();
+  });
+
+  test('provides a diagnostics path for a detected tool with no browser tasks', () => {
+    const navigate = vi.fn();
+    render(
+      <OverviewPage status={status} tasks={[]} tools={[readyTools[0]]}
+        preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
+    );
+    expect(screen.getByText('Executable detected. No approved browser tasks are available.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Diagnose Conjur conjur' }));
+    expect(navigate).toHaveBeenCalledWith('diagnostics');
+  });
+
 });
