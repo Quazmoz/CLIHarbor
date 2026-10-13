@@ -166,7 +166,7 @@ export function PlatformPage({ platform, tasks, tools = [], csrfToken, onOpenRun
           </dl>
         </section>
       )}
-      <section className="platform-feature-section" aria-label="Conjur features">
+      <section className="platform-feature-section" aria-label={platform.name + ' features'}>
         <h3>Explore {platform.name}</h3>
         <ul className="platform-features">
           {platform.features.map((feature) => (
