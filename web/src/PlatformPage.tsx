@@ -26,26 +26,35 @@ const featureDetail: Record<PlatformFeatureID, string> = {
 export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
   const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
   const readiness = tool?.status ?? 'unavailable';
+  // A ready CLI may still switch version, pack contract, or login capability.
+  // Never show the previous vendor endpoint under a changed discovery context.
+  const discoveryKey = JSON.stringify([
+    platform.id, platform.packId, platform.toolId, platform.ready,
+    tool?.status, tool?.packVersion, tool?.version,
+    tool?.credentialLogin?.method,
+    tool?.credentialLogin?.method === 'conjur-password' ? tool.credentialLogin.setupRequired : undefined,
+  ]);
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [targetSnapshot, setTargetSnapshot] = useState<{
-    platformId: string; readiness: string; applianceUrl: string; account: string;
+    discoveryKey: string; applianceUrl: string; account: string;
   } | null>(null);
   // Never render an environment snapshot obtained under a different platform or
   // discovery state, even for the frame before an effect processes new props.
-  const target = targetSnapshot?.platformId === platform.id && targetSnapshot.readiness === readiness
-    ? targetSnapshot : null;
+  const target = targetSnapshot?.discoveryKey === discoveryKey ? targetSnapshot : null;
   useEffect(() => {
     if (platform.id !== 'conjur') return;
     const controller = new AbortController();
     void fetchSecretAudit(controller.signal).then((audit) => {
       if (!controller.signal.aborted) {
-        setTargetSnapshot(audit.available && audit.target
-          ? { ...audit.target, platformId: platform.id, readiness }
+        setTargetSnapshot(audit.available && audit.target &&
+          (audit.packId === undefined || audit.packId === platform.packId) &&
+          (audit.toolId === undefined || audit.toolId === platform.toolId)
+          ? { ...audit.target, discoveryKey }
           : null);
       }
     }).catch(() => { if (!controller.signal.aborted) setTargetSnapshot(null); });
     return () => controller.abort();
-  }, [platform.id, readiness]);
+  }, [platform.id, platform.packId, platform.toolId, discoveryKey]);
   const platformTasks = tasks.filter((task) => task.packId === platform.packId && task.toolId === platform.toolId);
   const taskCount = platformTasks.length;
   // All shortcuts are resolved from backend-advertised approved tasks, never

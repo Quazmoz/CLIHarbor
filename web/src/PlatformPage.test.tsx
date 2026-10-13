@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { PlatformPage } from './PlatformPage';
 import type { Task } from './api/tasks';
@@ -79,4 +79,47 @@ test('Conjur homepage reveals migration playbooks without dispatching any CLI op
   expect(within(stage).getByRole('button', { name: 'Variable IDs' })).toBeEnabled();
   fireEvent.click(within(stage).getByRole('button', { name: 'Variable IDs' }));
   expect(onOpenTask).toHaveBeenCalledExactlyOnceWith('cyberark-conjur-v9/list-variables', undefined);
+});
+
+test('Conjur overview invalidates a changed ready CLI and ignores late superseded audit responses', async () => {
+  const pending: Array<(response: Response) => void> = [];
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => {
+    pending.push(resolve);
+  })));
+  const ready: ToolDiagnostic = {
+    packId: platform.packId, packName: 'Conjur', packVersion: '1.0',
+    toolId: platform.toolId, status: 'ready', version: '9.3.1',
+  };
+  const props = {
+    platform, tasks, onOpenFeature: vi.fn(), onOpenDiagnostics: vi.fn(), onOpenTask: vi.fn(),
+  };
+  const reply = (url: string, packId = platform.packId) => new Response(JSON.stringify({
+    available: true, packId, toolId: platform.toolId,
+    state: 'idle', total: 0, processed: 0, inspected: 0, findings: [], failures: [],
+    target: { applianceUrl: url, account: 'conjur' },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const view = render(<PlatformPage {...props} tools={[ready]} />);
+  await waitFor(() => expect(pending).toHaveLength(1));
+  await act(async () => { pending[0](reply('https://old.example.test')); });
+  expect(screen.getByText('https://old.example.test')).toBeInTheDocument();
+
+  // Readiness remains ready, but the discovered CLI identity has changed.
+  view.rerender(<PlatformPage {...props} tools={[{ ...ready, version: '9.3.2' }]} />);
+  expect(screen.queryByText('https://old.example.test')).not.toBeInTheDocument();
+  await waitFor(() => expect(pending).toHaveLength(2));
+
+  // An older pending response cannot overwrite the latest context.
+  view.rerender(<PlatformPage {...props} tools={[{ ...ready, version: '9.3.3' }]} />);
+  await waitFor(() => expect(pending).toHaveLength(3));
+  await act(async () => { pending[2](reply('https://current.example.test')); });
+  await act(async () => { pending[1](reply('https://stale.example.test')); });
+  expect(screen.getByText('https://current.example.test')).toBeInTheDocument();
+  expect(screen.queryByText('https://stale.example.test')).not.toBeInTheDocument();
+
+  // A response claiming a different pack must not become displayed authority.
+  view.rerender(<PlatformPage {...props} tools={[{ ...ready, packVersion: '2.0' }]} />);
+  await waitFor(() => expect(pending).toHaveLength(4));
+  await act(async () => { pending[3](reply('https://foreign.example.test', 'foreign-pack')); });
+  expect(screen.queryByText('https://foreign.example.test')).not.toBeInTheDocument();
+  expect(screen.getAllByText('Not available')).toHaveLength(2);
 });
