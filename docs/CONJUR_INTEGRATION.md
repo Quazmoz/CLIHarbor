@@ -210,6 +210,24 @@ The deprecated list compatibility flags for role membership/permitted-role queri
 
 All user-controlled positional identifiers are represented by CLIHarbor's constrained positional primitive: one validated scalar becomes exactly one argv element. CLIHarbor does not split it, template it, reinterpret it as a shell command, or allow a leading `-` that could become an undeclared flag.
 
+## Primary Conjur GUI: manage secret permissions
+
+The dedicated **Built-in CLIs → CyberArk Conjur** home presents **Grant permission**,
+**Revoke permission**, and **Change permissions** ahead of inventory and diagnostics.
+These actions are backed exclusively by the active pack's backend-advertised
+`secret-permit` and `secret-deny` change tasks. Unavailable tools and missing or
+risk-mismatched tasks cannot be launched from these shortcuts.
+
+**Grant** opens the existing approval-gated `!permit` form. **Revoke** opens the
+approval-gated `!deny` form, which removes only privileges granted by the same
+policy branch. **Change permissions** opens the read-only Access Explorer;
+operators can inspect reported relationships there and open grant/revoke forms,
+but replacing a permission requires individually reviewed changes and a new
+read-only verification. No CLI command is launched just by selecting a shortcut.
+The UI manages **variable permissions**, not an arbitrary resource's effective access.
+No new backend command, credentials, policy bypass or automatic multi-step mutation
+was introduced.
+
 ## Access & permissions explorer
 
 Open **Built-in CLIs → CyberArk Conjur → Access & permissions**, or visit `/dedicated/conjur/access-explorer`. This dedicated view runs **only existing backend-advertised read-only tasks**, with bounded inventory pages (25/50/100), a server-side search and a resource kind selector. Every resource or role selection rechecks the configured Conjur endpoint/account, CLI readiness/version, and the `whoami` identity before and after the query. Changed context, failed or incomplete vendor reads, oversized/malformed JSON, and cross-account IDs discard the result rather than imply that access is absent.
