@@ -29,6 +29,21 @@ inputs. No task runs without an explicit operator action on the task page,
 backend preview and authorization. Secret values are never accepted by the
 template builder, cached in a migration plan, or exported.
 
+### Conjur permissions-first home
+
+The dedicated CyberArk Conjur home places a three-action **Manage secret permissions**
+panel above the environment overview: **Grant permission** selects the approved
+`secret-permit` task; **Revoke permission** selects `secret-deny`; and
+**Change permissions** opens the read-only Access Explorer. The explorer also
+links to those two approved forms, without copying inferred role relationships
+or executing a mutation. Each grant or revoke still requires backend plan
+validation, explicit approval and mutation auditing in the existing task
+runner. The UI accurately warns that `!deny` only revokes grants created in
+the same policy branch; changing access is not represented as one atomic
+command. Shortcuts are disabled for unavailable CLI discovery, unadvertised
+commands or mismatched risk classification. Other Conjur tools remain available
+lower on the page, and the generic CLI workspace is unchanged.
+
 ## 2. Core navigation
 
 The left sidebar is reserved for the standard **CLI workspace** routes. **Built-in CLIs** appears only in the top bar alongside **Other CLIs**; it must never be duplicated in the left navigation:
