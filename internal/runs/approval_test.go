@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -261,5 +262,30 @@ func TestMutationAuditFailuresFailClosed(t *testing.T) {
 			_, err = manager.Start(request)
 			assertRunCode(t, err, ErrAuditUnavailable)
 		})
+	}
+}
+
+func TestExecutionContextRejectsInvisibleOrBidirectionalDisplayText(t *testing.T) {
+	for _, text := range []string{
+		"acct\u202eevil", "acct\u2066scope\u2069", "acct\u200dhidden",
+		"acct\u2028next", "acct\u2029next", "acct\u0085next",
+		string([]byte{0xff}),
+	} {
+		t.Run(fmt.Sprintf("%q", text), func(t *testing.T) {
+			for _, fields := range [][]ExecutionContextField{
+				{{Label: "Account", Value: text}},
+				{{Label: text, Value: "account"}},
+			} {
+				if err := validateExecutionContext(ExecutionContext{Fields: fields}); err == nil {
+					t.Fatalf("unsafe context accepted: %#v", fields)
+				}
+			}
+		})
+	}
+	if err := validateExecutionContext(ExecutionContext{Fields: []ExecutionContextField{
+		{Label: "Account", Value: "team/café-雪"},
+		{Label: "Endpoint", Value: "https://conjur.example.test"},
+	}}); err != nil {
+		t.Fatalf("valid Unicode execution context rejected: %v", err)
 	}
 }
