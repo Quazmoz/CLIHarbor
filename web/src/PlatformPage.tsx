@@ -4,11 +4,13 @@ import type { ToolDiagnostic } from './api/tools';
 import { fetchSecretAudit } from './platforms/conjur/secretAuditApi';
 import type { Task } from './api/tasks';
 import { ConjurMigrationWorkbench } from './platforms/conjur/ConjurMigrationWorkbench';
+import { ConjurCreateSecret } from './platforms/conjur/ConjurCreateSecret';
 
 interface PlatformPageProps {
   platform: Platform;
   tasks: Task[];
   tools?: ToolDiagnostic[];
+  csrfToken?: string;
   onOpenRuns?: () => void;
   onOpenFeature: (feature: PlatformFeatureID) => void;
   onOpenDiagnostics: () => void;
@@ -23,7 +25,7 @@ const featureDetail: Record<PlatformFeatureID, string> = {
 };
 
 /** Home for one dedicated CLI: what CLIHarbor adds on top of the generic workspace. */
-export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
+export function PlatformPage({ platform, tasks, tools = [], csrfToken, onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
   const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
   // A ready CLI may still switch version, pack contract, or login capability.
   // Never show the previous vendor endpoint under a changed discovery context.
@@ -66,7 +68,6 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
   const groups = [
     { name: 'Resource inventory', ids: ['list-variables', 'list-policies', 'list-hosts', 'list-groups', 'list-resources', 'count-resources'] },
     { name: 'Access inspection', ids: ['resource-show', 'resource-permitted-roles', 'role-show', 'role-members', 'role-memberships'] },
-    { name: 'Other reviewed changes', ids: ['secret-create', 'secret-delete', 'secret-set-value'] },
   ];
   return (
     <section className="panel platform-page" aria-labelledby="platform-heading">
@@ -80,6 +81,38 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
       </p>
       {!platform.ready && (
         <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>Open Diagnostics</button>
+      )}
+      {platform.id === 'conjur' && (
+        <section className="conjur-crud-panel" aria-label="Conjur secret management">
+          <div className="route-heading">
+            <p className="status-label">Secret management · CRUD</p>
+            <h3>Manage secrets</h3>
+            <p>Create a secret with its initial value in one form, browse variable IDs, update a value, or delete a variable. Changes use reviewed commands and require approval; viewing values is intentionally unavailable.</p>
+          </div>
+          <div className="conjur-crud-grid">
+            {csrfToken ? (
+              <ConjurCreateSecret key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
+                tasks={platformTasks} csrfToken={csrfToken} account={permissionReady ? target?.account : undefined}
+                contextKey={discoveryKey + '/' + (target?.applianceUrl ?? '') + '/' + (target?.account ?? '')} />
+            ) : <div className="platform-tool-button"><strong>Create secret</strong><span>Requires a verified browser session.</span></div>}
+            {([
+              { id: 'list-variables', risk: 'read', title: 'Read / browse', description: 'Find visible variable IDs without exposing their stored values.' },
+              { id: 'secret-set-value', risk: 'change', title: 'Update value', description: 'Rotate or replace an existing value through secure stdin.' },
+              { id: 'secret-delete', risk: 'destructive', title: 'Delete secret', description: 'Permanently remove a variable and its stored versions after typed approval.' },
+            ] as const).map((action) => {
+              const task = platformTasks.find((candidate) => candidate.commandId === action.id &&
+                candidate.risk === action.risk);
+              const available = permissionReady && task !== undefined;
+              return <button key={action.id} type="button" className="platform-tool-button"
+                disabled={!available}
+                onClick={() => { if (available) onOpenTask(task.packId + '/' + task.commandId); }}>
+                <strong>{action.title}</strong>
+                <span>{action.description}</span>
+                <small>{available ? (action.risk === 'read' ? 'Read-only metadata' : 'Approval required') : 'Unavailable until the approved task is ready'}</small>
+              </button>;
+            })}
+          </div>
+        </section>
       )}
       {platform.id === 'conjur' && (
         <section className="conjur-permission-panel" aria-label="Conjur permission management">
