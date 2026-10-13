@@ -257,7 +257,7 @@ and non-production variables before relying on the combined workflow.
 
 ## Primary Conjur GUI: manage secret permissions
 
-The dedicated **Built-in CLIs → CyberArk Conjur** home presents **Grant permission**,
+Below the secret CRUD panel, the dedicated **Built-in CLIs → CyberArk Conjur** home presents **Grant permission**,
 **Revoke permission**, and **Change permissions** ahead of inventory and diagnostics.
 These actions are backed exclusively by the active pack's backend-advertised
 `secret-permit` and `secret-deny` change tasks. Unavailable tools and missing or
