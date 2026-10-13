@@ -90,12 +90,17 @@ describe('App', () => {
       }
     });
     vi.stubGlobal('fetch', fetchMock);
-    render(<App />);
+    const { container } = render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Browse CLI Suite second tasks' }));
     expect(window.location.pathname).toBe('/tasks');
     expect(screen.getByRole('combobox', { name: 'Tool category' })).toHaveValue('suite/second');
     expect(screen.getByRole('heading', { name: 'Inspect second' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Inspect first' })).not.toBeInTheDocument();
+    fireEvent.click(container.querySelector('[data-task-action="select"][data-task-key="suite/second"]')!);
+    expect(container.querySelector('details.task-discovery')).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Browse CLI Suite second tasks' }));
+    expect(container.querySelector('details.task-discovery')).toHaveAttribute('open');
     expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs')).toBe(false);
   });
 

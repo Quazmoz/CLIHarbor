@@ -91,7 +91,7 @@ describe('OverviewPage', () => {
         preferences={preferences}
         onNavigate={navigate}
         onOpenTask={openTask}
-      onOpenTool={vi.fn()} />,
+        onOpenTool={vi.fn()} />,
     );
 
     expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('OverviewPage', () => {
         onNavigate={vi.fn()}
         onOpenTask={vi.fn()}
         dedicatedSignInFor={(tool) => (tool.toolId === 'conjur' ? { platformName: 'CyberArk Conjur', open } : undefined)}
-      onOpenTool={vi.fn()} />,
+        onOpenTool={vi.fn()} />,
     );
 
     expect(screen.getByRole('heading', { name: 'Connect your CLIs' })).toBeInTheDocument();
@@ -144,7 +144,7 @@ describe('OverviewPage', () => {
         preferences={{ favorites: [], recent: [] }}
         onNavigate={vi.fn()}
         onOpenTask={vi.fn()}
-      onOpenTool={vi.fn()} />,
+        onOpenTool={vi.fn()} />,
     );
 
     expect(screen.getByRole('heading', { name: 'CLI session checks' })).toBeInTheDocument();
@@ -171,7 +171,7 @@ describe('OverviewPage', () => {
         preferences={{ favorites: [], recent: [] }}
         onNavigate={navigate}
         onOpenTask={vi.fn()}
-      onOpenTool={vi.fn()} />,
+        onOpenTool={vi.fn()} />,
     );
 
     expect(screen.getByRole('heading', { name: 'Resolve tool readiness' })).toBeInTheDocument();
@@ -201,7 +201,7 @@ describe('OverviewPage', () => {
         preferences={{ favorites: [], recent: [] }}
         onNavigate={vi.fn()}
         onOpenTask={vi.fn()}
-      onOpenTool={vi.fn()} />,
+        onOpenTool={vi.fn()} />,
     );
 
     expect(screen.getByText('1 task requires sign-in before use.')).toBeInTheDocument();

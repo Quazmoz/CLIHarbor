@@ -1187,8 +1187,13 @@ export function App() {
   }, [activePlatformID]);
 
   const changeTaskCategory = (toolKey: string) => {
-    if (starting || activeRunID !== null || state.kind !== 'ready' || toolKey === taskToolFilter) return;
+    if (starting || activeRunID !== null || state.kind !== 'ready') return;
     if (toolKey !== '' && !state.tasks.some((task) => taskToolKey(task) === toolKey)) return;
+    if (toolKey === taskToolFilter) {
+      // Returning to the same CLI should reopen browsing, not strand a collapsed selection.
+      setTaskChosen(false);
+      return;
+    }
     setTaskToolFilter(toolKey);
     // When filtering from the shared task browser, keep the built-in CLI
     // top-bar selection and breadcrumbs aligned with the chosen tool.
