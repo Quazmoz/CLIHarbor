@@ -598,6 +598,7 @@ export function App() {
   const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
   const [selectedTaskKey, setSelectedTaskKey] = useState('');
   const [taskChosen, setTaskChosen] = useState(false);
+  const [taskCatalogRevision, setTaskCatalogRevision] = useState(0);
   const [taskToolFilter, setTaskToolFilter] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [taskSwitcherOpen, setTaskSwitcherOpen] = useState(false);
@@ -1190,8 +1191,11 @@ export function App() {
     if (starting || activeRunID !== null || state.kind !== 'ready') return;
     if (toolKey !== '' && !state.tasks.some((task) => taskToolKey(task) === toolKey)) return;
     if (toolKey === taskToolFilter) {
-      // Returning to the same CLI should reopen browsing, not strand a collapsed selection.
+      // The task catalog owns its open state. Remount only on an explicit repeat
+      // selection so a previously closed catalog reopens even when its scope
+      // and taskChosen props have not changed.
       setTaskChosen(false);
+      setTaskCatalogRevision((revision) => revision + 1);
       return;
     }
     setTaskToolFilter(toolKey);
@@ -1601,7 +1605,7 @@ export function App() {
                 ) : (
                   <form ref={taskFormRef} onSubmit={startRun} noValidate>
                     <TaskDiscovery
-                      key={taskToolFilter}
+                      key={taskToolFilter + ':' + taskCatalogRevision}
                       tasks={state.tasks}
                       selectedTaskKey={selectedTaskKey}
                       preferences={taskPreferences}

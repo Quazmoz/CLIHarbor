@@ -101,6 +101,14 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
     fireEvent.click(screen.getByRole('button', { name: 'Browse CLI Suite second tasks' }));
     expect(container.querySelector('details.task-discovery')).toHaveAttribute('open');
+    // Manually close the catalog without changing taskChosen, then revisit
+    // this same CLI: merely setting taskChosen=false again must not be the fix.
+    fireEvent.click(container.querySelector('summary.task-catalog-summary')!);
+    expect(container.querySelector('details.task-discovery')).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Browse CLI Suite second tasks' }));
+    expect(container.querySelector('details.task-discovery')).toHaveAttribute('open');
+    expect(screen.getByRole('combobox', { name: 'Tool category' })).toHaveValue('suite/second');
     expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs')).toBe(false);
   });
 
