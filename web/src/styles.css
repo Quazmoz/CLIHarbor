@@ -111,7 +111,7 @@ button:disabled {
   overflow-y: auto;
   padding: 1.5rem 1rem;
   border-right: 1px solid var(--border);
-  background: var(--surface-3);
+  background: linear-gradient(180deg, #151e23, #101619 75%);
 }
 
 .brand-block {
@@ -165,6 +165,7 @@ button:disabled {
   font-size: 0.84rem;
   font-weight: 550;
   text-decoration: none;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
 }
 
 .primary-nav svg { width: 1.1rem; height: 1.1rem; flex-shrink: 0; }
@@ -174,7 +175,7 @@ button:disabled {
   border-color: var(--border-strong);
   border-left: 3px solid var(--accent);
   padding-left: calc(0.68rem - 2px);
-  background: #19323a;
+  background: linear-gradient(90deg, #19323a, #17252b);
 }
 
 .task-scope-banner {
@@ -244,7 +245,8 @@ button:disabled {
   min-height: 4.5rem;
   padding: 0.85rem 2rem;
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  background: rgba(17, 20, 23, 0.94);
+  backdrop-filter: blur(12px);
 }
 .topbar-location { display: flex; align-items: center; flex: 1 1 auto; flex-wrap: wrap; gap: 0.8rem; min-width: 0; font-size: 0.8rem; }
 .section-switcher {
@@ -2336,7 +2338,7 @@ footer p {
 
 .overview-page {
   display: grid;
-  gap: var(--space-4);
+  gap: clamp(1rem, 2.5vw, 1.5rem);
 }
 
 .overview-login .auth-layout {
@@ -2344,15 +2346,18 @@ footer p {
 }
 
 .overview-hero {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  min-height: 11rem;
   gap: var(--space-6);
   padding: var(--space-6);
-  border-color: #34505a;
+  border-color: #42616b;
   background:
-    linear-gradient(135deg, rgba(139, 197, 209, 0.08), transparent 42%),
-    var(--surface-1);
+    radial-gradient(ellipse at 5% -35%, rgba(139, 197, 209, 0.16), transparent 68%),
+    linear-gradient(115deg, #20313a, #171e24 72%);
 }
 
 .overview-hero-copy {
@@ -2361,7 +2366,8 @@ footer p {
 
 .overview-hero h2 {
   margin-top: 0.45rem;
-  font-size: clamp(1.55rem, 4vw, 2.2rem);
+  font-size: clamp(1.65rem, 3vw, 2.45rem);
+  letter-spacing: -0.035em;
 }
 
 .overview-hero p:last-child {
@@ -2385,9 +2391,10 @@ footer p {
 .overview-metric {
   min-width: 0;
   border: 1px solid var(--border);
+  border-top: 2px solid #42616b;
   border-radius: var(--radius-lg);
   padding: var(--space-5);
-  background: var(--surface-1);
+  background: linear-gradient(160deg, #1c252b, #181e23);
   box-shadow: var(--shadow);
 }
 
@@ -2404,8 +2411,9 @@ footer p {
   display: block;
   margin-top: 0.35rem;
   color: var(--text-strong);
-  font-size: 1.35rem;
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
   line-height: 1.2;
+  letter-spacing: -0.025em;
 }
 
 .overview-metric p {
@@ -2438,15 +2446,17 @@ footer p {
 }
 
 .quick-task-button {
+  position: relative;
   display: grid;
   width: 100%;
   min-height: 0;
   gap: 0.22rem;
   border-color: var(--border);
-  padding: 0.75rem 0.85rem;
+  padding: 0.75rem 2.25rem 0.75rem 0.85rem;
   color: var(--text);
   background: var(--surface-3);
   text-align: left;
+  transition: background-color 150ms ease, border-color 150ms ease;
 }
 
 .quick-task-button:hover:not(:disabled) {
@@ -2507,31 +2517,6 @@ footer p {
 }
 
 /* The local-operator dashboard is intentionally quiet: state, next action, then detail. */
-.sidebar {
-  background: linear-gradient(180deg, #151e23, #101619 75%);
-}
-.topbar {
-  background: rgba(17, 20, 23, 0.94);
-  backdrop-filter: blur(12px);
-}
-.primary-nav a {
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
-}
-.primary-nav a[aria-current="page"] {
-  background: linear-gradient(90deg, #19323a, #17252b);
-}
-.overview-page {
-  gap: clamp(1rem, 2.5vw, 1.5rem);
-}
-.overview-hero {
-  position: relative;
-  overflow: hidden;
-  min-height: 11rem;
-  border-color: #42616b;
-  background:
-    radial-gradient(ellipse at 5% -35%, rgba(139, 197, 209, 0.16), transparent 68%),
-    linear-gradient(115deg, #20313a, #171e24 72%);
-}
 .overview-hero::after {
   position: absolute;
   right: -3rem;
@@ -2566,13 +2551,7 @@ footer p {
 .overview-status-separator { color: var(--text-subtle); }
 .overview-status-indicator--attention { background: var(--warning); box-shadow: 0 0 0 3px rgba(223, 194, 125, 0.12); }
 .overview-selection-notice { font-size: 0.85rem; }
-.overview-hero h2 { font-size: clamp(1.65rem, 3vw, 2.45rem); letter-spacing: -0.035em; }
 .overview-hero-copy > p:last-child { max-width: 43rem; }
-.overview-metric {
-  border-top: 2px solid #42616b;
-  background: linear-gradient(160deg, #1c252b, #181e23);
-}
-.overview-metric strong { font-size: clamp(1.35rem, 2vw, 1.8rem); letter-spacing: -0.025em; }
 .overview-section-heading {
   display: flex;
   justify-content: space-between;
@@ -2661,11 +2640,6 @@ footer p {
   font-size: 0.72rem;
 }
 .overview-tool-footer button { min-height: 2.45rem; }
-.quick-task-button {
-  position: relative;
-  padding-right: 2.25rem;
-  transition: background-color 150ms ease, border-color 150ms ease;
-}
 .quick-task-button::after {
   position: absolute;
   right: 0.85rem;
