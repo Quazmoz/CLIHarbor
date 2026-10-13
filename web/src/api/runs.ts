@@ -638,6 +638,9 @@ export function subscribeRunEvents(
       const event = parseEvent(JSON.parse((raw as MessageEvent<string>).data));
       if (event.runId !== runId) throw clientError('invalid_response');
       if (event.sequence <= lastSequence) return;
+      // The server assigns contiguous sequence numbers. A gap means retained
+      // execution evidence was missed; let the caller reconcile the run.
+      if (event.sequence !== lastSequence + 1) throw clientError('invalid_response');
       onEvent(event);
       lastSequence = event.sequence;
       failures = 0;
@@ -649,7 +652,7 @@ export function subscribeRunEvents(
     if (closed) return;
     try {
       const complete = parseComplete(JSON.parse((raw as MessageEvent<string>).data));
-      if (complete.runId !== runId || complete.sequence < lastSequence || complete.status === 'running') throw clientError('invalid_response');
+      if (complete.runId !== runId || complete.sequence !== lastSequence || complete.status === 'running') throw clientError('invalid_response');
       onComplete(complete);
     } catch (error) {
       onError(error instanceof Error && error.name === 'AppError' ? (error as AppError) : clientError('invalid_response'));

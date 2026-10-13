@@ -65,6 +65,40 @@ describe('run stream lifecycle', () => {
     expect(source.close).toHaveBeenCalledOnce();
   });
 
+
+  test('rejects a missing event instead of silently displaying incomplete output', () => {
+    const { source, onEvent, onComplete, onError } = subscribe();
+    source.emit('run-event', event(1));
+    source.emit('run-event', event(3));
+    expect(onEvent.mock.calls.map(([value]) => value.sequence)).toEqual([1]);
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0][0].detail.code).toBe('invalid_response');
+    expect(source.close).toHaveBeenCalledOnce();
+    source.emit('run-event', event(2));
+    expect(onEvent).toHaveBeenCalledOnce();
+  });
+
+  test('rejects completion reporting unseen events after the last delivered cursor', () => {
+    const { source, onEvent, onComplete, onError } = subscribe(2);
+    source.emit('run-event', event(3));
+    source.emit('run-complete', { runId, sequence: 4, status: 'exited', exitCode: 0 });
+    expect(onEvent).toHaveBeenCalledOnce();
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0][0].detail.code).toBe('invalid_response');
+    expect(source.close).toHaveBeenCalledOnce();
+  });
+
+  test('rejects missing first event when subscribing without a snapshot cursor', () => {
+    const { source, onEvent, onComplete, onError } = subscribe();
+    source.emit('run-event', event(2));
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0][0].detail.code).toBe('invalid_response');
+  });
+
   test('exhausts the retry budget even when each empty connection opens', () => {
     const { source, onError } = subscribe();
     for (let i = 0; i < 5; i += 1) { source.onopen?.(); source.onerror?.(); }
