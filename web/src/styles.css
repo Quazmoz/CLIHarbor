@@ -3095,12 +3095,12 @@ footer p {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   gap: 0.75rem;
 }
-.conjur-permission-action {
+.platform-tool-button.conjur-permission-action {
   background: var(--surface-3); min-height: 10rem;
   border-color: var(--border-strong);
 }
-.conjur-permission-action strong { font-size: 1rem; }
-.conjur-permission-action:disabled { opacity: 0.65; cursor: not-allowed; }
+.platform-tool-button.conjur-permission-action strong { font-size: 1rem; }
+.platform-tool-button.conjur-permission-action:disabled { opacity: 0.65; cursor: not-allowed; }
 .conjur-permission-next {
   padding: 0.9rem; margin: 1rem 0 1.25rem;
   background: var(--surface-2); border: 1px solid var(--border);
