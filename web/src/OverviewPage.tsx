@@ -15,7 +15,7 @@ interface OverviewPageProps {
   onNavigate: (destination: OverviewDestination) => void;
   onOpenTask: (taskKey: string) => void;
   /** Navigates to the existing scoped task catalog; never starts a command. */
-  onOpenTool?: (toolKey: string) => void;
+  onOpenTool: (toolKey: string) => void;
   /** An active run owns the task selection until it completes. */
   navigationLocked?: boolean;
   /** Tools owned by a dedicated platform sign in from that platform's section. */
@@ -115,7 +115,9 @@ export function OverviewPage({
           </div>
           <h2 id="overview-heading">{workflowReady ? 'What would you like to do?' : 'Get your CLIs ready'}</h2>
           <p>
-            Pick an approved task to get started, or set up another CLI. Each command runs locally on this computer.
+            {workflowReady
+              ? 'Pick an approved task to get started, or set up another CLI. Each command runs locally on this computer.'
+              : 'Review your approved tools and resolve setup needs before running commands locally.'}
           </p>
         </div>
         <div className="overview-hero-actions">
@@ -166,12 +168,16 @@ export function OverviewPage({
           )}
           {shortcuts.length === 0 ? (
             <div className="overview-empty">
-              <p>Favorite a task or run one once and it will appear here for faster return access.</p>
-              <div className="overview-panel-actions">
-                <button type="button" className="secondary-button" onClick={() => onNavigate('tasks')}>
-                  Browse tasks
-                </button>
-              </div>
+              <p>{tasks.length > 0
+                ? 'Favorite a task or run one once and it will appear here for faster return access.'
+                : 'No approved tasks are available yet. Review your CLI setup to enable workflows.'}</p>
+              {tasks.length > 0 && (
+                <div className="overview-panel-actions">
+                  <button type="button" className="secondary-button" onClick={() => onNavigate('tasks')}>
+                    Browse tasks
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <ul className="quick-task-list">
@@ -214,7 +220,7 @@ export function OverviewPage({
                     <span className="overview-tool-state">{ready ? 'Detected' : tool.status.replaceAll('-', ' ')}</span>
                   </div>
                   <h3>{tool.packName}</h3>
-                  <p className="overview-tool-identity">{tool.toolId}{tool.version ? ' · v' + tool.version : ''}</p>
+                  <p className="overview-tool-identity">{tool.toolId}{tool.version ? ' · ' + tool.version : ''}</p>
                   <p className="overview-tool-description">
                     {ready
                       ? count > 0
@@ -229,8 +235,7 @@ export function OverviewPage({
                       aria-label={ready && count > 0 ? 'Browse ' + tool.packName + ' ' + tool.toolId + ' tasks' : 'Diagnose ' + tool.packName + ' ' + tool.toolId}
                       onClick={() => {
                         if (ready && count > 0) {
-                          if (onOpenTool) onOpenTool(key);
-                          else onNavigate('tasks');
+                          onOpenTool(key);
                         } else {
                           onNavigate('diagnostics');
                         }

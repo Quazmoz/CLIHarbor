@@ -91,7 +91,7 @@ describe('OverviewPage', () => {
         preferences={preferences}
         onNavigate={navigate}
         onOpenTask={openTask}
-      />,
+      onOpenTool={vi.fn()} />,
     );
 
     expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('OverviewPage', () => {
         onNavigate={vi.fn()}
         onOpenTask={vi.fn()}
         dedicatedSignInFor={(tool) => (tool.toolId === 'conjur' ? { platformName: 'CyberArk Conjur', open } : undefined)}
-      />,
+      onOpenTool={vi.fn()} />,
     );
 
     expect(screen.getByRole('heading', { name: 'Connect your CLIs' })).toBeInTheDocument();
@@ -144,7 +144,7 @@ describe('OverviewPage', () => {
         preferences={{ favorites: [], recent: [] }}
         onNavigate={vi.fn()}
         onOpenTask={vi.fn()}
-      />,
+      onOpenTool={vi.fn()} />,
     );
 
     expect(screen.getByRole('heading', { name: 'CLI session checks' })).toBeInTheDocument();
@@ -171,7 +171,7 @@ describe('OverviewPage', () => {
         preferences={{ favorites: [], recent: [] }}
         onNavigate={navigate}
         onOpenTask={vi.fn()}
-      />,
+      onOpenTool={vi.fn()} />,
     );
 
     expect(screen.getByRole('heading', { name: 'Resolve tool readiness' })).toBeInTheDocument();
@@ -184,7 +184,7 @@ describe('OverviewPage', () => {
     render(
       <OverviewPage status={status} tasks={[tasks[0]]}
         tools={[readyTools[0], { ...readyTools[1], status: 'missing' }]}
-        preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
+        preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} onOpenTool={vi.fn()} />,
     );
     expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
     expect(screen.getByText('1/2 ready')).toBeInTheDocument();
@@ -201,7 +201,7 @@ describe('OverviewPage', () => {
         preferences={{ favorites: [], recent: [] }}
         onNavigate={vi.fn()}
         onOpenTask={vi.fn()}
-      />,
+      onOpenTool={vi.fn()} />,
     );
 
     expect(screen.getByText('1 task requires sign-in before use.')).toBeInTheDocument();
@@ -246,7 +246,7 @@ describe('OverviewPage', () => {
     const navigate = vi.fn();
     render(
       <OverviewPage status={status} tasks={[]} tools={[readyTools[0]]}
-        preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
+        preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} onOpenTool={vi.fn()} />,
     );
     expect(screen.getByText('Executable detected. No approved browser tasks are available.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Diagnose Conjur conjur' }));
@@ -257,7 +257,7 @@ describe('OverviewPage', () => {
     const navigate = vi.fn();
     render(
       <OverviewPage status={status} tasks={[]} tools={[]}
-        preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
+        preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} onOpenTool={vi.fn()} />,
     );
     expect(screen.getByRole('heading', { name: 'Get your CLIs ready' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Add a CLI' })).toHaveLength(1);
@@ -268,12 +268,12 @@ describe('OverviewPage', () => {
   test('signals incomplete readiness without a green indicator', () => {
     const { container, rerender } = render(
       <OverviewPage status={status} tasks={[]} tools={[]}
-        preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()} onOpenTask={vi.fn()} />,
+        preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()} onOpenTask={vi.fn()} onOpenTool={vi.fn()} />,
     );
     expect(container.querySelector('.overview-status-indicator--attention')).not.toBeNull();
     rerender(
       <OverviewPage status={status} tasks={tasks} tools={readyTools}
-        preferences={preferences} onNavigate={vi.fn()} onOpenTask={vi.fn()} />,
+        preferences={preferences} onNavigate={vi.fn()} onOpenTask={vi.fn()} onOpenTool={vi.fn()} />,
     );
     expect(container.querySelector('.overview-status-indicator--attention')).toBeNull();
   });
@@ -306,10 +306,20 @@ describe('OverviewPage', () => {
     const { container } = render(
       <OverviewPage status={status} tasks={[]} tools={[{
         ...readyTools[0], packName: '<img src=x onerror=alert(1)>', status: 'missing',
-      }]} preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()} onOpenTask={vi.fn()} />,
+      }]} preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()} onOpenTask={vi.fn()} onOpenTool={vi.fn()} />,
     );
     expect(container.querySelector('img')).toBeNull();
     expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
+  });
+
+  test('renders version strings without inventing a duplicate prefix', () => {
+    render(
+      <OverviewPage status={status} tasks={tasks} tools={[{ ...readyTools[0], version: 'v9.3.1' }]}
+        preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()}
+        onOpenTask={vi.fn()} onOpenTool={vi.fn()} />,
+    );
+    expect(screen.getByText('conjur · v9.3.1')).toBeInTheDocument();
+    expect(screen.queryByText('conjur · vv9.3.1')).not.toBeInTheDocument();
   });
 
 });
