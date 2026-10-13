@@ -9,7 +9,7 @@ const platform: Platform = {
   id: 'conjur', name: 'CyberArk Conjur', summary: 'Conjur test toolbox',
   packId: 'cyberark-conjur-v9', toolId: 'conjur', ready: true,
   features: [{ id: 'tasks', name: 'Conjur tasks' }, { id: 'sign-in', name: 'Sign in' },
-    { id: 'security-audit', name: 'Security audit' }],
+    { id: 'security-audit', name: 'Security audit' }, { id: 'access-explorer', name: 'Access explorer' }],
 };
 const tasks: Task[] = [
   { packId: 'cyberark-conjur-v9', packName: 'Conjur', toolId: 'conjur', commandId: 'list-variables', name: 'Browse secret variable IDs', risk: 'read', inputs: [] },
@@ -17,6 +17,54 @@ const tasks: Task[] = [
   { packId: 'cyberark-conjur-v9', packName: 'Conjur', toolId: 'conjur', commandId: 'secret-delete', name: 'Delete secret variable', risk: 'destructive', inputs: [] },
   { packId: 'other', packName: 'Other', toolId: 'other', commandId: 'list-variables', name: 'Spoof task', risk: 'read', inputs: [] },
 ];
+const permissions: Task[] = [
+  { packId: platform.packId, packName: 'Conjur', toolId: platform.toolId,
+    commandId: 'secret-permit', name: 'Grant secret permission', risk: 'change', inputs: [] },
+  { packId: platform.packId, packName: 'Conjur', toolId: platform.toolId,
+    commandId: 'secret-deny', name: 'Revoke secret permission', risk: 'change', inputs: [] },
+];
+
+test('Conjur permission actions prioritize reviewed grant, revoke and inspection without executing', () => {
+  const onOpenTask = vi.fn();
+  const onOpenFeature = vi.fn();
+  render(<PlatformPage platform={platform} tasks={[...tasks, ...permissions]}
+    onOpenFeature={onOpenFeature} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
+  const actions = screen.getByRole('region', { name: 'Conjur permission management' });
+  const grant = within(actions).getByRole('button', { name: /Grant permission/ });
+  const revoke = within(actions).getByRole('button', { name: /Revoke permission/ });
+  const change = within(actions).getByRole('button', { name: /Change permissions/ });
+  expect(grant).toBeEnabled();
+  expect(revoke).toBeEnabled();
+  expect(change).toBeEnabled();
+  fireEvent.click(grant);
+  fireEvent.click(revoke);
+  fireEvent.click(change);
+  expect(onOpenTask).toHaveBeenNthCalledWith(1, 'cyberark-conjur-v9/secret-permit');
+  expect(onOpenTask).toHaveBeenNthCalledWith(2, 'cyberark-conjur-v9/secret-deny');
+  expect(onOpenFeature).toHaveBeenCalledExactlyOnceWith('access-explorer');
+});
+
+test('Conjur permission changes remain unavailable when CLI is missing or tasks are not approved', () => {
+  const onOpenTask = vi.fn();
+  const onOpenFeature = vi.fn();
+  const mismatched: Task[] = [
+    { ...permissions[0], risk: 'read' },
+    { ...permissions[1], packId: 'other' },
+  ];
+  const view = render(<PlatformPage platform={platform} tasks={mismatched}
+    onOpenFeature={onOpenFeature} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
+  let actions = screen.getByRole('region', { name: 'Conjur permission management' });
+  expect(within(actions).getByRole('button', { name: /Grant permission/ })).toBeDisabled();
+  expect(within(actions).getByRole('button', { name: /Revoke permission/ })).toBeDisabled();
+  expect(within(actions).getByRole('button', { name: /Change permissions/ })).toBeEnabled();
+  view.rerender(<PlatformPage platform={{ ...platform, ready: false }} tasks={permissions}
+    onOpenFeature={onOpenFeature} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
+  actions = screen.getByRole('region', { name: 'Conjur permission management' });
+  expect(within(actions).getAllByRole('button').every((button) => button.hasAttribute('disabled'))).toBe(true);
+  expect(onOpenTask).not.toHaveBeenCalled();
+  expect(onOpenFeature).not.toHaveBeenCalled();
+});
+
 test('Conjur toolbox only shows backend-advertised tasks owned by this platform', () => {
   const onOpenTask = vi.fn();
   render(<PlatformPage platform={platform} tasks={tasks} onOpenFeature={() => {}} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
