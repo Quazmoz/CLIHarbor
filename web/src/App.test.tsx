@@ -66,6 +66,55 @@ afterEach(() => {
 
 describe('App', () => {
 
+  test('overview task-entry buttons stay disabled while run creation is pending', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    let finishStart: ((response: Response) => void) | undefined;
+    const inFlight = new Promise<Response>((resolve) => { finishStart = resolve; });
+    let startCount = 0;
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      switch (requestPath(input)) {
+        case '/api/v1/status':
+          return Promise.resolve(response(200, {
+            name: 'CLIHarbor', version: 'test', session: 'active', csrfToken: 'test-csrf',
+          }));
+        case '/api/v1/tools':
+          return Promise.resolve(response(200, { tools: [{
+            packId: 'fixture', packName: 'Fixture', packVersion: '1.0.0',
+            toolId: 'fixture', status: 'ready',
+          }] }));
+        case '/api/v1/tasks':
+          return Promise.resolve(response(200, { tasks: [{
+            packId: 'fixture', packName: 'Fixture', toolId: 'fixture',
+            commandId: 'inspect', name: 'Inspect fixture', risk: 'read', inputs: [],
+          }] }));
+        case '/api/v1/runs':
+          if (init?.method === 'POST') {
+            startCount += 1;
+            return inFlight;
+          }
+          return Promise.resolve(response(404, {}));
+        default:
+          return Promise.resolve(response(404, {}));
+      }
+    }));
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Run task' }));
+    expect(startCount).toBe(1);
+    fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
+    const toolButton = await screen.findByRole('button', { name: 'Browse Fixture fixture tasks' });
+    expect(toolButton).toBeDisabled();
+    fireEvent.click(toolButton);
+    expect(window.location.pathname).toBe('/');
+    expect(startCount).toBe(1);
+    finishStart?.(response(202, {
+      runId: 'abababababababababababababababab', packId: 'fixture',
+      toolId: 'fixture', commandId: 'inspect', status: 'running',
+    }));
+    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
+    expect(screen.getByRole('button', { name: 'Browse Fixture fixture tasks' })).toBeDisabled();
+    expect(startCount).toBe(1);
+  });
+
   test('overview tool cards scope task selection without issuing a run request', async () => {
     window.history.replaceState({}, '', '/');
     const tasks = ['first', 'second'].map((toolId) => ({
