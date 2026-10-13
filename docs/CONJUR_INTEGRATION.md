@@ -210,6 +210,51 @@ The deprecated list compatibility flags for role membership/permitted-role queri
 
 All user-controlled positional identifiers are represented by CLIHarbor's constrained positional primitive: one validated scalar becomes exactly one argv element. CLIHarbor does not split it, template it, reinterpret it as a shell command, or allow a leading `-` that could become an undeclared flag.
 
+## Dedicated Conjur home: secret CRUD and guided creation
+
+**Built-in CLIs → CyberArk Conjur** now presents **Manage secrets** before
+permissions, inventory, and diagnostics:
+
+- **Create secret** opens a single guided form for a policy branch, relative
+  variable ID and initial secret value. It uses the existing `resource-exists`,
+  `secret-create` and `secret-set-value` reviewed pack commands, not a new
+  vendor command or a generic shell. Two mutation plans are previewed and
+  explicitly approved together before execution.
+- **Read / browse** opens bounded, metadata-only variable inventory. This is
+  deliberately **not** a secret-value retrieval action.
+- **Update value** opens the approval-gated, stdin-only `secret-set-value` task.
+- **Delete secret** opens the existing destructive `secret-delete` task with
+  typed confirmation. No deletion is performed from a shortcut click.
+
+The guided create entry point is unavailable unless the correct Conjur pack,
+reviewed task types, healthy tool, authenticated browser session and configured
+Conjur account are present. Its conservative path syntax permits `root` or
+slash-separated simple policy branches and relative variable IDs; more complex
+identifiers may use the reviewed task forms. The preview contains the exact
+policy statement, target, and verified execution context, **not** the value.
+
+The creation flow checks whether the full variable already exists before
+preview and again before mutation. This is a best-effort duplicate guard:
+Conjur does not provide an atomic compare-and-create through the reviewed CLI
+interface, and concurrent external mutations remain possible. The two writes
+are **not atomic**: each runs only after the preceding operation reports a
+successful terminal result; unknown, failed, or cancelled creation stops the
+sequence. A failed value write reports partial completion and does not
+silently delete or retry a potentially live variable. Approval challenges are
+short-lived and may expire between steps. The user must inspect vendor state
+before repairing or retrying; there is no automatic rollback or background
+replay. Navigating away before the second step prevents it from starting.
+
+Secret value entry is write-only, limited to 4,096 single-line characters,
+cleared from the form when execution begins, transmitted only through the
+existing local session/CSRF API and vendor stdin path, and excluded from
+previews, visible output and retry drafts. This does **not** guarantee that
+JavaScript or Go can zero all in-memory copies.
+
+These UI changes have not been exercised against a real enterprise Conjur
+backend; complete that acceptance test using organization-approved credentials
+and non-production variables before relying on the combined workflow.
+
 ## Primary Conjur GUI: manage secret permissions
 
 The dedicated **Built-in CLIs → CyberArk Conjur** home presents **Grant permission**,
