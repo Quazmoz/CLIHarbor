@@ -46,7 +46,6 @@ type Store struct {
 	mu       sync.Mutex
 	file     *os.File
 	lock     *os.File
-	lockPath string
 	entries  []Entry
 	seen     map[string]bool
 	size     int64
@@ -81,13 +80,12 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	lockPath := path + ".lock"
-	lock, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	lock, err := acquireAuditLock(lockPath)
 	if err != nil {
 		return nil, fmt.Errorf("audit trail already locked or inaccessible: %w", err)
 	}
 	fail := func(err error) (*Store, error) {
 		_ = lock.Close()
-		_ = os.Remove(lockPath)
 		return nil, err
 	}
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
@@ -117,7 +115,7 @@ func Open(path string) (*Store, error) {
 			seen[e.RunID] = false
 		}
 	}
-	return &Store{file: file, lock: lock, lockPath: lockPath, entries: entries, seen: seen, size: stat.Size()}, nil
+	return &Store{file: file, lock: lock, entries: entries, seen: seen, size: stat.Size()}, nil
 }
 
 func readEntries(file *os.File) ([]Entry, error) {
@@ -300,13 +298,9 @@ func (s *Store) Close() error {
 	}
 	a := s.file.Close()
 	b := s.lock.Close()
-	c := os.Remove(s.lockPath)
 	s.file = nil
 	if a != nil {
 		return a
 	}
-	if b != nil {
-		return b
-	}
-	return c
+	return b
 }
