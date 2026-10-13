@@ -281,7 +281,7 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
 
   return (
     <section className="panel conjur-access" aria-labelledby="access-heading">
-      <p className="status-label">Conjur · Read-only</p>
+      <p className="status-label">Conjur · Read-only inspection</p>
       <h2 id="access-heading">Access &amp; Permissions Explorer</h2>
       <p>Explore visible resources and Conjur-returned relationships. A permitted-role list is not a verified effective-access decision. An empty or incomplete result does not prove denial.</p>
       <section className="conjur-permission-next" aria-label="Permission change shortcuts">
