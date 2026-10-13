@@ -35,6 +35,8 @@ const tasks = [
   read('role-members', [{ id: 'role-id', type: 'string' }]),
   read('role-memberships', [{ id: 'role-id', type: 'string' }]),
   { ...read('secret-delete'), risk: 'destructive' as const },
+  { ...read('secret-permit'), risk: 'change' as const },
+  { ...read('secret-deny'), risk: 'change' as const },
 ];
 
 beforeEach(() => {
@@ -80,6 +82,29 @@ describe('vendor output boundaries', () => {
 });
 
 describe('Conjur access workflow', () => {
+  test('approved permission links navigate to existing forms without executing commands', () => {
+    const onOpenTask = vi.fn();
+    render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={onOpenTask}
+      onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
+    const actions = screen.getByRole('region', { name: 'Permission change shortcuts' });
+    fireEvent.click(within(actions).getByRole('button', { name: /Grant secret permission/ }));
+    fireEvent.click(within(actions).getByRole('button', { name: /Revoke secret permission/ }));
+    expect(onOpenTask).toHaveBeenNthCalledWith(1, 'secret-permit', {});
+    expect(onOpenTask).toHaveBeenNthCalledWith(2, 'secret-deny', {});
+    expect(createRun).not.toHaveBeenCalled();
+  });
+  test('permission links reject unapproved, wrong-pack and wrong-risk commands', () => {
+    const onOpenTask = vi.fn();
+    render(<ConjurAccessExplorer tasks={[
+      { ...read('secret-permit'), risk: 'read' },
+      { ...read('secret-deny'), packId: 'other', risk: 'change' },
+    ]} csrfToken="csrf" onOpenTask={onOpenTask}
+      onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
+    const actions = screen.getByRole('region', { name: 'Permission change shortcuts' });
+    expect(within(actions).getAllByRole('button').every((button) => button.hasAttribute('disabled'))).toBe(true);
+    expect(onOpenTask).not.toHaveBeenCalled();
+    expect(createRun).not.toHaveBeenCalled();
+  });
   test('queries only backend-advertised read tasks and navigates metadata without running changes', async () => {
     const onOpenTask = vi.fn();
     render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={onOpenTask}
