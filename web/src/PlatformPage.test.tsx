@@ -74,7 +74,7 @@ test('Conjur homepage reveals migration playbooks without dispatching any CLI op
   fireEvent.click(screen.getByRole('button', { name: 'Migration playbooks & templates' }));
   expect(section).toHaveAttribute('open');
   expect(screen.getByRole('heading', { name: 'Migration playbooks and policy templates' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Variable IDs · unavailable' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Variable IDs · unavailable' })).not.toBeInTheDocument();
   const stage = screen.getByRole('region', { name: '1 · Inventory the source' });
   expect(within(stage).getByRole('button', { name: 'Variable IDs' })).toBeEnabled();
   fireEvent.click(within(stage).getByRole('button', { name: 'Variable IDs' }));

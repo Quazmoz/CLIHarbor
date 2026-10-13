@@ -130,8 +130,8 @@ test('loading a policy starter resets stale identifiers and requires fresh scope
     { target: { value: 'old/secret' } });
   fireEvent.change(screen.getByRole('textbox', { name: /Role ID/ }),
     { target: { value: 'old-group' } });
-  expect(screen.getByRole('textbox', { name: 'Review-only policy YAML' })).toHaveValue(
-    expect.stringContaining('old/secret'));
+  expect(screen.getByRole('textbox', { name: 'Review-only policy YAML' }))
+    .toHaveDisplayValue(/old\/secret/);
 
   const gallery = screen.getByRole('region', { name: 'Conjur template gallery' });
   const useTemplate = within(gallery).getByRole('button', { name: 'Use Developer metadata access' });
