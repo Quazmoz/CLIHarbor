@@ -106,7 +106,7 @@ export function PlatformPage({ platform, tasks, tools = [], csrfToken, onOpenRun
               const available = permissionReady && task !== undefined;
               return <button key={action.id} type="button" className="platform-tool-button"
                 disabled={!available}
-                onClick={() => { if (available) onOpenTask(task.packId + '/' + task.commandId); }}>
+                onClick={() => { if (permissionReady && task) onOpenTask(task.packId + '/' + task.commandId); }}>
                 <strong>{action.title}</strong>
                 <span>{action.description}</span>
                 <small>{available ? (action.risk === 'read' ? 'Read-only metadata' : 'Approval required') : 'Unavailable until the approved task is ready'}</small>
