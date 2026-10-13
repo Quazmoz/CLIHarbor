@@ -30,7 +30,8 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
   // Never show the previous vendor endpoint under a changed discovery context.
   const discoveryKey = JSON.stringify([
     platform.id, platform.packId, platform.toolId, platform.ready,
-    tool?.status, tool?.packVersion, tool?.version,
+    tool?.status, tool?.packVersion, tool?.version, tool?.versionConstraint,
+    tool?.requiresVendorSession, tool?.sessionCheck?.commandId,
     tool?.credentialLogin?.method,
     tool?.credentialLogin?.method === 'conjur-password' ? tool.credentialLogin.setupRequired : undefined,
   ]);
@@ -47,8 +48,7 @@ export function PlatformPage({ platform, tasks, tools = [], onOpenRuns, onOpenFe
     void fetchSecretAudit(controller.signal).then((audit) => {
       if (!controller.signal.aborted) {
         setTargetSnapshot(audit.available && audit.target &&
-          (audit.packId === undefined || audit.packId === platform.packId) &&
-          (audit.toolId === undefined || audit.toolId === platform.toolId)
+          audit.packId === platform.packId && audit.toolId === platform.toolId
           ? { ...audit.target, discoveryKey }
           : null);
       }

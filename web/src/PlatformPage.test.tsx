@@ -40,7 +40,10 @@ test('Conjur environment overview clears stale account and endpoint on unavailab
       state: 'idle',
       total: 0, processed: 0, inspected: 0,
       findings: [], failures: [],
-      ...(requests === 1 ? { target: { applianceUrl: 'https://previous.example.test', account: 'previous' } } : {}),
+      ...(requests === 1 ? {
+        packId: platform.packId, toolId: platform.toolId,
+        target: { applianceUrl: 'https://previous.example.test', account: 'previous' },
+      } : {}),
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
   }));
 
@@ -121,6 +124,19 @@ test('Conjur overview invalidates a changed ready CLI and ignores late supersede
   await waitFor(() => expect(pending).toHaveLength(4));
   await act(async () => { pending[3](reply('https://foreign.example.test', 'foreign-pack')); });
   expect(screen.queryByText('https://foreign.example.test')).not.toBeInTheDocument();
+  expect(screen.getAllByText('Not available')).toHaveLength(2);
+
+  // An available payload without authoritative pack/tool ownership is also unsafe.
+  view.rerender(<PlatformPage {...props} tools={[{ ...ready, packVersion: '3.0' }]} />);
+  await waitFor(() => expect(pending).toHaveLength(5));
+  await act(async () => {
+    pending[4](new Response(JSON.stringify({
+      available: true, state: 'idle', total: 0, processed: 0, inspected: 0,
+      findings: [], failures: [],
+      target: { applianceUrl: 'https://unknown.example.test', account: 'conjur' },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  });
+  expect(screen.queryByText('https://unknown.example.test')).not.toBeInTheDocument();
   expect(screen.getAllByText('Not available')).toHaveLength(2);
 });
 
