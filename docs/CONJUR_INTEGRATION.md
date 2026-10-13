@@ -65,13 +65,22 @@ CLIHarbor does not use a mutable `latest` URL. The release version, URL, expecte
 
 When needed, the binary is downloaded over HTTPS into a staging file, bounded before activation, verified by SHA-256, synced, then activated under the current user's CLIHarbor cache. The activated file is verified again before CLIHarbor returns it to normal discovery as a backend-only tool override.
 
-The normal Windows location is equivalent to:
+The original automatic Windows bootstrap cache is equivalent to:
 
 ```text
 %LOCALAPPDATA%\CLIHarbor\tools\conjur\9.3.1\conjur.exe
 ```
 
-(the exact root is resolved with the operating system's current-user cache directory API).
+The newer browser-managed installer uses the pack-specific location:
+
+```text
+%LOCALAPPDATA%\CLIHarbor\tools\cyberark-conjur-v9\conjur\9.3.1-7207d6a\conjur.exe
+```
+
+Both paths use the current-user cache directory API. Startup recognizes an existing legacy
+bootstrap copy without downloading anything, but only on Windows amd64 with the embedded
+first-party pack, exact reviewed size and SHA-256, and ordinary version/identity checks.
+An invalid legacy file is ignored, never repaired or executed by the offline lookup.
 
 CLIHarbor does not add this path to machine `PATH` and does not write `Program Files`, Windows services, drivers, certificates, scheduled tasks, startup entries, or machine-wide registry/configuration.
 
