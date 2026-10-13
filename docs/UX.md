@@ -29,9 +29,9 @@ inputs. No task runs without an explicit operator action on the task page,
 backend preview and authorization. Secret values are never accepted by the
 template builder, cached in a migration plan, or exported.
 
-### Conjur permissions-first home
+### Conjur secrets-first home
 
-The dedicated CyberArk Conjur home places a three-action **Manage secret permissions**
+The dedicated CyberArk Conjur home places a four-action **Manage secrets** (Create, Read/browse metadata, Update value, Delete) panel before the three-action **Manage secret permissions**
 panel above the environment overview: **Grant permission** selects the approved
 `secret-permit` task; **Revoke permission** selects `secret-deny`; and
 **Change permissions** opens the read-only Access Explorer. The explorer also
