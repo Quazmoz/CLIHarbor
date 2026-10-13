@@ -16,6 +16,8 @@ interface OverviewPageProps {
   onOpenTask: (taskKey: string) => void;
   /** Navigates to the existing scoped task catalog; never starts a command. */
   onOpenTool?: (toolKey: string) => void;
+  /** An active run owns the task selection until it completes. */
+  navigationLocked?: boolean;
   /** Tools owned by a dedicated platform sign in from that platform's section. */
   dedicatedSignInFor?: (tool: ToolDiagnostic) => DedicatedSignInLink | undefined;
 }
@@ -56,6 +58,7 @@ export function OverviewPage({
   onNavigate,
   onOpenTask,
   onOpenTool,
+  navigationLocked = false,
   dedicatedSignInFor,
 }: OverviewPageProps) {
   const readyToolCount = tools.filter((tool) => tool.status === 'ready').length;
@@ -105,7 +108,7 @@ export function OverviewPage({
       <div className="panel overview-hero">
         <div className="overview-hero-copy">
           <div className="overview-status-line" aria-label="Local workspace status">
-            <span className="overview-status-indicator" aria-hidden="true" />
+            <span className={'overview-status-indicator' + (tools.length === 0 || attentionToolCount > 0 ? ' overview-status-indicator--attention' : '')} aria-hidden="true" />
             <span>Local operator workspace</span>
             <span className="overview-status-separator" aria-hidden="true">/</span>
             <span>{readyToolCount} of {tools.length} tools detected</span>
@@ -145,6 +148,46 @@ export function OverviewPage({
         </div>
       </div>
 
+      <div className="overview-layout">
+        <article className="panel" aria-labelledby="next-step-heading">
+          <p className="status-label">Why this is next</p>
+          <h2 id="next-step-heading">{recommendedTitle}</h2>
+          <p>{recommendedCopy}</p>
+          <p className="overview-hint">Use the primary action above to continue, or choose a specific task from your shortcuts.</p>
+        </article>
+
+        <article className="panel" aria-labelledby="quick-tasks-heading">
+          <p className="status-label">Quick entry</p>
+          <h2 id="quick-tasks-heading">Favorites & recent tasks</h2>
+          {navigationLocked && shortcuts.length > 0 && (
+            <p className="overview-selection-notice" role="status">
+              Finish or cancel the active run before selecting another task.
+            </p>
+          )}
+          {shortcuts.length === 0 ? (
+            <div className="overview-empty">
+              <p>Favorite a task or run one once and it will appear here for faster return access.</p>
+              <div className="overview-panel-actions">
+                <button type="button" className="secondary-button" onClick={() => onNavigate('tasks')}>
+                  Browse tasks
+                </button>
+              </div>
+            </div>
+          ) : (
+            <ul className="quick-task-list">
+              {shortcuts.map((task) => (
+                <li key={taskKey(task)}>
+                  <button type="button" className="quick-task-button" disabled={navigationLocked} onClick={() => onOpenTask(taskKey(task))}>
+                    <strong>{task.name}</strong>
+                    <span>{task.packName}{task.requiresAuth ? ' · Sign-in required' : ''}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+      </div>
+
       <section className="panel overview-tool-section" aria-labelledby="overview-tools-heading">
         <div className="overview-section-heading">
           <div>
@@ -182,6 +225,7 @@ export function OverviewPage({
                   </p>
                   <div className="overview-tool-footer">
                     <button type="button" className="secondary-button"
+                      disabled={navigationLocked && ready && count > 0}
                       aria-label={ready && count > 0 ? 'Browse ' + tool.packName + ' ' + tool.toolId + ' tasks' : 'Diagnose ' + tool.packName + ' ' + tool.toolId}
                       onClick={() => {
                         if (ready && count > 0) {
@@ -201,41 +245,6 @@ export function OverviewPage({
           </ul>
         )}
       </section>
-
-      <div className="overview-layout">
-        <article className="panel" aria-labelledby="next-step-heading">
-          <p className="status-label">Why this is next</p>
-          <h2 id="next-step-heading">{recommendedTitle}</h2>
-          <p>{recommendedCopy}</p>
-          <p className="overview-hint">Use the primary action above to continue, or choose a specific task from your shortcuts.</p>
-        </article>
-
-        <article className="panel" aria-labelledby="quick-tasks-heading">
-          <p className="status-label">Quick entry</p>
-          <h2 id="quick-tasks-heading">Favorites & recent tasks</h2>
-          {shortcuts.length === 0 ? (
-            <div className="overview-empty">
-              <p>Favorite a task or run one once and it will appear here for faster return access.</p>
-              <div className="overview-panel-actions">
-                <button type="button" className="secondary-button" onClick={() => onNavigate('tasks')}>
-                  Browse tasks
-                </button>
-              </div>
-            </div>
-          ) : (
-            <ul className="quick-task-list">
-              {shortcuts.map((task) => (
-                <li key={taskKey(task)}>
-                  <button type="button" className="quick-task-button" onClick={() => onOpenTask(taskKey(task))}>
-                    <strong>{task.name}</strong>
-                    <span>{task.packName}{task.requiresAuth ? ' · Sign-in required' : ''}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </article>
-      </div>
 
       {vendorSessionTools.length > 0 && (
         <section className="overview-login" aria-labelledby="overview-login-heading">

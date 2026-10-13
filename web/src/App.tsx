@@ -1526,11 +1526,14 @@ export function App() {
             preferences={taskPreferences}
             onNavigate={navigate}
             dedicatedSignInFor={dedicatedSignInFor}
+            navigationLocked={starting || activeRunID !== null}
             onOpenTool={(key) => {
+              if (starting || activeRunID !== null) return;
               changeTaskCategory(key);
               navigate('tasks');
             }}
             onOpenTask={(taskKey) => {
+              if (starting || activeRunID !== null) return;
               setTaskToolFilter('');
               selectTaskByKey(taskKey, state.tasks);
               navigate('tasks');

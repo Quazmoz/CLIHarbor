@@ -2564,6 +2564,8 @@ footer p {
   box-shadow: 0 0 0 3px rgba(143, 200, 168, 0.12);
 }
 .overview-status-separator { color: var(--text-subtle); }
+.overview-status-indicator--attention { background: var(--warning); box-shadow: 0 0 0 3px rgba(223, 194, 125, 0.12); }
+.overview-selection-notice { font-size: 0.85rem; }
 .overview-hero h2 { font-size: clamp(1.65rem, 3vw, 2.45rem); letter-spacing: -0.035em; }
 .overview-hero-copy > p:last-child { max-width: 43rem; }
 .overview-metric {

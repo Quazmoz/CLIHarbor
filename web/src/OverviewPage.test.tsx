@@ -265,4 +265,51 @@ describe('OverviewPage', () => {
     expect(navigate).toHaveBeenCalledWith('tools');
   });
 
+  test('signals incomplete readiness without a green indicator', () => {
+    const { container, rerender } = render(
+      <OverviewPage status={status} tasks={[]} tools={[]}
+        preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()} onOpenTask={vi.fn()} />,
+    );
+    expect(container.querySelector('.overview-status-indicator--attention')).not.toBeNull();
+    rerender(
+      <OverviewPage status={status} tasks={tasks} tools={readyTools}
+        preferences={preferences} onNavigate={vi.fn()} onOpenTask={vi.fn()} />,
+    );
+    expect(container.querySelector('.overview-status-indicator--attention')).toBeNull();
+  });
+
+  test('keeps next-step shortcuts above CLI inventory and locks task switches during a run', () => {
+    const onOpenTask = vi.fn();
+    const onOpenTool = vi.fn();
+    const { container } = render(
+      <OverviewPage status={status} tasks={tasks} tools={readyTools}
+        preferences={preferences} onNavigate={vi.fn()} onOpenTask={onOpenTask}
+        onOpenTool={onOpenTool} navigationLocked />,
+    );
+    const layout = container.querySelector('.overview-layout');
+    const inventory = container.querySelector('.overview-tool-section');
+    expect(layout).not.toBeNull();
+    expect(inventory).not.toBeNull();
+    expect(Boolean(layout!.compareDocumentPosition(inventory!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    const shortcut = screen.getByRole('button', { name: /List containers/i });
+    expect(shortcut).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Browse Conjur conjur tasks' })).toBeDisabled();
+    expect(screen.getByText('Finish or cancel the active run before selecting another task.')).toBeInTheDocument();
+    fireEvent.click(shortcut);
+    fireEvent.click(screen.getByRole('button', { name: 'Browse Conjur conjur tasks' }));
+    expect(onOpenTask).not.toHaveBeenCalled();
+    expect(onOpenTool).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'View diagnostics' })).toBeEnabled();
+  });
+
+  test('renders untrusted tool names as inert text rather than HTML', () => {
+    const { container } = render(
+      <OverviewPage status={status} tasks={[]} tools={[{
+        ...readyTools[0], packName: '<img src=x onerror=alert(1)>', status: 'missing',
+      }]} preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()} onOpenTask={vi.fn()} />,
+    );
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
+  });
+
 });

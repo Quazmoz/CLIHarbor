@@ -65,6 +65,40 @@ afterEach(() => {
 });
 
 describe('App', () => {
+
+  test('overview tool cards scope task selection without issuing a run request', async () => {
+    window.history.replaceState({}, '', '/');
+    const tasks = ['first', 'second'].map((toolId) => ({
+      packId: 'suite', packName: 'CLI Suite', toolId, commandId: toolId,
+      name: 'Inspect ' + toolId, risk: 'read', inputs: [],
+    }));
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      switch (requestPath(input)) {
+        case '/api/v1/status':
+          return Promise.resolve(response(200, {
+            name: 'CLIHarbor', version: 'test', session: 'active', csrfToken: 'test-csrf',
+          }));
+        case '/api/v1/tools':
+          return Promise.resolve(response(200, { tools: ['first', 'second'].map((toolId) => ({
+            packId: 'suite', packName: 'CLI Suite', packVersion: '1.0.0',
+            toolId, status: 'ready',
+          })) }));
+        case '/api/v1/tasks':
+          return Promise.resolve(response(200, { tasks }));
+        default:
+          return Promise.resolve(response(404, {}));
+      }
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Browse CLI Suite second tasks' }));
+    expect(window.location.pathname).toBe('/tasks');
+    expect(screen.getByRole('combobox', { name: 'Tool category' })).toHaveValue('suite/second');
+    expect(screen.getByRole('heading', { name: 'Inspect second' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Inspect first' })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs')).toBe(false);
+  });
+
   test('tool navigation resets inputs and submits only the selected executable task in a multi-tool pack', async () => {
     const tasks = ['first', 'second'].map((toolId) => ({
       packId: 'suite', packName: 'CLI Suite', toolId, commandId: toolId,
