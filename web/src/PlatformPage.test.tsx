@@ -259,7 +259,7 @@ test('Conjur home separates environment facts, feature navigation and secondary 
   expect(within(environment).getByText('Configured endpoint')).toBeInTheDocument();
   expect(within(environment).queryByRole('button')).not.toBeInTheDocument();
 
-  const features = screen.getByRole('region', { name: 'Conjur features' });
+  const features = screen.getByRole('region', { name: 'CyberArk Conjur features' });
   expect(within(features).getAllByRole('button')).toHaveLength(platform.features.length);
   fireEvent.click(within(features).getByRole('button', { name: 'Open security audit' }));
   fireEvent.click(within(features).getByRole('button', { name: 'Open sign-in' }));
