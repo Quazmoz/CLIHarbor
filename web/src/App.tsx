@@ -1411,11 +1411,11 @@ export function App() {
             {navigationItems.filter((item) => item.group === 'Manage').map(navLink)}
           </div>
         </nav>
-        <div className="sidebar-footer" aria-label="Runtime boundary">
-          <span className="local-badge">Local only</span>
-          <p>Runs on this computer · no cloud backend</p>
-          {state.kind === 'ready' && <span className="build-id">CLIHarbor {/^\d/.test(state.status.version) ? 'v' : ''}{state.status.version}</span>}
-        </div>
+        {state.kind === 'ready' && (
+          <div className="sidebar-footer">
+            <span className="build-id">CLIHarbor {/^\d/.test(state.status.version) ? 'v' : ''}{state.status.version}</span>
+          </div>
+        )}
       </aside>
       <header className="topbar">
         <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
@@ -1431,9 +1431,11 @@ export function App() {
           <kbd>Ctrl + K</kbd>
         </button>
         <div className="topbar-context">
-          <span className={'status-pill status-pill--' + (state.kind === 'ready' ? 'ok' : state.kind === 'loading' ? 'pending' : 'error')}>
-            <span className="connection-label">{state.kind === 'ready' ? 'Local runtime ready' : state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}</span>
-          </span>
+          {state.kind !== 'ready' && (
+            <span className={'status-pill status-pill--' + (state.kind === 'loading' ? 'pending' : 'error')}>
+              {state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}
+            </span>
+          )}
           {state.kind === 'ready' && (
             <span className={'status-pill status-pill--' + (readyToolCount > 0 ? 'ok' : 'warn')}>
               {readyToolCount} of {state.tools.length} executables ready
