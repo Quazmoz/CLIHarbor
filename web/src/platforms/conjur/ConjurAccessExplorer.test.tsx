@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { ConjurAccessExplorer, parseConjurIDs, metadataFromID, parseExists, validConjurID } from './ConjurAccessExplorer';
 import { cancelRun, createRun } from '../../api/runs';
@@ -51,6 +51,10 @@ beforeEach(() => {
   vi.mocked(createRun).mockImplementation(async (_, request) => ({
     runId: 'run-' + request.commandId, packId: request.packId, toolId: 'conjur',
     commandId: request.commandId, status: 'exited', exitCode: 0, events: [],
+    ...(request.commandId === 'resource-exists' || request.commandId === 'role-exists'
+      ? { structured: { status: 'available' as const, renderer: 'cards' as const,
+        fields: [{ key: 'exists', label: 'Exists', type: 'boolean' as const, present: true, value: 'true' }] } }
+      : {}),
   }));
   vi.mocked(cancelRun).mockResolvedValue({
     runId: 'cancel', packId: 'cyberark-conjur-v9', toolId: 'conjur', commandId: 'whoami',
@@ -171,6 +175,43 @@ describe('Conjur access workflow', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('not evidence of absent access');
     expect(screen.queryByRole('region', { name: 'Explorer results' })).not.toBeInTheDocument();
   });
+
+  test('rejects raw existence JSON when the reviewed structured parser rejects it', async () => {
+    vi.mocked(createRun).mockImplementation(async (_, request) => ({
+      runId: 'read', packId: request.packId, toolId: 'conjur', commandId: request.commandId,
+      status: 'exited', exitCode: 0, events: [],
+      ...(request.commandId === 'resource-exists' ? {
+        structured: { status: 'invalid' as const, renderer: 'cards' as const, error: 'duplicate_key' as const },
+      } : {}),
+    }));
+    render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={() => {}}
+      onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
+    fireEvent.change(screen.getByPlaceholderText('account:variable:path'), {
+      target: { value: 'dev:variable:billing/password' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect resource' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('reviewed output schema');
+    expect(screen.queryByRole('region', { name: 'Explorer results' })).not.toBeInTheDocument();
+  });
+
+  test('read-only HTTP starts are bounded by the query deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(createRun).mockImplementation(async (_csrf, _request, signal) =>
+        new Promise((_, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+        }));
+      render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={() => {}}
+        onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Search inventory' }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(20_100); });
+      expect(screen.getByRole('alert')).toHaveTextContent('explorer deadline');
+      expect(screen.queryByRole('region', { name: 'Explorer results' })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('all actions remain disabled when no approved list command exists', async () => {
     render(<ConjurAccessExplorer tasks={[{ ...read('list-resources'), risk: 'change' }]} csrfToken="csrf"
       onOpenTask={() => {}} onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);

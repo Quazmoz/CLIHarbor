@@ -546,7 +546,7 @@ function parseComplete(value: unknown): RunComplete {
   };
 }
 
-async function mutation(path: string, csrfToken: string, body?: unknown): Promise<unknown> {
+async function mutation(path: string, csrfToken: string, body?: unknown, signal?: AbortSignal): Promise<unknown> {
   const response = await fetch(path, {
     method: 'POST',
     credentials: 'same-origin',
@@ -556,6 +556,7 @@ async function mutation(path: string, csrfToken: string, body?: unknown): Promis
       'X-CLIHarbor-CSRF': csrfToken,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
   if (!response.ok) {
     throw await errorFromResponse(response);
@@ -570,8 +571,8 @@ export async function previewRun(csrfToken: string, request: CreateRunRequest): 
   return preview;
 }
 
-export async function createRun(csrfToken: string, request: CreateRunRequest): Promise<RunSnapshot> {
-  const snapshot = parseSnapshot(await mutation('/api/v1/runs', csrfToken, request));
+export async function createRun(csrfToken: string, request: CreateRunRequest, signal?: AbortSignal): Promise<RunSnapshot> {
+  const snapshot = parseSnapshot(await mutation('/api/v1/runs', csrfToken, request, signal));
   if (snapshot.packId !== request.packId || snapshot.commandId !== request.commandId) invalidResponse();
   return snapshot;
 }

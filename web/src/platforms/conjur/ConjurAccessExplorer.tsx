@@ -122,27 +122,43 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
       throw new Error('The current pack does not accept this query.');
     }
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    // The deadline covers both HTTP start and polling. Individual fetches
+    // must not outlive it, even when the vendor command is still running.
+    const deadline = AbortSignal.timeout(QUERY_DEADLINE_MS);
+    const querySignal = AbortSignal.any([signal, deadline]);
     let runID = '';
     try {
-      let snapshot = await createRun(csrfToken, { packId: PACK, commandId, values });
+      let snapshot = await createRun(csrfToken, { packId: PACK, commandId, values }, querySignal);
       runID = snapshot.runId;
-      const deadline = Date.now() + QUERY_DEADLINE_MS;
       while (snapshot.status === 'running') {
-        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-        if (Date.now() >= deadline) throw new Error('The read-only query exceeded the explorer deadline.');
+        if (querySignal.aborted) throw querySignal.reason;
         await new Promise<void>((resolve) => setTimeout(resolve, 300));
-        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-        snapshot = await fetchRun(runID, signal);
+        if (querySignal.aborted) throw querySignal.reason;
+        snapshot = await fetchRun(runID, querySignal);
       }
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      if (querySignal.aborted) throw querySignal.reason;
       if (snapshot.packId !== PACK || snapshot.toolId !== TOOL ||
           snapshot.commandId !== commandId || snapshot.status !== 'exited' ||
           snapshot.exitCode !== 0) throw new Error('Conjur did not confirm a complete, successful read.');
+      if (commandId === 'resource-exists' || commandId === 'role-exists') {
+        // Never reinterpret raw JSON rejected by the pack's strict parser.
+        const exists = snapshot.structured?.status === 'available'
+          ? snapshot.structured.fields?.find((field) =>
+            field.key === 'exists' && field.present && field.type === 'boolean')
+          : undefined;
+        if (!exists || (exists.value !== 'true' && exists.value !== 'false')) {
+          throw new Error('Conjur existence evidence did not pass the reviewed output schema.');
+        }
+        return JSON.stringify({ exists: exists.value === 'true' });
+      }
       const stdout = decodeRunOutput(snapshot, 'stdout.chunk');
       if (stdout.length > MAX_OUTPUT) throw new Error('Response exceeds the explorer output limit.');
       return stdout;
     } catch (err) {
       if (runID !== '') void cancelRun(csrfToken, runID).catch(() => {});
+      if (deadline.aborted && !signal.aborted) {
+        throw new Error('The read-only query exceeded the explorer deadline.');
+      }
       throw err;
     }
   }
