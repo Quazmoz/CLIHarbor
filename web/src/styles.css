@@ -272,8 +272,7 @@ button:disabled {
   font-size: 0.68rem;
 }
 .category-count { margin-left: auto; font-size: 0.68rem; color: var(--text-subtle); }
-.sidebar-footer { margin-top: auto; padding: 1.5rem 0.6rem 0; display: grid; gap: 0.45rem; justify-items: start; }
-.sidebar-footer p { color: var(--text-subtle); font-size: 0.72rem; margin: 0; }
+.sidebar-footer { margin-top: auto; padding: 1.5rem 0.6rem 0; }
 .sidebar-footer .build-id { border: 0; padding: 0; font-size: 0.75rem; color: var(--text-muted); }
 
 .topbar {
@@ -315,7 +314,6 @@ button:disabled {
 .status-pill--ok::before { background: var(--positive); box-shadow: 0 0 0 3px rgba(47, 191, 113, 0.18); }
 .status-pill--warn::before, .status-pill--pending::before { background: var(--warning); }
 .status-pill--error::before { background: var(--danger); }
-.connection-label { color: inherit; font-size: inherit; }
 
 .breadcrumbs { display: flex; align-items: center; gap: 0.45rem; min-width: 0; flex-wrap: wrap; margin: 0 0 0.9rem; font-size: 0.78rem; }
 .breadcrumbs a { color: var(--text-muted); text-decoration: none; }
@@ -349,7 +347,6 @@ button:disabled {
   text-transform: uppercase;
 }
 
-.local-badge,
 .build-id,
 .safety-chip,
 .summary-meta,
@@ -365,15 +362,6 @@ button:disabled {
   font-size: 0.78rem;
   line-height: 1.2;
   white-space: nowrap;
-}
-
-.local-badge::before {
-  width: 0.45rem;
-  height: 0.45rem;
-  margin-right: 0.45rem;
-  border-radius: 50%;
-  background: var(--positive);
-  content: "";
 }
 
 .build-id {
