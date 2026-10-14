@@ -12,6 +12,9 @@ startup and can use the same catalog.
 | Kubernetes kubectl | 1.35.3 | Windows, macOS, Linux: amd64 and arm64 |
 | GitHub CLI | 2.101.0 | Windows and macOS: amd64 and arm64 |
 | Docker CLI | Existing installation | Discovery only; use an approved Docker setup with a working engine |
+| Helm | 4.3.0 | Windows amd64 and arm64; macOS/Linux discovery only (Helm publishes tar.gz there) |
+| AWS CLI v2 | Existing installation | Discovery only; AWS ships installers, not portable archives |
+| HashiCorp Vault | Existing installation | Discovery only; executables exceed the 512 MiB portable-install bound |
 
 Other platform combinations show installation guidance rather than an Install
 button. Conjur's existing Windows-only automatic setup remains separate;
@@ -54,13 +57,20 @@ kubectl must remain within one minor release of the target cluster's API server.
 The catalog displays the pinned version before installation. Operators needing
 another version should use their approved installation and ordinary discovery.
 GitHub authentication remains owned by `gh`; Docker needs an accessible engine;
-kubectl needs its normal kubeconfig/context and cluster access.
+kubectl and Helm need their normal kubeconfig/context and cluster access. AWS
+CLI uses its existing profile/SSO session (`AWS_PROFILE` is inherited); Vault
+uses `VAULT_ADDR` and its token helper. All three new packs are read-only and
+use client-side field selection so tags, user data, environment variables,
+release values and secret values are never printed.
 
 ## Artifact evidence
 
 Portable artifact pins reviewed 2026-10-06. Current declarations are in `packs/conjur/conjur-v9.yaml` (pack 0.7.0),
 `packs/kubectl/kubectl.yaml` (pack 0.4.0), and `packs/github/github.yaml`
-(pack 0.2.0); the existing pack schema is unchanged. Conjur macOS pins use
+(pack 0.2.0); the existing pack schema is unchanged. Helm pins in
+`packs/helm/helm.yaml` (reviewed 2026-10-14) match the official
+`.zip.sha256sum` files; each `helm.exe` member was hashed and measured
+independently and not run. Conjur macOS pins use
 the official v9.3.1 release API digest and exact size. Its install version matches
 the exact official CLI banner, `9.3.1-7207d6a`, so live qualification succeeds.
 kubectl hashes and exact sizes were read from the versioned official download's
@@ -77,6 +87,8 @@ Primary references:
 - [kubectl version skew policy](https://kubernetes.io/releases/version-skew-policy/#kubectl)
 - [GitHub CLI v2.101.0 release](https://github.com/cli/cli/releases/tag/v2.101.0)
 - [GitHub release asset metadata](https://api.github.com/repos/cli/cli/releases/tags/v2.101.0)
+- [Helm v4.3.0 release](https://github.com/helm/helm/releases/tag/v4.3.0) and `get.helm.sh/*.zip.sha256sum`
+- [Vault 2.1.2 SHA256SUMS](https://releases.hashicorp.com/vault/2.1.2/vault_2.1.2_SHA256SUMS) (size bound evidence)
 
 Acceptance covers install-to-task publication without restart, failed version
 and content qualification, non-missing-state refusal, platform-specific install

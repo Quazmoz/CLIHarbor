@@ -1,0 +1,168 @@
+{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "001 release-history success",
+      "packId": "helm-cli",
+      "commandId": "release-history",
+      "values": {
+        "namespace": "x",
+        "release": "x"
+      },
+      "expectArgs": [
+        "history",
+        "x",
+        "--namespace",
+        "x",
+        "--max",
+        "20",
+        "--output",
+        "json"
+      ]
+    },
+    {
+      "name": "002 release-history release leading dash",
+      "packId": "helm-cli",
+      "commandId": "release-history",
+      "values": {
+        "namespace": "x",
+        "release": "-cliharbor-invalid"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.release"
+      }
+    },
+    {
+      "name": "003 releases success",
+      "packId": "helm-cli",
+      "commandId": "releases",
+      "expectArgs": [
+        "list",
+        "--all-namespaces",
+        "--output",
+        "json"
+      ]
+    },
+    {
+      "name": "004 repositories success",
+      "packId": "helm-cli",
+      "commandId": "repositories",
+      "expectArgs": [
+        "repo",
+        "list",
+        "--output",
+        "json"
+      ]
+    },
+    {
+      "name": "005 version success",
+      "packId": "helm-cli",
+      "commandId": "version",
+      "expectArgs": [
+        "version",
+        "--short"
+      ]
+    },
+    {
+      "name": "release history with realistic names",
+      "packId": "helm-cli",
+      "commandId": "release-history",
+      "values": {
+        "namespace": "apps",
+        "release": "web-frontend"
+      },
+      "expectArgs": [
+        "history",
+        "web-frontend",
+        "--namespace",
+        "apps",
+        "--max",
+        "20",
+        "--output",
+        "json"
+      ]
+    },
+    {
+      "name": "release-history rejects namespace flag injection",
+      "packId": "helm-cli",
+      "commandId": "release-history",
+      "values": {
+        "namespace": "--kubeconfig",
+        "release": "web-frontend"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.namespace"
+      }
+    },
+    {
+      "name": "release-history rejects release shell syntax",
+      "packId": "helm-cli",
+      "commandId": "release-history",
+      "values": {
+        "namespace": "apps",
+        "release": "web;whoami"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.release"
+      }
+    },
+    {
+      "name": "release-history rejects uppercase release",
+      "packId": "helm-cli",
+      "commandId": "release-history",
+      "values": {
+        "namespace": "apps",
+        "release": "Web"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.release"
+      }
+    },
+    {
+      "name": "release-history requires namespace",
+      "packId": "helm-cli",
+      "commandId": "release-history",
+      "values": {
+        "release": "web-frontend"
+      },
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.namespace"
+      }
+    },
+    {
+      "name": "release-history rejects browser max",
+      "packId": "helm-cli",
+      "commandId": "release-history",
+      "values": {
+        "namespace": "apps",
+        "release": "web-frontend",
+        "max": "1000"
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.max"
+      }
+    },
+    {
+      "name": "releases rejects browser argv",
+      "packId": "helm-cli",
+      "commandId": "releases",
+      "values": {
+        "argv": [
+          "get",
+          "values",
+          "web"
+        ]
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.argv"
+      }
+    }
+  ]
+}

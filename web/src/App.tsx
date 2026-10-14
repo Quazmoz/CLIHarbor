@@ -619,7 +619,6 @@ export function App() {
   const [taskChosen, setTaskChosen] = useState(false);
   const [taskToolFilter, setTaskToolFilter] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(false);
-  const [builtInOpen, setBuiltInOpen] = useState(true);
   const [otherOpen, setOtherOpen] = useState(false);
   const [taskSwitcherOpen, setTaskSwitcherOpen] = useState(false);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
@@ -1358,13 +1357,13 @@ export function App() {
           </div>
           <div className="nav-group" role="group" aria-labelledby="nav-label-library">
             <p className="nav-subgroup-label" id="nav-label-library">CLI library</p>
-            <button type="button" className="nav-disclosure" aria-expanded={builtInOpen} aria-controls="nav-built-in-clis"
-              onClick={() => setBuiltInOpen((open) => !open)}>
-              {navIcon('M9 6l6 6-6 6')}
+            {/* Built-in CLIs are always shown; only Other CLIs collapses. The list's label names it for assistive tech. */}
+            <p className="nav-disclosure nav-disclosure--static" aria-hidden="true">
+              <span className="nav-disclosure-spacer" />
               <span>Built-in CLIs</span>
-              <span className="nav-count" aria-hidden="true">{platforms.length}</span>
-            </button>
-            <ul id="nav-built-in-clis" className="nav-tree" aria-label="Built-in CLIs" hidden={!builtInOpen}>
+              <span className="nav-count">{platforms.length}</span>
+            </p>
+            <ul className="nav-tree" aria-label="Built-in CLIs">
               {platforms.length === 0 && <li className="nav-tree-empty">No integration loaded</li>}
               {platforms.map((platform) => (
                 <li key={platform.id}>

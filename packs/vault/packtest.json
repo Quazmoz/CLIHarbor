@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "001 auth-methods success",
+      "packId": "vault-cli",
+      "commandId": "auth-methods",
+      "expectArgs": [
+        "auth",
+        "list",
+        "-format=json"
+      ]
+    },
+    {
+      "name": "002 policies success",
+      "packId": "vault-cli",
+      "commandId": "policies",
+      "expectArgs": [
+        "policy",
+        "list",
+        "-format=json"
+      ]
+    },
+    {
+      "name": "003 secrets-engines success",
+      "packId": "vault-cli",
+      "commandId": "secrets-engines",
+      "expectArgs": [
+        "secrets",
+        "list",
+        "-format=json"
+      ]
+    },
+    {
+      "name": "004 status success",
+      "packId": "vault-cli",
+      "commandId": "status",
+      "expectArgs": [
+        "status",
+        "-format=json"
+      ]
+    },
+    {
+      "name": "005 version success",
+      "packId": "vault-cli",
+      "commandId": "version",
+      "expectArgs": [
+        "version"
+      ]
+    },
+    {
+      "name": "status rejects browser address",
+      "packId": "vault-cli",
+      "commandId": "status",
+      "values": {
+        "address": "https://attacker.example"
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.address"
+      }
+    },
+    {
+      "name": "secrets-engines rejects browser argv",
+      "packId": "vault-cli",
+      "commandId": "secrets-engines",
+      "values": {
+        "argv": [
+          "kv",
+          "get",
+          "secret/app"
+        ]
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.argv"
+      }
+    }
+  ]
+}

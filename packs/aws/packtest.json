@@ -1,0 +1,208 @@
+{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "local version",
+      "packId": "aws-cli",
+      "commandId": "version",
+      "values": {},
+      "expectArgs": [
+        "--version"
+      ]
+    },
+    {
+      "name": "caller identity",
+      "packId": "aws-cli",
+      "commandId": "caller-identity",
+      "values": {},
+      "expectArgs": [
+        "sts",
+        "get-caller-identity",
+        "--output",
+        "json",
+        "--no-cli-pager"
+      ]
+    },
+    {
+      "name": "bucket names only",
+      "packId": "aws-cli",
+      "commandId": "s3-buckets",
+      "values": {},
+      "expectArgs": [
+        "s3api",
+        "list-buckets",
+        "--query",
+        "Buckets[].Name",
+        "--output",
+        "json",
+        "--no-cli-pager"
+      ]
+    },
+    {
+      "name": "ec2 instances in region",
+      "packId": "aws-cli",
+      "commandId": "ec2-instances",
+      "values": {
+        "region": "us-east-1"
+      },
+      "expectArgs": [
+        "ec2",
+        "describe-instances",
+        "--region",
+        "us-east-1",
+        "--query",
+        "Reservations[].Instances[].{Id:InstanceId,Type:InstanceType,State:State.Name,Zone:Placement.AvailabilityZone}",
+        "--output",
+        "json",
+        "--no-cli-pager"
+      ]
+    },
+    {
+      "name": "ec2 instances in gov region",
+      "packId": "aws-cli",
+      "commandId": "ec2-instances",
+      "values": {
+        "region": "us-gov-west-1"
+      },
+      "expectArgs": [
+        "ec2",
+        "describe-instances",
+        "--region",
+        "us-gov-west-1",
+        "--query",
+        "Reservations[].Instances[].{Id:InstanceId,Type:InstanceType,State:State.Name,Zone:Placement.AvailabilityZone}",
+        "--output",
+        "json",
+        "--no-cli-pager"
+      ]
+    },
+    {
+      "name": "lambda functions in region",
+      "packId": "aws-cli",
+      "commandId": "lambda-functions",
+      "values": {
+        "region": "eu-central-1"
+      },
+      "expectArgs": [
+        "lambda",
+        "list-functions",
+        "--region",
+        "eu-central-1",
+        "--query",
+        "Functions[].{Name:FunctionName,Runtime:Runtime,LastModified:LastModified}",
+        "--output",
+        "json",
+        "--no-cli-pager"
+      ]
+    },
+    {
+      "name": "ec2-instances rejects region flag injection",
+      "packId": "aws-cli",
+      "commandId": "ec2-instances",
+      "values": {
+        "region": "--endpoint-url"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.region"
+      }
+    },
+    {
+      "name": "ec2-instances rejects region shell syntax",
+      "packId": "aws-cli",
+      "commandId": "ec2-instances",
+      "values": {
+        "region": "us-east-1;whoami"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.region"
+      }
+    },
+    {
+      "name": "ec2-instances requires region",
+      "packId": "aws-cli",
+      "commandId": "ec2-instances",
+      "values": {},
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.region"
+      }
+    },
+    {
+      "name": "ec2-instances rejects browser query",
+      "packId": "aws-cli",
+      "commandId": "ec2-instances",
+      "values": {
+        "region": "us-east-1",
+        "query": "Reservations"
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.query"
+      }
+    },
+    {
+      "name": "lambda-functions rejects region flag injection",
+      "packId": "aws-cli",
+      "commandId": "lambda-functions",
+      "values": {
+        "region": "--endpoint-url"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.region"
+      }
+    },
+    {
+      "name": "lambda-functions rejects region shell syntax",
+      "packId": "aws-cli",
+      "commandId": "lambda-functions",
+      "values": {
+        "region": "us-east-1;whoami"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.region"
+      }
+    },
+    {
+      "name": "lambda-functions requires region",
+      "packId": "aws-cli",
+      "commandId": "lambda-functions",
+      "values": {},
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.region"
+      }
+    },
+    {
+      "name": "lambda-functions rejects browser query",
+      "packId": "aws-cli",
+      "commandId": "lambda-functions",
+      "values": {
+        "region": "us-east-1",
+        "query": "Reservations"
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.query"
+      }
+    },
+    {
+      "name": "caller identity rejects browser argv",
+      "packId": "aws-cli",
+      "commandId": "caller-identity",
+      "values": {
+        "argv": [
+          "configure",
+          "export-credentials"
+        ]
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.argv"
+      }
+    }
+  ]
+}

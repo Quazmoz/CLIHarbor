@@ -55,12 +55,17 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if len(state.Registry.Commands("github-cli")) != 6 {
 		t.Fatalf("embedded GitHub commands = %d, want 6", len(state.Registry.Commands("github-cli")))
 	}
+	for id, want := range map[string]int{"aws-cli": 5, "helm-cli": 4, "vault-cli": 5} {
+		if got := len(state.Registry.Commands(id)); got != want {
+			t.Fatalf("embedded %s commands = %d, want %d", id, got, want)
+		}
+	}
 
 	// Even with no installed executables, every supported CLI remains discoverable
 	// in Add a CLI; only executable tasks are withheld until qualification.
 	catalog := newTaskCatalog(state.Registry, missingInstallSnapshot(state.Registry))
 	tools := catalog.ListTools()
-	if len(tools) != 4 || len(catalog.ListTasks()) != 0 {
+	if len(tools) != 7 || len(catalog.ListTasks()) != 0 {
 		t.Fatalf("missing-tool catalog = %#v; tasks = %#v", tools, catalog.ListTasks())
 	}
 	for _, tool := range tools {
@@ -110,8 +115,8 @@ commands: {}
 	if _, ok := state.Registry.FindPack("other-cli"); !ok {
 		t.Fatal("explicit non-Conjur pack was not added")
 	}
-	if got := len(state.Registry.Packs()); got != 5 {
-		t.Fatalf("configured packs = %d, want 5", got)
+	if got := len(state.Registry.Packs()); got != 8 {
+		t.Fatalf("configured packs = %d, want 8", got)
 	}
 }
 

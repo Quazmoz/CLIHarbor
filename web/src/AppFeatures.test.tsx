@@ -115,14 +115,15 @@ describe('command preview and retry workflows', () => {
       return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
     }));
     render(<App />);
-    const builtInList = screen.getByRole('list', { name: 'Built-in CLIs', hidden: true });
+    const builtInList = screen.getByRole('list', { name: 'Built-in CLIs' });
     const builtIn = await within(builtInList).findByRole('link', { name: 'CyberArk Conjur' });
     expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
     expect(within(document.querySelector<HTMLElement>('.topbar')!).queryByText(/Built-in CLIs|Other CLIs/)).not.toBeInTheDocument();
     const primary = screen.getByRole('navigation', { name: 'Primary' });
     expect(within(primary).getByRole('link', { name: 'Overview' })).toBeInTheDocument();
     expect(within(primary).getByRole('link', { name: 'Command Builder' })).toBeInTheDocument();
-    expect(within(primary).getByRole('button', { name: /Built-in CLIs/ })).toHaveAttribute('aria-expanded', 'true');
+    // Built-in CLIs are always listed; only Other CLIs is a disclosure.
+    expect(within(primary).queryByRole('button', { name: /Built-in CLIs/ })).not.toBeInTheDocument();
     const otherToggle = within(primary).getByRole('button', { name: /Other CLIs/ });
     expect(otherToggle).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(otherToggle);

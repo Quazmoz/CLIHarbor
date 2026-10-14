@@ -1,0 +1,153 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: aws-cli
+  name: AWS CLI
+  version: 0.1.0
+  description: >-
+    Read-only AWS identity and inventory metadata through the official AWS CLI
+    v2 and its existing vendor-owned profile/SSO session. Client-side JMESPath
+    queries limit output to identifiers and state; tags, user data,
+    environment variables, policies and object contents are excluded.
+    AWS ships installers rather than portable archives, so CLIHarbor only
+    discovers an existing installation.
+runtime:
+  platforms: [windows, linux, darwin]
+  tools:
+    aws:
+      executableNames: [aws]
+      versionProbe:
+        args: [--version]
+        parser: semver-text
+        # Output also carries Python and OS versions; read only the CLI token.
+        prefix: "aws-cli/"
+        timeoutMillis: 5000
+      versionConstraint: ">=2.0.0 <3.0.0-0"
+commands:
+  version:
+    name: AWS CLI version
+    description: Show the local AWS CLI version without reading profiles or contacting AWS.
+    tool: aws
+    risk: read
+    argv:
+      - literal: --version
+    output:
+      mode: raw
+    requirements:
+      requiresAuth: false
+
+  caller-identity:
+    name: Show AWS caller identity
+    description: Show the account ID, user ID, and ARN of the active AWS profile or SSO session without returning credentials.
+    tool: aws
+    risk: read
+    argv:
+      - literal: sts
+      - literal: get-caller-identity
+      - literal: --output
+      - literal: json
+      - literal: --no-cli-pager
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  s3-buckets:
+    name: List S3 buckets
+    description: List S3 bucket names visible to the active AWS profile without object listings, policies, or ACLs.
+    tool: aws
+    risk: read
+    argv:
+      - literal: s3api
+      - literal: list-buckets
+      - literal: --query
+      - literal: 'Buckets[].Name'
+      - literal: --output
+      - literal: json
+      - literal: --no-cli-pager
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  ec2-instances:
+    name: List EC2 instances
+    description: List EC2 instance ID, type, state, and availability zone in one explicit region without tags, IP addresses, or user data.
+    tool: aws
+    risk: read
+    inputs:
+      - id: region
+        label: AWS region
+        type: string
+        required: true
+        validation:
+          minLength: 9
+          maxLength: 32
+          pattern: '^[a-z]{2}(-[a-z]+)+-[0-9]{1,2}$'
+          disallowLeadingDash: true
+    argv:
+      - literal: ec2
+      - literal: describe-instances
+      - flag:
+          name: --region
+          valueFrom: region
+      - literal: --query
+      - literal: 'Reservations[].Instances[].{Id:InstanceId,Type:InstanceType,State:State.Name,Zone:Placement.AvailabilityZone}'
+      - literal: --output
+      - literal: json
+      - literal: --no-cli-pager
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  lambda-functions:
+    name: List Lambda functions
+    description: List Lambda function names, runtimes, and last-modified times in one explicit region without environment variables, code, or roles.
+    tool: aws
+    risk: read
+    inputs:
+      - id: region
+        label: AWS region
+        type: string
+        required: true
+        validation:
+          minLength: 9
+          maxLength: 32
+          pattern: '^[a-z]{2}(-[a-z]+)+-[0-9]{1,2}$'
+          disallowLeadingDash: true
+    argv:
+      - literal: lambda
+      - literal: list-functions
+      - flag:
+          name: --region
+          valueFrom: region
+      - literal: --query
+      - literal: 'Functions[].{Name:FunctionName,Runtime:Runtime,LastModified:LastModified}'
+      - literal: --output
+      - literal: json
+      - literal: --no-cli-pager
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session

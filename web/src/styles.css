@@ -203,6 +203,9 @@ button:disabled {
 .nav-disclosure:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .primary-nav .nav-disclosure svg { width: 0.95rem; height: 0.95rem; color: var(--text-subtle); transition: transform 120ms ease; }
 .nav-disclosure[aria-expanded="true"] svg { transform: rotate(90deg); }
+.nav-disclosure--static { margin: 0; cursor: default; }
+.nav-disclosure--static:hover { background: transparent; color: var(--text); }
+.nav-disclosure-spacer { width: 0.95rem; flex-shrink: 0; }
 .nav-count { margin-left: auto; color: var(--text-subtle); font-size: 0.72rem; font-weight: 500; font-variant-numeric: tabular-nums; }
 .nav-tree {
   display: grid;

@@ -1,0 +1,109 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: vault-cli
+  name: HashiCorp Vault
+  version: 0.1.0
+  description: >-
+    Read-only HashiCorp Vault server and configuration metadata through the
+    official vault CLI, its VAULT_ADDR environment, and its existing token
+    helper session. Secret values, token lookups, and policy bodies are
+    excluded. Vault executables exceed the portable-install size bound, so
+    CLIHarbor only discovers an existing installation.
+runtime:
+  platforms: [windows, linux, darwin]
+  tools:
+    vault:
+      executableNames: [vault]
+      versionProbe:
+        args: [version]
+        parser: semver-text
+        prefix: "Vault"
+        timeoutMillis: 2000
+      versionConstraint: ">=1.15.0 <3.0.0-0"
+commands:
+  version:
+    name: Vault CLI version
+    description: Show the local Vault CLI version without contacting a Vault server.
+    tool: vault
+    risk: read
+    argv:
+      - literal: version
+    output:
+      mode: raw
+    requirements:
+      requiresAuth: false
+
+  status:
+    name: Vault server status
+    description: Show seal state, version, cluster, and HA metadata from the unauthenticated status endpoint of the configured Vault server; a sealed server exits with code 2.
+    tool: vault
+    risk: read
+    argv:
+      - literal: status
+      - literal: -format=json
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  secrets-engines:
+    name: List secrets engines
+    description: List enabled secrets engine mount paths, types, and mount configuration without reading any secret.
+    tool: vault
+    risk: read
+    argv:
+      - literal: secrets
+      - literal: list
+      - literal: -format=json
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  auth-methods:
+    name: List auth methods
+    description: List enabled auth method mount paths, types, and mount configuration without role or credential data.
+    tool: vault
+    risk: read
+    argv:
+      - literal: auth
+      - literal: list
+      - literal: -format=json
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  policies:
+    name: List policies
+    description: List ACL policy names without reading policy bodies.
+    tool: vault
+    risk: read
+    argv:
+      - literal: policy
+      - literal: list
+      - literal: -format=json
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session

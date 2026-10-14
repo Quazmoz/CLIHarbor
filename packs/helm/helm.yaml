@@ -1,0 +1,140 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: helm-cli
+  name: Helm
+  version: 0.1.0
+  description: >-
+    Read-only Helm release and repository metadata through the official helm
+    CLI and the existing kubeconfig context. Release values, manifests, notes,
+    and status bodies are excluded because they can carry secrets. Managed
+    installation is offered only where Helm publishes a ZIP (Windows); macOS
+    and Linux use an existing installation.
+runtime:
+  platforms: [windows, linux, darwin]
+  tools:
+    helm:
+      executableNames: [helm]
+      install:
+        version: 4.3.0
+        artifacts:
+          windows-amd64:
+            archivePath: windows-amd64/helm.exe
+            executableName: helm.exe
+            executableSha256: 2f65add9f1d5c96fc70ad70f06f1c47b3ef21bee4a9f086d861bb138429e9c13
+            executableSizeBytes: 67507712
+            format: zip
+            sha256: 304ea163cce4d9ad14e189c01846c6a34de9cfdfe48536ae54b2e8ba7884e67c
+            sizeBytes: 20832154
+            url: https://get.helm.sh/helm-v4.3.0-windows-amd64.zip
+          windows-arm64:
+            archivePath: windows-arm64/helm.exe
+            executableName: helm.exe
+            executableSha256: 346e40dace982ddd3eec651e09a7b50de5e1d1a777f8a020cdae588c52777d08
+            executableSizeBytes: 61833216
+            format: zip
+            sha256: 4a9eefa30d26eb73900a9a0f16e97eae678582172204db60cbd454c68acea246
+            sizeBytes: 18076214
+            url: https://get.helm.sh/helm-v4.3.0-windows-arm64.zip
+      versionProbe:
+        args: [version, --short]
+        parser: semver-text
+        timeoutMillis: 2000
+      versionConstraint: ">=3.0.0 <5.0.0-0"
+commands:
+  version:
+    name: Helm version
+    description: Show the local Helm client version without contacting a Kubernetes cluster.
+    tool: helm
+    risk: read
+    argv:
+      - literal: version
+      - literal: --short
+    output:
+      mode: raw
+    requirements:
+      requiresAuth: false
+
+  releases:
+    name: List Helm releases
+    description: List release name, namespace, revision, status, chart, and app version across all namespaces of the active Kubernetes context without values or manifests.
+    tool: helm
+    risk: read
+    argv:
+      - literal: list
+      - literal: --all-namespaces
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  release-history:
+    name: Show Helm release history
+    description: Show up to 20 revisions of one explicit release with status, chart, app version, and description, without values or manifests.
+    tool: helm
+    risk: read
+    inputs:
+      - id: namespace
+        label: Namespace
+        type: string
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          disallowLeadingDash: true
+      - id: release
+        label: Release name
+        type: string
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 53
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          disallowLeadingDash: true
+    argv:
+      - literal: history
+      - positional:
+          valueFrom: release
+      - flag:
+          name: --namespace
+          valueFrom: namespace
+      - literal: --max
+      - literal: '20'
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  repositories:
+    name: List Helm repositories
+    description: List configured chart repository names and URLs from the local Helm configuration without repository credentials.
+    tool: helm
+    risk: read
+    argv:
+      - literal: repo
+      - literal: list
+      - literal: --output
+      - literal: json
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false

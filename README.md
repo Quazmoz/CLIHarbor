@@ -44,7 +44,7 @@ go run ./tools/task build  # Rebuild, validate, and embed the frontend before co
 ./bin/cliharbor
 ```
 
-Conjur, Docker, kubectl, and GitHub CLI packs load automatically. Open **Add a CLI** to install Conjur, kubectl, or GitHub CLI on supported platforms and immediately access their tasks. Existing vendor installations are discovered at startup. See [Windows and macOS setup](docs/CROSS_PLATFORM.md) and the [supported CLI catalog](docs/CLI_CATALOG.md).
+Conjur, Docker, kubectl, GitHub CLI, Helm, AWS CLI, and HashiCorp Vault packs load automatically. Open **Add a CLI** to install Conjur, kubectl, GitHub CLI, or Helm (Windows) on supported platforms and immediately access their tasks. Existing vendor installations are discovered at startup. See [Windows and macOS setup](docs/CROSS_PLATFORM.md) and the [supported CLI catalog](docs/CLI_CATALOG.md).
 
 ## One-download Windows startup
 

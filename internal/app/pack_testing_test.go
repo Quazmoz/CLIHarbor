@@ -167,6 +167,9 @@ func TestAdditionalPackPlannerContractsAndLint(t *testing.T) {
 		{"docker", 8},
 		{"kubectl", 11},
 		{"github", 43},
+		{"aws", 15},
+		{"helm", 12},
+		{"vault", 7},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

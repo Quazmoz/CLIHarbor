@@ -30,6 +30,19 @@ var kubectlCLI []byte
 //go:embed github/github.yaml
 var githubCLI []byte
 
+// awsCLI, helmCLI and vaultCLI are read-only inventory packs that run under
+// each vendor CLI's existing profile, kubeconfig, or token-helper session.
+// Only Helm on Windows declares a managed install artifact.
+//
+//go:embed aws/aws.yaml
+var awsCLI []byte
+
+//go:embed helm/helm.yaml
+var helmCLI []byte
+
+//go:embed vault/vault.yaml
+var vaultCLI []byte
+
 // Builtins returns defensive copies of the first-party pack bytes that are safe
 // to hand to the hardened pack loader.
 func Builtins() map[string][]byte {
@@ -38,5 +51,8 @@ func Builtins() map[string][]byte {
 		"docker/docker.yaml":    append([]byte(nil), dockerCLI...),
 		"kubectl/kubectl.yaml":  append([]byte(nil), kubectlCLI...),
 		"github/github.yaml":    append([]byte(nil), githubCLI...),
+		"aws/aws.yaml":          append([]byte(nil), awsCLI...),
+		"helm/helm.yaml":        append([]byte(nil), helmCLI...),
+		"vault/vault.yaml":      append([]byte(nil), vaultCLI...),
 	}
 }
