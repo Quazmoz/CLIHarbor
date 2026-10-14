@@ -35,6 +35,10 @@ export function taskToolKey(task: Pick<Task, 'packId' | 'toolId'>): string {
   return task.packId + '/' + task.toolId;
 }
 
+export function taskQueryTerms(query: string): string[] {
+  return query.trim().toLocaleLowerCase().split(/\s+/u).filter(Boolean);
+}
+
 export function searchableText(task: Task): string {
   return [
     task.name,
@@ -146,8 +150,9 @@ export function TaskDiscovery({
     [preferences.favorites],
   );
   const normalizedQuery = query.trim().toLocaleLowerCase();
+  const terms = taskQueryTerms(query);
   const matches = (task: Task) => (toolFilter === '' || taskToolKey(task) === toolFilter) &&
-    (normalizedQuery.length === 0 || searchableText(task).includes(normalizedQuery));
+    terms.every((term) => searchableText(task).includes(term));
   const filteredTasks = tasks.filter(matches);
   const favoriteTasks = preferences.favorites
     .map((identity) => byIdentity.get(taskIdentityKey(identity)))

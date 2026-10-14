@@ -219,4 +219,19 @@ describe('TaskDiscovery', () => {
     expect(alphaInspect).toHaveTextContent('Alpha Pack');
     expect(betaInspect).toHaveTextContent('Beta Pack');
   });
+  test('matches space-separated search terms across approved task metadata', () => {
+    const { container } = render(
+      <TaskDiscovery tasks={tasks} selectedTaskKey="" preferences={{ favorites: [], recent: [] }}
+        onSelect={vi.fn()} onToggleFavorite={vi.fn()} />,
+    );
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find a task' }), {
+      target: { value: '  ALPHA    metadata  ' },
+    });
+    expect(screen.getByRole('heading', { name: 'Search results' })).toBeInTheDocument();
+    expect(screen.getByText('1 of 3 tasks')).toBeInTheDocument();
+    expect(container.querySelector('[data-task-key="alpha/inspect"]')).not.toBeNull();
+    expect(container.querySelector('[data-task-key="beta/inspect"]')).toBeNull();
+    expect(container.querySelector('[data-task-key="beta/list"]')).toBeNull();
+  });
+
 });

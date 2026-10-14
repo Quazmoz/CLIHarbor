@@ -598,6 +598,7 @@ export function App() {
   const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
   const [selectedTaskKey, setSelectedTaskKey] = useState('');
   const [taskChosen, setTaskChosen] = useState(false);
+  const [taskCatalogRevision, setTaskCatalogRevision] = useState(0);
   const [taskToolFilter, setTaskToolFilter] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [taskSwitcherOpen, setTaskSwitcherOpen] = useState(false);
@@ -1187,8 +1188,16 @@ export function App() {
   }, [activePlatformID]);
 
   const changeTaskCategory = (toolKey: string) => {
-    if (starting || activeRunID !== null || state.kind !== 'ready' || toolKey === taskToolFilter) return;
+    if (startingRef.current || starting || activeRunID !== null || state.kind !== 'ready') return;
     if (toolKey !== '' && !state.tasks.some((task) => taskToolKey(task) === toolKey)) return;
+    if (toolKey === taskToolFilter) {
+      // The task catalog owns its open state. Remount only on an explicit repeat
+      // selection so a previously closed catalog reopens even when its scope
+      // and taskChosen props have not changed.
+      setTaskChosen(false);
+      setTaskCatalogRevision((revision) => revision + 1);
+      return;
+    }
     setTaskToolFilter(toolKey);
     // When filtering from the shared task browser, keep the built-in CLI
     // top-bar selection and breadcrumbs aligned with the chosen tool.
@@ -1526,7 +1535,14 @@ export function App() {
             preferences={taskPreferences}
             onNavigate={navigate}
             dedicatedSignInFor={dedicatedSignInFor}
+            navigationLocked={starting || activeRunID !== null}
+            onOpenTool={(key) => {
+              if (startingRef.current || starting || activeRunID !== null) return;
+              changeTaskCategory(key);
+              navigate('tasks');
+            }}
             onOpenTask={(taskKey) => {
+              if (startingRef.current || starting || activeRunID !== null) return;
               setTaskToolFilter('');
               selectTaskByKey(taskKey, state.tasks);
               navigate('tasks');
@@ -1589,7 +1605,7 @@ export function App() {
                 ) : (
                   <form ref={taskFormRef} onSubmit={startRun} noValidate>
                     <TaskDiscovery
-                      key={taskToolFilter}
+                      key={taskToolFilter + ':' + taskCatalogRevision}
                       tasks={state.tasks}
                       selectedTaskKey={selectedTaskKey}
                       preferences={taskPreferences}

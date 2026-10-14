@@ -65,6 +65,102 @@ afterEach(() => {
 });
 
 describe('App', () => {
+
+  test('overview task-entry buttons stay disabled while run creation is pending', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    let finishStart: ((response: Response) => void) | undefined;
+    const inFlight = new Promise<Response>((resolve) => { finishStart = resolve; });
+    let startCount = 0;
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      switch (requestPath(input)) {
+        case '/api/v1/status':
+          return Promise.resolve(response(200, {
+            name: 'CLIHarbor', version: 'test', session: 'active', csrfToken: 'test-csrf',
+          }));
+        case '/api/v1/tools':
+          return Promise.resolve(response(200, { tools: [{
+            packId: 'fixture', packName: 'Fixture', packVersion: '1.0.0',
+            toolId: 'fixture', status: 'ready',
+          }] }));
+        case '/api/v1/tasks':
+          return Promise.resolve(response(200, { tasks: [{
+            packId: 'fixture', packName: 'Fixture', toolId: 'fixture',
+            commandId: 'inspect', name: 'Inspect fixture', risk: 'read', inputs: [],
+          }] }));
+        case '/api/v1/runs':
+          if (init?.method === 'POST') {
+            startCount += 1;
+            return inFlight;
+          }
+          return Promise.resolve(response(404, {}));
+        default:
+          return Promise.resolve(response(404, {}));
+      }
+    }));
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Run task' }));
+    expect(startCount).toBe(1);
+    fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
+    const toolButton = await screen.findByRole('button', { name: 'Browse Fixture fixture tasks' });
+    expect(toolButton).toBeDisabled();
+    fireEvent.click(toolButton);
+    expect(window.location.pathname).toBe('/');
+    expect(startCount).toBe(1);
+    finishStart?.(response(202, {
+      runId: 'abababababababababababababababab', packId: 'fixture',
+      toolId: 'fixture', commandId: 'inspect', status: 'running',
+    }));
+    await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
+    expect(screen.getByRole('button', { name: 'Browse Fixture fixture tasks' })).toBeDisabled();
+    expect(startCount).toBe(1);
+  });
+
+  test('overview tool cards scope task selection without issuing a run request', async () => {
+    window.history.replaceState({}, '', '/');
+    const tasks = ['first', 'second'].map((toolId) => ({
+      packId: 'suite', packName: 'CLI Suite', toolId, commandId: toolId,
+      name: 'Inspect ' + toolId, risk: 'read', inputs: [],
+    }));
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      switch (requestPath(input)) {
+        case '/api/v1/status':
+          return Promise.resolve(response(200, {
+            name: 'CLIHarbor', version: 'test', session: 'active', csrfToken: 'test-csrf',
+          }));
+        case '/api/v1/tools':
+          return Promise.resolve(response(200, { tools: ['first', 'second'].map((toolId) => ({
+            packId: 'suite', packName: 'CLI Suite', packVersion: '1.0.0',
+            toolId, status: 'ready',
+          })) }));
+        case '/api/v1/tasks':
+          return Promise.resolve(response(200, { tasks }));
+        default:
+          return Promise.resolve(response(404, {}));
+      }
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { container } = render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Browse CLI Suite second tasks' }));
+    expect(window.location.pathname).toBe('/tasks');
+    expect(screen.getByRole('combobox', { name: 'Tool category' })).toHaveValue('suite/second');
+    expect(screen.getByRole('heading', { name: 'Inspect second' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Inspect first' })).not.toBeInTheDocument();
+    fireEvent.click(container.querySelector('[data-task-action="select"][data-task-key="suite/second"]')!);
+    expect(container.querySelector('details.task-discovery')).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Browse CLI Suite second tasks' }));
+    expect(container.querySelector('details.task-discovery')).toHaveAttribute('open');
+    // Manually close the catalog without changing taskChosen, then revisit
+    // this same CLI: merely setting taskChosen=false again must not be the fix.
+    fireEvent.click(container.querySelector('summary.task-catalog-summary')!);
+    expect(container.querySelector('details.task-discovery')).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Browse CLI Suite second tasks' }));
+    expect(container.querySelector('details.task-discovery')).toHaveAttribute('open');
+    expect(screen.getByRole('combobox', { name: 'Tool category' })).toHaveValue('suite/second');
+    expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs')).toBe(false);
+  });
+
   test('tool navigation resets inputs and submits only the selected executable task in a multi-tool pack', async () => {
     const tasks = ['first', 'second'].map((toolId) => ({
       packId: 'suite', packName: 'CLI Suite', toolId, commandId: toolId,

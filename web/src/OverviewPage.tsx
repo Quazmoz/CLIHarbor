@@ -14,6 +14,10 @@ interface OverviewPageProps {
   preferences: TaskPreferences;
   onNavigate: (destination: OverviewDestination) => void;
   onOpenTask: (taskKey: string) => void;
+  /** Navigates to the existing scoped task catalog; never starts a command. */
+  onOpenTool: (toolKey: string) => void;
+  /** An active run owns the task selection until it completes. */
+  navigationLocked?: boolean;
   /** Tools owned by a dedicated platform sign in from that platform's section. */
   dedicatedSignInFor?: (tool: ToolDiagnostic) => DedicatedSignInLink | undefined;
 }
@@ -53,6 +57,8 @@ export function OverviewPage({
   preferences,
   onNavigate,
   onOpenTask,
+  onOpenTool,
+  navigationLocked = false,
   dedicatedSignInFor,
 }: OverviewPageProps) {
   const readyToolCount = tools.filter((tool) => tool.status === 'ready').length;
@@ -65,6 +71,14 @@ export function OverviewPage({
     (tool) => tool.credentialLogin !== undefined,
   );
   const shortcuts = useMemo(() => quickTasks(tasks, preferences), [tasks, preferences]);
+  const taskCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const task of tasks) {
+      const key = task.packId + '/' + task.toolId;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [tasks]);
   const workflowReady = readyToolCount > 0 && tasks.length > 0;
 
   let recommendedTitle = 'Choose a safe task';
@@ -93,10 +107,17 @@ export function OverviewPage({
     <section className="overview-page" aria-labelledby="overview-heading">
       <div className="panel overview-hero">
         <div className="overview-hero-copy">
-          <p className="status-label">Your workspace</p>
+          <div className="overview-status-line" aria-label="Local workspace status">
+            <span className={'overview-status-indicator' + (tools.length === 0 || attentionToolCount > 0 ? ' overview-status-indicator--attention' : '')} aria-hidden="true" />
+            <span>Local operator workspace</span>
+            <span className="overview-status-separator" aria-hidden="true">/</span>
+            <span>{readyToolCount} of {tools.length} tools detected</span>
+          </div>
           <h2 id="overview-heading">{workflowReady ? 'What would you like to do?' : 'Get your CLIs ready'}</h2>
           <p>
-            Pick an approved task to get started, or set up another CLI. Each command runs locally on this computer.
+            {workflowReady
+              ? 'Pick an approved task to get started, or set up another CLI. Each command runs locally on this computer.'
+              : 'Review your approved tools and resolve setup needs before running commands locally.'}
           </p>
         </div>
         <div className="overview-hero-actions">
@@ -140,22 +161,37 @@ export function OverviewPage({
         <article className="panel" aria-labelledby="quick-tasks-heading">
           <p className="status-label">Quick entry</p>
           <h2 id="quick-tasks-heading">Favorites & recent tasks</h2>
+          {navigationLocked && shortcuts.length > 0 && (
+            <p className="overview-selection-notice" role="status">
+              Finish or cancel the active run before selecting another task.
+            </p>
+          )}
           {shortcuts.length === 0 ? (
             <div className="overview-empty">
-              <p>Favorite a task or run one once and it will appear here for faster return access.</p>
-              <div className="overview-panel-actions">
-                <button type="button" className="secondary-button" onClick={() => onNavigate('tasks')}>
-                  Browse tasks
-                </button>
-              </div>
+              <p>{tasks.length > 0
+                ? 'Favorite a task or run one once and it will appear here for faster return access.'
+                : 'No approved tasks are available yet. Review your CLI setup to enable workflows.'}</p>
+              {tasks.length > 0 && (
+                <div className="overview-panel-actions">
+                  <button type="button" className="secondary-button" onClick={() => onNavigate('tasks')}>
+                    Browse tasks
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <ul className="quick-task-list">
               {shortcuts.map((task) => (
                 <li key={taskKey(task)}>
-                  <button type="button" className="quick-task-button" onClick={() => onOpenTask(taskKey(task))}>
+                  <button type="button" className="quick-task-button" disabled={navigationLocked} onClick={() => onOpenTask(taskKey(task))}>
                     <strong>{task.name}</strong>
-                    <span>{task.packName}{task.requiresAuth ? ' · Sign-in required' : ''}</span>
+                    <span>{task.packName} · {task.toolId}</span>
+                    <span className="quick-task-flags">
+                      <span className={'task-risk-badge task-risk-badge--' + task.risk}>
+                        {task.risk === 'read' ? 'Read-only' : task.risk === 'change' ? 'Change · approval required' : 'Destructive · approval required'}
+                      </span>
+                      {task.requiresAuth && <span className="task-auth-badge">Sign-in required</span>}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -163,6 +199,63 @@ export function OverviewPage({
           )}
         </article>
       </div>
+
+      <section className="panel overview-tool-section" aria-labelledby="overview-tools-heading">
+        <div className="overview-section-heading">
+          <div>
+            <p className="status-label">Environment at a glance</p>
+            <h2 id="overview-tools-heading">Your command-line tools</h2>
+            <p>Detection confirms the executable is available, not that you are signed in. Tasks below come from approved packs only.</p>
+          </div>
+          <button type="button" className="secondary-button" onClick={() => onNavigate('diagnostics')}>View diagnostics</button>
+        </div>
+        {tools.length === 0 ? (
+          <div className="overview-empty">
+            <p>No reviewed CLI tools are configured. Add a supported CLI to get started.</p>
+          </div>
+        ) : (
+          <ul className="overview-tool-grid" aria-label="Configured command-line tools">
+            {tools.map((tool) => {
+              const key = tool.packId + '/' + tool.toolId;
+              const count = taskCounts.get(key) ?? 0;
+              const ready = tool.status === 'ready';
+              return (
+                <li key={key + '/' + tool.packVersion} className={'overview-tool' + (ready ? ' overview-tool--ready' : ' overview-tool--attention')}>
+                  <div className="overview-tool-top">
+                    <span className="overview-tool-symbol" aria-hidden="true">&gt;_</span>
+                    <span className="overview-tool-state">{ready ? 'Detected' : tool.status.replaceAll('-', ' ')}</span>
+                  </div>
+                  <h3>{tool.packName}</h3>
+                  <p className="overview-tool-identity">{tool.toolId}{tool.version ? ' · ' + tool.version : ''}</p>
+                  <p className="overview-tool-description">
+                    {ready
+                      ? count > 0
+                        ? count + ' approved ' + (count === 1 ? 'task' : 'tasks') + ' available.' +
+                          (tool.requiresVendorSession ? ' Vendor sign-in is checked separately.' : '')
+                        : 'Executable detected. No approved browser tasks are available.'
+                      : tool.message || 'This tool needs attention before its workflows are available.'}
+                  </p>
+                  <div className="overview-tool-footer">
+                    <button type="button" className="secondary-button"
+                      disabled={navigationLocked && ready && count > 0}
+                      aria-label={ready && count > 0 ? 'Browse ' + tool.packName + ' ' + tool.toolId + ' tasks' : 'Diagnose ' + tool.packName + ' ' + tool.toolId}
+                      onClick={() => {
+                        if (ready && count > 0) {
+                          onOpenTool(key);
+                        } else {
+                          onNavigate('diagnostics');
+                        }
+                      }}>
+                      {ready && count > 0 ? 'Browse tasks →' : 'Troubleshoot →'}
+                    </button>
+                    {ready && count > 0 && <span>{count} {count === 1 ? 'workflow' : 'workflows'}</span>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       {vendorSessionTools.length > 0 && (
         <section className="overview-login" aria-labelledby="overview-login-heading">
