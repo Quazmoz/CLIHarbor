@@ -117,7 +117,6 @@ test('existing variable prevents all mutating previews and execution', async () 
   expect(createRun).toHaveBeenCalledTimes(1);
 });
 
-
 test('asynchronous existence completion fetches the authoritative structured result', async () => {
   vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'resource-exists'
     ? { ...snapshot('resource-exists'), status: 'running', exitCode: undefined, structured: undefined }
@@ -131,7 +130,7 @@ test('asynchronous existence completion fetches the authoritative structured res
   const region = setup();
   fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
   await waitFor(() => expect(previewRun).toHaveBeenCalledTimes(2));
-  expect(fetchRun).toHaveBeenCalledWith('resource-exists-run');
+  expect(fetchRun).toHaveBeenCalledWith('resource-exists-run', expect.any(AbortSignal));
   expect(within(region).getByText(/2. Set initial value/)).toBeInTheDocument();
 });
 
@@ -185,9 +184,8 @@ test('successful stream completion never substitutes for a failed authoritative 
   await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('did not confirm variable creation'));
   expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.commandId))
     .toEqual(['resource-exists', 'resource-exists', 'secret-create']);
-  expect(fetchRun).toHaveBeenCalledWith('secret-create-run');
+  expect(fetchRun).toHaveBeenCalledWith('secret-create-run', expect.any(AbortSignal));
 });
-
 
 test('duplicate run-completion notifications reconcile only once', async () => {
   vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'resource-exists'
