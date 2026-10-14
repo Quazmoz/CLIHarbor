@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Task } from './api/tasks';
 import { searchableText } from './TaskDiscovery';
 import { taskIdentityKey, type TaskPreferences } from './taskPreferences';
+import { ToolIcon } from './ToolIcon';
 
 interface TaskSwitcherProps {
   tasks: Task[];
@@ -81,7 +82,7 @@ export function TaskSwitcher({ tasks, preferences, onSelect, onClose }: TaskSwit
                     <strong>{task.name}</strong>
                     {favoriteKeys.has(taskIdentityKey(task)) && <span className="task-switcher-favorite">★ Favorite</span>}
                   </span>
-                  <span className="task-switcher-item-meta">{task.packName} · {task.toolId}</span>
+                  <span className="task-switcher-item-meta"><ToolIcon tool={task} size="sm" />{task.packName} · {task.toolId}</span>
                   {task.description && <span className="task-switcher-item-description">{task.description}</span>}
                   <span className="task-switcher-flags">
                     <span className={`task-risk-badge task-risk-badge--${task.risk}`}>

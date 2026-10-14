@@ -1,7 +1,8 @@
-import { useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import { taskToolKey } from './TaskDiscovery';
+import { ToolIcon } from './ToolIcon';
 
 interface ToolExplorerProps {
   tools: ToolDiagnostic[];
@@ -16,13 +17,6 @@ export function toolStatusLabel(tool: ToolDiagnostic): { label: string; tone: 'r
   if (tool.status === 'ready') return { label: 'Ready', tone: 'ready' };
   if (tool.status === 'missing') return { label: 'Not installed', tone: 'setup' };
   return { label: 'Unavailable', tone: 'unavailable' };
-}
-
-// A stable hue per tool keeps monograms distinguishable without vendor logos.
-function monogramHue(toolId: string): number {
-  let hash = 0;
-  for (const character of toolId) hash = (hash * 31 + character.charCodeAt(0)) % 360;
-  return hash;
 }
 
 export function ToolExplorer({ tools, tasks, selectedToolKey, disabled, onSelectTool, onOpenTools }: ToolExplorerProps) {
@@ -71,9 +65,7 @@ export function ToolExplorer({ tools, tasks, selectedToolKey, disabled, onSelect
                   <button type="button" className="tool-explorer-item" disabled={disabled && count > 0}
                     aria-pressed={count > 0 ? selectedToolKey === key : undefined}
                     onClick={() => (count > 0 ? onSelectTool(key) : onOpenTools())}>
-                    <span className="tool-monogram" aria-hidden="true" style={{ '--tool-hue': monogramHue(tool.toolId) } as CSSProperties}>
-                      {tool.toolId.slice(0, 2)}
-                    </span>
+                    <ToolIcon tool={tool} />
                     <span className="tool-explorer-copy">
                       <strong>{tool.packName}</strong>
                       <span>

@@ -95,8 +95,8 @@ describe('OverviewPage', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
-    expect(screen.getByText('2/2 ready')).toBeInTheDocument();
-    expect(screen.getByText('2 tasks')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Tools\s*2\s*2 ready/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Available tasks\s*2\s*1 requires sign-in/ })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /List containers/i }));
     expect(openTask).toHaveBeenCalledWith('docker/containers');
@@ -148,7 +148,7 @@ describe('OverviewPage', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'CLI session checks' })).toBeInTheDocument();
-    expect(screen.getByText('2/2 ready')).toBeInTheDocument();
+    expect(screen.getByText('2 ready')).toBeInTheDocument();
     expect(
       screen.getByText(/approved conjur flow, then use the session check/i),
     ).toBeInTheDocument();
@@ -187,7 +187,7 @@ describe('OverviewPage', () => {
         preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
     );
     expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
-    expect(screen.getByText('1/2 ready')).toBeInTheDocument();
+    expect(screen.getByText('1 ready · 1 needs setup')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Open tasks' }));
     expect(navigate).toHaveBeenCalledWith('tasks');
   });
@@ -204,8 +204,26 @@ describe('OverviewPage', () => {
       />,
     );
 
-    expect(screen.getByText('1 task requires sign-in before use.')).toBeInTheDocument();
+    expect(screen.getByText('1 requires sign-in')).toBeInTheDocument();
     expect(screen.queryByText(/^Authenticated$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Signed in$/i)).not.toBeInTheDocument();
+  });
+
+  test('shows recent executions newest first with outcome counts', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(200, { runs: [
+      { runId: 'r1', packId: 'docker', commandId: 'containers', toolId: 'docker', status: 'exited', exitCode: 0, startedAt: '2026-10-14T09:00:00Z', endedAt: '2026-10-14T09:00:02Z' },
+      { runId: 'r2', packId: 'conjur', commandId: 'whoami', toolId: 'conjur', status: 'exited', exitCode: 1, startedAt: '2026-10-14T10:00:00Z', endedAt: '2026-10-14T10:00:01Z' },
+    ] }))));
+    const navigate = vi.fn();
+    render(<OverviewPage status={status} tasks={tasks} tools={readyTools} preferences={preferences} onNavigate={navigate} onOpenTask={vi.fn()} />);
+
+    expect(await screen.findByText('1 succeeded · 1 failed · 0 other')).toBeInTheDocument();
+    const items = screen.getAllByRole('button', { name: /Current identity|List containers/ }).filter((button) => button.closest('.overview-timeline'));
+    expect(items.map((button) => button.textContent)).toEqual([
+      expect.stringMatching(/^Current identity.*Failed · exit 1$/),
+      expect.stringMatching(/^List containers.*2\.0 s.*Succeeded$/),
+    ]);
+    fireEvent.click(items[0]);
+    expect(navigate).toHaveBeenCalledWith('runs');
   });
 });

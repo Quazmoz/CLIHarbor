@@ -4,6 +4,7 @@ import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import { describeToolReadiness } from './operatorLanguage';
 import { PackAuthoringWizard } from './PackAuthoringWizard';
+import { ToolIcon } from './ToolIcon';
 
 interface ToolsPageProps {
   tools: ToolDiagnostic[];
@@ -65,7 +66,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
               return (
                 <li key={key}>
                   <div className="tool-summary">
-                    <strong>{catalog ? tool.packName : view.heading}</strong>
+                    <span className="tool-summary-title"><ToolIcon tool={tool} /><strong>{catalog ? tool.packName : view.heading}</strong></span>
                     <span className={'tool-status ' + (view.ready ? 'tool-status--ready' : 'tool-status--attention')}>{view.statusText}</span>
                   </div>
                   <p>{view.summary}</p>

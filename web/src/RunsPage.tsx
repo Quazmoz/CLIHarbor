@@ -24,7 +24,7 @@ function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
-function taskName(run: Pick<RunSummary, 'packId' | 'commandId'>, tasks: Task[]): string {
+export function taskName(run: Pick<RunSummary, 'packId' | 'commandId'>, tasks: Task[]): string {
   return (
     tasks.find((task) => task.packId === run.packId && task.commandId === run.commandId)?.name ??
     run.commandId

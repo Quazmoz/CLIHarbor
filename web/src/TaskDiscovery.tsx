@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Task } from './api/tasks';
 import { taskIdentityKey, type TaskPreferences } from './taskPreferences';
+import { ToolIcon } from './ToolIcon';
 
 interface TaskDiscoveryProps {
   tasks: Task[];
@@ -86,7 +87,7 @@ function TaskSection({
                   onClick={() => onSelect(key)}
                 >
                   <span className="task-row-title">{task.name}</span>
-                  <span className="task-row-meta">{task.packName}</span>
+                  <span className="task-row-meta"><ToolIcon tool={task} size="sm" />{task.packName}</span>
                   {task.description && <span className="task-row-description">{task.description}</span>}
                   <span className={"task-risk-badge task-risk-badge--" + task.risk}>
                     {task.risk === 'read' ? 'Read' : task.risk === 'change' ? 'Change · approval required' : 'Destructive · approval required'}
