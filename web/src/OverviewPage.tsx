@@ -302,7 +302,6 @@ export function OverviewPage({
           <dl className="overview-facts">
             <div><dt>Runtime</dt><dd>{status.name} {status.version}</dd></div>
             <div><dt>Session</dt><dd>{status.session === 'active' ? 'Active' : status.session}</dd></div>
-            <div><dt>Execution</dt><dd>Local only</dd></div>
             <div><dt>Credentials</dt><dd>Vendor-owned storage</dd></div>
           </dl>
         </article>
