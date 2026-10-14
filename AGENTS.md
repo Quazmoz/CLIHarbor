@@ -65,6 +65,12 @@ After frontend, Go, or embedded-asset changes, do not restart an old `bin/clihar
 
 The helpers may stop **only** a prior instance they started and verified by executable path plus PID start identity. Never use broad `pkill`, guessed ports, another process's PID, browser-cache/profile deletion, vendor credential/cache clearing, or `git reset --hard` as a restart shortcut. Never start a new version after a failed build. The restarted browser receives a new ephemeral loopback port; direct the user to the new browser tab. Generated embedded assets still need to be committed and checked in release work. Follow the GitHub Actions authorization policy below.
 
+## Default development integration: main
+
+The repository's normal integration target is `main`. For routine CLIHarbor development, integrate each coherent fix into `main` before concluding work. Temporary branches and PRs may be used to stage or review changes, but do not leave finished work stranded in them. Inspect the live target head and merge conflicts before integrating; never force-push `main` or bypass known security defects.
+
+Merging source does **not** establish a qualified Windows executable or authorize production deployment. Preserve testing and security gates below, the repository's generated-frontend authority, and all manual-only GitHub Actions restrictions. If a toolchain or device is unavailable, explicitly report unrun checks and keep release qualification blocked; never claim a source-only merge updated an installed application.
+
 ## GitHub Actions execution policy (explicit user authorization required)
 
 **Do not run GitHub Actions automatically during routine CLIHarbor development.** Repository workflows must be manual-only (`workflow_dispatch`); do not add `push`, `pull_request`, merge, tag, scheduled, or other automatic triggers, including temporary qualification workflows. Do not manually dispatch a workflow via GitHub UI, API, CLI, or automation unless the user **specifically authorizes GitHub Actions for that operation** (for example, production release qualification or a named exceptional CI check). Ordinary implementation, commits, PRs, merges, local validation failures, and a generic request to "test" or "continue" are **not** authorization to spend GitHub Actions minutes.

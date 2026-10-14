@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Task } from '../../api/tasks';
 import {
-  createRun, decodeRunOutput, fetchRun, previewRun, subscribeRunEvents,
+  createRun, fetchRun, previewRun, subscribeRunEvents,
   type RunPreview, type RunSnapshot,
 } from '../../api/runs';
 
 const PACK = 'cyberark-conjur-v9';
 const TOOL = 'conjur';
 const MAX_RUN_MS = 60_000;
+const MAX_RECONCILE_MS = 10_000;
 // Deliberately accept only simple relative policy paths in this guided flow.
 // More complex identifiers remain available through the reviewed generic tasks.
 const PATH = /^[A-Za-z0-9_][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$/u;
@@ -56,24 +57,37 @@ async function completedRun(snapshot: RunSnapshot): Promise<RunSnapshot> {
   return new Promise((resolve, reject) => {
     let done = false;
     let close = () => {};
+    let reconciling = false;
+    let controller: AbortController | undefined;
+    let reconcileTimeout: ReturnType<typeof setTimeout> | undefined;
     const finish = (result: RunSnapshot | Error) => {
       if (done) return;
       done = true;
       clearTimeout(timeout);
+      if (reconcileTimeout !== undefined) clearTimeout(reconcileTimeout);
+      controller?.abort();
       close();
       if (result instanceof Error) reject(result);
       else resolve(result);
     };
     const reconcile = () => {
-      void fetchRun(snapshot.runId).then((current) => {
+      // SSE completion/error and the deadline can race. Fetch the retained
+      // snapshot at most once, with an independent network deadline.
+      if (done || reconciling) return;
+      reconciling = true;
+      controller = new AbortController();
+      reconcileTimeout = setTimeout(() =>
+        finish(new Error('Run outcome is unknown. Check Runs before retrying.')), MAX_RECONCILE_MS);
+      void fetchRun(snapshot.runId, controller.signal).then((current) => {
         if (current.status === 'running') finish(new Error('Run completion could not be verified. Check Runs before retrying.'));
         else finish(current);
       }).catch(() => finish(new Error('Run outcome is unknown. Check Runs before retrying.')));
     };
     const timeout = setTimeout(reconcile, MAX_RUN_MS);
-    close = subscribeRunEvents(snapshot.runId, () => {}, (complete) => {
-      // The completion event has no execution output, but does have the final status.
-      finish({ ...snapshot, status: complete.status, exitCode: complete.exitCode });
+    close = subscribeRunEvents(snapshot.runId, () => {}, () => {
+      // Stream completion is only a signal: its payload omits retained stdout.
+      // Fetch the authoritative terminal snapshot before any dependent mutation.
+      reconcile();
     }, reconcile, undefined, snapshot.events?.at(-1)?.sequence ?? 0);
     if (done) close();
   });
@@ -91,14 +105,9 @@ async function exists(csrfToken: string, fullID: string, account: string): Promi
   if (existsField && (existsField.value === 'true' || existsField.value === 'false')) {
     return existsField.value === 'true';
   }
-  const output = decodeRunOutput(snapshot, 'stdout.chunk');
-  let result: unknown;
-  try { result = JSON.parse(output); } catch { throw new Error('Conjur returned an unrecognized existence result.'); }
-  if (!result || typeof result !== 'object' || Array.isArray(result) ||
-      Object.keys(result).length !== 1 || typeof (result as { exists?: unknown }).exists !== 'boolean') {
-    throw new Error('Conjur returned an unrecognized existence result.');
-  }
-  return (result as { exists: boolean }).exists;
+  // The reviewed pack requires a single structured boolean. Never fall back to
+  // JSON.parse(stdout): it can mask parser failures such as duplicate keys.
+  throw new Error('Conjur returned an unrecognized existence result.');
 }
 
 function safeMessage(error: unknown): string {

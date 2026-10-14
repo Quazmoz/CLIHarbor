@@ -234,7 +234,13 @@ identifiers may use the reviewed task forms. The preview contains the exact
 policy statement, target, and verified execution context, **not** the value.
 
 The creation flow checks whether the full variable already exists before
-preview and again before mutation. This is a best-effort duplicate guard:
+preview and again before mutation. For asynchronous checks it retrieves the
+authoritative final run snapshot rather than trusting a completion event's
+metadata-only payload. A missing or invalid structured existence boolean
+blocks creation; raw stdout is not used to bypass the approved output schema.
+The reconciliation lookup is single-flight and independently time-bounded: a stalled
+HTTP request or duplicate completion signal cannot indefinitely hold the create form.
+This is a best-effort duplicate guard:
 Conjur does not provide an atomic compare-and-create through the reviewed CLI
 interface, and concurrent external mutations remain possible. The two writes
 are **not atomic**: each runs only after the preceding operation reports a
