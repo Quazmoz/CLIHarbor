@@ -254,11 +254,15 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
 
   return (
     <section className="conjur-create-secret" aria-label="Create Conjur secret">
-      <button type="button" className="platform-tool-button" disabled={!allowed || busy}
+      <button type="button" className="conjur-action conjur-action--primary" disabled={!allowed || busy}
         aria-expanded={open} onClick={() => { if (!busy) setOpen(!open); }}>
-        <strong>Create secret</strong>
-        <span>Declare a variable and enter its initial value together, using the two approved Conjur commands.</span>
-        <small>{allowed ? 'One guided form · Explicit review' : 'Unavailable until Conjur and the approved commands are ready'}</small>
+        <span className="conjur-action-text">
+          <strong>Create secret</strong>
+          <span>{allowed
+            ? 'Declare a variable and enter its initial value together, using the two approved Conjur commands.'
+            : 'Unavailable until Conjur and the approved commands are ready.'}</span>
+        </span>
+        <span className="task-risk-badge task-risk-badge--change">Two approvals</span>
       </button>
       {open && (
         <form className="conjur-create-form" onSubmit={(event) => void review(event)} autoComplete="off">
