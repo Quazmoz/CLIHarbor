@@ -8,6 +8,7 @@ import {
 const PACK = 'cyberark-conjur-v9';
 const TOOL = 'conjur';
 const MAX_RUN_MS = 60_000;
+const MAX_RECONCILE_MS = 10_000;
 // Deliberately accept only simple relative policy paths in this guided flow.
 // More complex identifiers remain available through the reviewed generic tasks.
 const PATH = /^[A-Za-z0-9_][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$/u;
@@ -56,16 +57,28 @@ async function completedRun(snapshot: RunSnapshot): Promise<RunSnapshot> {
   return new Promise((resolve, reject) => {
     let done = false;
     let close = () => {};
+    let reconciling = false;
+    let controller: AbortController | undefined;
+    let reconcileTimeout: ReturnType<typeof setTimeout> | undefined;
     const finish = (result: RunSnapshot | Error) => {
       if (done) return;
       done = true;
       clearTimeout(timeout);
+      if (reconcileTimeout !== undefined) clearTimeout(reconcileTimeout);
+      controller?.abort();
       close();
       if (result instanceof Error) reject(result);
       else resolve(result);
     };
     const reconcile = () => {
-      void fetchRun(snapshot.runId).then((current) => {
+      // SSE completion/error and the deadline can race. Fetch the retained
+      // snapshot at most once, with an independent network deadline.
+      if (done || reconciling) return;
+      reconciling = true;
+      controller = new AbortController();
+      reconcileTimeout = setTimeout(() =>
+        finish(new Error('Run outcome is unknown. Check Runs before retrying.')), MAX_RECONCILE_MS);
+      void fetchRun(snapshot.runId, controller.signal).then((current) => {
         if (current.status === 'running') finish(new Error('Run completion could not be verified. Check Runs before retrying.'));
         else finish(current);
       }).catch(() => finish(new Error('Run outcome is unknown. Check Runs before retrying.')));
