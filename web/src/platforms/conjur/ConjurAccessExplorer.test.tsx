@@ -164,6 +164,10 @@ describe('Conjur access workflow', () => {
       runId: 'read', packId: request.packId, toolId: 'conjur', commandId: request.commandId,
       status: request.commandId === 'resource-permitted-roles' ? 'failed' : 'exited',
       exitCode: request.commandId === 'resource-permitted-roles' ? 1 : 0, events: [],
+      ...(request.commandId === 'resource-exists' ? {
+        structured: { status: 'available' as const, renderer: 'cards' as const,
+          fields: [{ key: 'exists', label: 'Exists', type: 'boolean' as const, present: true, value: 'true' }] },
+      } : {}),
     }));
     render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={() => {}}
       onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
