@@ -2,6 +2,10 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
 
+// Command previews render one span per token, so match the whole <code> text.
+const commandText = (text: string) => (_: string, element: Element | null) =>
+  element?.tagName === 'CODE' && element.textContent === text;
+
 function response(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -115,7 +119,7 @@ describe('command preview and retry workflows', () => {
     expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
     expect(within(screen.getByRole('complementary')).queryByText('Built-in CLIs')).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Overview' })).toBeInTheDocument();
-    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Tasks' })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Command Builder' })).toBeInTheDocument();
     const builtIn = within(sections).getByRole('link', { name: /Built-in CLIs/ });
     const other = within(sections).getByRole('link', { name: /Other CLIs/ });
     expect(other).toHaveAttribute('href', '/tools');
@@ -153,7 +157,7 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeInTheDocument();
     const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(within(breadcrumb).getByRole('link', { name: 'CyberArk Conjur' })).toHaveAttribute('href', '/dedicated/conjur');
-    expect(within(breadcrumb).getByText('Tasks · Conjur')).toHaveAttribute('aria-current', 'page');
+    expect(within(breadcrumb).getByText('Command Builder · Conjur')).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('heading', { name: 'List variables' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Review conjur sign-in' }));
     expect(window.location.pathname).toBe('/dedicated/conjur/sign-in');
@@ -254,7 +258,7 @@ describe('command preview and retry workflows', () => {
     expect(within(sections).queryByRole('link', { name: /Built-in CLIs/ })).not.toBeInTheDocument();
     expect(within(sections).getByText('Built-in CLIs').closest('[aria-disabled="true"]')).toBeInTheDocument();
     expect(within(sections).getByRole('link', { name: /Other CLIs/ })).toHaveAttribute('aria-current', 'location');
-    fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
     expect(screen.getByRole('textbox', { name: 'Query' })).toBeInTheDocument();
   });
 
@@ -271,17 +275,17 @@ describe('command preview and retry workflows', () => {
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: 'Query' }), { target: { value: 'old input' } });
     expect(screen.queryByRole('navigation', { name: 'Task categories' })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Tool category' }), { target: { value: 'beta/beta' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tool' }), { target: { value: 'beta/beta' } });
     expect(screen.getByRole('heading', { name: 'Inspect beta' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Query' })).not.toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Tool category' })).toHaveValue('beta/beta');
+    expect(screen.getByRole('combobox', { name: 'Tool' })).toHaveValue('beta/beta');
     expect(screen.getByText('Showing Beta tasks')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
     expect(screen.getByRole('textbox', { name: 'Query' })).toHaveValue('');
     fireEvent.click(screen.getByRole('button', { name: /^Inspect beta/ }));
     fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
-    fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
     expect(screen.getByRole('heading', { name: 'Inspect beta' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
     expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'true');
@@ -317,12 +321,12 @@ describe('command preview and retry workflows', () => {
     }));
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: 'Query' }), { target: { value: 'example' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel run' }));
     await act(async () => Stream.latest.dispatchEvent(new MessageEvent('run-complete', {
       data: JSON.stringify({ runId: firstID, sequence: 0, status: 'exited', exitCode: 0 }),
     })));
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     await screen.findByText(secondID);
     await act(async () => resolveCancel(response(404, { error: {
       code: 'run_not_found', category: 'lifecycle', message: 'This run is no longer available in local retention.', retryable: false,
@@ -347,7 +351,7 @@ describe('command preview and retry workflows', () => {
     )));
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: 'Query' }), { target: { value: 'example' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     expect(await screen.findByText('fast result')).toBeInTheDocument();
     expect(screen.getByText('separate warning')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
@@ -364,15 +368,15 @@ describe('command preview and retry workflows', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<App />);
     const query = await screen.findByRole('textbox', { name: 'Query' });
-    fireEvent.click(screen.getByRole('button', { name: 'Preview command' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Validate' }));
     expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs/preview')).toBe(false);
     expect(screen.getByRole('button', { name: 'Reset inputs' })).toBeDisabled();
     fireEvent.change(query, { target: { value: 'example' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Preview command' }));
-    expect(await screen.findByText('fixture inspect')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Validate' }));
+    expect(await screen.findByText(commandText('fixture inspect'))).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reset inputs' }));
     expect(query).toHaveValue('');
-    expect(screen.queryByText('fixture inspect')).not.toBeInTheDocument();
+    expect(screen.queryByText(commandText('fixture inspect'))).not.toBeInTheDocument();
   });
 
   test('allows only one start and locks task inputs while the request is pending', async () => {
@@ -401,13 +405,13 @@ describe('command preview and retry workflows', () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(baseRuntimeResponse(requestPath(input)) ?? response(404, {}))));
     render(<App />);
     await screen.findByRole('textbox', { name: 'Query' });
-    expect(document.title).toBe('Tasks · CLIHarbor');
+    expect(document.title).toBe('Command Builder · CLIHarbor');
     fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
     expect(document.title).toBe('Diagnostics · CLIHarbor');
     expect(screen.getByRole('main')).toHaveFocus();
     window.history.replaceState({}, '', '/tasks');
     fireEvent.popState(window);
-    expect(document.title).toBe('Tasks · CLIHarbor');
+    expect(document.title).toBe('Command Builder · CLIHarbor');
     expect(screen.getByRole('main')).toHaveFocus();
   });
 
@@ -441,18 +445,18 @@ describe('command preview and retry workflows', () => {
 
     render(<App />);
     const query = await screen.findByRole('textbox', { name: 'Query' });
-    expect(screen.getByText('1 · Select')).toBeInTheDocument();
-    expect(screen.getByText('2 · Configure')).toBeInTheDocument();
-    expect(screen.getByText('3 · Verify')).toBeInTheDocument();
-    expect(screen.getByText('4 · Result')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Select tool and command' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Configure parameters' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Command preview' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Output' })).toHaveAttribute('aria-selected', 'true');
     fireEvent.change(query, { target: { value: 'hello world' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Preview command' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Validate' }));
 
-    expect(await screen.findByText('fixture.exe inspect --query "hello world"')).toBeInTheDocument();
+    expect(await screen.findByText(commandText('fixture.exe inspect --query "hello world"'))).toBeInTheDocument();
     expect(screen.getByText(/Display only\. CLIHarbor executes/i)).toBeInTheDocument();
 
     fireEvent.change(query, { target: { value: 'changed' } });
-    expect(screen.queryByText('fixture.exe inspect --query "hello world"')).not.toBeInTheDocument();
+    expect(screen.queryByText(commandText('fixture.exe inspect --query "hello world"'))).not.toBeInTheDocument();
   });
 
   test('ignores a late preview after task inputs change', async () => {
@@ -476,13 +480,13 @@ describe('command preview and retry workflows', () => {
     render(<App />);
     const query = await screen.findByRole('textbox', { name: 'Query' });
     fireEvent.change(query, { target: { value: 'old value' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Preview command' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Validate' }));
 
     await waitFor(() =>
       expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs/preview')).toBe(true),
     );
     fireEvent.change(query, { target: { value: 'new value' } });
-    expect(screen.getByRole('button', { name: 'Preview command' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Validate' })).toBeEnabled();
 
     resolvePreview?.(
       response(200, {
@@ -497,7 +501,7 @@ describe('command preview and retry workflows', () => {
 
     await delayedPreview;
     await waitFor(() =>
-      expect(screen.queryByText('fixture.exe inspect --query "old value"')).not.toBeInTheDocument(),
+      expect(screen.queryByText(commandText('fixture.exe inspect --query "old value"'))).not.toBeInTheDocument(),
     );
   });
 
@@ -530,7 +534,7 @@ describe('command preview and retry workflows', () => {
     render(<App />);
     const query = await screen.findByRole('textbox', { name: 'Query' });
     fireEvent.change(query, { target: { value: 'original' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
 
     const retry = await screen.findByRole('button', { name: 'Retry with inputs' });
     fireEvent.change(query, { target: { value: 'edited after run' } });

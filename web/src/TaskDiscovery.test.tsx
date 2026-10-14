@@ -72,7 +72,7 @@ describe('TaskDiscovery', () => {
     expect(container.querySelector('[data-task-key="alpha/inspect"]')).toBeNull();
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'conjur' } });
     expect(screen.getByText('No tasks match “conjur”.')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Tool category' }), { target: { value: '' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tool' }), { target: { value: '' } });
     expect(props.onFilterChange).toHaveBeenCalledWith('');
     rerender(<TaskDiscovery {...props} toolFilter="" />);
     expect(screen.getByRole('heading', { name: 'Search results' })).toBeInTheDocument();

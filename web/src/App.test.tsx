@@ -90,15 +90,15 @@ describe('App', () => {
     }));
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: /Target first/ }), { target: { value: 'first-context' } });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Tool category' }), { target: { value: 'suite/second' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tool' }), { target: { value: 'suite/second' } });
     expect(screen.getByRole('textbox', { name: /Target second/ })).toHaveValue('');
     expect(screen.queryByRole('textbox', { name: /Target first/ })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole('textbox', { name: /Target second/ }), { target: { value: 'second-context' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     await waitFor(() => expect(started).toEqual([{ packId: 'suite', commandId: 'second', values: { target: 'second-context' } }]));
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
     expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeDisabled();
-    expect(screen.getByRole('combobox', { name: 'Tool category' })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: 'Tool' })).toBeDisabled();
   });
 
   test('loads authenticated runtime status and safe task metadata without rendering the CSRF token', async () => {
@@ -126,10 +126,10 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByText('1.2.3-test')).toBeInTheDocument();
-    expect(screen.getByText('Local CLI workspace')).toBeInTheDocument();
+    expect(await screen.findByText(/1\.2\.3-test/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Execution Preflight' })).toBeInTheDocument();
     expect(screen.getByText('Local only')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Find and run a task' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Command Builder' })).toBeInTheDocument();
     expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(4);
@@ -195,7 +195,7 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retry status check' }));
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Find and run a task' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Command Builder' })).toBeInTheDocument());
     // status (failed), status, tasks, tools, dedicated platforms
     expect(fetchMock).toHaveBeenCalledTimes(5);
   });
@@ -284,7 +284,7 @@ describe('App', () => {
 
     const count = await screen.findByRole('spinbutton', { name: 'Count' });
     fireEvent.change(count, { target: { value: '9007199254740992' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
 
     expect(await screen.findByText(/one or more task inputs are invalid/i)).toBeInTheDocument();
     await waitFor(() => expect(count).toHaveFocus());
@@ -366,8 +366,8 @@ describe('App', () => {
 
     render(<App />);
 
-    await screen.findByRole('button', { name: 'Run task' });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await screen.findByRole('button', { name: 'Run command' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
 
     const source = FakeEventSource.latest;
@@ -441,8 +441,8 @@ describe('App', () => {
 
     render(<App />);
 
-    await screen.findByRole('button', { name: 'Run task' });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await screen.findByRole('button', { name: 'Run command' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
 
     const first = FakeEventSource.instances[0];
@@ -552,7 +552,7 @@ describe('App', () => {
 
     const query = await screen.findByRole('textbox', { name: 'Query' });
     fireEvent.change(query, { target: { value: '<script>alert(1)</script>' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
 
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
     const source = FakeEventSource.latest;
@@ -647,8 +647,8 @@ describe('App', () => {
 
     render(<App />);
 
-    await screen.findByRole('button', { name: 'Run task' });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await screen.findByRole('button', { name: 'Run command' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
 
     const source = FakeEventSource.latest;
@@ -728,7 +728,7 @@ describe('App', () => {
 
     const query = await screen.findByRole('textbox', { name: 'Query' });
     fireEvent.change(query, { target: { value: 'bad' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
 
     expect(await screen.findByText(/correct the highlighted field and retry/i)).toBeInTheDocument();
     await waitFor(() => expect(query).toHaveFocus());
@@ -766,7 +766,7 @@ describe('App', () => {
     render(<App />);
 
     const query = await screen.findByRole('textbox', { name: 'Query' });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
 
     await waitFor(() => expect(query).toHaveAttribute('aria-invalid', 'true'));
     expect(query).toHaveFocus();
@@ -877,8 +877,8 @@ describe('App', () => {
 
     render(<App />);
 
-    await screen.findByRole('button', { name: 'Run task' });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await screen.findByRole('button', { name: 'Run command' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
 
     const source = FakeEventSource.latest;
@@ -890,8 +890,8 @@ describe('App', () => {
     expect(screen.getByText(/no longer available in local retention/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Retry live stream' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Run task' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Preview command' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Run command' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Validate' })).toBeEnabled();
   });
 
   test('announces live connection and timeout states without color-only semantics', async () => {
@@ -940,8 +940,8 @@ describe('App', () => {
 
     render(<App />);
 
-    await screen.findByRole('button', { name: 'Run task' });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await screen.findByRole('button', { name: 'Run command' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
 
     FakeEventSource.latest?.onopen?.(new Event('open'));
@@ -1023,8 +1023,8 @@ describe('App', () => {
 
     render(<App />);
 
-    await screen.findByRole('button', { name: 'Run task' });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await screen.findByRole('button', { name: 'Run command' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
@@ -1106,7 +1106,7 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Find and run a task' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Command Builder' })).toBeInTheDocument();
     expect(screen.queryByText(/Run curated CLI tasks without handing execution authority/i)).not.toBeInTheDocument();
     expect(screen.getByText('Read-only safe task')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'No active run' })).toBeInTheDocument();
@@ -1145,7 +1145,7 @@ describe('App shell accessibility', () => {
     );
 
     render(<App />);
-    await screen.findByRole('heading', { name: 'Find and run a task' });
+    await screen.findByRole('heading', { name: 'Command Builder' });
 
     expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
     expect(document.getElementById('main-content')).toHaveAttribute('tabindex', '-1');
@@ -1208,11 +1208,11 @@ describe('App routing', () => {
     expect(window.location.pathname).toBe('/authentication');
     expect(document.querySelector('input[type="password"]')).toBeNull();
 
-    fireEvent.click(screen.getByRole('link', { name: 'Tasks' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
     expect(window.location.pathname).toBe('/tasks');
-    expect(await screen.findByRole('heading', { name: 'Choose a safe task' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Command Builder' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('link', { name: 'Runs' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Execution History' }));
     expect(window.location.pathname).toBe('/runs');
     expect(await screen.findByRole('heading', { name: 'Recent runs' })).toBeInTheDocument();
 
@@ -1266,8 +1266,8 @@ describe('App routing', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
-    await screen.findByRole('button', { name: 'Run task' });
-    fireEvent.click(screen.getByRole('button', { name: 'Run task' }));
+    await screen.findByRole('button', { name: 'Run command' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
 
     FakeEventSource.latest?.emit('run-event', {

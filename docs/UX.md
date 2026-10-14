@@ -49,10 +49,11 @@ lower on the page, and the generic CLI workspace is unchanged.
 The left sidebar is reserved for the standard **CLI workspace** routes. **Built-in CLIs** appears only in the top bar alongside **Other CLIs**; it must never be duplicated in the left navigation:
 
 ```text
-Top bar: [Find task] [Built-in CLIs] [Other CLIs] [Breadcrumbs] [Local runtime]
+Top bar: [Find task search] [Built-in CLIs] [Other CLIs] [Local runtime] [N of M executables ready]
+Main content: [Breadcrumbs] above each page
 Left sidebar:
   CLI workspace
-    Work: Overview, Tasks, Runs
+    Work: Overview, Command Builder (/tasks), Execution History (/runs)
     Set up & manage: Add a CLI, CLI sessions, Diagnostics
 ```
 
@@ -60,7 +61,7 @@ Left sidebar:
 
 **Other CLIs** opens Add a CLI: the reviewed installation catalog and the custom-pack draft flow. The latter downloads a locally generated, discovery-only YAML draft through **Create a custom CLI pack**; it does not register, trust, validate, download binaries, or execute tasks. Operator review, `pack validate`, `pack lint`, and an explicit `--pack-file` restart remain required. Conjur tasks deliberately use the shared `/tasks` runner; active built-in context is reflected in the top-bar destination and breadcrumbs.
 
-The top bar also shows clickable breadcrumbs for **CLI workspace** or **Built-in CLIs → selected platform** and the current page, plus local runtime status; there is no global Sign in button. Authentication remains CLI-scoped: built-in platforms offer sign-in on their feature pages and generic **CLI sessions** (backwards-compatible `/authentication`) checks individual vendor sessions. Task and diagnostics sign-in links open the matching dedicated CLI when available; otherwise they open per-tool session checks. Native link modifiers, browser history, page titles, keyboard focus, and the narrow-window **Menu** sidebar toggle must continue working.
+Clickable breadcrumbs at the top of the main content show **CLI workspace** or **Built-in CLIs → selected platform** and the current page; the top bar shows local runtime status and the ready-executable count. There is no global Sign in button. Authentication remains CLI-scoped: built-in platforms offer sign-in on their feature pages and generic **CLI sessions** (backwards-compatible `/authentication`) checks individual vendor sessions. Task and diagnostics sign-in links open the matching dedicated CLI when available; otherwise they open per-tool session checks. Native link modifiers, browser history, page titles, keyboard focus, and the narrow-window **Menu** sidebar toggle must continue working.
 
 Tool filtering lives in the task catalog rather than being duplicated as a second set of sidebar navigation buttons. Each executable has its own category, including when a reviewed pack contains several tools or different packs use the same tool ID. Labels show the pack name and executable tool ID. Choosing a filter selects a matching task; **All tools** restores the full catalog. A contextual scope banner on Tasks identifies the selected CLI and offers **Show all CLIs**. A built-in CLI's approved-task feature card still navigates to the shared runner and is identified by its tool context in breadcrumbs. Search, Favorites, and Recently used obey the same category filter; filters are transient and create no execution authority.
 
@@ -87,7 +88,7 @@ Home answers four questions immediately:
 
 The implemented Overview starts with one primary next action, an Add a CLI alternative, a brief explanation, and fast favorite/recent task shortcuts before deep vendor-session controls. It is a dedicated operator dashboard rather than a second copy of the task runner. It summarizes tool readiness, task availability, and the local-only boundary; chooses a conservative next step from authoritative runtime/tool state; exposes one-click Favorites/Recently used task entry; and keeps tool sign-in available below the readiness summary without inventing an authentication verdict. Ready vendor-session CLIs remain visible on Overview independently from whether a browser credential adapter is currently available. When the backend advertises the reviewed Conjur password adapter, the same real sign-in card exposes browser login; otherwise the card still reports the detected CLI and allows the reviewed session check without misrepresenting a configuration/authentication limitation as failed CLI detection. Task configuration/execution lives on `/tasks`, diagnostics on `/diagnostics`, and retained history on `/runs`.
 
-When at least one tool has available tasks, Overview recommends Tasks even if another optional CLI needs setup. The readiness counts continue to show unavailable tools. If no tasks are available, tool setup remains the recommended next step.
+When at least one tool has available tasks, Overview recommends the Command Builder even if another optional CLI needs setup. The readiness counts continue to show unavailable tools. If no tasks are available, tool setup remains the recommended next step.
 
 Example cards:
 
@@ -139,9 +140,9 @@ A task page contains:
 - sanitized command preview;
 - Run button.
 
-The implemented task workbench presents the normal path as four explicit operator steps: **1 · Select**, **2 · Configure**, **3 · Verify**, **4 · Result**. The result panel remains beside the task form on desktop and stacks below it on narrower layouts; on desktop it stays sticky while the operator moves through longer task forms. This is presentation-only—planner/executor authority and run lifecycle semantics are unchanged.
+The **Command Builder** (`/tasks`) is a three-column workbench. The left **Tool Explorer** lists every discovered tool grouped as *Ready to use* or *Needs setup*, with a text status badge (Ready / Not installed / Unavailable) and its task count; choosing a tool applies the same per-tool filter as the **Tool** select, and a tool without tasks opens Add a CLI. The centre card presents three numbered steps: **1 Select tool and command** (Tool select beside the Command / Action catalog), **2 Configure parameters** (typed inputs in a responsive two-column grid; boolean inputs render as native checkboxes styled as switches), and **3 Command preview** (the validated invocation, colour-tokenised for reading only). Actions are **Copy command** (enabled only after validation; copies the display text, which never contains secret values), **Reset inputs**, **Validate** (read tasks) or **Review change** (mutations), and **Run command** / **Approve change and run**. The right **Execution Preflight** panel restates runtime-reported state (executable found, reviewed pack, input validation, vendor-session requirement, execution readiness) and an execution summary; it is presentation-only, grants no authority, and never claims a vendor session is signed in. Below the builder, the result panel has **Output** and **Activity log** tabs (ARIA tabs with arrow-key switching). The activity log is browser memory only, bounded to 200 entries, records task names, run IDs and safe messages (never inputs, argv, output or credentials), and is cleared by **Clear activity log** or a reload. Starting a run switches back to Output so focus can move to the result heading. Below 1500 CSS px the preflight panel moves under the builder; below 1100 px the Tool Explorer moves to the end of the page (the Tool select keeps filtering available). This is presentation-only—planner/executor authority and run lifecycle semantics are unchanged.
 
-The command preview is valuable for power users but must not expose secret fields. The normal UI now says **See what CLIHarbor will run** and confirms that validation succeeded first. Exact executable-name + argv text remains available under **Show exact command** rather than dominating the form.
+The command preview is valuable for power users but must not expose secret fields. Before validation the preview shows a placeholder, never a guessed command; after validation it shows the exact executable-name + argv text with a "Validated by local runtime" badge and the display-only note.
 
 The preview is a representation generated by the trusted execution plan, not executable text copied back into the runtime or reparsed for execution.
 

@@ -74,7 +74,7 @@ test('Ctrl+K opens search across CLIs and selects an existing task without execu
   fireEvent.click(within(dialog).getByRole('button', { name: /List variables/ }));
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Find a task' })).not.toBeInTheDocument());
   expect(window.location.pathname).toBe('/tasks');
-  expect(screen.getByRole('heading', { name: 'List variables', level: 3 })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'List variables', level: 4 })).toBeInTheDocument();
   expect(requests.some((path) => path === '/api/v1/runs' || path === '/api/v1/runs/preview')).toBe(false);
   fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true });
   expect(await screen.findByRole('dialog', { name: 'Find a task' })).toBeInTheDocument();

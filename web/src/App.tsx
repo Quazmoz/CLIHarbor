@@ -28,6 +28,8 @@ import { fetchPlatforms, type Platform, type PlatformFeatureID } from './api/pla
 import { ToolsPage } from './ToolsPage';
 import { TaskDiscovery, taskToolKey } from './TaskDiscovery';
 import { TaskSwitcher } from './TaskSwitcher';
+import { ToolExplorer } from './ToolExplorer';
+import { ExecutionPreflight } from './ExecutionPreflight';
 import { OutputExplorer } from './OutputExplorer';
 import { inputGuidance, runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
@@ -522,6 +524,22 @@ function streamStateText(state: StreamState): string {
   }
 }
 
+// Browser-memory activity log for the Command Builder. Holds task names, run
+// IDs and safe messages only; never inputs, argv, output or credentials.
+interface ActivityEntry {
+  id: number;
+  at: Date;
+  level: 'INFO' | 'WARN' | 'ERROR';
+  message: string;
+  tag?: string;
+  tone?: 'succeeded' | 'running' | 'failed' | 'cancelled' | 'timed-out' | 'pending';
+}
+
+function formatActivityTime(at: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
+}
+
 type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'access-explorer' | 'tools' | 'diagnostics' | 'platform' | 'platform-sign-in';
 
 const routePaths: Record<AppRoute, string> = {
@@ -556,10 +574,10 @@ function pathForRoute(route: AppRoute, platformID: string): string {
 }
 
 const navigationItems: Array<{ route: AppRoute; label: string; group: string; icon: string }> = [
-  { route: 'overview', label: 'Overview', group: 'Workspace', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
-  { route: 'tasks', label: 'Tasks', group: 'Workspace', icon: 'm5 6 5 6-5 6 M13 18h6' },
-  { route: 'runs', label: 'Runs', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
-  { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M12 5v14 M5 12h14' },
+  { route: 'overview', label: 'Overview', group: 'Workspace', icon: 'M3 11.5 12 4l9 7.5 M5.5 9.5V20h13V9.5 M10 20v-5h4v5' },
+  { route: 'tasks', label: 'Command Builder', group: 'Workspace', icon: 'M4 4h16v16H4z m4 5 3 3-3 3 M13 15h3' },
+  { route: 'runs', label: 'Execution History', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
+  { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M17.5 14v7 M14 17.5h7' },
   { route: 'authentication', label: 'CLI sessions', group: 'Manage', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
   { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
@@ -617,6 +635,9 @@ export function App() {
   const [installingToolKey, setInstallingToolKey] = useState<string | null>(null);
   const [toolInstallNotice, setToolInstallNotice] = useState<{ key: string; message: string; failure?: AppErrorDetail } | null>(null);
   const [toolInstallRoots, setToolInstallRoots] = useState<Record<string, string>>({});
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [outputTab, setOutputTab] = useState<'output' | 'activity'>('output');
+  const [copiedPreview, setCopiedPreview] = useState<RunPreview | null>(null);
   const runtimeErrorRef = useRef<HTMLElement>(null);
   const taskErrorRef = useRef<HTMLDivElement>(null);
   const resultHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -636,6 +657,14 @@ export function App() {
       saveTaskPreferences(next);
       return next;
     });
+  }, []);
+
+  const activitySequenceRef = useRef(0);
+  const logActivity = useCallback((entry: Omit<ActivityEntry, 'id' | 'at'>) => {
+    activitySequenceRef.current += 1;
+    const next = { ...entry, id: activitySequenceRef.current, at: new Date() };
+    // ponytail: keeps the newest 200 entries in memory; no persistence by design.
+    setActivity((current) => [...current.slice(-199), next]);
   }, []);
 
   const selectTaskByKey = useCallback((key: string, tasks: Task[], prefill?: Record<string, string>) => {
@@ -843,6 +872,21 @@ export function App() {
     if (displayedRunID !== undefined) resultHeadingRef.current?.focus();
   }, [displayedRunID, displayedRunFinished]);
 
+  const loggedOutcomeRef = useRef('');
+  const finishedStatus = displayedRunFinished && run.retained ? run.snapshot.status : undefined;
+  const finishedExitCode = run?.snapshot.exitCode;
+  useEffect(() => {
+    if (displayedRunID === undefined || finishedStatus === undefined || loggedOutcomeRef.current === displayedRunID) return;
+    loggedOutcomeRef.current = displayedRunID;
+    const tone = runOutcomeTone(finishedStatus, finishedExitCode);
+    logActivity({
+      level: tone === 'succeeded' ? 'INFO' : 'WARN',
+      message: `Run ${displayedRunID} finished${finishedExitCode === undefined ? '' : ' with exit code ' + finishedExitCode}`,
+      tag: runOutcomeHeading(finishedStatus, finishedExitCode),
+      tone,
+    });
+  }, [displayedRunID, finishedStatus, finishedExitCode, logActivity]);
+
   useEffect(() => {
     if (activeRunID === null) {
       return;
@@ -926,6 +970,7 @@ export function App() {
     try {
       const snapshot = await createRun(state.status.csrfToken, request);
       displayedRunIDRef.current = snapshot.runId;
+      setOutputTab('output');
       setRun({
         snapshot,
         streamState: snapshot.status === 'running' ? 'connecting' : 'idle',
@@ -943,8 +988,10 @@ export function App() {
       setCancelRequested(false);
       setStreamAttempt(0);
       updateTaskPreferences((current) => recordRecentTask(current, task));
+      logActivity({ level: 'INFO', message: `Execution started: ${task.name} (run ${snapshot.runId})`, tag: 'Running', tone: 'running' });
     } catch (error) {
       const failure = normalizeError(error).detail;
+      logActivity({ level: 'ERROR', message: `Run could not start: ${failure.message}`, tag: 'Failed', tone: 'failed' });
       if (failureTarget === 'task') {
         setTaskFailure(failure);
       } else {
@@ -1024,6 +1071,7 @@ export function App() {
     previewRequestRef.current = requestID;
     setPreviewing(true);
     setTaskFailure(null);
+    logActivity({ level: 'INFO', message: `Validation started: ${selectedTask.name}`, tag: 'Checking', tone: 'pending' });
     try {
       const request: CreateRunRequest = {
         packId: selectedTask.packId,
@@ -1041,11 +1089,14 @@ export function App() {
       if (previewRequestRef.current === requestID) {
         setCommandPreview(preview);
         setApprovalConfirmation('');
+        logActivity({ level: 'INFO', message: `Inputs validated; command prepared for ${selectedTask.name}`, tag: 'Passed', tone: 'succeeded' });
       }
     } catch (error) {
       if (previewRequestRef.current === requestID) {
+        const failure = normalizeError(error).detail;
         setCommandPreview(null);
-        setTaskFailure(normalizeError(error).detail);
+        setTaskFailure(failure);
+        logActivity({ level: 'ERROR', message: `Validation failed: ${failure.message}`, tag: 'Failed', tone: 'failed' });
       }
     } finally {
       if (previewRequestRef.current === requestID) {
@@ -1114,6 +1165,7 @@ export function App() {
     setRunActionFailure(null);
     setCancelRequested(true);
     const requestedRunID = run.snapshot.runId;
+    logActivity({ level: 'WARN', message: `Cancellation requested for run ${requestedRunID}`, tag: 'Cancelling', tone: 'cancelled' });
     try {
       const snapshot = await cancelRun(state.status.csrfToken, requestedRunID);
       if (displayedRunIDRef.current !== requestedRunID) return;
@@ -1262,13 +1314,18 @@ export function App() {
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <aside id="workspace-navigation" className={'sidebar' + (navigationOpen ? ' sidebar--open' : '')}>
         <div className="brand-block">
-          <span className="brand-mark" aria-hidden="true">&gt;_</span>
-          <div><h1>CLIHarbor</h1><span className="brand-caption">Your local CLI workspace</span></div>
+          <svg className="brand-mark" aria-hidden="true" viewBox="0 0 32 32" fill="none">
+            <path d="M13 6h6l1.5 18h-9z" fill="#1f86ea" />
+            <path d="M12.6 11h6.8M12.2 16h7.6" stroke="#0a1020" strokeWidth="1.6" />
+            <path d="M12 3.5h8V6h-8z" fill="#7cc4ff" />
+            <path d="M16 1.5v2" stroke="#7cc4ff" strokeWidth="1.6" strokeLinecap="round" />
+            <path d="M4 27.5c3 0 3-1.6 6-1.6s3 1.6 6 1.6 3-1.6 6-1.6 3 1.6 6 1.6" stroke="#3b9eff" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          <h1>CLI<span>Harbor</span></h1>
         </div>
         <nav className="primary-nav" aria-label="Primary">
-          <p className="nav-group-label">CLI workspace</p>
+          <p className="nav-group-label visually-hidden">CLI workspace</p>
           <div className="nav-group" aria-label="Work">
-            <p className="nav-subgroup-label">Work</p>
             {navigationItems.filter((item) => item.group === 'Workspace').map((item) => (
               <a key={item.route} href={routePaths[item.route]}
                 aria-current={route === item.route ? 'page' : undefined}
@@ -1304,22 +1361,24 @@ export function App() {
         </nav>
         <div className="sidebar-footer" aria-label="Runtime boundary">
           <span className="local-badge">Local only</span>
-          <p>Runs on this computer</p>
-          {state.kind === 'ready' && <span className="build-id">{/^\d/.test(state.status.version) ? 'v' : ''}{state.status.version}</span>}
+          <p>Runs on this computer · no cloud backend</p>
+          {state.kind === 'ready' && <span className="build-id">CLIHarbor {/^\d/.test(state.status.version) ? 'v' : ''}{state.status.version}</span>}
         </div>
       </aside>
       <header className="topbar">
-        <div className="topbar-location">
-          <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
-            onClick={() => setNavigationOpen((open) => !open)}>Menu</button>
-          <button type="button" className="quick-switch-trigger" disabled={!taskSwitcherAvailable}
-            onClick={() => setTaskSwitcherOpen(true)} aria-haspopup="dialog" aria-keyshortcuts="Control+k Meta+k">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>
-            </svg>
-            <span>Find task</span><kbd>⌘K / Ctrl K</kbd>
-          </button>
+        <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
+          onClick={() => setNavigationOpen((open) => !open)}>Menu</button>
+        <button type="button" className="quick-switch-trigger" disabled={!taskSwitcherAvailable}
+          onClick={() => setTaskSwitcherOpen(true)} aria-haspopup="dialog" aria-keyshortcuts="Control+k Meta+k">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+            strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>
+          </svg>
+          <span className="visually-hidden">Find task</span>
+          <span className="quick-switch-hint" aria-hidden="true">Search tasks, tools, and commands…</span>
+          <kbd>Ctrl + K</kbd>
+        </button>
+        <div className="topbar-context">
           <nav className="section-switcher" aria-label="CLI sections">
             {activePlatform !== undefined ? (
               <a href={pathForRoute('platform', activePlatform.id)}
@@ -1359,35 +1418,14 @@ export function App() {
               </select>
             </label>
           )}
-          <nav className="breadcrumbs" aria-label="Breadcrumb">
-            <a href={inDedicatedJourney && breadcrumbPlatform !== undefined ? pathForRoute('platform', breadcrumbPlatform.id) : '/'}
-              onClick={(event) => {
-                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                event.preventDefault();
-                if (inDedicatedJourney && breadcrumbPlatform !== undefined) navigate('platform', breadcrumbPlatform.id);
-                else navigate('overview');
-              }}>{inDedicatedJourney ? 'Built-in CLIs' : 'CLI workspace'}</a>
-            {inDedicatedJourney && breadcrumbPlatform !== undefined && route !== 'platform' && (
-              <>
-                <span className="breadcrumb-divider" aria-hidden="true">/</span>
-                <a href={pathForRoute('platform', breadcrumbPlatform.id)} onClick={(event) => {
-                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                  event.preventDefault();
-                  navigate('platform', breadcrumbPlatform.id);
-                }}>{breadcrumbPlatform.name}</a>
-              </>
-            )}
-            <span className="breadcrumb-divider" aria-hidden="true">/</span>
-            <span className="current-page" aria-current="page">{route === 'platform'
-              ? breadcrumbPlatform?.name ?? 'Built-in CLI'
-              : route === 'platform-sign-in' ? 'Sign in'
-              : route === 'secret-audit' ? 'Security audit'
-              : route === 'tasks' && taskFilterLabel !== undefined ? 'Tasks · ' + taskFilterLabel.packName
-              : navigationItems.find((item) => item.route === route)?.label}</span>
-          </nav>
-        </div>
-        <div className="topbar-context">
-          <span className="connection-label">{state.kind === 'ready' ? 'Local runtime ready' : state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}</span>
+          <span className={'status-pill status-pill--' + (state.kind === 'ready' ? 'ok' : state.kind === 'loading' ? 'pending' : 'error')}>
+            <span className="connection-label">{state.kind === 'ready' ? 'Local runtime ready' : state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}</span>
+          </span>
+          {state.kind === 'ready' && (
+            <span className={'status-pill status-pill--' + (readyToolCount > 0 ? 'ok' : 'warn')}>
+              {readyToolCount} of {state.tools.length} executables ready
+            </span>
+          )}
         </div>
       </header>
 
@@ -1403,6 +1441,32 @@ export function App() {
       )}
 
       <main ref={mainRef} id="main-content" tabIndex={-1} aria-busy={state.kind === 'loading'}>
+        <nav className="breadcrumbs" aria-label="Breadcrumb">
+          <a href={inDedicatedJourney && breadcrumbPlatform !== undefined ? pathForRoute('platform', breadcrumbPlatform.id) : '/'}
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              if (inDedicatedJourney && breadcrumbPlatform !== undefined) navigate('platform', breadcrumbPlatform.id);
+              else navigate('overview');
+            }}>{inDedicatedJourney ? 'Built-in CLIs' : 'CLI workspace'}</a>
+          {inDedicatedJourney && breadcrumbPlatform !== undefined && route !== 'platform' && (
+            <>
+              <span className="breadcrumb-divider" aria-hidden="true">/</span>
+              <a href={pathForRoute('platform', breadcrumbPlatform.id)} onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                navigate('platform', breadcrumbPlatform.id);
+              }}>{breadcrumbPlatform.name}</a>
+            </>
+          )}
+          <span className="breadcrumb-divider" aria-hidden="true">/</span>
+          <span className="current-page" aria-current="page">{route === 'platform'
+            ? breadcrumbPlatform?.name ?? 'Built-in CLI'
+            : route === 'platform-sign-in' ? 'Sign in'
+            : route === 'secret-audit' ? 'Security audit'
+            : route === 'tasks' && taskFilterLabel !== undefined ? 'Command Builder · ' + taskFilterLabel.packName
+            : navigationItems.find((item) => item.route === route)?.label}</span>
+        </nav>
         {state.kind === 'loading' && (
           <section className="panel" role="status" aria-live="polite" aria-busy="true">
             <h2>Checking runtime</h2>
@@ -1534,18 +1598,14 @@ export function App() {
           />
         )}
 
-        {state.kind === 'ready' && route !== 'authentication' && route !== 'runs' && route !== 'overview' && route !== 'secret-audit' && route !== 'access-explorer' && route !== 'platform' && route !== 'platform-sign-in' && (
+        {state.kind === 'ready' && (route === 'tools' || route === 'diagnostics') && (
           <>
-            <section className={'runtime-overview' + (route === 'tasks' ? ' runtime-overview--task' : '')} aria-labelledby="runtime-heading">
+            <section className="runtime-overview" aria-labelledby="runtime-heading">
               <div className="runtime-copy">
                 <p className="runtime-state">Local CLI workspace</p>
-                <h2 id="runtime-heading">
-                  {route === 'tasks' ? 'Find and run a task' : route === 'tools' ? 'Add a command-line tool' : 'Check your tools'}
-                </h2>
+                <h2 id="runtime-heading">{route === 'tools' ? 'Add a command-line tool' : 'Check your tools'}</h2>
                 <p>
-                  {route === 'tasks'
-                    ? 'Choose an approved task, check its inputs, and review the result.'
-                    : route === 'tools' ? 'Install an approved CLI or create a reviewable custom pack draft.' : 'See what is ready, what needs attention, and where to fix it.'}
+                  {route === 'tools' ? 'Install an approved CLI or create a reviewable custom pack draft.' : 'See what is ready, what needs attention, and where to fix it.'}
                 </p>
               </div>
               <dl className="runtime-facts" aria-label="Runtime summary">
@@ -1563,9 +1623,30 @@ export function App() {
                 </div>
               </dl>
             </section>
+            <ToolsPage tools={state.tools} tasks={state.tasks} catalog={route === 'tools'}
+              installingKey={installingToolKey} notice={toolInstallNotice} installRoots={toolInstallRoots}
+              tasksLocked={starting || activeRunID !== null}
+              onInstall={(tool) => void installManagedCLI(tool)}
+              onInstallRoot={(key, value) => setToolInstallRoots((current) => ({ ...current, [key]: value }))}
+              onOpenTasks={(key) => { changeTaskCategory(key); navigate('tasks'); }}
+              onOpenAuthentication={(tool) => openSessionsForTool(tool.packId, tool.toolId)} />
+          </>
+        )}
 
-            {route === 'tasks' && (
-              <>
+        {state.kind === 'ready' && route === 'tasks' && (
+          <div className="builder-layout">
+            <ToolExplorer tools={state.tools} tasks={state.tasks} selectedToolKey={taskToolFilter}
+              disabled={starting || activeRunID !== null}
+              onSelectTool={changeTaskCategory} onOpenTools={() => navigate('tools')} />
+
+            <div className="builder-main">
+              <header className="page-header">
+                <div>
+                  <h2>Command Builder</h2>
+                  <p>Configure, validate, and preview a command before execution.</p>
+                </div>
+                <p className="page-header-shortcuts"><kbd>/</kbd> search tasks <kbd>Ctrl K</kbd> find anywhere</p>
+              </header>
               {taskFilterLabel !== undefined && (
                 <div className="task-scope-banner" role="status">
                   <div>
@@ -1576,10 +1657,7 @@ export function App() {
                     onClick={() => changeTaskCategory('')}>Show all CLIs</button>
                 </div>
               )}
-              <section className="workspace-grid">
-              <article className="panel task-panel" aria-labelledby="task-heading">
-                <p className="status-label">1 · Select</p>
-                <h2 id="task-heading">Choose a safe task</h2>
+              <article className="panel builder-card" aria-label="Command configuration">
                 {state.tasks.length === 0 ? (
                   <div className="empty-state">
                     <strong>No safe tasks are available.</strong>
@@ -1588,56 +1666,94 @@ export function App() {
                   </div>
                 ) : (
                   <form ref={taskFormRef} onSubmit={startRun} noValidate>
-                    <TaskDiscovery
-                      key={taskToolFilter}
-                      tasks={state.tasks}
-                      selectedTaskKey={selectedTaskKey}
-                      preferences={taskPreferences}
-                      collapsed={taskChosen}
-                      toolFilter={taskToolFilter}
-                      onFilterChange={changeTaskCategory}
-                      disabled={starting || activeRunID !== null}
-                      onSelect={(key) => {
-                        focusConfigurationRef.current = true;
-                        selectTaskByKey(key, state.tasks);
-                      }}
-                      onToggleFavorite={(task) =>
-                        updateTaskPreferences((current) => toggleFavoriteTask(current, task))
-                      }
-                    />
+                    <section className="builder-step" aria-labelledby="builder-step-select">
+                      <h3 id="builder-step-select" className="builder-step-heading">
+                        <span className="step-badge" aria-hidden="true">1</span>Select tool and command
+                      </h3>
+                      <TaskDiscovery
+                        key={taskToolFilter}
+                        tasks={state.tasks}
+                        selectedTaskKey={selectedTaskKey}
+                        preferences={taskPreferences}
+                        collapsed={taskChosen}
+                        toolFilter={taskToolFilter}
+                        onFilterChange={changeTaskCategory}
+                        disabled={starting || activeRunID !== null}
+                        onSelect={(key) => {
+                          focusConfigurationRef.current = true;
+                          selectTaskByKey(key, state.tasks);
+                        }}
+                        onToggleFavorite={(task) =>
+                          updateTaskPreferences((current) => toggleFavoriteTask(current, task))
+                        }
+                      />
+                    </section>
 
                     {selectedTask !== undefined && (
                       <>
-                        <div className="task-context">
-                          <p className="task-step-label">2 · Configure</p>
-                          <div className="task-context-header">
-                            <h3 ref={configurationHeadingRef} tabIndex={-1}>{selectedTask.name}</h3>
-                            <span className={"safety-chip safety-chip--" + selectedTask.risk}>
-                              {selectedTask.risk === 'read'
-                                ? 'Read-only safe task'
-                                : selectedTask.risk === 'change'
-                                  ? 'Change task · approval required'
-                                  : 'Destructive task · approval required'}
-                            </span>
-                          </div>
-                          {selectedTask.description && <p>{selectedTask.description}</p>}
-                          {selectedTask.impact && (
-                            <div
-                              className={"task-impact-warning task-impact-warning--" + selectedTask.risk}
-                              role={selectedTask.risk === 'destructive' ? 'alert' : 'note'}
-                            >
-                              <strong>
-                                {selectedTask.risk === 'destructive' ? 'High-impact destructive operation' : 'This task changes vendor state'}
-                              </strong>
-                              <p>{selectedTask.impact.effect}</p>
-                              <p>
-                                Scope: {selectedTask.impact.scope === 'multiple'
-                                  ? 'may change multiple records or access relationships; explicit typed approval is required'
-                                  : 'one declared target; explicit approval is required'}.
-                              </p>
+                        <section className="builder-step" aria-labelledby="builder-step-configure">
+                          <h3 id="builder-step-configure" className="builder-step-heading">
+                            <span className="step-badge" aria-hidden="true">2</span>Configure parameters
+                          </h3>
+                          <div className="task-context">
+                            <div className="task-context-header">
+                              <h4 ref={configurationHeadingRef} tabIndex={-1}>{selectedTask.name}</h4>
+                              <span className={"safety-chip safety-chip--" + selectedTask.risk}>
+                                {selectedTask.risk === 'read'
+                                  ? 'Read-only safe task'
+                                  : selectedTask.risk === 'change'
+                                    ? 'Change task · approval required'
+                                    : 'Destructive task · approval required'}
+                              </span>
                             </div>
-                          )}
-                          {selectedTask.inputs.length === 0 && <p>This task has no inputs. Run it when you are ready.</p>}
+                            {selectedTask.description && <p>{selectedTask.description}</p>}
+                            {selectedTask.impact && (
+                              <div
+                                className={"task-impact-warning task-impact-warning--" + selectedTask.risk}
+                                role={selectedTask.risk === 'destructive' ? 'alert' : 'note'}
+                              >
+                                <strong>
+                                  {selectedTask.risk === 'destructive' ? 'High-impact destructive operation' : 'This task changes vendor state'}
+                                </strong>
+                                <p>{selectedTask.impact.effect}</p>
+                                <p>
+                                  Scope: {selectedTask.impact.scope === 'multiple'
+                                    ? 'may change multiple records or access relationships; explicit typed approval is required'
+                                    : 'one declared target; explicit approval is required'}.
+                                </p>
+                              </div>
+                            )}
+                            {selectedTask.requiresAuth && (
+                              <div className="task-auth-callout">
+                                <span>This task requires sign-in. CLIHarbor will not assume an installed tool is already authenticated.</span>
+                                <button type="button" className="secondary-button" onClick={() => openSessionsForTool(selectedTask.packId, selectedTask.toolId)}>
+                                  Review {selectedTask.toolId} sign-in
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          {selectedTask.inputs.length === 0 && <p className="builder-no-inputs">This task has no inputs. Run it when you are ready.</p>}
+                          <fieldset className="form-stack builder-fields" disabled={starting || activeRunID !== null}>
+                            <legend className="visually-hidden">Task inputs</legend>
+                            {selectedTask.inputs.map((input) => (
+                              <InputControl
+                                key={input.id}
+                                input={input}
+                                value={formValues[input.id]}
+                                error={fieldFailureFor(input, taskFailure)}
+                                onChange={(value) => {
+                                  setFormValues((current) => ({ ...current, [input.id]: value }));
+                                  previewRequestRef.current += 1;
+                                  setCommandPreview(null);
+                                  setApprovalConfirmation('');
+                                  setPreviewing(false);
+                                  if (taskFailure?.field === `values.${input.id}`) {
+                                    setTaskFailure(null);
+                                  }
+                                }}
+                              />
+                            ))}
+                          </fieldset>
                           <details className="technical-details task-technical-details">
                             <summary>Technical task details</summary>
                             <p>
@@ -1646,67 +1762,41 @@ export function App() {
                             </p>
                             <p>Executable and argument authority stay on the authenticated local runtime.</p>
                           </details>
-                          {selectedTask.requiresAuth && (
-                            <div className="task-auth-callout">
-                              <span>This task requires sign-in. CLIHarbor will not assume an installed tool is already authenticated.</span>
-                              <button type="button" className="secondary-button" onClick={() => openSessionsForTool(selectedTask.packId, selectedTask.toolId)}>
-                                Review {selectedTask.toolId} sign-in
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        <fieldset className="form-stack" disabled={starting || activeRunID !== null}>
-                          <legend className="visually-hidden">Task inputs</legend>
-                          {selectedTask.inputs.map((input) => (
-                            <InputControl
-                              key={input.id}
-                              input={input}
-                              value={formValues[input.id]}
-                              error={fieldFailureFor(input, taskFailure)}
-                              onChange={(value) => {
-                                setFormValues((current) => ({ ...current, [input.id]: value }));
-                                previewRequestRef.current += 1;
-                                setCommandPreview(null);
-                                setApprovalConfirmation('');
-                                setPreviewing(false);
-                                if (taskFailure?.field === `values.${input.id}`) {
-                                  setTaskFailure(null);
-                                }
-                              }}
-                            />
-                          ))}
-                        </fieldset>
-                        <div className="command-preview" aria-live="polite" aria-busy={previewing}>
-                          <div className="command-preview-header">
-                            <div>
-                              <span className="status-label">3 · Verify</span>
-                              <strong>See what CLIHarbor will run</strong>
-                            </div>
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              disabled={previewing || starting || activeRunID !== null}
-                              onClick={() => void previewSelectedTask()}
-                            >
-                              {previewing
-                                ? 'Checking…'
-                                : mutationTask
-                                  ? selectedTask.risk === 'destructive'
-                                    ? 'Review destructive change'
-                                    : 'Review change'
-                                  : 'Preview command'}
-                            </button>
+                        </section>
+
+                        <section className="builder-step command-preview" aria-labelledby="builder-step-preview" aria-live="polite" aria-busy={previewing}>
+                          <div className="builder-step-heading-row">
+                            <h3 id="builder-step-preview" className="builder-step-heading">
+                              <span className="step-badge" aria-hidden="true">3</span>Command preview
+                            </h3>
+                            <span className={'command-preview-state' + (commandPreview === null ? '' : ' command-preview-state--valid')}>
+                              {commandPreview === null ? 'Not validated' : 'Validated by local runtime'}
+                            </span>
                           </div>
-                          {commandPreview === null ? (
-                            <p>
-                              {mutationTask
-                                ? 'Review is mandatory before this task can change vendor state.'
-                                : 'Preview the validated command before running when you want an extra confirmation.'}
-                            </p>
-                          ) : (
+                          <div className="command-line">
+                            <span className="command-line-number" aria-hidden="true">1</span>
+                            {commandPreview === null ? (
+                              <span className="command-line-placeholder">
+                                {mutationTask
+                                  ? 'Review the change to see the exact command and approval checkpoint.'
+                                  : 'Validate to see the exact command CLIHarbor will run.'}
+                              </span>
+                            ) : (
+                              <code className="invocation-preview">
+                                {[commandPreview.executableName, ...commandPreview.args].map((token, index, tokens) => (
+                                  <span key={index} className={'token token--' + (index === 0 ? 'executable'
+                                    : token.startsWith('-') ? 'flag'
+                                    : tokens.slice(1, index).some((previous) => previous.startsWith('-')) ? 'value' : 'command')}>
+                                    {(index === 0 ? '' : ' ') + formatInvocationToken(token)}
+                                  </span>
+                                ))}
+                              </code>
+                            )}
+                          </div>
+                          {commandPreview !== null && (
                             <>
-                              <p className="preview-confirmation">
-                                The local runtime validated the task inputs and command boundary.
+                              <p className="preview-note">
+                                Display only. CLIHarbor executes the trusted executable path and argv directly; this text is never reparsed.
                               </p>
                               {commandPreview.impact && commandPreview.context && commandPreview.approval && (
                                 <section className="mutation-approval" aria-labelledby="mutation-approval-heading">
@@ -1774,19 +1864,49 @@ export function App() {
                                   </p>
                                 </section>
                               )}
-                              <details className="technical-details command-technical-details">
-                                <summary>Show exact command</summary>
-                                <code className="invocation-preview">{formatInvocation(commandPreview)}</code>
-                                <p className="preview-note">
-                                  Display only. CLIHarbor executes the trusted executable path and argv directly; this text is never reparsed.
-                                </p>
-                              </details>
                             </>
                           )}
-                        </div>
+                        </section>
+
                         <div className="task-actions">
                           <button
+                            type="button"
+                            className="secondary-button"
+                            disabled={commandPreview === null}
+                            onClick={() => {
+                              if (commandPreview === null) return;
+                              const copied = commandPreview;
+                              void navigator.clipboard?.writeText(formatInvocation(copied)).then(() => setCopiedPreview(copied), () => undefined);
+                            }}
+                          >
+                            {commandPreview !== null && copiedPreview === commandPreview ? 'Copied' : 'Copy command'}
+                          </button>
+                          <span className="visually-hidden" role="status">{commandPreview !== null && copiedPreview === commandPreview ? 'Command copied' : ''}</span>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            disabled={starting || activeRunID !== null || JSON.stringify(formValues) === JSON.stringify(initialValues(selectedTask))}
+                            onClick={() => selectTaskByKey(selectedTask.packId + '/' + selectedTask.commandId, state.tasks)}
+                          >
+                            Reset inputs
+                          </button>
+                          <button
+                            type="button"
+                            className="validate-button"
+                            disabled={previewing || starting || activeRunID !== null}
+                            onClick={() => void previewSelectedTask()}
+                          >
+                            {previewing
+                              ? 'Checking…'
+                              : mutationTask
+                                ? selectedTask.risk === 'destructive'
+                                  ? 'Review destructive change'
+                                  : 'Review change'
+                                : 'Validate'}
+                          </button>
+                          <button
                             type="submit"
+                            className="run-button"
                             disabled={starting || activeRunID !== null || (mutationTask && !mutationApprovalReady)}
                           >
                             {starting
@@ -1795,15 +1915,7 @@ export function App() {
                                 ? selectedTask.risk === 'destructive'
                                   ? 'Approve destructive change and run'
                                   : 'Approve change and run'
-                                : 'Run task'}
-                          </button>
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            disabled={starting || activeRunID !== null || JSON.stringify(formValues) === JSON.stringify(initialValues(selectedTask))}
-                            onClick={() => selectTaskByKey(selectedTask.packId + '/' + selectedTask.commandId, state.tasks)}
-                          >
-                            Reset inputs
+                                : 'Run command'}
                           </button>
                         </div>
                       </>
@@ -1816,9 +1928,34 @@ export function App() {
                   </div>
                 )}
               </article>
+            </div>
 
-              <article className={"panel run-panel" + (run !== null ? " run-panel--engaged" : "")} aria-labelledby="run-heading">
-                <p className="status-label">4 · Result</p>
+            <ExecutionPreflight
+              task={selectedTask}
+              tool={selectedTask === undefined ? undefined : state.tools.find((tool) => taskToolKey(tool) === taskToolKey(selectedTask))}
+              validated={commandPreview !== null}
+              validating={previewing}
+              validationFailed={taskFailure !== null}
+              approvalReady={mutationApprovalReady}
+            />
+
+            <section className={"panel run-panel" + (run !== null ? " run-panel--engaged" : "")} aria-labelledby="run-heading">
+              <div className="output-tabs" role="tablist" aria-label="Result views" onKeyDown={(event) => {
+                if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+                event.preventDefault();
+                const next = outputTab === 'output' ? 'activity' : 'output';
+                setOutputTab(next);
+                document.getElementById('output-tab-' + next)?.focus();
+              }}>
+                {(['output', 'activity'] as const).map((tab) => (
+                  <button key={tab} type="button" role="tab" id={'output-tab-' + tab} aria-controls={'output-tabpanel-' + tab}
+                    aria-selected={outputTab === tab} tabIndex={outputTab === tab ? 0 : -1} onClick={() => setOutputTab(tab)}>
+                    {tab === 'output' ? 'Output' : 'Activity log'}
+                    {tab === 'activity' && activity.length > 0 && <span className="output-tab-count">{activity.length}</span>}
+                  </button>
+                ))}
+              </div>
+              <div role="tabpanel" id="output-tabpanel-output" aria-labelledby="output-tab-output" hidden={outputTab !== 'output'}>
                 <div className={"run-state run-state--" + (run === null ? "idle" : run.retained ? runOutcomeTone(run.snapshot.status, run.snapshot.exitCode) : "unavailable")} role="status" aria-live="polite" aria-atomic="true">
                   <h2 ref={resultHeadingRef} id="run-heading" tabIndex={-1}>{run === null ? 'No active run' : run.retained ? runOutcomeHeading(run.snapshot.status, run.snapshot.exitCode) : 'Run no longer retained'}</h2>
                   <p>{run === null ? 'Start a safe task to stream its output here.' : runStatusDescription(run, cancelRequested)}</p>
@@ -1922,21 +2059,28 @@ export function App() {
                       </div>} />
                   </>
                 )}
-              </article>
-              </section>
-              </>
-            )}
-
-            {(route === 'diagnostics' || route === 'tools') && (
-              <ToolsPage tools={state.tools} tasks={state.tasks} catalog={route === 'tools'}
-                installingKey={installingToolKey} notice={toolInstallNotice} installRoots={toolInstallRoots}
-                tasksLocked={starting || activeRunID !== null}
-                onInstall={(tool) => void installManagedCLI(tool)}
-                onInstallRoot={(key, value) => setToolInstallRoots((current) => ({ ...current, [key]: value }))}
-                onOpenTasks={(key) => { changeTaskCategory(key); navigate('tasks'); }}
-                onOpenAuthentication={(tool) => openSessionsForTool(tool.packId, tool.toolId)} />
-            )}
-          </>
+              </div>
+              <div role="tabpanel" id="output-tabpanel-activity" aria-labelledby="output-tab-activity" hidden={outputTab !== 'activity'}>
+                {activity.length === 0 ? (
+                  <p className="activity-empty">No activity yet. Validate or run a task to record its lifecycle here.</p>
+                ) : (
+                  <>
+                    <ol className="activity-log">
+                      {activity.map((entry) => (
+                        <li key={entry.id}>
+                          <time dateTime={entry.at.toISOString()}>[{formatActivityTime(entry.at)}]</time>
+                          <span className={'activity-level activity-level--' + entry.level.toLowerCase()}>[{entry.level}]</span>
+                          <span className="activity-message">{entry.message}</span>
+                          {entry.tag && <span className={'activity-tag activity-tag--' + (entry.tone ?? 'pending')}>{entry.tag}</span>}
+                        </li>
+                      ))}
+                    </ol>
+                    <button type="button" className="secondary-button activity-clear" onClick={() => setActivity([])}>Clear activity log</button>
+                  </>
+                )}
+              </div>
+            </section>
+          </div>
         )}
       </main>
 

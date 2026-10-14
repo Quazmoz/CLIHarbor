@@ -26,7 +26,7 @@ export function describeToolReadiness(tool: ToolDiagnostic): ToolReadinessCopy {
         : 'CLIHarbor verified this tool and can use it for approved tasks.',
       nextStep: tool.requiresVendorSession
         ? 'Check sign-in status before running tasks that require authentication.'
-        : 'You can continue to Tasks.',
+        : 'You can continue to the Command Builder.',
     },
     missing: {
       heading: name + " isn't available yet",

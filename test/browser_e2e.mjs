@@ -515,9 +515,9 @@ async function main() {
       'location.pathname === "/" && ["Get your CLIs ready", "What would you like to do?"].includes(document.querySelector("#overview-heading")?.textContent?.trim())');
 
     const overviewSurface = await page.evaluate('(() => ({' +
-      'hasTaskForm: Boolean(document.querySelector(".task-panel form")),' +
+      'hasTaskForm: Boolean(document.querySelector(".builder-card form")),' +
       'hasDiagnosticsDetails: Boolean(document.querySelector(".tool-diagnostics")),' +
-      'hasTasksLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Tasks"),' +
+      'hasTasksLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Command Builder"),' +
       'hasGuidedSignIn: ["Connect your CLIs", "CLI session checks"].includes(document.querySelector("#overview-login-heading")?.textContent?.trim()),' +
       'hasConjurForm: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Save connection and continue"),' +
       'hasDedicatedSignIn: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Open CyberArk Conjur sign-in"),' +
@@ -525,7 +525,7 @@ async function main() {
     '}))()');
     assert.equal(overviewSurface.hasTaskForm, false, 'overview must not duplicate the task execution workspace');
     assert.equal(overviewSurface.hasDiagnosticsDetails, false, 'overview must not duplicate diagnostics details');
-    assert.equal(overviewSurface.hasTasksLink, true, 'overview must provide primary navigation to Tasks');
+    assert.equal(overviewSurface.hasTasksLink, true, 'overview must provide primary navigation to the Command Builder');
     assert.equal(overviewSurface.hasGuidedSignIn, true, 'overview must expose the reviewed guided CLI sign-in surface');
     assert.equal(overviewSurface.hasConjurForm, false, 'generic overview must not render the dedicated Conjur form (ADR-034)');
     assert.equal(overviewSurface.hasDedicatedSignIn, true, 'overview must link Conjur to its dedicated sign-in');
@@ -564,7 +564,7 @@ async function main() {
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
     await page.evaluate('document.querySelector(".task-switcher-item").click(); true');
     await waitJS(page, 'quick switcher opens existing task configuration',
-      'location.pathname === "/tasks" && document.querySelector(".task-context-header h3")?.textContent?.includes("Inspect fixture argv") && document.querySelector(".task-switcher") === null');
+      'location.pathname === "/tasks" && document.querySelector(".task-context-header h4")?.textContent?.includes("Inspect fixture argv") && document.querySelector(".task-switcher") === null');
     assert.equal(await page.evaluate('document.querySelector(".run-panel h2")?.textContent === "Succeeded"'), false,
       'quick switcher must not execute a task');
     await navigate(page, baseURL + '/');
@@ -716,7 +716,7 @@ async function main() {
       'location.pathname === "/runs" && document.body.innerText.includes("Recent runs")');
     const runsSurface = await page.evaluate('(() => ({' +
       'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,' +
-      'hasRunsLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Runs")' +
+      'hasRunsLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Execution History")' +
     '}))()');
     assert.equal(runsSurface.horizontalOverflow, false, 'runs route must fit the 1366px enterprise viewport horizontally');
     assert.equal(runsSurface.hasRunsLink, true, 'runs route must remain in primary navigation');
@@ -806,21 +806,21 @@ async function main() {
     await capture('selected-task');
 
     stage('native validation and input reset');
-    await clickButton(page, 'Preview command');
+    await clickButton(page, 'Validate');
     assert.equal(await page.evaluate('document.querySelector("#task-input-query").validity.valueMissing'), true);
     assert.equal(await page.evaluate('document.activeElement?.id'), 'task-input-query');
     await setTextInput(page, 'Query', 'preview-only');
-    await clickButton(page, 'Preview command');
-    await waitJS(page, 'validated preview', 'document.querySelector(".preview-confirmation") !== null');
+    await clickButton(page, 'Validate');
+    await waitJS(page, 'validated preview', 'document.querySelector(".command-preview-state--valid") !== null');
     await clickButton(page, 'Reset inputs');
     assert.equal(await page.evaluate('document.querySelector("#task-input-query").value'), '');
-    assert.equal(await page.evaluate('document.querySelector(".preview-confirmation") === null'), true);
+    assert.equal(await page.evaluate('document.querySelector(".command-preview-state--valid") === null'), true);
 
     stage('navigation focus and page titles');
     await page.evaluate('Array.from(document.querySelectorAll("nav a")).find((link) => link.textContent.trim() === "Diagnostics").click(); true');
     await waitJS(page, 'diagnostics navigation', 'location.pathname === "/diagnostics" && document.title === "Diagnostics · CLIHarbor" && document.activeElement?.id === "main-content"');
-    await page.evaluate('Array.from(document.querySelectorAll("nav a")).find((link) => link.textContent.trim() === "Tasks").click(); true');
-    await waitJS(page, 'tasks navigation', 'location.pathname === "/tasks" && document.title === "Tasks · CLIHarbor" && document.activeElement?.id === "main-content"');
+    await page.evaluate('Array.from(document.querySelectorAll("nav a")).find((link) => link.textContent.trim() === "Command Builder").click(); true');
+    await waitJS(page, 'tasks navigation', 'location.pathname === "/tasks" && document.title === "Command Builder · CLIHarbor" && document.activeElement?.id === "main-content"');
 
     stage('bootstrap replay');
     // An already-authenticated browser is redirected to the app, regardless
@@ -871,7 +871,7 @@ async function main() {
 
     const createRequestPromise = page.waitEvent('Network.requestWillBeSent',
       (params) => isRunCreateRequest(params, 'inspect'));
-    await clickButton(page, 'Run task');
+    await clickButton(page, 'Run command');
     const createRequest = await createRequestPromise;
     const submitted = JSON.parse(createRequest.request.postData);
     assert.deepEqual(Object.keys(submitted).sort(), ['commandId', 'packId', 'values']);
@@ -926,7 +926,7 @@ async function main() {
     await setTextInput(page, 'Query', 'recent-relaunch');
     const recentCreateRequest = page.waitEvent('Network.requestWillBeSent',
       (params) => isRunCreateRequest(params, 'inspect'));
-    await clickButton(page, 'Run task');
+    await clickButton(page, 'Run command');
     await recentCreateRequest;
     await waitJS(page, 'recent fixture run completion',
       'document.querySelector(".run-panel h2")?.textContent?.trim() === "Succeeded"');
@@ -1045,7 +1045,7 @@ async function main() {
     await chooseTask(page, 'integration/wait');
     const waitCreateRequest = page.waitEvent('Network.requestWillBeSent',
       (params) => isRunCreateRequest(params, 'wait'));
-    await clickButton(page, 'Run task');
+    await clickButton(page, 'Run command');
     await waitCreateRequest;
     await waitJS(page, 'wait fixture running', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "Running"');
     const waitRunID = await page.evaluate('document.querySelector(".run-meta dd")?.textContent?.trim()');

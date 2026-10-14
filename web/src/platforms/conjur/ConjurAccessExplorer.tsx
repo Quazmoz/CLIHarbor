@@ -157,7 +157,7 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
     } catch (err) {
       if (runID !== '') void cancelRun(csrfToken, runID).catch(() => {});
       if (deadline.aborted && !signal.aborted) {
-        throw new Error('The read-only query exceeded the explorer deadline.');
+        throw new Error('The read-only query exceeded the explorer deadline.', { cause: err });
       }
       throw err;
     }

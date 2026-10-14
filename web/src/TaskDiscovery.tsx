@@ -185,15 +185,10 @@ export function TaskDiscovery({
   }, []);
 
   return (
-    <details ref={catalogRef} className="task-discovery" aria-label="Task discovery" open={catalogOpen} onToggle={(event) => setCatalogOpen(event.currentTarget.open)}>
-      <summary ref={summaryRef} className="task-catalog-summary">
-        <span>{catalogOpen ? 'Browse approved tasks' : 'Change task'}</span>
-        <span className="task-catalog-selection">{catalogOpen ? `${tasks.length} available` : tasks.find((task) => taskKey(task) === selectedTaskKey)?.name ?? 'Select a task'}</span>
-      </summary>
-      <div className="task-catalog-body">
+    <div className={'task-select-row' + (onFilterChange ? '' : ' task-select-row--single')}>
       {onFilterChange && (
-        <label className="task-category-filter">
-          Tool category
+        <label className="field task-category-filter">
+          <span className="field-label-text"><span>Tool</span></span>
           <select value={toolFilter} disabled={disabled} onChange={(event) => onFilterChange(event.target.value)}>
             <option value="">All tools</option>
             {Array.from(new Map(tasks.map((task) => [taskToolKey(task), task])).entries()).map(([key, task]) => (
@@ -202,101 +197,118 @@ export function TaskDiscovery({
           </select>
         </label>
       )}
-      <div className="task-search">
-        <div className="task-search-heading">
-          <label className="task-search-label" htmlFor="task-search-input">
-            Find a task
-          </label>
-          <span className="task-search-count" role="status" aria-live="polite" aria-atomic="true">
-            {normalizedQuery || toolFilter ? filteredTasks.length + ' of ' + tasks.length : tasks.length} task{tasks.length === 1 ? '' : 's'}
-          </span>
-        </div>
-        <span className="task-search-row">
-          <input
-            ref={searchRef}
-            id="task-search-input"
-            type="search"
-            value={query}
-            placeholder="Task, pack, tool, or command"
-            aria-describedby="task-search-help"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={query.length === 0}
-            onClick={() => {
-              setQuery('');
-              searchRef.current?.focus();
-            }}
-          >
-            Clear
-          </button>
-        </span>
-        <small id="task-search-help">Press / to search names, descriptions, packs, tools, or commands.</small>
-      </div>
+      <div className="task-command-field">
+        <span className="field-label-text" aria-hidden="true"><span>Command / Action</span></span>
+        <details ref={catalogRef} className="task-discovery" aria-label="Task discovery" open={catalogOpen}
+          onToggle={(event) => setCatalogOpen(event.currentTarget.open)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape' || !catalogOpen) return;
+            event.preventDefault();
+            setCatalogOpen(false);
+            summaryRef.current?.focus();
+          }}>
+          <summary ref={summaryRef} className="task-catalog-summary">
+            <span>{catalogOpen ? 'Browse approved tasks' : 'Change task'}</span>
+            <span className="task-catalog-selection">{catalogOpen ? `${tasks.length} available` : tasks.find((task) => taskKey(task) === selectedTaskKey)?.name ?? 'Select a task'}</span>
+          </summary>
+          <div className="task-catalog-body">
+          <div className="task-search">
+            <div className="task-search-heading">
+              <label className="task-search-label" htmlFor="task-search-input">
+                Find a task
+              </label>
+              <span className="task-search-count" role="status" aria-live="polite" aria-atomic="true">
+                {normalizedQuery || toolFilter ? filteredTasks.length + ' of ' + tasks.length : tasks.length} task{tasks.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            <span className="task-search-row">
+              <input
+                ref={searchRef}
+                id="task-search-input"
+                type="search"
+                value={query}
+                placeholder="Task, pack, tool, or command"
+                aria-describedby="task-search-help"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={query.length === 0}
+                onClick={() => {
+                  setQuery('');
+                  searchRef.current?.focus();
+                }}
+              >
+                Clear
+              </button>
+            </span>
+            <small id="task-search-help">Press / to search names, descriptions, packs, tools, or commands.</small>
+          </div>
 
-      {filteredTasks.length === 0 && (normalizedQuery.length > 0 || toolFilter !== '') ? (
-        <div className="task-search-empty" role="status">
-          <strong>{normalizedQuery ? `No tasks match “${query.trim()}”.` : 'No tasks are available in this category.'}</strong>
-          <p>Try another search or choose All tools.</p>
-        </div>
-      ) : normalizedQuery ? (
-        <div className="task-discovery-sections" role="region" aria-label="Task catalog" tabIndex={0}>
-          <TaskSection
-            title="Search results"
-            section="all"
-            tasks={filteredTasks}
-            selectedTaskKey={selectedTaskKey}
-            favoriteKeys={favoriteKeys}
-            disabled={disabled}
-            emptyText="No safe tasks are available."
-            onSelect={select}
-            onToggleFavorite={onToggleFavorite}
-          />
-        </div>
-      ) : (
-        <div className="task-discovery-sections" role="region" aria-label="Task catalog" tabIndex={0}>
-          {favoriteTasks.length > 0 && (
-            <TaskSection
-              title="Favorites"
-              section="favorites"
-              tasks={favoriteTasks}
-              selectedTaskKey={selectedTaskKey}
-              favoriteKeys={favoriteKeys}
-              disabled={disabled}
-              emptyText="No favorites yet."
-              onSelect={select}
-              onToggleFavorite={onToggleFavorite}
-            />
+          {filteredTasks.length === 0 && (normalizedQuery.length > 0 || toolFilter !== '') ? (
+            <div className="task-search-empty" role="status">
+              <strong>{normalizedQuery ? `No tasks match “${query.trim()}”.` : 'No tasks are available in this category.'}</strong>
+              <p>Try another search or choose All tools.</p>
+            </div>
+          ) : normalizedQuery ? (
+            <div className="task-discovery-sections" role="region" aria-label="Task catalog" tabIndex={0}>
+              <TaskSection
+                title="Search results"
+                section="all"
+                tasks={filteredTasks}
+                selectedTaskKey={selectedTaskKey}
+                favoriteKeys={favoriteKeys}
+                disabled={disabled}
+                emptyText="No safe tasks are available."
+                onSelect={select}
+                onToggleFavorite={onToggleFavorite}
+              />
+            </div>
+          ) : (
+            <div className="task-discovery-sections" role="region" aria-label="Task catalog" tabIndex={0}>
+              {favoriteTasks.length > 0 && (
+                <TaskSection
+                  title="Favorites"
+                  section="favorites"
+                  tasks={favoriteTasks}
+                  selectedTaskKey={selectedTaskKey}
+                  favoriteKeys={favoriteKeys}
+                  disabled={disabled}
+                  emptyText="No favorites yet."
+                  onSelect={select}
+                  onToggleFavorite={onToggleFavorite}
+                />
+              )}
+              {recentTasks.length > 0 && (
+                <TaskSection
+                  title="Recently used"
+                  section="recent"
+                  tasks={recentTasks}
+                  selectedTaskKey={selectedTaskKey}
+                  favoriteKeys={favoriteKeys}
+                  disabled={disabled}
+                  emptyText="No recently used tasks yet."
+                  onSelect={select}
+                  onToggleFavorite={onToggleFavorite}
+                />
+              )}
+              <TaskSection
+                title="All tasks"
+                section="all"
+                tasks={filteredTasks}
+                selectedTaskKey={selectedTaskKey}
+                favoriteKeys={favoriteKeys}
+                disabled={disabled}
+                emptyText="No safe tasks are available."
+                onSelect={select}
+                onToggleFavorite={onToggleFavorite}
+              />
+            </div>
           )}
-          {recentTasks.length > 0 && (
-            <TaskSection
-              title="Recently used"
-              section="recent"
-              tasks={recentTasks}
-              selectedTaskKey={selectedTaskKey}
-              favoriteKeys={favoriteKeys}
-              disabled={disabled}
-              emptyText="No recently used tasks yet."
-              onSelect={select}
-              onToggleFavorite={onToggleFavorite}
-            />
-          )}
-          <TaskSection
-            title="All tasks"
-            section="all"
-            tasks={filteredTasks}
-            selectedTaskKey={selectedTaskKey}
-            favoriteKeys={favoriteKeys}
-            disabled={disabled}
-            emptyText="No safe tasks are available."
-            onSelect={select}
-            onToggleFavorite={onToggleFavorite}
-          />
-        </div>
-      )}
+          </div>
+        </details>
       </div>
-    </details>
+    </div>
   );
 }

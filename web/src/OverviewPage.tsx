@@ -68,7 +68,7 @@ export function OverviewPage({
   const workflowReady = readyToolCount > 0 && tasks.length > 0;
 
   let recommendedTitle = 'Choose a safe task';
-  let recommendedCopy = 'The local runtime has safe tasks available. Open Tasks to select, validate, preview, and run one.';
+  let recommendedCopy = 'The local runtime has safe tasks available. Open the Command Builder to select, validate, preview, and run one.';
   let recommendedDestination: OverviewDestination = 'tasks';
   let recommendedAction = 'Open tasks';
 
