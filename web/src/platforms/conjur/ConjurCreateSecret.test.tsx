@@ -1,14 +1,13 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { ConjurCreateSecret, fullVariableID } from './ConjurCreateSecret';
-import { createRun, previewRun } from '../../api/runs';
+import { createRun, fetchRun, previewRun, subscribeRunEvents } from '../../api/runs';
 import type { Task } from '../../api/tasks';
 import type { RunPreview, RunSnapshot } from '../../api/runs';
 
 vi.mock('../../api/runs', () => ({
   createRun: vi.fn(), previewRun: vi.fn(), fetchRun: vi.fn(),
   subscribeRunEvents: vi.fn(),
-  decodeRunOutput: () => '{"exists":false}',
 }));
 
 const PACK = 'cyberark-conjur-v9';
@@ -59,7 +58,7 @@ beforeEach(() => {
   vi.mocked(previewRun).mockImplementation(async (_, request) => preview(request.commandId));
   vi.mocked(createRun).mockImplementation(async (_, request) => snapshot(request.commandId));
 });
-afterEach(() => { vi.clearAllMocks(); });
+afterEach(() => { vi.resetAllMocks(); });
 
 test('normalizes simple branch paths and rejects ambiguous identifiers', () => {
   expect(fullVariableID('root', 'db/password')).toBe('db/password');
@@ -116,6 +115,77 @@ test('existing variable prevents all mutating previews and execution', async () 
   await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('already exists'));
   expect(previewRun).not.toHaveBeenCalled();
   expect(createRun).toHaveBeenCalledTimes(1);
+});
+
+
+test('asynchronous existence completion fetches the authoritative structured result', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'resource-exists'
+    ? { ...snapshot('resource-exists'), status: 'running', exitCode: undefined, structured: undefined }
+    : snapshot(request.commandId));
+  vi.mocked(subscribeRunEvents).mockImplementation((runId, _onEvent, onComplete) => {
+    queueMicrotask(() => onComplete({ runId, sequence: 0, status: 'exited', exitCode: 0 }));
+    return () => {};
+  });
+  vi.mocked(fetchRun).mockResolvedValue(snapshot('resource-exists'));
+
+  const region = setup();
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await waitFor(() => expect(previewRun).toHaveBeenCalledTimes(2));
+  expect(fetchRun).toHaveBeenCalledWith('resource-exists-run');
+  expect(within(region).getByText(/2. Set initial value/)).toBeInTheDocument();
+});
+
+test('asynchronous existence check blocks creation when the final snapshot reports existing', async () => {
+  vi.mocked(createRun).mockResolvedValue({
+    ...snapshot('resource-exists'), status: 'running', exitCode: undefined, structured: undefined,
+  });
+  vi.mocked(subscribeRunEvents).mockImplementation((runId, _onEvent, onComplete) => {
+    queueMicrotask(() => onComplete({ runId, sequence: 0, status: 'exited', exitCode: 0 }));
+    return () => {};
+  });
+  vi.mocked(fetchRun).mockResolvedValue({
+    ...snapshot('resource-exists'), structured: {
+      status: 'available', renderer: 'cards',
+      fields: [{ key: 'exists', label: 'Exists', type: 'boolean', present: true, value: 'true' }],
+    },
+  });
+  const region = setup();
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('already exists'));
+  expect(previewRun).not.toHaveBeenCalled();
+});
+
+test('invalid structured existence evidence never falls back to unvalidated stdout', async () => {
+  vi.mocked(createRun).mockResolvedValue({
+    ...snapshot('resource-exists'), structured: {
+      status: 'invalid', renderer: 'cards', error: 'duplicate_key',
+    },
+  });
+  const region = setup();
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('unrecognized existence result'));
+  expect(previewRun).not.toHaveBeenCalled();
+});
+
+test('successful stream completion never substitutes for a failed authoritative creation run', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'secret-create'
+    ? { ...snapshot('secret-create'), status: 'running', exitCode: undefined }
+    : snapshot(request.commandId));
+  vi.mocked(subscribeRunEvents).mockImplementation((runId, _onEvent, onComplete) => {
+    queueMicrotask(() => onComplete({ runId, sequence: 0, status: 'exited', exitCode: 0 }));
+    return () => {};
+  });
+  vi.mocked(fetchRun).mockResolvedValue(snapshot('secret-create', false));
+
+  const region = setup();
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await waitFor(() => expect(previewRun).toHaveBeenCalledTimes(2));
+  fireEvent.click(within(region).getByRole('checkbox', { name: /I approve both changes/ }));
+  fireEvent.click(within(region).getByRole('button', { name: 'Create secret and store value' }));
+  await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('did not confirm variable creation'));
+  expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.commandId))
+    .toEqual(['resource-exists', 'resource-exists', 'secret-create']);
+  expect(fetchRun).toHaveBeenCalledWith('secret-create-run');
 });
 
 test('absent approved capability disables the create entry point', () => {
