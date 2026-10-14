@@ -128,7 +128,9 @@ describe('App', () => {
 
     expect(await screen.findByText(/1\.2\.3-test/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Execution Preflight' })).toBeInTheDocument();
-    expect(screen.getByText('Local only')).toBeInTheDocument();
+    expect(screen.queryByText('Local only')).not.toBeInTheDocument();
+    expect(screen.queryByText('Local runtime ready')).not.toBeInTheDocument();
+    expect(screen.getByText('0 of 0 executables ready')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Command Builder' })).toBeInTheDocument();
     expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
@@ -154,6 +156,7 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Browser session unavailable' })).toBeInTheDocument();
+    expect(screen.getByText('Connection unavailable')).toBeInTheDocument();
     expect(screen.getByText(/Relaunch CLIHarbor/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
