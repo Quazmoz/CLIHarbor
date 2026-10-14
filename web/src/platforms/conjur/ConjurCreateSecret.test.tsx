@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { ConjurCreateSecret, fullVariableID } from './ConjurCreateSecret';
 import { createRun, fetchRun, previewRun, subscribeRunEvents } from '../../api/runs';
@@ -186,6 +186,53 @@ test('successful stream completion never substitutes for a failed authoritative 
   expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.commandId))
     .toEqual(['resource-exists', 'resource-exists', 'secret-create']);
   expect(fetchRun).toHaveBeenCalledWith('secret-create-run');
+});
+
+
+test('duplicate run-completion notifications reconcile only once', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'resource-exists'
+    ? { ...snapshot('resource-exists'), status: 'running', exitCode: undefined, structured: undefined }
+    : snapshot(request.commandId));
+  vi.mocked(subscribeRunEvents).mockImplementation((runId, _onEvent, onComplete) => {
+    queueMicrotask(() => {
+      onComplete({ runId, sequence: 0, status: 'exited', exitCode: 0 });
+      onComplete({ runId, sequence: 0, status: 'exited', exitCode: 0 });
+    });
+    return () => {};
+  });
+  vi.mocked(fetchRun).mockResolvedValue(snapshot('resource-exists'));
+
+  const region = setup();
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await waitFor(() => expect(previewRun).toHaveBeenCalledTimes(2));
+  expect(fetchRun).toHaveBeenCalledTimes(1);
+});
+
+test('hung final snapshot lookup fails closed without starting previews', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.mocked(createRun).mockResolvedValue({
+      ...snapshot('resource-exists'), status: 'running', exitCode: undefined, structured: undefined,
+    });
+    vi.mocked(subscribeRunEvents).mockImplementation((runId, _onEvent, onComplete) => {
+      queueMicrotask(() => onComplete({ runId, sequence: 0, status: 'exited', exitCode: 0 }));
+      return () => {};
+    });
+    vi.mocked(fetchRun).mockImplementation(async (_runId, signal) =>
+      new Promise<RunSnapshot>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+      }));
+
+    const region = setup();
+    fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_100);
+    });
+    expect(within(region).getByRole('alert')).toHaveTextContent('Run outcome is unknown');
+    expect(previewRun).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test('absent approved capability disables the create entry point', () => {
