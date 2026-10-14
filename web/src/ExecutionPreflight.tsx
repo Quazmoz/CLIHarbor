@@ -90,11 +90,8 @@ export function ExecutionPreflight({ task, tool, validated, validating, validati
           </li>
         ))}
       </ul>
-      <p className="preflight-note">
-        Tasks run directly as your current user. CLIHarbor never uses a shell and never elevates permissions.
-      </p>
-      <section className="execution-summary" aria-labelledby="execution-summary-heading">
-        <h3 id="execution-summary-heading">Execution Summary</h3>
+      <details className="execution-summary">
+        <summary>Technical details</summary>
         <dl>
           <div><dt>Executable</dt><dd>{task.toolId}{tool?.version ? ' ' + tool.version : ''}</dd></div>
           <div><dt>Pack</dt><dd>{task.packName}</dd></div>
@@ -102,7 +99,7 @@ export function ExecutionPreflight({ task, tool, validated, validating, validati
           <div><dt>Risk</dt><dd>{riskLabel[task.risk]}</dd></div>
           <div><dt>Execution mode</dt><dd>Direct (no shell, no elevation)</dd></div>
         </dl>
-      </section>
+      </details>
     </aside>
   );
 }

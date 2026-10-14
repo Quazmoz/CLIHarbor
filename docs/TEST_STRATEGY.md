@@ -508,3 +508,7 @@ an ambiguous task selector.
 ## Global quick-task navigation acceptance
 
 The header Find task shortcut and Ctrl/Command+K modal consume only the server-authorized task list. React tests validate multi-term search, favorite/recent ordering, auth/risk labels, empty catalogs, typed-input shortcut suppression, and selecting a task without issuing run/preview API calls. The production-embedded Chrome E2E opens the native modal, searches a fixture task, checks its 320 px layout, and confirms that selection returns to the existing task form with no execution side effect. The existing task-catalog `/` shortcut must not focus background inputs while this modal is open.
+
+## UI simplification acceptance
+
+Navigation regressions cover top-bar integration destinations, a native selector for multiple built-in CLIs, browser back navigation, unavailable dedicated deep links, and attention-only readiness links. Overview retains conservative per-CLI session checks, actionable unavailable tools, recent run outcomes, and favorite shortcuts while omitting duplicate metrics/Workspace metadata and hiding onboarding after setup or prior use. The embedded Chrome harness verifies that exactly one task tool selector is visible at each supported width, that switching through either selector preserves scope through resizing, and that keyboard navigation reaches the header links and collapsed preflight metadata. Conjur Tools retains inventory and migration workflows; shared runner validation, approval and output boundaries remain covered by the existing suites.

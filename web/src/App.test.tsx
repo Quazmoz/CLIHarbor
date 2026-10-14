@@ -126,11 +126,14 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByText(/1\.2\.3-test/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Execution Preflight' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Execution Preflight' })).toBeInTheDocument();
+    expect(screen.queryByText(/1\.2\.3-test/)).not.toBeInTheDocument();
     expect(screen.queryByText('Local only')).not.toBeInTheDocument();
     expect(screen.queryByText('Local runtime ready')).not.toBeInTheDocument();
-    expect(screen.getByText('0 of 0 executables ready')).toBeInTheDocument();
+    expect(screen.queryByText(/executables ready/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
+    expect(screen.getByText('1.2.3-test')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
     expect(screen.getByRole('heading', { name: 'Command Builder' })).toBeInTheDocument();
     expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();

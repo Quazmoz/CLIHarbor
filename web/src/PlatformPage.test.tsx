@@ -15,6 +15,7 @@ const tasks: Task[] = [
   { packId: 'cyberark-conjur-v9', packName: 'Conjur', toolId: 'conjur', commandId: 'list-variables', name: 'Browse secret variable IDs', risk: 'read', inputs: [] },
   { packId: 'cyberark-conjur-v9', packName: 'Conjur', toolId: 'conjur', commandId: 'role-members', name: 'List role members', risk: 'read', inputs: [] },
   { packId: 'cyberark-conjur-v9', packName: 'Conjur', toolId: 'conjur', commandId: 'secret-delete', name: 'Delete secret variable', risk: 'destructive', inputs: [] },
+  { packId: 'cyberark-conjur-v9', packName: 'Conjur', toolId: 'conjur', commandId: 'list-policies', name: 'List policies', risk: 'read', inputs: [] },
   { packId: 'other', packName: 'Other', toolId: 'other', commandId: 'list-variables', name: 'Spoof task', risk: 'read', inputs: [] },
 ];
 const permissions: Task[] = [
@@ -104,8 +105,10 @@ test('Conjur workflows only show backend-advertised tasks owned by this platform
   const toolbox = screen.getByRole('group', { name: 'Conjur toolbox' });
   // Browsing variables has one canonical home under Secrets.
   expect(within(toolbox).queryByRole('button', { name: 'Browse secret variable IDs' })).not.toBeInTheDocument();
-  expect(within(toolbox).getByRole('button', { name: 'All approved tasks (3)' })).toBeEnabled();
-  expect(onOpenTask).toHaveBeenCalledExactlyOnceWith('cyberark-conjur-v9/role-members');
+  expect(within(toolbox).queryByRole('button', { name: /All approved tasks|Diagnostics/ })).not.toBeInTheDocument();
+  fireEvent.click(within(toolbox).getByRole('button', { name: 'List policies' }));
+  expect(onOpenTask).toHaveBeenNthCalledWith(1, 'cyberark-conjur-v9/role-members');
+  expect(onOpenTask).toHaveBeenNthCalledWith(2, 'cyberark-conjur-v9/list-policies');
 });
 
 afterEach(() => vi.unstubAllGlobals());

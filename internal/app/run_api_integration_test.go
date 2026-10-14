@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 func TestRunHTTPAPIExecutesTypedFixtureThroughAuthenticatedBoundary(t *testing.T) {
 	fixture := executionFixtureConfigForTest(t)
+	fixture.options.AuditPath = filepath.Join(t.TempDir(), "audit", "audit.jsonl")
 	alternatePackPath, alternateRef := alternateExecutionFixturePackForTest(t, fixture.executable)
 	fixture.options.PackFiles = append(fixture.options.PackFiles, alternatePackPath)
 	fixture.options.ToolOverrides[alternateRef] = fixture.executable
@@ -39,6 +41,8 @@ func TestRunHTTPAPIExecutesTypedFixtureThroughAuthenticatedBoundary(t *testing.T
 	var bootstrapURL string
 	select {
 	case bootstrapURL = <-launched:
+	case err := <-done:
+		t.Fatalf("application startup: %v", err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("application did not publish bootstrap URL")
 	}

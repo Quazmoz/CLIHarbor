@@ -538,6 +538,14 @@ async function main() {
     assert.equal(shell.sidebarOnLeft, true, 'desktop navigation must be a left sidebar');
     assert.equal(shell.hasHeaderSections, true, 'header must distinguish built-in integrations from other CLIs');
     assert.deepEqual(shell.groups, ['CLI workspace']);
+    assert.equal(await page.evaluate('document.querySelector(".primary-nav").innerText.includes("Built-in CLIs")'), false);
+    assert.equal(await page.evaluate('document.querySelector(".overview-metrics, #overview-workspace-heading") === null'), true);
+    await page.evaluate('document.querySelector(".section-switcher a").focus()');
+    await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await waitJS(page, 'keyboard built-in navigation', 'location.pathname === "/dedicated/conjur" && document.activeElement?.id === "main-content"');
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Overview").click()');
+    await waitJS(page, 'return to overview', 'location.pathname === "/" && document.querySelector("#overview-heading") !== null');
     await capture('overview');
 
     stage('quick task navigation is a modal, not an execution shortcut');
@@ -737,12 +745,18 @@ async function main() {
     assert.equal(taskDiscoverySurface.hasRecent, false, 'empty Recently used must stay hidden until useful');
     assert.equal(taskDiscoverySurface.hasAll, true);
     assert.match(taskDiscoverySurface.taskCount, /task/, 'task discovery should keep catalog size visible');
+    assert.equal(await page.evaluate('document.querySelector(".execution-summary").open'), false);
+    await page.evaluate('document.querySelector(".execution-summary summary").focus()');
+    assert.equal(await page.evaluate('document.activeElement === document.querySelector(".execution-summary summary")'), true);
+    await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 });
+    await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await waitJS(page, 'keyboard preflight disclosure', 'document.querySelector(".execution-summary").open');
 
     stage('tool category filtering');
-    await page.evaluate('(() => { const select = document.querySelector(".task-category-filter select"); select.value = "integration/fixture"; select.dispatchEvent(new Event("change", { bubbles: true })); })()');
+    await page.evaluate('Array.from(document.querySelectorAll(".tool-explorer-item")).find((button) => button.textContent.includes("fixture")).click()');
     await waitJS(page, 'fixture category', 'document.querySelector(".task-category-filter select").value === "integration/fixture" && document.querySelector(".task-discovery").open');
     assert.equal(await page.evaluate('Array.from(document.querySelectorAll("[data-task-action=select]")).every((button) => button.dataset.taskKey.startsWith("integration/"))'), true, 'category rows must belong to the selected tool');
-    await page.evaluate('(() => { const select = document.querySelector(".task-category-filter select"); select.value = ""; select.dispatchEvent(new Event("change", { bubbles: true })); })()');
+    await page.evaluate('document.querySelector(".tool-explorer-all").click()');
     await waitJS(page, 'all tool categories restored', 'document.querySelector(".task-category-filter select").value === "" && document.querySelector(".task-catalog-selection").textContent.includes("4 available")');
 
     stage('responsive operator workflow widths');
@@ -759,6 +773,17 @@ async function main() {
         'window.innerWidth === ' + width + ' && document.documentElement.scrollWidth <= window.innerWidth',
         5000,
       );
+      const selectors = await page.evaluate('(() => ({' +
+        'explorer: document.querySelector(".tool-explorer").getBoundingClientRect().width > 0,' +
+        'compact: document.querySelector(".task-category-filter").getBoundingClientRect().width > 0' +
+      '}))()');
+      assert.equal(selectors.explorer, width >= 1100, 'desktop Explorer visibility at ' + width);
+      assert.equal(selectors.compact, width < 1100, 'compact selector visibility at ' + width);
+      if (width === 1024) {
+        await page.evaluate('(() => { const select = document.querySelector(".task-category-filter select"); select.value = "integration/fixture"; select.dispatchEvent(new Event("change", { bubbles: true })); })()');
+        await waitJS(page, 'compact filter applies shared scope', 'document.querySelector(".task-category-filter select").value === "integration/fixture" && document.querySelector(".task-scope-banner") !== null');
+      }
+      if (width < 1024) assert.equal(await page.evaluate('document.querySelector(".task-category-filter select").value'), 'integration/fixture');
       if (width <= 390) {
         assert.equal(await page.evaluate('document.querySelector(".sidebar").getBoundingClientRect().width === 0'), true, 'mobile sidebar starts collapsed');
         await clickButton(page, 'Menu');
@@ -774,6 +799,9 @@ async function main() {
       deviceScaleFactor: 1,
       mobile: false,
     });
+    await waitJS(page, 'desktop filter after resizing',
+      'document.querySelector(".tool-explorer").getBoundingClientRect().width > 0 && Array.from(document.querySelectorAll(".tool-explorer-item")).some((button) => button.getAttribute("aria-pressed") === "true" && button.textContent.includes("fixture"))');
+    await page.evaluate('document.querySelector(".tool-explorer-all").click()');
 
     const favoriteInspect = await page.evaluate('(() => {' +
       'const button = document.querySelector("[data-task-section=all][data-task-action=favorite][data-task-key=\\\"integration/inspect\\\"]");' +
@@ -1130,7 +1158,7 @@ async function main() {
     const auditSetup = await page.evaluate('(() => ({' +
       'backend: document.querySelector("input[name=audit-backend-url]").value,' +
       'scanTypes: Array.from(document.querySelector("select[name=audit-scan-type]").options).map((option) => option.value),' +
-      'inDedicated: Array.from(document.querySelectorAll("nav[aria-label=\\"Dedicated CLIs\\"] a")).some((link) => link.textContent.trim() === "Security audit" && link.getAttribute("aria-current") === "page"),' +
+      'inDedicated: document.querySelector(".section-switcher a[aria-current=page]")?.getAttribute("href") === "/dedicated/conjur" && document.querySelector(".breadcrumbs").textContent.includes("Security audit"),' +
       'inPrimary: Array.from(document.querySelectorAll(".primary-nav a")).some((link) => link.textContent.includes("audit"))' +
     '}))()');
     assert.equal(auditSetup.backend, conjurURL, 'audit target should default to vendor configuration');

@@ -24,6 +24,13 @@ describe('ExecutionPreflight', () => {
     expect(statusOf('Executable found')).toBe('Passed');
     expect(statusOf('Input validation')).toBe('Pending');
     expect(statusOf('Execution readiness')).toBe('Ready');
+    const details = screen.getByText('Technical details').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    if (!details) throw new Error('Missing technical details');
+    fireEvent.click(within(details).getByText('Technical details'));
+    expect(details).toHaveAttribute('open');
+    expect(within(details).getByText('Direct (no shell, no elevation)')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Execution Summary' })).not.toBeInTheDocument();
 
     rerender(<ExecutionPreflight {...props} validated />);
     expect(statusOf('Input validation')).toBe('Passed');

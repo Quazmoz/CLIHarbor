@@ -29,7 +29,6 @@ import { ToolsPage } from './ToolsPage';
 import { TaskDiscovery, taskToolKey } from './TaskDiscovery';
 import { TaskSwitcher } from './TaskSwitcher';
 import { ToolExplorer } from './ToolExplorer';
-import { ToolIcon } from './ToolIcon';
 import { ExecutionPreflight } from './ExecutionPreflight';
 import { OutputExplorer } from './OutputExplorer';
 import { inputGuidance, runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
@@ -557,7 +556,7 @@ const routePaths: Record<AppRoute, string> = {
 };
 
 // The app has two halves: the generic workspace above works with any CLI, and
-// a dedicated CLI (selected from the sidebar CLI library) adds functionality built and tested
+// a dedicated CLI (selected from the top bar) adds functionality built and tested
 // for that one platform. Platform IDs come from /api/v1/platforms.
 const dedicatedPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})$/;
 const dedicatedSignInPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})\/sign-in$/;
@@ -578,7 +577,7 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'overview', label: 'Overview', group: 'Workspace', icon: 'M3 11.5 12 4l9 7.5 M5.5 9.5V20h13V9.5 M10 20v-5h4v5' },
   { route: 'tasks', label: 'Command Builder', group: 'Workspace', icon: 'M4 4h16v16H4z m4 5 3 3-3 3 M13 15h3' },
   { route: 'runs', label: 'Execution History', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
-  { route: 'tools', label: 'Add a CLI', group: 'Library', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M17.5 14v7 M14 17.5h7' },
+  { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M17.5 14v7 M14 17.5h7' },
   { route: 'authentication', label: 'CLI sessions', group: 'Manage', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
   { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
@@ -619,7 +618,6 @@ export function App() {
   const [taskChosen, setTaskChosen] = useState(false);
   const [taskToolFilter, setTaskToolFilter] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(false);
-  const [otherOpen, setOtherOpen] = useState(false);
   const [taskSwitcherOpen, setTaskSwitcherOpen] = useState(false);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [selectedPlatformID, setSelectedPlatformID] = useState(() => platformIDFromPath(window.location.pathname));
@@ -1245,7 +1243,7 @@ export function App() {
     if (toolKey !== '' && !state.tasks.some((task) => taskToolKey(task) === toolKey)) return;
     setTaskToolFilter(toolKey);
     // When filtering from the shared task browser, keep the built-in CLI
-    // sidebar selection and breadcrumbs aligned with the chosen tool.
+    // top-bar selection and breadcrumbs aligned with the chosen tool.
     const platform = platforms.find((candidate) => taskToolKey(candidate) === toolKey);
     if (platform !== undefined) setSelectedPlatformID(platform.id);
     const first = state.tasks.find((task) => toolKey === '' || taskToolKey(task) === toolKey);
@@ -1298,12 +1296,7 @@ export function App() {
   // An old dedicated deep link may be opened without a registered platform.
   // Keep the generic section selected rather than highlighting a broken target.
   const headerDedicatedJourney = inDedicatedJourney && breadcrumbPlatform !== undefined;
-  // Other CLIs: every tool with approved tasks that no built-in integration owns.
-  const platformToolKeys = new Set(platforms.map(taskToolKey));
-  const otherCLIs = state.kind === 'ready'
-    ? [...new Map(state.tasks.filter((task) => !platformToolKeys.has(taskToolKey(task)))
-      .map((task) => [taskToolKey(task), task] as const)).values()]
-    : [];
+  const headerPlatform = breadcrumbPlatform ?? platforms.find((platform) => platform.id === selectedPlatformID) ?? platforms[0];
   const navIcon = (path: string) => (
     <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={path} /></svg>
   );
@@ -1352,70 +1345,15 @@ export function App() {
         </div>
         <nav className="primary-nav" aria-label="Primary">
           <div className="nav-group" role="group" aria-labelledby="nav-label-workspace">
-            <p className="nav-subgroup-label" id="nav-label-workspace">Workspace</p>
+            <p className="nav-group-label">CLI workspace</p>
+            <p className="nav-subgroup-label" id="nav-label-workspace">Work</p>
             {navigationItems.filter((item) => item.group === 'Workspace').map(navLink)}
           </div>
-          <div className="nav-group" role="group" aria-labelledby="nav-label-library">
-            <p className="nav-subgroup-label" id="nav-label-library">CLI library</p>
-            {/* Built-in CLIs are always shown; only Other CLIs collapses. The list's label names it for assistive tech. */}
-            <p className="nav-disclosure nav-disclosure--static" aria-hidden="true">
-              <span className="nav-disclosure-spacer" />
-              <span>Built-in CLIs</span>
-              <span className="nav-count">{platforms.length}</span>
-            </p>
-            <ul className="nav-tree" aria-label="Built-in CLIs">
-              {platforms.length === 0 && <li className="nav-tree-empty">No integration loaded</li>}
-              {platforms.map((platform) => (
-                <li key={platform.id}>
-                  <a href={pathForRoute('platform', platform.id)}
-                    aria-current={headerDedicatedJourney && breadcrumbPlatform?.id === platform.id ? 'page' : undefined}
-                    onClick={(event) => {
-                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                      event.preventDefault();
-                      setSelectedPlatformID(platform.id);
-                      navigate('platform', platform.id);
-                    }}>
-                    <ToolIcon size="sm" tool={{ packId: platform.packId, packName: platform.name, toolId: platform.toolId }} />
-                    <span>{platform.name}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-            <button type="button" className="nav-disclosure" aria-expanded={otherOpen} aria-controls="nav-other-clis"
-              onClick={() => setOtherOpen((open) => !open)}>
-              {navIcon('M9 6l6 6-6 6')}
-              <span>Other CLIs</span>
-              <span className="nav-count" aria-hidden="true">{otherCLIs.length}</span>
-            </button>
-            <ul id="nav-other-clis" className="nav-tree" aria-label="Other CLIs" hidden={!otherOpen}>
-              {otherCLIs.length === 0 && <li className="nav-tree-empty">Included catalog &amp; custom tools appear here</li>}
-              {otherCLIs.map((task) => (
-                <li key={taskToolKey(task)}>
-                  <a href="/tasks" aria-current={route === 'tasks' && taskToolFilter === taskToolKey(task) ? 'page' : undefined}
-                    onClick={(event) => {
-                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                      event.preventDefault();
-                      changeTaskCategory(taskToolKey(task));
-                      navigate('tasks');
-                    }}>
-                    <ToolIcon size="sm" tool={task} />
-                    <span>{task.packName}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-            {navigationItems.filter((item) => item.group === 'Library').map(navLink)}
-          </div>
           <div className="nav-group" role="group" aria-labelledby="nav-label-manage">
-            <p className="nav-subgroup-label" id="nav-label-manage">Manage</p>
+            <p className="nav-subgroup-label" id="nav-label-manage">Set up &amp; manage</p>
             {navigationItems.filter((item) => item.group === 'Manage').map(navLink)}
           </div>
         </nav>
-        {state.kind === 'ready' && (
-          <div className="sidebar-footer">
-            <span className="build-id">CLIHarbor {/^\d/.test(state.status.version) ? 'v' : ''}{state.status.version}</span>
-          </div>
-        )}
       </aside>
       <header className="topbar">
         <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
@@ -1430,16 +1368,50 @@ export function App() {
           <span className="quick-switch-hint" aria-hidden="true">Search tasks, tools, and commands…</span>
           <kbd>Ctrl + K</kbd>
         </button>
+        <nav className="section-switcher" aria-label="CLI sections">
+          {headerPlatform ? (
+            <a href={pathForRoute('platform', headerPlatform.id)}
+              aria-current={headerDedicatedJourney ? 'page' : undefined}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                setSelectedPlatformID(headerPlatform.id);
+                navigate('platform', headerPlatform.id);
+              }}>Built-in CLIs{platforms.length === 1 && <span className="section-current"> · {headerPlatform.name}</span>}</a>
+          ) : <span role="link" aria-disabled="true">Built-in CLIs</span>}
+          {platforms.length > 1 && (
+            <label>
+              <span className="visually-hidden">Switch built-in CLI</span>
+              <select value={headerPlatform?.id ?? ''} onChange={(event) => {
+                const platform = platforms.find((candidate) => candidate.id === event.target.value);
+                if (!platform) return;
+                setSelectedPlatformID(platform.id);
+                navigate('platform', platform.id);
+              }}>
+                {platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
+              </select>
+            </label>
+          )}
+          <a href="/tools" aria-current={route === 'tools' ? 'page' : undefined} onClick={(event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            navigate('tools');
+          }}>Other CLIs</a>
+        </nav>
         <div className="topbar-context">
           {state.kind !== 'ready' && (
             <span className={'status-pill status-pill--' + (state.kind === 'loading' ? 'pending' : 'error')}>
               {state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}
             </span>
           )}
-          {state.kind === 'ready' && (
-            <span className={'status-pill status-pill--' + (readyToolCount > 0 ? 'ok' : 'warn')}>
-              {readyToolCount} of {state.tools.length} executables ready
-            </span>
+          {state.kind === 'ready' && readyToolCount < state.tools.length && (
+            <a className="status-pill status-pill--warn" href="/diagnostics" onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              navigate('diagnostics');
+            }}>
+              {state.tools.length - readyToolCount} CLI{state.tools.length - readyToolCount === 1 ? '' : 's'} need{state.tools.length - readyToolCount === 1 ? 's' : ''} attention
+            </a>
           )}
         </div>
       </header>
@@ -1605,7 +1577,6 @@ export function App() {
             preferences={taskPreferences}
             onNavigate={navigate}
             dedicatedSignInFor={dedicatedSignInFor}
-            onOpenTool={(key) => { changeTaskCategory(key); navigate('tasks'); }}
             onOpenTask={(taskKey) => {
               setTaskToolFilter('');
               selectTaskByKey(taskKey, state.tasks);

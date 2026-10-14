@@ -206,15 +206,12 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
 
       <div {...panel('tools')}>
         <header className="conjur-panel-heading">
-          <h3>Tools</h3>
-          <p>Open approved Conjur commands in the task form. Nothing runs until you review and start it.</p>
+          <h3>Inventory &amp; migration</h3>
+          <p>Inspect Conjur inventory or prepare a migration using approved task forms.</p>
         </header>
-        <div className="conjur-action-list" role="group" aria-label="Conjur toolbox">
-          <Action title={'All approved tasks (' + platformTasks.length + ')'} available={platformTasks.length > 0}
-            detail="The full reviewed Conjur command set in Command Builder." onOpen={() => onOpenFeature('tasks')} />
+        {inventoryTasks.length > 0 && <div className="conjur-action-list" role="group" aria-label="Conjur toolbox">
           {inventoryTasks}
-          <Action title="Diagnostics" available detail="CLI discovery, versions, and runtime checks." onOpen={onOpenDiagnostics} />
-        </div>
+        </div>}
         <details id="conjur-migration" className="conjur-migration-details">
           <summary>Migration playbooks &amp; policy templates</summary>
           <ConjurMigrationWorkbench key={discoveryKey} tasks={platformTasks} packId={platform.packId}

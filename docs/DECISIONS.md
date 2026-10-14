@@ -870,6 +870,8 @@ CLIHarbor has two jobs that were tangled together: a generic workspace that work
 
 **Not changed.** Pack schema/authority, session/Origin/CSRF boundaries, credential API endpoints, and the reviewed Conjur pack. Generic task categories still list the Conjur pack, because the core can run any reviewed pack; the dedicated section adds platform-built functionality on top.
 
+**UI navigation update (2026-10-14).** Integration selection is now in the top bar, as specified in UX.md; the sidebar contains only workspace routes. Command Builder owns task filtering through the desktop Explorer or compact selector, with shared transient state and unchanged execution authority. This replaces the original sidebar Dedicated section above.
+
 **Follow-up.** Consider namespacing the audit endpoint under `/api/v1/platforms/conjur/` with a compatibility alias.
 
 Verification: unit tests for `platforms.Set` routing and fail-closed behavior, unchanged ADR-025 runtime tests driving the platform-declared bootstrap (including Windows-only cases), the moved provisioner tests, generic-page sign-in links without vendor forms, the dedicated sign-in route, the platforms API session requirement, frontend parsing that rejects malformed IDs and drops unknown features, sidebar separation, legacy-route compatibility, generic workspace without any dedicated platform, and embedded-route allowlisting (including `/tools`, which was previously missing).

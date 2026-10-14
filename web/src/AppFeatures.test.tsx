@@ -95,6 +95,26 @@ describe('Conjur migration inventory presets', () => {
 });
 
 describe('command preview and retry workflows', () => {
+  test.each(['ready', 'missing', 'incompatible'] as const)('only calls attention to a %s CLI when needed', async (status) => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: [{
+        packId: 'fixture', packName: 'Fixture', packVersion: '1.0.0', toolId: 'fixture', status,
+      }] }));
+      return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
+    }));
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Inspect' });
+    const header = document.querySelector<HTMLElement>('.topbar')!;
+    expect(within(header).queryByText(/executables ready/)).not.toBeInTheDocument();
+    if (status === 'ready') expect(within(header).queryByRole('link', { name: '1 CLI needs attention' })).not.toBeInTheDocument();
+    else {
+      fireEvent.click(within(header).getByRole('link', { name: '1 CLI needs attention' }));
+      expect(window.location.pathname).toBe('/diagnostics');
+      expect(screen.getByRole('main')).toHaveFocus();
+    }
+  });
+
   test('built-in Conjur is only in the top bar while workspace navigation stays in the sidebar', async () => {
     window.history.replaceState({}, '', '/');
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
@@ -115,19 +135,14 @@ describe('command preview and retry workflows', () => {
       return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
     }));
     render(<App />);
-    const builtInList = screen.getByRole('list', { name: 'Built-in CLIs' });
-    const builtIn = await within(builtInList).findByRole('link', { name: 'CyberArk Conjur' });
-    expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
-    expect(within(document.querySelector<HTMLElement>('.topbar')!).queryByText(/Built-in CLIs|Other CLIs/)).not.toBeInTheDocument();
+    const sections = screen.getByRole('navigation', { name: 'CLI sections' });
+    await waitFor(() => expect(within(sections).getByRole('link', { name: /Built-in CLIs/ })).toHaveAttribute('href', '/dedicated/conjur'));
+    const builtIn = within(sections).getByRole('link', { name: /Built-in CLIs/ });
     const primary = screen.getByRole('navigation', { name: 'Primary' });
     expect(within(primary).getByRole('link', { name: 'Overview' })).toBeInTheDocument();
     expect(within(primary).getByRole('link', { name: 'Command Builder' })).toBeInTheDocument();
-    // Built-in CLIs are always listed; only Other CLIs is a disclosure.
-    expect(within(primary).queryByRole('button', { name: /Built-in CLIs/ })).not.toBeInTheDocument();
-    const otherToggle = within(primary).getByRole('button', { name: /Other CLIs/ });
-    expect(otherToggle).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(otherToggle);
-    const otherCLI = within(screen.getByRole('list', { name: 'Other CLIs' })).getByRole('link', { name: 'Fixture' });
+    expect(within(primary).queryByText(/Built-in CLIs|Other CLIs/)).not.toBeInTheDocument();
+    const otherCLI = within(sections).getByRole('link', { name: 'Other CLIs' });
     const addCLI = within(primary).getByRole('link', { name: 'Add a CLI' });
     expect(addCLI).toHaveAttribute('href', '/tools');
     expect(builtIn).toHaveAttribute('href', '/dedicated/conjur');
@@ -136,7 +151,7 @@ describe('command preview and retry workflows', () => {
     expect(window.location.pathname).toBe('/dedicated/conjur');
     expect(builtIn).toHaveAttribute('aria-current', 'page');
     fireEvent.click(otherCLI);
-    expect(window.location.pathname).toBe('/tasks');
+    expect(window.location.pathname).toBe('/tools');
     expect(otherCLI).toHaveAttribute('aria-current', 'page');
     expect(builtIn).not.toHaveAttribute('aria-current');
     fireEvent.click(addCLI);
@@ -145,9 +160,8 @@ describe('command preview and retry workflows', () => {
     expect(addCLI).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('main')).toHaveFocus();
     expect(screen.queryByRole('combobox', { name: 'Switch built-in CLI' })).not.toBeInTheDocument();
-    expect(within(primary).getByRole('group', { name: 'Workspace' })).toBeInTheDocument();
-    expect(within(primary).getByRole('group', { name: 'CLI library' })).toBeInTheDocument();
-    expect(within(primary).getByRole('group', { name: 'Manage' })).toBeInTheDocument();
+    expect(within(primary).getByRole('group', { name: 'Work' })).toBeInTheDocument();
+    expect(within(primary).getByRole('group', { name: 'Set up & manage' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Task categories' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Sign in$/i })).not.toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
@@ -163,8 +177,8 @@ describe('command preview and retry workflows', () => {
     expect(await screen.findByRole('heading', { name: 'Conjur pattern explorer' })).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveFocus();
     fireEvent.click(builtIn);
-    fireEvent.click(screen.getByRole('tab', { name: 'Tools' }));
-    fireEvent.click(screen.getByRole('button', { name: 'All approved tasks (1)' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tool' }), { target: { value: 'cyberark-conjur-v9/conjur' } });
     expect(window.location.pathname).toBe('/tasks');
     expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeInTheDocument();
     const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
@@ -189,14 +203,21 @@ describe('command preview and retry workflows', () => {
       return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
     }));
     render(<App />);
-    const builtInList = screen.getByRole('list', { name: 'Built-in CLIs' });
-    fireEvent.click(await within(builtInList).findByRole('link', { name: 'Acme CLI' }));
+    const picker = await screen.findByRole('combobox', { name: 'Switch built-in CLI' });
+    picker.focus();
+    fireEvent.change(picker, { target: { value: 'acme' } });
     expect(window.location.pathname).toBe('/dedicated/acme');
     expect(screen.getByRole('heading', { name: 'Acme CLI' })).toBeInTheDocument();
     const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(within(breadcrumb).getByRole('link', { name: 'Built-in CLIs' })).toBeInTheDocument();
     expect(within(breadcrumb).getByText('Acme CLI')).toHaveAttribute('aria-current', 'page');
-    expect(within(builtInList).getByRole('link', { name: 'Acme CLI' })).toHaveAttribute('aria-current', 'page');
+    expect(picker).toHaveValue('acme');
+    expect(screen.getByRole('main')).toHaveFocus();
+    fireEvent.change(picker, { target: { value: 'conjur' } });
+    expect(window.location.pathname).toBe('/dedicated/conjur');
+    await act(async () => { window.history.back(); });
+    await waitFor(() => expect(window.location.pathname).toBe('/dedicated/acme'));
+    expect(picker).toHaveValue('acme');
     fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
     expect(window.location.pathname).toBe('/');
     expect(screen.getByRole('heading', { name: /get your clis ready|what would you like to do/i })).toBeInTheDocument();
@@ -220,7 +241,7 @@ describe('command preview and retry workflows', () => {
     expect(document.title).toBe('Dedicated CLI unavailable · CLIHarbor');
     fireEvent.click(screen.getByRole('link', { name: 'Add a CLI' }));
     expect(window.location.pathname).toBe('/tools');
-    fireEvent.click(screen.getByRole('link', { name: 'CyberArk Conjur' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'CLI sections' })).getByRole('link', { name: /Built-in CLIs/ }));
     expect(window.location.pathname).toBe('/dedicated/conjur');
     expect(screen.getByRole('heading', { name: 'CyberArk Conjur' })).toBeInTheDocument();
     expect(document.title).toBe('CyberArk Conjur · CLIHarbor');
@@ -252,7 +273,7 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByRole('heading', { name: 'Sign in to CyberArk Conjur' })).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
-    expect(within(screen.getByRole('list', { name: 'Built-in CLIs' })).getByRole('link', { name: 'CyberArk Conjur' }))
+    expect(within(screen.getByRole('navigation', { name: 'CLI sections' })).getByRole('link', { name: /Built-in CLIs/ }))
       .toHaveAttribute('aria-current', 'page');
   });
 
@@ -262,9 +283,9 @@ describe('command preview and retry workflows', () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Conjur pattern explorer' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
-    const builtInList = screen.getByRole('list', { name: 'Built-in CLIs' });
-    expect(within(builtInList).queryByRole('link')).not.toBeInTheDocument();
-    expect(within(builtInList).getByText('No integration loaded')).toBeInTheDocument();
+    const sections = screen.getByRole('navigation', { name: 'CLI sections' });
+    expect(within(sections).getByRole('link', { name: 'Built-in CLIs' })).toHaveAttribute('aria-disabled', 'true');
+    expect(within(sections).getByRole('link', { name: 'Other CLIs' })).toHaveAttribute('href', '/tools');
     fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
     expect(screen.getByRole('textbox', { name: 'Query' })).toBeInTheDocument();
   });

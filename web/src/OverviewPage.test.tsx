@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { OverviewPage } from './OverviewPage';
 import type { RuntimeStatus } from './api/status';
@@ -79,7 +79,29 @@ afterEach(() => {
 });
 
 describe('OverviewPage', () => {
-  test('summarizes readiness and opens favorite or recent tasks directly', () => {
+  test('shows setup guidance only before setup or prior use', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(200, { runs: [] }))));
+    const props = { status, tasks: [], tools: [], preferences: { favorites: [], recent: [] }, onNavigate: vi.fn(), onOpenTask: vi.fn() };
+    const view = render(<OverviewPage {...props} />);
+    expect(await screen.findByRole('list', { name: 'Getting started' })).toBeInTheDocument();
+    fireEvent.click(within(document.querySelector<HTMLElement>('.overview-hero')!).getByRole('button', { name: 'Add a CLI' }));
+    expect(props.onNavigate).toHaveBeenCalledWith('tools');
+    view.rerender(<OverviewPage {...props} tasks={tasks} tools={readyTools} />);
+    expect(screen.queryByRole('list', { name: 'Getting started' })).not.toBeInTheDocument();
+    view.rerender(<OverviewPage {...props} preferences={preferences} />);
+    expect(screen.queryByRole('list', { name: 'Getting started' })).not.toBeInTheDocument();
+  });
+
+  test('does not repeat onboarding after a retained run, even if setup is now unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(200, { runs: [
+      { runId: 'r1', packId: 'docker', commandId: 'containers', toolId: 'docker', status: 'exited', exitCode: 1 },
+    ] }))));
+    render(<OverviewPage status={status} tasks={[]} tools={[]} preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()} onOpenTask={vi.fn()} />);
+    expect(await screen.findByText('Failed · exit 1')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Getting started' })).not.toBeInTheDocument();
+  });
+
+  test('keeps one next action and opens favorite or recent tasks directly', () => {
     const navigate = vi.fn();
     const openTask = vi.fn();
 
@@ -96,9 +118,10 @@ describe('OverviewPage', () => {
 
     expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
     expect(screen.queryByText('Local only')).not.toBeInTheDocument();
-    expect(screen.getByText('Vendor-owned storage')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Tools\s*2\s*2 ready/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Available tasks\s*2\s*1 requires sign-in/ })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Workspace' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Tools needing attention' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Getting started' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Workspace summary')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /List containers/i }));
     expect(openTask).toHaveBeenCalledWith('docker/containers');
@@ -150,7 +173,7 @@ describe('OverviewPage', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'CLI session checks' })).toBeInTheDocument();
-    expect(screen.getByText('2 ready')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Tools needing attention' })).not.toBeInTheDocument();
     expect(
       screen.getByText(/approved conjur flow, then use the session check/i),
     ).toBeInTheDocument();
@@ -189,7 +212,11 @@ describe('OverviewPage', () => {
         preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
     );
     expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
-    expect(screen.getByText('1 ready · 1 needs setup')).toBeInTheDocument();
+    const attention = screen.getByRole('article', { name: 'Tools needing attention' });
+    expect(within(attention).getByText('Docker · docker')).toBeInTheDocument();
+    expect(within(attention).queryByText(/Conjur/)).not.toBeInTheDocument();
+    fireEvent.click(within(attention).getByRole('button', { name: /Docker/ }));
+    expect(navigate).toHaveBeenCalledWith('tools');
     fireEvent.click(screen.getByRole('button', { name: 'Open tasks' }));
     expect(navigate).toHaveBeenCalledWith('tasks');
   });
@@ -206,12 +233,12 @@ describe('OverviewPage', () => {
       />,
     );
 
-    expect(screen.getByText('1 requires sign-in')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Authentication not verified' })).toBeInTheDocument();
     expect(screen.queryByText(/^Authenticated$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Signed in$/i)).not.toBeInTheDocument();
   });
 
-  test('shows recent executions newest first with outcome counts', async () => {
+  test('shows recent executions newest first with individual outcomes', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(200, { runs: [
       { runId: 'r1', packId: 'docker', commandId: 'containers', toolId: 'docker', status: 'exited', exitCode: 0, startedAt: '2026-10-14T09:00:00Z', endedAt: '2026-10-14T09:00:02Z' },
       { runId: 'r2', packId: 'conjur', commandId: 'whoami', toolId: 'conjur', status: 'exited', exitCode: 1, startedAt: '2026-10-14T10:00:00Z', endedAt: '2026-10-14T10:00:01Z' },
@@ -219,7 +246,7 @@ describe('OverviewPage', () => {
     const navigate = vi.fn();
     render(<OverviewPage status={status} tasks={tasks} tools={readyTools} preferences={preferences} onNavigate={navigate} onOpenTask={vi.fn()} />);
 
-    expect(await screen.findByText('1 succeeded · 1 failed · 0 other')).toBeInTheDocument();
+    expect(await screen.findByText('Failed · exit 1')).toBeInTheDocument();
     const items = screen.getAllByRole('button', { name: /Current identity|List containers/ }).filter((button) => button.closest('.overview-timeline'));
     expect(items.map((button) => button.textContent)).toEqual([
       expect.stringMatching(/^Current identity.*Failed · exit 1$/),
