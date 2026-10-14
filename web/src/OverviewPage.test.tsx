@@ -95,6 +95,8 @@ describe('OverviewPage', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
+    expect(screen.queryByText('Local only')).not.toBeInTheDocument();
+    expect(screen.getByText('Vendor-owned storage')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Tools\s*2\s*2 ready/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Available tasks\s*2\s*1 requires sign-in/ })).toBeInTheDocument();
 
