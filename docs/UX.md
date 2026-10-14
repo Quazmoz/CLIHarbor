@@ -49,7 +49,7 @@ lower on the page, and the generic CLI workspace is unchanged.
 The left sidebar is reserved for the standard **CLI workspace** routes. **Built-in CLIs** appears only in the top bar alongside **Other CLIs**; it must never be duplicated in the left navigation:
 
 ```text
-Top bar: [Find task search] [Built-in CLIs] [Other CLIs] [Local runtime] [N of M executables ready]
+Top bar: [Find task search] [Built-in CLIs] [Other CLIs] [N of M executables ready] [Connecting/error only when applicable]
 Main content: [Breadcrumbs] above each page
 Left sidebar:
   CLI workspace
@@ -61,7 +61,7 @@ Left sidebar:
 
 **Other CLIs** opens Add a CLI: the reviewed installation catalog and the custom-pack draft flow. The latter downloads a locally generated, discovery-only YAML draft through **Create a custom CLI pack**; it does not register, trust, validate, download binaries, or execute tasks. Operator review, `pack validate`, `pack lint`, and an explicit `--pack-file` restart remain required. Conjur tasks deliberately use the shared `/tasks` runner; active built-in context is reflected in the top-bar destination and breadcrumbs.
 
-Clickable breadcrumbs at the top of the main content show **CLI workspace** or **Built-in CLIs → selected platform** and the current page; the top bar shows local runtime status and the ready-executable count. There is no global Sign in button. Authentication remains CLI-scoped: built-in platforms offer sign-in on their feature pages and generic **CLI sessions** (backwards-compatible `/authentication`) checks individual vendor sessions. Task and diagnostics sign-in links open the matching dedicated CLI when available; otherwise they open per-tool session checks. Native link modifiers, browser history, page titles, keyboard focus, and the narrow-window **Menu** sidebar toggle must continue working.
+Clickable breadcrumbs at the top of the main content show **CLI workspace** or **Built-in CLIs → selected platform** and the current page; the top bar shows the ready-executable count, with connection status displayed only while connecting or when unavailable. There is no global Sign in button. Authentication remains CLI-scoped: built-in platforms offer sign-in on their feature pages and generic **CLI sessions** (backwards-compatible `/authentication`) checks individual vendor sessions. Task and diagnostics sign-in links open the matching dedicated CLI when available; otherwise they open per-tool session checks. Native link modifiers, browser history, page titles, keyboard focus, and the narrow-window **Menu** sidebar toggle must continue working.
 
 Tool filtering lives in the task catalog rather than being duplicated as a second set of sidebar navigation buttons. Each executable has its own category, including when a reviewed pack contains several tools or different packs use the same tool ID. Labels show the pack name and executable tool ID. Choosing a filter selects a matching task; **All tools** restores the full catalog. A contextual scope banner on Tasks identifies the selected CLI and offers **Show all CLIs**. A built-in CLI's approved-task feature card still navigates to the shared runner and is identified by its tool context in breadcrumbs. Search, Favorites, and Recently used obey the same category filter; filters are transient and create no execution authority.
 
