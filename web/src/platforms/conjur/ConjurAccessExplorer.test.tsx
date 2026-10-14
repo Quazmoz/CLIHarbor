@@ -1,7 +1,7 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { ConjurAccessExplorer, parseConjurIDs, metadataFromID, parseExists, validConjurID } from './ConjurAccessExplorer';
-import { cancelRun, createRun } from '../../api/runs';
+import { cancelRun, createRun, type RunSnapshot } from '../../api/runs';
 import { fetchTools } from '../../api/tools';
 import { fetchSecretAudit } from './secretAuditApi';
 import type { Task } from '../../api/tasks';
@@ -195,20 +195,24 @@ describe('Conjur access workflow', () => {
   });
 
   test('read-only HTTP starts are bounded by the query deadline', async () => {
-    vi.useFakeTimers();
+    const timeout = new AbortController();
+    const spy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal);
     try {
       vi.mocked(createRun).mockImplementation(async (_csrf, _request, signal) =>
-        new Promise((_, reject) => {
+        new Promise<RunSnapshot>((_resolve, reject) => {
           signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
         }));
       render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={() => {}}
         onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
       fireEvent.click(screen.getByRole('button', { name: 'Search inventory' }));
-      await act(async () => { await vi.advanceTimersByTimeAsync(20_100); });
+      await waitFor(() => expect(createRun).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        timeout.abort(new DOMException('Query timed out', 'TimeoutError'));
+      });
       expect(screen.getByRole('alert')).toHaveTextContent('explorer deadline');
       expect(screen.queryByRole('region', { name: 'Explorer results' })).not.toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      spy.mockRestore();
     }
   });
 

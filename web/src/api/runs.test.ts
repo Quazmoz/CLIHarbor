@@ -225,6 +225,15 @@ describe('run API request/response identity', () => {
     });
   });
 
+  test('passes the supplied cancellation signal into the run start request', async () => {
+    const controller = new AbortController();
+    const fetchMock = serve(base);
+    await createRun('csrf', request, controller.signal);
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/runs', expect.objectContaining({
+      signal: controller.signal,
+    }));
+  });
+
   test('accepts matching task and run identities', async () => {
     serve(preview);
     await expect(previewRun('csrf', request)).resolves.toMatchObject({
