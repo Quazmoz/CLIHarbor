@@ -192,7 +192,9 @@ export function invalidInputError(field: string): AppError {
 }
 
 export function normalizeError(error: unknown, fallback: ClientErrorCode = 'network_unavailable'): AppError {
-  return error instanceof AppError ? error : clientError(fallback);
+  if (error instanceof AppError) return error;
+  // A malformed success body (response.json) is not a reachability problem; "retry" could repeat a mutation.
+  return clientError(error instanceof SyntaxError ? 'invalid_response' : fallback);
 }
 
 export async function errorFromResponse(response: Response): Promise<AppError> {

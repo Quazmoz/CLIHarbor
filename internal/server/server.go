@@ -23,10 +23,13 @@ const (
 	defaultBootstrapTTL    = 2 * time.Minute
 	defaultMaxEventStreams = 16
 	shutdownTimeout        = 5 * time.Second
-	// Covers handlers bounded by vendor setup (45s) or artifact download (60s + verify).
+	// Covers handlers bounded by vendor setup (45s).
 	slowResponseWriteTimeout = 2 * time.Minute
-	sessionCookieName        = "cliharbor_session"
-	csrfHeaderName           = "X-CLIHarbor-CSRF"
+	// Exceeds the provisioners' 10 minute download cap plus one queued install.
+	// ponytail: deeper install queues can still outlast it; stream progress if that matters.
+	toolInstallWriteTimeout = 25 * time.Minute
+	sessionCookieName       = "cliharbor_session"
+	csrfHeaderName          = "X-CLIHarbor-CSRF"
 )
 
 // Config contains the small set of runtime values needed by the local server.
@@ -224,7 +227,12 @@ func (s *Server) BootstrapURL() string {
 // primarily used when startup fails before Run takes ownership of the lifecycle.
 func (s *Server) Close() error {
 	s.streamCancel()
-	return s.httpServer.Close()
+	err := s.httpServer.Close()
+	// http.Server only tracks listeners passed to Serve; before Run it misses ours.
+	if closeErr := s.listener.Close(); err == nil && !errors.Is(closeErr, net.ErrClosed) {
+		err = closeErr
+	}
+	return err
 }
 
 // Run serves until the context is cancelled or the HTTP server fails. Context

@@ -52,7 +52,8 @@ func NewConjurProvisioner() *ConjurProvisioner {
 	p := &ConjurProvisioner{
 		client: &http.Client{
 			Transport: transport,
-			Timeout:   60 * time.Second,
+			// Covers the body read too: 60 MB artifacts need minutes on slow links.
+			Timeout: 10 * time.Minute,
 		},
 		sourceURL:    conjurWindowsAMD64URL,
 		expectedSHA:  conjurWindowsAMD64SHA,

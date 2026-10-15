@@ -173,7 +173,10 @@ export function SecretAuditPage({ csrfToken, onOpenAuthentication, onOpenDiagnos
           if (next.state === 'running') timer = window.setTimeout(poll, POLL_MS);
         },
         (error: unknown) => {
-          if (!isAbort(error)) setFailure(normalizeError(error).detail);
+          if (isAbort(error)) return;
+          setFailure(normalizeError(error).detail);
+          // A single failed poll (sleep/wake, network blip) must not freeze the page.
+          timer = window.setTimeout(poll, POLL_MS * 5);
         },
       );
     };

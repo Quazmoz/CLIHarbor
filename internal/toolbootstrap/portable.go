@@ -53,7 +53,8 @@ func NewPortableProvisioner() *PortableProvisioner {
 	return &PortableProvisioner{
 		client: &http.Client{
 			Transport: transport,
-			Timeout:   60 * time.Second,
+			// Covers the body read too: 60 MB artifacts need minutes on slow links.
+			Timeout: 10 * time.Minute,
 		},
 		goos:   runtime.GOOS,
 		goarch: runtime.GOARCH,
@@ -88,14 +89,9 @@ func (p *PortableProvisioner) ResolveInstalledAt(ref discovery.ToolRef, tool pac
 	if err != nil {
 		return "", false, err
 	}
-	valid, err := verifyManagedFile(target, finalSize, finalSHA)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", false, nil
-		}
-		return "", false, err
-	}
-	if !valid {
+	// Any unverifiable copy (truncated, replaced, unreadable) is "not found" so
+	// startup degrades and EnsureAt can remove and reinstall it.
+	if valid, err := verifyManagedFile(target, finalSize, finalSHA); err != nil || !valid {
 		return "", false, nil
 	}
 	return target, true, nil

@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Quazmoz/CLIHarbor/internal/apperror"
@@ -80,6 +81,8 @@ func (s *Server) handleCredentialLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Config probes plus the vendor HTTP login can outlast the server-wide 30s WriteTimeout.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(slowResponseWriteTimeout))
 	err = s.credentialLogin.Login(r.Context(), CredentialLoginRequest{
 		PackID:   request.PackID,
 		ToolID:   request.ToolID,

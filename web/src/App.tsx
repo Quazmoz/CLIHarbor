@@ -6,7 +6,7 @@ import { fetchTools, installTool, type ToolDiagnostic } from './api/tools';
 import {
   cancelRun,
   createRun,
-  decodeRunOutput,
+  createRunOutputDecoder,
   fetchRun,
   previewRun,
   subscribeRunEvents,
@@ -1202,12 +1202,11 @@ export function App() {
         )
       : undefined;
   const runSnapshot = run?.snapshot;
-  // ponytail: decode the bounded retained event log once per update; use an
-  // incremental decoder if larger output retention is ever supported.
-  const output = useMemo(() => runSnapshot === undefined ? { stdout: '', stderr: '' } : {
-    stdout: decodeRunOutput(runSnapshot, 'stdout.chunk'),
-    stderr: decodeRunOutput(runSnapshot, 'stderr.chunk'),
-  }, [runSnapshot]);
+  const [decodeOutput] = useState(createRunOutputDecoder);
+  const output = useMemo(
+    () => (runSnapshot === undefined ? { stdout: '', stderr: '' } : decodeOutput(runSnapshot)),
+    [decodeOutput, runSnapshot],
+  );
   const runTaskRequiresAuth =
     state.kind === 'ready' &&
     run !== null &&

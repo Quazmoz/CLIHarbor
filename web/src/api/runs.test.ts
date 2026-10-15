@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { cancelRun, createRun, decodeRunOutput, fetchRun, previewRun, subscribeRunEvents, type RunSnapshot } from './runs';
+import { cancelRun, createRun, createRunOutputDecoder, decodeRunOutput, fetchRun, previewRun, subscribeRunEvents, type RunSnapshot } from './runs';
 
 const runId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const timestamp = '2026-10-05T10:00:00Z';
@@ -41,6 +41,30 @@ describe('run output decoding', () => {
     const events = [{ sequence: 1, type: 'stdout.chunk', timestamp, dataBase64: base64(Uint8Array.of(0xf0, 0x9f)) }];
     expect(decodeRunOutput({ ...base, status: 'running', events }, 'stdout.chunk')).toBe('');
     expect(decodeRunOutput({ ...base, events }, 'stdout.chunk')).toBe('\uFFFD');
+  });
+
+  test('incremental decoder matches a full decode across appends, completion, and a replaced log', () => {
+    const bytes = new TextEncoder().encode('héllo 😀 world');
+    const chunk = (sequence: number, type: string, data: Uint8Array) => ({ sequence, type, timestamp, dataBase64: base64(data) });
+    const all = [
+      chunk(1, 'stdout.chunk', bytes.slice(0, 2)), // splits the two-byte é
+      chunk(2, 'stderr.chunk', new TextEncoder().encode('err')),
+      chunk(3, 'stdout.chunk', bytes.slice(2, 9)), // splits the four-byte emoji
+      chunk(4, 'stdout.chunk', bytes.slice(9)),
+    ];
+    const full = (snapshot: RunSnapshot) => ({ stdout: decodeRunOutput(snapshot, 'stdout.chunk'), stderr: decodeRunOutput(snapshot, 'stderr.chunk') });
+    const decode = createRunOutputDecoder();
+    let events: typeof all = [];
+    for (const event of all) {
+      events = [...events, event];
+      const running: RunSnapshot = { ...base, status: 'running', events };
+      expect(decode(running)).toEqual(full(running));
+    }
+    const done: RunSnapshot = { ...base, events };
+    expect(decode(done)).toEqual(full(done));
+    expect(decode(done)).toEqual(full(done));
+    const replaced: RunSnapshot = { ...base, runId: 'b'.repeat(32), events: [chunk(1, 'stdout.chunk', new TextEncoder().encode('next'))] };
+    expect(decode(replaced)).toEqual({ stdout: 'next', stderr: '' });
   });
 });
 

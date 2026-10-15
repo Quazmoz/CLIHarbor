@@ -180,6 +180,7 @@ func selfTestLoopback(ctx context.Context, version string) error {
 		return fmt.Errorf("read authenticated status: %w", err)
 	}
 	if statusResponse.StatusCode != http.StatusOK {
+		statusResponse.Body.Close()
 		cancel()
 		<-done
 		return fmt.Errorf("authenticated status returned HTTP %d", statusResponse.StatusCode)

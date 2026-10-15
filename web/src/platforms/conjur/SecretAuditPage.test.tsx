@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { SecretAuditPage } from './SecretAuditPage';
 import { parseSecretAuditSnapshot } from './secretAuditApi';
@@ -124,6 +124,23 @@ test('explains a missing session with a path to sign in', async () => {
   renderPage();
   expect(await screen.findByRole('heading', { name: 'Sign in to Conjur first' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Open Authentication' })).toBeInTheDocument();
+});
+
+test('keeps polling after a transient status failure', async () => {
+  vi.useFakeTimers();
+  try {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValue(response(200, { ...base, state: 'failed', failureCode: 'session_required' }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage();
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(screen.queryByRole('heading', { name: 'Sign in to Conjur first' })).not.toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(screen.getByRole('heading', { name: 'Sign in to Conjur first' })).toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test('rejects unsafe or malformed server data', () => {

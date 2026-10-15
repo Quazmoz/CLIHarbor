@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	semver "github.com/Masterminds/semver/v3"
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
@@ -86,7 +87,9 @@ func (i *managedToolInstaller) InstallTool(ctx context.Context, request server.T
 			return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallUnavailable}
 		}
 		state, ok := qualified.Find(ref)
-		if !ok || !state.Healthy() || state.Version != tool.Install.Version {
+		// Discovery reports the canonical form ("1.2.3"); packs may write "v1.2.3".
+		expected, versionErr := semver.NewVersion(tool.Install.Version)
+		if !ok || !state.Healthy() || versionErr != nil || state.Version != expected.String() {
 			return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallUnavailable}
 		}
 		artifact, supported := tool.Install.Artifacts[runtime.GOOS+"-"+runtime.GOARCH]

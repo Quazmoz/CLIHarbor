@@ -76,7 +76,7 @@ func (s *Server) handleToolInstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Download plus verification can outlast the server-wide 30s WriteTimeout.
-	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(slowResponseWriteTimeout))
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(toolInstallWriteTimeout))
 	result, err := s.toolInstaller.InstallTool(r.Context(), ToolInstallRequest{
 		PackID:      request.PackID,
 		ToolID:      request.ToolID,

@@ -3,13 +3,24 @@ package conjur
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/Quazmoz/CLIHarbor/internal/planner"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/cyberark/conjur-api-go/conjurapi"
 )
 
-var loadMutationConjurConfig = conjurapi.LoadConfig
+// conjurapi.LoadConfig may append defaults to ~/.conjurrc; concurrent calls
+// duplicate the key and every later load fails, so all loads share one lock.
+var conjurConfigMu sync.Mutex
+
+func loadConjurConfig() (conjurapi.Config, error) {
+	conjurConfigMu.Lock()
+	defer conjurConfigMu.Unlock()
+	return conjurapi.LoadConfig()
+}
+
+var loadMutationConjurConfig = loadConjurConfig
 
 func TaskAvailable(packID, commandID string) bool {
 	if packID != PackID || !strings.HasPrefix(commandID, "ldap-") {

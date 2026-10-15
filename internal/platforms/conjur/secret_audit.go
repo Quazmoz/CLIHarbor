@@ -60,7 +60,7 @@ func NewSecretAuditService(ctx context.Context, snapshot discovery.Snapshot) *Se
 	return &SecretAuditService{
 		enabled:    ok && state.Healthy(),
 		parent:     ctx,
-		loadConfig: conjurapi.LoadConfig,
+		loadConfig: loadConjurConfig,
 		newClient: func(config conjurapi.Config) (secretAuditClient, error) {
 			// Reuses the session the vendor CLI stored; CLIHarbor supplies no credential.
 			return conjurapi.NewClientFromEnvironment(config)
@@ -72,8 +72,9 @@ func NewSecretAuditService(ctx context.Context, snapshot discovery.Snapshot) *Se
 
 func (s *SecretAuditService) Snapshot() server.SecretAuditSnapshot {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.snapshotLocked()
+	out := s.snapshotLocked()
+	s.mu.Unlock()
+	return s.withCurrentTarget(out)
 }
 
 func (s *SecretAuditService) snapshotLocked() server.SecretAuditSnapshot {
@@ -81,20 +82,42 @@ func (s *SecretAuditService) snapshotLocked() server.SecretAuditSnapshot {
 	out.Available = s.enabled
 	if s.enabled {
 		out.PackID, out.ToolID = PackID, ToolID
-		if out.Target == nil {
-			if config, err := s.loadConfig(); err == nil && config.ApplianceURL != "" {
-				out.Target = &server.SecretAuditTarget{ApplianceURL: config.ApplianceURL, Account: config.Account}
-			}
-		}
 	}
 	out.Findings = append([]server.SecretAuditFinding{}, s.snap.Findings...)
 	out.Failures = append([]server.SecretAuditFailure{}, s.snap.Failures...)
 	return out
 }
 
+// withCurrentTarget runs outside s.mu because LoadConfig can block on network
+// probes. A running scan keeps its pinned target; otherwise the configured
+// endpoint may have changed (conjur init, Change API endpoint) since the last
+// scan, and results for another backend must not be shown against it.
+func (s *SecretAuditService) withCurrentTarget(out server.SecretAuditSnapshot) server.SecretAuditSnapshot {
+	if !out.Available || (out.State == "running" && out.Target != nil) {
+		return out
+	}
+	var current *server.SecretAuditTarget
+	if config, err := s.loadConfig(); err == nil && config.ApplianceURL != "" {
+		current = &server.SecretAuditTarget{ApplianceURL: config.ApplianceURL, Account: config.Account}
+	}
+	if out.State != "running" && out.Target != nil && (current == nil || *current != *out.Target) {
+		return server.SecretAuditSnapshot{State: "idle", Available: true, PackID: PackID, ToolID: ToolID, Target: current,
+			Findings: []server.SecretAuditFinding{}, Failures: []server.SecretAuditFailure{}}
+	}
+	out.Target = current
+	return out
+}
+
 func (s *SecretAuditService) Start(request server.SecretAuditRequest) (server.SecretAuditSnapshot, error) {
+	out, err := s.start(request)
+	return s.withCurrentTarget(out), err
+}
+
+func (s *SecretAuditService) start(request server.SecretAuditRequest) (server.SecretAuditSnapshot, error) {
 	if err := server.ValidateSecretAuditRequest(request); err != nil {
-		return s.Snapshot(), err
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.snapshotLocked(), err
 	}
 	if request.ScanType == "" {
 		request.ScanType = "references"
@@ -251,7 +274,11 @@ func (s *SecretAuditService) audit(ctx context.Context, request server.SecretAud
 			return ctx.Err()
 		}
 		end := nextSecretAuditBatch(ids, start)
-		values, batchFailures := retrieveSecretAuditBatch(client, ids[start:end])
+		values, batchFailures, err := retrieveSecretAuditBatch(ctx, client, ids[start:end])
+		if err != nil {
+			zeroSecretValues(values)
+			return err
+		}
 		for _, id := range ids[start:end] {
 			if code, failed := batchFailures[id]; failed {
 				failures = append(failures, server.SecretAuditFailure{VariableID: variableIDs[id], Code: code})
@@ -383,7 +410,7 @@ func nextSecretAuditBatch(ids []string, start int) int {
 	return end
 }
 
-func retrieveSecretAuditBatch(client secretAuditClient, ids []string) (map[string][]byte, map[string]string) {
+func retrieveSecretAuditBatch(ctx context.Context, client secretAuditClient, ids []string) (map[string][]byte, map[string]string, error) {
 	failures := map[string]string{}
 	if len(ids) > 1 {
 		values, err := client.RetrieveBatchSecretsSafe(ids)
@@ -395,7 +422,7 @@ func retrieveSecretAuditBatch(client secretAuditClient, ids []string) (map[strin
 					failures[id] = "output_limit_exceeded"
 				}
 			}
-			return values, failures
+			return values, failures, nil
 		}
 		zeroSecretValues(values)
 	}
@@ -403,8 +430,16 @@ func retrieveSecretAuditBatch(client secretAuditClient, ids []string) (map[strin
 	// the operator learns exactly which ones could not be inspected.
 	values := make(map[string][]byte, len(ids))
 	for _, id := range ids {
+		if ctx.Err() != nil {
+			return values, nil, ctx.Err()
+		}
 		value, err := client.RetrieveSecret(id)
+		var conjurErr *response.ConjurError
 		switch {
+		case err != nil && (!errors.As(err, &conjurErr) || conjurErr.Code == http.StatusUnauthorized):
+			// Transport loss or an expired session fails every remaining call; stop
+			// instead of grinding through the inventory one timeout at a time.
+			return values, nil, classifySecretAuditAPIError(err)
 		case err != nil:
 			failures[id] = secretAuditRetrievalCode(err)
 		case len(value) > secretAuditMaxValueBytes:
@@ -414,7 +449,7 @@ func retrieveSecretAuditBatch(client secretAuditClient, ids []string) (map[strin
 			values[id] = value
 		}
 	}
-	return values, failures
+	return values, failures, nil
 }
 
 func hasEveryID(values map[string][]byte, ids []string) bool {

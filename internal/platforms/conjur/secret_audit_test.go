@@ -308,3 +308,51 @@ func TestSecretAuditFailsClosed(t *testing.T) {
 		t.Fatal("disabled audit started")
 	}
 }
+
+func TestSecretAuditSnapshotDropsResultsAfterEndpointChange(t *testing.T) {
+	var mu sync.Mutex
+	url := "https://conjur.invalid"
+	service := &SecretAuditService{
+		enabled: true,
+		parent:  context.Background(),
+		loadConfig: func() (conjurapi.Config, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			return conjurapi.Config{ApplianceURL: url, Account: "acct"}, nil
+		},
+		newClient: func(conjurapi.Config) (secretAuditClient, error) {
+			return &fakeSecretAuditClient{ids: []string{"acct:variable:app/prod/a"}}, nil
+		},
+		now:  time.Now,
+		snap: server.SecretAuditSnapshot{State: "idle"},
+	}
+	if _, err := service.Start(server.SecretAuditRequest{PackID: PackID, ToolID: ToolID, MinimumConfidence: "high", ScanType: "id-regex", Pattern: "prod"}); err != nil {
+		t.Fatal(err)
+	}
+	<-service.done
+	if snap := service.Snapshot(); snap.State != "completed" || len(snap.Findings) != 1 {
+		t.Fatalf("before endpoint change: %+v", snap)
+	}
+	mu.Lock()
+	url = "https://other.invalid"
+	mu.Unlock()
+	snap := service.Snapshot()
+	if snap.State != "idle" || len(snap.Findings) != 0 || snap.Target == nil || snap.Target.ApplianceURL != "https://other.invalid" {
+		t.Fatalf("after endpoint change, stale results or target remain: %+v", snap)
+	}
+}
+
+func TestSecretAuditStopsOnTransportLossInsteadOfPerVariableGrind(t *testing.T) {
+	lost := errors.New("dial tcp: i/o timeout")
+	client := &fakeSecretAuditClient{
+		ids:  []string{"acct:variable:a", "acct:variable:b", "acct:variable:c"},
+		errs: map[string]error{"acct:variable:a": lost, "acct:variable:b": lost, "acct:variable:c": lost},
+	}
+	snapshot := runSecretAudit(t, client, nil, "high")
+	if snapshot.State != "failed" || snapshot.FailureCode != "unavailable" || len(snapshot.Failures) != 0 {
+		t.Fatalf("snapshot = %+v", snapshot)
+	}
+	if client.singleCalls != 1 {
+		t.Fatalf("kept retrieving after transport loss: %d single calls", client.singleCalls)
+	}
+}

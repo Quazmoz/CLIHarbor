@@ -12,8 +12,6 @@ func openSystemBrowser(rawURL string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start default browser: %w", err)
 	}
-	if err := cmd.Process.Release(); err != nil {
-		return fmt.Errorf("release browser launcher process: %w", err)
-	}
+	go func() { _ = cmd.Wait() }() // reap the launcher; Release alone leaves a zombie
 	return nil
 }

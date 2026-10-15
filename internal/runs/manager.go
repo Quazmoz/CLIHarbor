@@ -672,6 +672,7 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 		return
 	}
 	m.active--
+	rec.cancel() // release runCtx from m.ctx; the process has already exited
 	rec.cancel = nil
 
 	switch {

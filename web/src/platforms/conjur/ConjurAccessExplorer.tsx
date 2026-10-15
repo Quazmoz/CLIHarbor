@@ -379,7 +379,7 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
         </> : <>
           <dl>{Object.entries(inspection.metadata).map(([key, value]) =>
             <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl>
-          <button type="button" className="secondary-button" onClick={() => void navigator.clipboard?.writeText(inspection.id)}>Copy full ID</button>
+          <button type="button" className="secondary-button" onClick={() => { void navigator.clipboard?.writeText(inspection.id).catch(() => setError('Clipboard unavailable; select and copy the ID manually.')); }}>Copy full ID</button>
           {inspection.type === 'resource' ? <>
             <button type="button" disabled={working || !taskMap.has('resource-permitted-roles')} onClick={() => related('resource-permitted-roles')}>
               Query Conjur-permitted roles ({privilege})

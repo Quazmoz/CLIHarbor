@@ -703,6 +703,43 @@ export function decodeBase64Text(value: string, decoder = new TextDecoder(), str
   return decoder.decode(bytes, { stream });
 }
 
+// Decodes a growing event log incrementally so each streamed event costs O(chunk)
+// rather than re-decoding the whole log. A replaced (not appended) log, such as a
+// reconciled snapshot or another run, falls back to one full decode.
+export function createRunOutputDecoder(): (snapshot: RunSnapshot) => { stdout: string; stderr: string } {
+  let seen: NonNullable<RunSnapshot['events']> = [];
+  let finished = false;
+  let stdout = '';
+  let stderr = '';
+  let stdoutDecoder = new TextDecoder();
+  let stderrDecoder = new TextDecoder();
+  return (snapshot) => {
+    const events = snapshot.events ?? [];
+    const appended = events === seen || (!finished && seen.length <= events.length &&
+      (seen.length === 0 || events[seen.length - 1] === seen[seen.length - 1]));
+    if (!appended) {
+      seen = [];
+      finished = false;
+      stdout = stderr = '';
+      stdoutDecoder = new TextDecoder();
+      stderrDecoder = new TextDecoder();
+    }
+    for (let index = seen.length; index < events.length; index++) {
+      const event = events[index];
+      if (event.dataBase64 === undefined) continue;
+      if (event.type === 'stdout.chunk') stdout += decodeBase64Text(event.dataBase64, stdoutDecoder, true);
+      if (event.type === 'stderr.chunk') stderr += decodeBase64Text(event.dataBase64, stderrDecoder, true);
+    }
+    seen = events;
+    if (snapshot.status !== 'running' && !finished) {
+      stdout += stdoutDecoder.decode();
+      stderr += stderrDecoder.decode();
+      finished = true;
+    }
+    return { stdout, stderr };
+  };
+}
+
 export function decodeRunOutput(snapshot: RunSnapshot, stream: 'stdout.chunk' | 'stderr.chunk'): string {
   const decoder = new TextDecoder();
   let output = '';

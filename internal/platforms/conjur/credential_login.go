@@ -53,7 +53,7 @@ func NewCredentialLoginService(snapshot discovery.Snapshot) *CredentialLoginServ
 	service := &CredentialLoginService{
 		enabled:    ok && state.Healthy(),
 		authGate:   make(chan struct{}, 1),
-		loadConfig: conjurapi.LoadConfig,
+		loadConfig: loadConjurConfig,
 		newClient: func(config conjurapi.Config) (conjurLoginClient, error) {
 			return conjurapi.NewClient(config)
 		},
