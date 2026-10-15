@@ -1210,7 +1210,7 @@ describe('App routing', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'CLI sessions' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/authentication');
     expect(document.querySelector('input[type="password"]')).toBeNull();
 
@@ -1222,9 +1222,9 @@ describe('App routing', () => {
     expect(window.location.pathname).toBe('/runs');
     expect(await screen.findByRole('heading', { name: 'Recent runs' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('link', { name: 'CLI sessions' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
     expect(window.location.pathname).toBe('/authentication');
-    expect(await screen.findByRole('heading', { name: 'CLI sessions' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
   });
 
   test('guides nonzero auth-required task runs back to Authentication without declaring the cause', async () => {

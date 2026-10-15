@@ -187,8 +187,8 @@ describe('command preview and retry workflows', () => {
     expect(within(breadcrumb).getByText('Command Builder · Conjur')).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('heading', { name: 'List variables' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Review conjur sign-in' }));
-    expect(window.location.pathname).toBe('/dedicated/conjur/sign-in');
-    expect(screen.getByRole('heading', { name: 'Sign in to CyberArk Conjur' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/authentication');
+    expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
   });
 
   test('Built-in CLIs opens a directory of every dedicated CLI', async () => {
@@ -229,7 +229,7 @@ describe('command preview and retry workflows', () => {
   });
 
   test('unknown dedicated CLI links cannot silently select a different installed integration', async () => {
-    window.history.replaceState({}, '', '/dedicated/missing/sign-in');
+    window.history.replaceState({}, '', '/dedicated/missing');
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
       if (path === '/api/v1/platforms') return Promise.resolve(response(200, { platforms: [{
@@ -241,7 +241,6 @@ describe('command preview and retry workflows', () => {
     }));
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'No dedicated CLI is loaded' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Sign in to CyberArk Conjur' })).not.toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
     expect(document.title).toBe('Dedicated CLI unavailable · CLIHarbor');
     fireEvent.click(screen.getByRole('link', { name: 'Add a CLI' }));
@@ -254,8 +253,9 @@ describe('command preview and retry workflows', () => {
     expect(document.title).toBe('CyberArk Conjur · CLIHarbor');
   });
 
-  test('Conjur sign-in lives in the dedicated section; generic Authentication links to it', async () => {
-    window.history.replaceState({}, '', '/authentication');
+  test('one Sign in page, opened from the top bar, signs in to built-in CLIs with their own form', async () => {
+    // Legacy per-platform sign-in links land on the universal page.
+    window.history.replaceState({}, '', '/dedicated/conjur/sign-in');
     const conjurTool = {
       packId: 'cyberark-conjur-v9', packName: 'Conjur', packVersion: '0.5.0', toolId: 'conjur', status: 'ready', version: '9.3.1',
       requiresVendorSession: true, sessionCheck: { commandId: 'whoami' }, credentialLogin: { method: 'conjur-password' },
@@ -273,15 +273,18 @@ describe('command preview and retry workflows', () => {
       return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
     }));
     render(<App />);
-    expect(await screen.findByRole('heading', { name: 'CLI sessions' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Overview' }));
+    expect(window.location.pathname).toBe('/');
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('button', { name: 'Open CyberArk Conjur sign-in' }));
-    expect(window.location.pathname).toBe('/dedicated/conjur/sign-in');
-    expect(screen.getByRole('heading', { name: 'Sign in to CyberArk Conjur' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Password')).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Dedicated CLIs' })).not.toBeInTheDocument();
-    expect(within(screen.getByRole('navigation', { name: 'CLI sections' })).getByRole('link', { name: /Built-in CLIs/ }))
-      .toHaveAttribute('aria-current', 'page');
+
+    const signIn = screen.getByRole('link', { name: 'Sign in' });
+    fireEvent.click(signIn);
+    expect(window.location.pathname).toBe('/authentication');
+    expect(signIn).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Password')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Conjur settings' })).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('legacy Conjur audit URL still opens the dedicated audit, and the generic workspace works with no dedicated CLI', async () => {
@@ -326,9 +329,9 @@ describe('command preview and retry workflows', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
     expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.queryByRole('button', { name: /^Sign in$/i })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'CLI sessions' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
     expect(window.location.pathname).toBe('/authentication');
-    expect(screen.getByRole('heading', { name: 'CLI sessions' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveFocus();
     expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
   });

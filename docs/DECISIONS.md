@@ -866,7 +866,7 @@ CLIHarbor has two jobs that were tangled together: a generic workspace that work
 
 **Zero-config bootstrap.** ADR-025's pinned Conjur provisioner moved from `internal/toolbootstrap` to `internal/platforms/conjur`. A platform declares a `platforms.AutoSetup` (tool ref, version, display names, sanitized failure guidance, supported hosts, provisioner factory); the generic runtime iterates the declared list and keeps every ADR-025 guarantee (missing-only, embedded default packs only, explicit overrides win, cancellation propagates, re-discovery and readiness qualification after activation, identical operator messages). `internal/toolbootstrap` keeps only the generic `Provisioner` interface and the pack-declared portable installer.
 
-**Sign-in.** The generic Authentication and Overview pages own the session check for every CLI. Vendor sign-in forms are supplied by dedicated platforms (`web/src/platforms/<id>`) through a `ToolSignIn` provider and render only on `/dedicated/<id>/sign-in`. On the generic pages, a CLI owned by a dedicated platform shows a link to that sign-in instead of a form. If the platform list cannot load, the generic pages fall back to the plain vendor-flow guidance.
+**Sign-in.** *(Superseded by ADR-038.)* The generic Authentication and Overview pages own the session check for every CLI. Vendor sign-in forms are supplied by dedicated platforms (`web/src/platforms/<id>`) through a `ToolSignIn` provider and render only on `/dedicated/<id>/sign-in`. On the generic pages, a CLI owned by a dedicated platform shows a link to that sign-in instead of a form. If the platform list cannot load, the generic pages fall back to the plain vendor-flow guidance.
 
 **Not changed.** Pack schema/authority, session/Origin/CSRF boundaries, credential API endpoints, and the reviewed Conjur pack. Generic task categories still list the Conjur pack, because the core can run any reviewed pack; the dedicated section adds platform-built functionality on top.
 
@@ -915,3 +915,21 @@ Add four vendor-verified, page-bounded read-only inventory commands (variables, 
 **Security implications:** Quarantine adds no capability an account owner lacks (they can already rename the file) but makes the path deliberate, locked, and evidence-preserving. A missing journal still starts a new chain silently; anchoring the chain head outside the profile is an open decision.
 
 **Verification:** `TestQuarantinePreservesOnlyCorruptJournals`, `TestRemoveAbandonedStagingIsBoundedToOwnedStaleFiles`; native Windows checks in WORK_LAPTOP_EVALUATION.md section 15.
+
+## ADR-038 — One universal Sign in page with per-CLI backend settings
+
+**Date:** 2026-10-15
+**Status:** Accepted; supersedes the **Sign-in** paragraph of ADR-034.
+
+**Context:** Sign-in was split across a generic **CLI sessions** page, duplicate session cards on Overview, and a dedicated `/dedicated/<id>/sign-in` page. Conjur's card stacked identity, session evidence, backend endpoint configuration, a self-hosted/SaaS toggle, a two-step form, technical details, and page-level guidance in one column. Operators had to know which page owned which CLI.
+
+**Decision.**
+
+- A top-bar **Sign in** button opens `/authentication`, the single sign-in page for every installed CLI, built-in or custom. The sidebar entry, Overview session cards, and the dedicated sign-in route are removed; legacy `/dedicated/<id>/sign-in` URLs open the universal page.
+- Each CLI gets one compact card: identity header, session state, sign-in form, session check, and a **settings** toggle.
+- `ToolSignIn` (in `web/src/platforms`) supplies `render` (the sign-in form), optional `settings` (backend configuration), and `needsSetup` (open settings first). The card owns the session check, settings disclosure, and tool details. CLIs without a provider get the generic vendor-flow guidance.
+- Conjur's backend setup (self-hosted connection or SaaS endpoint) moves into settings. After a connection is saved, the card trusts the refreshed runtime snapshot (`setupRequired`) rather than local state.
+
+**Not changed.** Credential, configuration, and session-check endpoints; CSRF/session boundaries; the password never entering argv/history/storage; pack authority; and the server's SPA route allowlist.
+
+**Verification:** `AuthenticationPage.test.tsx` (settings disclosure, first-run settings auto-open, self-hosted/SaaS choice, sign-in after snapshot refresh), `AppFeatures.test.tsx` (top-bar entry, legacy sign-in URL), `OverviewPage.test.tsx` (no duplicate cards), and the browser E2E sign-in stage.

@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { OverviewPage } from './OverviewPage';
-import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import type { TaskPreferences } from './taskPreferences';
@@ -12,13 +11,6 @@ function response(status: number, body: unknown): Response {
     headers: { 'Content-Type': 'application/json' },
   });
 }
-
-const status: RuntimeStatus = {
-  name: 'CLIHarbor',
-  version: 'dev',
-  session: 'active',
-  csrfToken: 'csrf-overview-test',
-};
 
 const tasks: Task[] = [
   {
@@ -96,7 +88,7 @@ describe('OverviewPage', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(200, { runs: [
       { runId: 'r1', packId: 'docker', commandId: 'containers', toolId: 'docker', status: 'exited', exitCode: 1 },
     ] }))));
-    render(<OverviewPage status={status} tasks={[]} tools={[]} preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()} onOpenTask={vi.fn()} />);
+    render(<OverviewPage tasks={[]} tools={[]} preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()} onOpenTask={vi.fn()} />);
     expect(await screen.findByText('Failed · exit 1')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Getting started' })).not.toBeInTheDocument();
   });
@@ -107,7 +99,6 @@ describe('OverviewPage', () => {
 
     render(
       <OverviewPage
-        status={status}
         tasks={tasks}
         tools={readyTools}
         preferences={preferences}
@@ -130,57 +121,6 @@ describe('OverviewPage', () => {
     expect(navigate).toHaveBeenCalledWith('tasks');
   });
 
-  test('sends dedicated-platform CLIs to their dedicated sign-in instead of rendering vendor forms', () => {
-    const open = vi.fn();
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(404, {}))));
-    render(
-      <OverviewPage
-        status={status}
-        tasks={tasks}
-        tools={readyTools}
-        preferences={{ favorites: [], recent: [] }}
-        onNavigate={vi.fn()}
-        onOpenTask={vi.fn()}
-        dedicatedSignInFor={(tool) => (tool.toolId === 'conjur' ? { platformName: 'CyberArk Conjur', open } : undefined)}
-      />,
-    );
-
-    expect(screen.getByRole('heading', { name: 'Connect your CLIs' })).toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Open CyberArk Conjur sign-in' }));
-    expect(open).toHaveBeenCalledTimes(1);
-  });
-
-  test('keeps a detected Conjur CLI visible when browser credential capability is unavailable', () => {
-    const detectedWithoutBrowserLogin: ToolDiagnostic[] = [
-      {
-        ...readyTools[0],
-        credentialLogin: undefined,
-      },
-      readyTools[1],
-    ];
-
-    render(
-      <OverviewPage
-        status={status}
-        tasks={tasks}
-        tools={detectedWithoutBrowserLogin}
-        preferences={{ favorites: [], recent: [] }}
-        onNavigate={vi.fn()}
-        onOpenTask={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole('heading', { name: 'CLI session checks' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Tools needing attention' })).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/approved conjur flow, then use the session check/i),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Check session' })).toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
-  });
-
   test('routes the primary recommendation to diagnostics when no tasks are available and a tool needs attention', () => {
     const navigate = vi.fn();
     const attentionTools: ToolDiagnostic[] = [
@@ -190,7 +130,6 @@ describe('OverviewPage', () => {
 
     render(
       <OverviewPage
-        status={status}
         tasks={[]}
         tools={attentionTools}
         preferences={{ favorites: [], recent: [] }}
@@ -207,7 +146,7 @@ describe('OverviewPage', () => {
   test('keeps available tools usable when another optional tool is missing', () => {
     const navigate = vi.fn();
     render(
-      <OverviewPage status={status} tasks={[tasks[0]]}
+      <OverviewPage tasks={[tasks[0]]}
         tools={[readyTools[0], { ...readyTools[1], status: 'missing' }]}
         preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
     );
@@ -221,10 +160,9 @@ describe('OverviewPage', () => {
     expect(navigate).toHaveBeenCalledWith('tasks');
   });
 
-  test('keeps authentication status conservative rather than inventing a signed-in verdict', () => {
+  test('leaves sign-in to the universal Sign in page instead of duplicating session cards', () => {
     render(
       <OverviewPage
-        status={status}
         tasks={tasks}
         tools={readyTools}
         preferences={{ favorites: [], recent: [] }}
@@ -233,18 +171,16 @@ describe('OverviewPage', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Authentication not verified' })).toBeInTheDocument();
-    expect(screen.queryByText(/^Authenticated$/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^Signed in$/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Check session' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
   });
-
   test('shows recent executions newest first with individual outcomes', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(200, { runs: [
       { runId: 'r1', packId: 'docker', commandId: 'containers', toolId: 'docker', status: 'exited', exitCode: 0, startedAt: '2026-10-14T09:00:00Z', endedAt: '2026-10-14T09:00:02Z' },
       { runId: 'r2', packId: 'conjur', commandId: 'whoami', toolId: 'conjur', status: 'exited', exitCode: 1, startedAt: '2026-10-14T10:00:00Z', endedAt: '2026-10-14T10:00:01Z' },
     ] }))));
     const navigate = vi.fn();
-    render(<OverviewPage status={status} tasks={tasks} tools={readyTools} preferences={preferences} onNavigate={navigate} onOpenTask={vi.fn()} />);
+    render(<OverviewPage tasks={tasks} tools={readyTools} preferences={preferences} onNavigate={navigate} onOpenTask={vi.fn()} />);
 
     expect(await screen.findByText('Failed · exit 1')).toBeInTheDocument();
     const items = screen.getAllByRole('button', { name: /Current identity|List containers/ }).filter((button) => button.closest('.overview-timeline'));

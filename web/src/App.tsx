@@ -540,7 +540,7 @@ function formatActivityTime(at: Date): string {
   return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
 }
 
-type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'access-explorer' | 'tools' | 'diagnostics' | 'platforms' | 'platform' | 'platform-sign-in';
+type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'access-explorer' | 'tools' | 'diagnostics' | 'platforms' | 'platform';
 
 const routePaths: Record<AppRoute, string> = {
   overview: '/',
@@ -553,24 +553,23 @@ const routePaths: Record<AppRoute, string> = {
   diagnostics: '/diagnostics',
   platforms: '/dedicated',
   platform: '/dedicated',
-  'platform-sign-in': '/dedicated',
 };
 
 // The app has two halves: the generic workspace above works with any CLI, and
 // a dedicated CLI (selected from the top bar) adds functionality built and tested
 // for that one platform. Platform IDs come from /api/v1/platforms.
 const dedicatedPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})$/;
-const dedicatedSignInPathPattern = /^\/dedicated\/([a-z0-9-]{1,64})\/sign-in$/;
+// Legacy per-platform sign-in links now open the universal sign-in page.
+const legacySignInPathPattern = /^\/dedicated\/[a-z0-9-]{1,64}\/sign-in$/;
 
 function platformIDFromPath(pathname: string): string {
   if (pathname === routePaths['secret-audit'] || pathname === '/conjur/security-audit' || pathname === '/secret-audit' || pathname === routePaths['access-explorer']) return 'conjur';
-  return (dedicatedPathPattern.exec(pathname) ?? dedicatedSignInPathPattern.exec(pathname))?.[1] ?? '';
+  return dedicatedPathPattern.exec(pathname)?.[1] ?? '';
 }
 
 function pathForRoute(route: AppRoute, platformID: string): string {
   if (platformID === '') return routePaths[route];
   if (route === 'platform') return `${routePaths.platform}/${platformID}`;
-  if (route === 'platform-sign-in') return `${routePaths.platform}/${platformID}/sign-in`;
   return routePaths[route];
 }
 
@@ -579,13 +578,13 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'tasks', label: 'Command Builder', group: 'Workspace', icon: 'M4 4h16v16H4z m4 5 3 3-3 3 M13 15h3' },
   { route: 'runs', label: 'Execution History', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
   { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M17.5 14v7 M14 17.5h7' },
-  { route: 'authentication', label: 'CLI sessions', group: 'Manage', icon: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z m-4 9 3 3 5-6' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
   { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
   { route: 'access-explorer', label: 'Conjur access explorer', group: 'Dedicated', icon: 'M12 2v20 M2 12h20 M6 6l12 12' },
   { route: 'platforms', label: 'Built-in CLIs', group: 'Dedicated', icon: '' },
   { route: 'platform', label: 'Dedicated CLI', group: 'Dedicated', icon: 'M4 6h16v12H4z M8 10l3 2-3 2 M13 14h3' },
-  { route: 'platform-sign-in', label: 'Dedicated sign-in', group: 'Dedicated', icon: '' },
+  // Reached from the top-right Sign in button rather than the sidebar.
+  { route: 'authentication', label: 'Sign in', group: 'Account', icon: '' },
 ];
 
 function routeFromPath(pathname: string): AppRoute {
@@ -610,7 +609,7 @@ function routeFromPath(pathname: string): AppRoute {
       return 'platforms';
     default:
       if (dedicatedPathPattern.test(pathname)) return 'platform';
-      return dedicatedSignInPathPattern.test(pathname) ? 'platform-sign-in' : 'overview';
+      return legacySignInPathPattern.test(pathname) ? 'authentication' : 'overview';
   }
 }
 
@@ -811,9 +810,7 @@ export function App() {
     const linkedPlatform = platforms.find((platform) => platform.id === platformIDFromPath(window.location.pathname));
     const pageTitle = route === 'platform'
       ? linkedPlatform?.name ?? 'Dedicated CLI unavailable'
-      : route === 'platform-sign-in'
-        ? linkedPlatform ? `Sign in · ${linkedPlatform.name}` : 'Dedicated CLI unavailable'
-        : navigationItems.find((item) => item.route === route)?.label ?? 'CLIHarbor';
+      : navigationItems.find((item) => item.route === route)?.label ?? 'CLIHarbor';
     document.title = `${pageTitle} · CLIHarbor`;
     if (previousRouteRef.current !== route) {
       mainRef.current?.focus({ preventScroll: true });
@@ -1223,7 +1220,7 @@ export function App() {
 
   // An explicit dedicated URL is authoritative. Never silently substitute
   // another vendor's integration for an unknown or removed platform ID.
-  const dedicatedPathID = route === 'platform' || route === 'platform-sign-in'
+  const dedicatedPathID = route === 'platform'
     ? platformIDFromPath(window.location.pathname)
     : '';
   const activePlatform = dedicatedPathID
@@ -1262,7 +1259,7 @@ export function App() {
         navigate('tasks');
         return;
       case 'sign-in':
-        navigate('platform-sign-in');
+        navigate('authentication');
         return;
       case 'security-audit':
         navigate('secret-audit');
@@ -1273,20 +1270,6 @@ export function App() {
     }
   };
 
-  // Prefer the exact CLI's dedicated sign-in; otherwise check this CLI's vendor session.
-  const openSessionsForTool = (packId: string, toolId: string) => {
-    const platform = platforms.find((candidate) =>
-      candidate.packId === packId && candidate.toolId === toolId &&
-      candidate.features.some((feature) => feature.id === 'sign-in') &&
-      dedicatedSignIn[candidate.id] !== undefined,
-    );
-    if (platform !== undefined) {
-      setSelectedPlatformID(platform.id);
-      navigate('platform-sign-in', platform.id);
-    } else {
-      navigate('authentication');
-    }
-  };
 
   const taskFilterLabel = state.kind === 'ready' && route === 'tasks' && taskToolFilter !== ''
     ? state.tasks.find((task) => taskToolKey(task) === taskToolFilter)
@@ -1294,7 +1277,7 @@ export function App() {
   const taskFilterPlatform = taskFilterLabel === undefined ? undefined : platforms.find((platform) =>
     platform.packId === taskFilterLabel.packId && platform.toolId === taskFilterLabel.toolId);
   const breadcrumbPlatform = route === 'tasks' && taskFilterPlatform !== undefined ? taskFilterPlatform : activePlatform;
-  const inDedicatedJourney = route === 'platform' || route === 'platform-sign-in' || route === 'secret-audit' || route === 'access-explorer' ||
+  const inDedicatedJourney = route === 'platform' || route === 'secret-audit' || route === 'access-explorer' ||
     (route === 'tasks' && taskFilterPlatform !== undefined);
   // An old dedicated deep link may be opened without a registered platform.
   // Keep the generic section selected rather than highlighting a broken target.
@@ -1323,16 +1306,11 @@ export function App() {
     </a>
   );
 
-  const dedicatedSignInFor = (tool: ToolDiagnostic) => {
+  // Built-in CLIs bring their own sign-in form and backend settings; custom CLIs use the generic card.
+  const signInFor = (tool: ToolDiagnostic) => {
     const owner = platforms.find((platform) => platform.packId === tool.packId && platform.toolId === tool.toolId &&
-      platform.features.some((feature) => feature.id === 'sign-in') && dedicatedSignIn[platform.id] !== undefined);
-    return owner === undefined ? undefined : {
-      platformName: owner.name,
-      open: () => {
-        setSelectedPlatformID(owner.id);
-        navigate('platform-sign-in', owner.id);
-      },
-    };
+      platform.features.some((feature) => feature.id === 'sign-in'));
+    return owner === undefined ? undefined : dedicatedSignIn[owner.id];
   };
 
   return (
@@ -1403,6 +1381,16 @@ export function App() {
               {state.tools.length - readyToolCount} CLI{state.tools.length - readyToolCount === 1 ? '' : 's'} need{state.tools.length - readyToolCount === 1 ? 's' : ''} attention
             </a>
           )}
+          <a className="topbar-sign-in" href={routePaths.authentication}
+            aria-current={route === 'authentication' ? 'page' : undefined}
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              navigate('authentication');
+            }}>
+            {navIcon('M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3')}
+            Sign in
+          </a>
         </div>
       </header>
 
@@ -1438,7 +1426,6 @@ export function App() {
           <span className="breadcrumb-divider" aria-hidden="true">/</span>
           <span className="current-page" aria-current="page">{route === 'platform'
             ? breadcrumbPlatform?.name ?? 'Built-in CLI'
-            : route === 'platform-sign-in' ? 'Sign in'
             : route === 'secret-audit' ? 'Security audit'
             : route === 'tasks' && taskFilterLabel !== undefined ? 'Command Builder · ' + taskFilterLabel.packName
             : navigationItems.find((item) => item.route === route)?.label}</span>
@@ -1475,24 +1462,7 @@ export function App() {
             onOpenTasks={() => navigate('tasks')}
             onOpenDiagnostics={() => navigate('diagnostics')}
             onToolsChanged={refreshTools}
-            dedicatedSignInFor={dedicatedSignInFor}
-            heading="CLI sessions"
-            intro="Check the session for each configured CLI. Sign-in belongs to the selected CLI, not CLIHarbor as a whole."
-          />
-        )}
-
-        {state.kind === 'ready' && route === 'platform-sign-in' && activePlatform !== undefined && (
-          <AuthenticationPage
-            key={activePlatform.id}
-            status={state.status}
-            tasks={state.tasks}
-            tools={state.tools.filter((tool) => tool.packId === activePlatform.packId && tool.toolId === activePlatform.toolId)}
-            onOpenTasks={() => openPlatformFeature('tasks')}
-            onOpenDiagnostics={() => navigate('diagnostics')}
-            onToolsChanged={refreshTools}
-            signInFor={() => dedicatedSignIn[activePlatform.id]}
-            heading={`Sign in to ${activePlatform.name}`}
-            intro="Connect and sign in with the flow built and tested for this CLI. The session stays owned by the vendor CLI."
+            signInFor={signInFor}
           />
         )}
 
@@ -1502,7 +1472,7 @@ export function App() {
           <ConjurAccessExplorer
             tasks={state.tasks}
             csrfToken={state.status.csrfToken}
-            onOpenSignIn={() => navigate('platform-sign-in', 'conjur')}
+            onOpenSignIn={() => navigate('authentication')}
             onOpenDiagnostics={() => navigate('diagnostics')}
             onOpenTask={(commandId, prefill) => {
               if (starting || activeRunID !== null) return;
@@ -1519,18 +1489,12 @@ export function App() {
         {state.kind === 'ready' && route === 'secret-audit' && (
           <SecretAuditPage
             csrfToken={state.status.csrfToken}
-            onOpenAuthentication={() => {
-              if (activePlatform !== undefined && activePlatform.id === 'conjur' && dedicatedSignIn[activePlatform.id] !== undefined) {
-                navigate('platform-sign-in', activePlatform.id);
-              } else {
-                navigate('authentication');
-              }
-            }}
+            onOpenAuthentication={() => navigate('authentication')}
             onOpenDiagnostics={() => navigate('diagnostics')}
           />
         )}
 
-        {state.kind === 'ready' && (route === 'platform' || route === 'platform-sign-in') && activePlatform === undefined && (
+        {state.kind === 'ready' && route === 'platform' && activePlatform === undefined && (
           <section className="panel" aria-labelledby="platform-heading">
             <p className="status-label">Dedicated CLI</p>
             <h2 id="platform-heading">No dedicated CLI is loaded</h2>
@@ -1566,12 +1530,10 @@ export function App() {
 
         {state.kind === 'ready' && route === 'overview' && (
           <OverviewPage
-            status={state.status}
             tasks={state.tasks}
             tools={state.tools}
             preferences={taskPreferences}
             onNavigate={navigate}
-            dedicatedSignInFor={dedicatedSignInFor}
             onOpenTask={(taskKey) => {
               setTaskToolFilter('');
               selectTaskByKey(taskKey, state.tasks);
@@ -1611,7 +1573,7 @@ export function App() {
               onInstall={(tool) => void installManagedCLI(tool)}
               onInstallRoot={(key, value) => setToolInstallRoots((current) => ({ ...current, [key]: value }))}
               onOpenTasks={(key) => { changeTaskCategory(key); navigate('tasks'); }}
-              onOpenAuthentication={(tool) => openSessionsForTool(tool.packId, tool.toolId)} />
+              onOpenAuthentication={() => navigate('authentication')} />
           </>
         )}
 
@@ -1708,7 +1670,7 @@ export function App() {
                             {selectedTask.requiresAuth && (
                               <div className="task-auth-callout">
                                 <span>This task requires sign-in. CLIHarbor will not assume an installed tool is already authenticated.</span>
-                                <button type="button" className="secondary-button" onClick={() => openSessionsForTool(selectedTask.packId, selectedTask.toolId)}>
+                                <button type="button" className="secondary-button" onClick={() => navigate('authentication')}>
                                   Review {selectedTask.toolId} sign-in
                                 </button>
                               </div>
@@ -2018,7 +1980,7 @@ export function App() {
                         <div className="task-auth-callout task-auth-callout--run">
                           <span>This task requires a vendor session and failed. Check this CLI's session before retrying; the failure alone does not prove sign-out.</span>
                           <button type="button" className="secondary-button" onClick={() => {
-                            if (runTask !== undefined) openSessionsForTool(runTask.packId, runTask.toolId);
+                            if (runTask !== undefined) navigate('authentication');
                           }}>
                             Review {runTask?.toolId ?? 'CLI'} sign-in
                           </button>

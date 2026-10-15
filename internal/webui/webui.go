@@ -79,7 +79,8 @@ func (h staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// dedicatedRoute matches /dedicated/<platform-id> and its /sign-in page; the
+// dedicatedRoute matches /dedicated/<platform-id> and its legacy /sign-in link
+// (now opening the universal sign-in page); the
 // Conjur audit and access explorer beneath it are listed explicitly. IDs follow the same closed pattern the frontend accepts.
 var dedicatedRoute = regexp.MustCompile(`^/dedicated/[a-z0-9-]{1,64}(/sign-in)?$`)
 

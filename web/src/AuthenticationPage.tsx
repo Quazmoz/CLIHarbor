@@ -4,6 +4,7 @@ import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import { describeToolReadiness } from './operatorLanguage';
+import { ToolIcon } from './ToolIcon';
 import {
   cancelRun,
   createRun,
@@ -48,22 +49,22 @@ export interface SignInContext {
   onToolsChanged?: () => void;
   /** Clear previous session evidence after changing the vendor API connection. */
   invalidateSession?: () => void;
+  /** Open this CLI's settings panel, e.g. when a backend must be configured first. */
+  openSettings: () => void;
+  settingsOpen: boolean;
 }
 
 /**
- * A dedicated platform's sign-in flow for one tool. The generic page owns the
- * session check; the provider owns any vendor-specific sign-in form.
+ * A dedicated platform's sign-in flow for one tool. The universal page owns the
+ * session check; the provider owns the vendor sign-in form and backend settings.
  */
 export interface ToolSignIn {
   render: (context: SignInContext) => ReactNode;
+  /** Backend/connection settings shown behind the card's settings button. */
+  settings?: (context: SignInContext) => ReactNode;
+  /** Sign-in cannot start until settings are configured; opens settings on load. */
+  needsSetup?: (tool: ToolDiagnostic) => boolean;
   signedOutDetail?: (tool: ToolDiagnostic) => string | undefined;
-  guidance?: ReactNode;
-}
-
-/** Points the generic page at a dedicated platform's sign-in for a tool it owns. */
-export interface DedicatedSignInLink {
-  platformName: string;
-  open: () => void;
 }
 
 interface AuthenticationPageProps {
@@ -73,12 +74,8 @@ interface AuthenticationPageProps {
   onOpenTasks: () => void;
   onOpenDiagnostics: () => void;
   onToolsChanged?: () => void;
-  /** Dedicated sign-in providers; omitted on the generic page. */
+  /** Dedicated sign-in provider for a tool, when a built-in platform owns it. */
   signInFor?: (tool: ToolDiagnostic) => ToolSignIn | undefined;
-  /** Generic page only: link to a dedicated platform's sign-in. */
-  dedicatedSignInFor?: (tool: ToolDiagnostic) => DedicatedSignInLink | undefined;
-  heading?: string;
-  intro?: string;
 }
 
 interface VendorSessionCardProps {
@@ -89,7 +86,6 @@ interface VendorSessionCardProps {
   onOpenDiagnostics: () => void;
   onToolsChanged?: () => void;
   signIn?: ToolSignIn;
-  dedicated?: DedicatedSignInLink;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -193,7 +189,7 @@ function evidenceFromSnapshot(
   }
 }
 
-export function VendorSessionCard({
+function VendorSessionCard({
   status,
   tasks,
   tool,
@@ -201,9 +197,9 @@ export function VendorSessionCard({
   onOpenDiagnostics,
   onToolsChanged,
   signIn,
-  dedicated,
 }: VendorSessionCardProps) {
   const [check, setCheck] = useState<AuthenticationCheck>({ kind: 'unchecked' });
+  const [settingsOpen, setSettingsOpen] = useState(() => signIn?.needsSetup?.(tool) === true);
   const attemptRef = useRef(0);
   const activeRunRef = useRef<string | null>(null);
   const closeStreamRef = useRef<(() => void) | null>(null);
@@ -504,88 +500,68 @@ export function VendorSessionCard({
     check.kind === 'authenticated' &&
     (check.identity.account !== undefined || check.identity.username !== undefined || check.identity.user !== undefined);
 
+  const settingsID = headingID + '-settings';
+  const context: SignInContext = {
+    status, tool, headingID, ready: toolView.ready, checkKind: check.kind,
+    verifySession: startCheck, onToolsChanged,
+    invalidateSession: () => {
+      attemptRef.current += 1;
+      closeStreamRef.current?.();
+      closeStreamRef.current = null;
+      activeRunRef.current = null;
+      stdoutRef.current = '';
+      stderrRef.current = '';
+      setCheck({ kind: 'unchecked' });
+    },
+    openSettings: () => setSettingsOpen(true),
+    settingsOpen,
+  };
+
   return (
     <article className="panel auth-status-card" aria-labelledby={headingID}>
-      <p className="status-label">{label} sign-in</p>
-      <div className="auth-tool-heading">
-        <div>
-          <h3 id={headingID}>{toolView.heading}</h3>
-          <p>{toolView.summary}</p>
-          {!toolView.ready && <p className="auth-remediation">{toolView.nextStep}</p>}
+      <div className="auth-card-header">
+        <ToolIcon tool={tool} />
+        <div className="auth-card-title">
+          <h3 id={headingID}>{label}</h3>
+          <p>{tool.toolId}{tool.version ? ' ' + tool.version : ''} · <span>{toolView.statusText}</span></p>
         </div>
-        <span className={'tool-status ' + (toolView.ready ? 'tool-status--ready' : 'tool-status--attention')}>
-          {toolView.statusText}
-        </span>
+        <button type="button" className="icon-button auth-settings-toggle" aria-label={label + ' settings'}
+          aria-expanded={settingsOpen} aria-controls={settingsID} onClick={() => setSettingsOpen((open) => !open)}>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+          </svg>
+        </button>
       </div>
 
       <div className={'auth-primary-state ' + primaryClass} role="status" aria-live="polite" aria-atomic="true">
         <span className="auth-state-symbol" aria-hidden="true">{primarySymbol}</span>
         <div>
-          <h3>{primaryHeading}</h3>
+          <h4>{primaryHeading}</h4>
           <p>{primaryDetail}</p>
         </div>
       </div>
 
+      {!toolView.ready && <p className="auth-remediation">{toolView.nextStep}</p>}
       {check.kind === 'failed' && check.failure.remediation && (
         <p className="auth-remediation">{check.failure.remediation}</p>
       )}
 
-      {check.kind === 'authenticated' && (
-        <div className="auth-evidence">
-          <p className="auth-evidence-title">Verified session evidence</p>
-          <dl>
-            {hasIdentity && check.identity.account !== undefined && (
-              <div>
-                <dt>Account</dt>
-                <dd>{check.identity.account}</dd>
-              </div>
-            )}
-            {hasIdentity && check.identity.username !== undefined && (
-              <div>
-                <dt>Username</dt>
-                <dd>{check.identity.username}</dd>
-              </div>
-            )}
-            {hasIdentity && check.identity.user !== undefined && (
-              <div>
-                <dt>User</dt>
-                <dd>{check.identity.user}</dd>
-              </div>
-            )}
-            <div>
-              <dt>Evidence</dt>
-              <dd>{sessionTask?.name ?? tool.sessionCheck?.commandId ?? 'Session check'} exited successfully</dd>
-            </div>
-          </dl>
-        </div>
+      {hasIdentity && (
+        <dl className="auth-identity">
+          {check.identity.account !== undefined && <div><dt>Account</dt><dd>{check.identity.account}</dd></div>}
+          {check.identity.username !== undefined && <div><dt>Username</dt><dd>{check.identity.username}</dd></div>}
+          {check.identity.user !== undefined && <div><dt>User</dt><dd>{check.identity.user}</dd></div>}
+        </dl>
       )}
 
       {signIn !== undefined
-        ? signIn.render({
-            status, tool, headingID, ready: toolView.ready, checkKind: check.kind,
-            verifySession: startCheck, onToolsChanged,
-            invalidateSession: () => {
-              attemptRef.current += 1;
-              closeStreamRef.current?.();
-              closeStreamRef.current = null;
-              activeRunRef.current = null;
-              stdoutRef.current = '';
-              stderrRef.current = '';
-              setCheck({ kind: 'unchecked' });
-            },
-          })
-        : dedicated !== undefined
-          ? (
-            <div className="auth-tool-meta auth-dedicated-sign-in">
-              <p>{dedicated.platformName} has a dedicated sign-in flow built and tested for this CLI.</p>
-              <button type="button" className="secondary-button" onClick={dedicated.open}>Open {dedicated.platformName} sign-in</button>
-            </div>
-          )
-          : toolView.ready && (
-            <p className="auth-tool-meta">
-              Sign in with your organization’s approved {tool.toolId} flow, then use the session check here to confirm it.
-            </p>
-          )}
+        ? signIn.render(context)
+        : toolView.ready && (
+          <p className="auth-tool-meta">
+            Sign in with your organization’s approved {tool.toolId} flow, then use the session check here to confirm it.
+          </p>
+        )}
 
       <div className="auth-actions">
         {tool.sessionCheck !== undefined && (
@@ -614,12 +590,19 @@ export function VendorSessionCard({
         )}
       </div>
 
-      <details className="technical-details auth-boundary-note">
-        <summary>Technical sign-in details</summary>
-        <p>CLI readiness and vendor authentication are separate. A discovered executable does not prove that a vendor session is signed in.</p>
-        {tool.versionConstraint && <p>Trusted version requirement: {tool.versionConstraint}</p>}
-        <p>Pack: {tool.packId} · Tool: {tool.toolId} · Runtime status: {tool.status}</p>
-      </details>
+      {settingsOpen && (
+        <section id={settingsID} className="auth-settings" aria-label={label + ' settings'}>
+          {signIn?.settings?.(context)}
+          <dl className="auth-settings-meta">
+            <div><dt>Pack</dt><dd>{tool.packId}</dd></div>
+            <div><dt>Runtime status</dt><dd>{tool.status}</dd></div>
+            {tool.versionConstraint && <div><dt>Version requirement</dt><dd>{tool.versionConstraint}</dd></div>}
+          </dl>
+          {!showDiagnostics && (
+            <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>Open diagnostics</button>
+          )}
+        </section>
+      )}
     </article>
   );
 }
@@ -632,35 +615,25 @@ export function AuthenticationPage({
   onOpenDiagnostics,
   onToolsChanged,
   signInFor,
-  dedicatedSignInFor,
-  heading = 'Authentication',
-  intro = 'Check each CLI’s vendor session. CLIs with a dedicated platform sign in from their dedicated section.',
 }: AuthenticationPageProps) {
   const vendorSessionTools = useMemo(
     () => tools.filter((tool) => tool.requiresVendorSession === true),
     [tools],
   );
-  const guidance = Array.from(new Set(
-    vendorSessionTools.flatMap((tool) => {
-      const item = signInFor?.(tool)?.guidance;
-      return item === undefined ? [] : [item];
-    }),
-  ));
+  const noSignInTools = tools.filter((tool) => tool.requiresVendorSession !== true);
 
   return (
     <section className="auth-page" aria-labelledby="authentication-heading">
       <div className="route-heading">
-        <p className="status-label">Sign-in status</p>
-        <h2 id="authentication-heading">{heading}</h2>
-        <p>{intro}</p>
+        <h2 id="authentication-heading">Sign in</h2>
+        <p>Sign in to each installed CLI. Use a CLI’s settings to choose its backend. Sessions stay owned by the vendor CLI.</p>
       </div>
 
       <div className="auth-layout">
         {vendorSessionTools.length === 0 ? (
           <article className="panel auth-status-card">
-            <p className="status-label">Sign-in status</p>
-            <h3>No sign-in checks are needed</h3>
-            <p>The available browser tasks do not declare a vendor authentication requirement.</p>
+            <h3>No sign-in needed</h3>
+            <p>None of the installed CLIs declare a vendor sign-in requirement.</p>
           </article>
         ) : (
           vendorSessionTools.map((tool) => (
@@ -689,13 +662,16 @@ export function AuthenticationPage({
               onOpenDiagnostics={onOpenDiagnostics}
               onToolsChanged={onToolsChanged}
               signIn={signInFor?.(tool)}
-              dedicated={dedicatedSignInFor?.(tool)}
             />
           ))
         )}
       </div>
 
-      {guidance.map((item, index) => <div key={index}>{item}</div>)}
+      {noSignInTools.length > 0 && (
+        <p className="auth-no-sign-in">
+          No sign-in needed: {noSignInTools.map((tool) => tool.packName || tool.toolId).join(', ')}
+        </p>
+      )}
     </section>
   );
 }

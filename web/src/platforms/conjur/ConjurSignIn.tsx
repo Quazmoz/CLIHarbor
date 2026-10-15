@@ -5,25 +5,32 @@ import type { ToolDiagnostic } from '../../api/tools';
 import type { SignInContext, ToolSignIn } from '../../AuthenticationPage';
 import { ConjurBackendConnection } from './ConjurBackendConnection';
 
-// Dedicated Conjur sign-in (ADR-034): the connection/password form and the
-// official vendor-login launcher. The generic Authentication page owns the
-// session check and renders this only inside the dedicated Conjur section.
-function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession, onToolsChanged, invalidateSession }: SignInContext) {
+// Dedicated Conjur sign-in (ADR-034, ADR-038): the login box holds only the
+// password form or the official vendor-login launcher. Choosing the backend
+// lives behind the card's settings button (ConjurSettings below).
+
+function needsSetup(tool: ToolDiagnostic): boolean {
+  return tool.credentialLogin?.method === 'conjur-password' && tool.credentialLogin.setupRequired === true;
+}
+
+function FailureAlert({ failure }: { failure: AppErrorDetail | null }) {
+  if (failure === null) return null;
+  return (
+    <div className="credential-login-error" role="alert">
+      <strong>{failure.message}</strong>
+      {failure.remediation && <span>{failure.remediation}</span>}
+    </div>
+  );
+}
+
+function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession, openSettings, settingsOpen }: SignInContext) {
   const checking = checkKind === 'checking';
-  const [credentialIdentity, setCredentialIdentity] = useState('');
-  const [credentialSecret, setCredentialSecret] = useState('');
-  const [credentialSubmitting, setCredentialSubmitting] = useState(false);
-  const [credentialFailure, setCredentialFailure] = useState<AppErrorDetail | null>(null);
+  const [identity, setIdentity] = useState('');
+  const [secret, setSecret] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [failure, setFailure] = useState<AppErrorDetail | null>(null);
   const [vendorLoginOpened, setVendorLoginOpened] = useState(false);
   const vendorLoginLeftPageRef = useRef(false);
-  const [credentialConnectionReady, setCredentialConnectionReady] = useState(
-    tool.credentialLogin?.method !== 'conjur-password' || tool.credentialLogin.setupRequired !== true,
-  );
-  const [credentialApplianceURL, setCredentialApplianceURL] = useState('');
-  const [credentialAccount, setCredentialAccount] = useState('');
-  const [credentialAuthnType, setCredentialAuthnType] = useState<'authn' | 'ldap'>('authn');
-  const [credentialServiceID, setCredentialServiceID] = useState('');
-  const [showSaaSSetup, setShowSaaSSetup] = useState(false);
 
   // A verified session ends the "sign-in started" notice (and its focus re-check).
   // Adjusted during render, per React guidance, rather than in an effect.
@@ -33,111 +40,43 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
     if (checkKind === 'authenticated') setVendorLoginOpened(false);
   }
 
-  const submitCredentialConfiguration = async () => {
-    if (
-      tool.credentialLogin?.method !== 'conjur-password' ||
-      !ready ||
-      credentialConnectionReady ||
-      credentialSubmitting ||
-      checking
-    ) {
-      return;
-    }
-
-    const applianceUrl = credentialApplianceURL.trim();
-    const account = credentialAccount.trim();
-    const serviceId = credentialServiceID.trim();
-    if (
-      applianceUrl.length === 0 ||
-      account.length === 0 ||
-      (credentialAuthnType === 'ldap' && serviceId.length === 0)
-    ) {
-      return;
-    }
-
-    setCredentialSubmitting(true);
-    setCredentialFailure(null);
-    setCredentialSecret('');
-    try {
-      await configureCredentialConnection(status.csrfToken, {
-        packId: tool.packId,
-        toolId: tool.toolId,
-        applianceUrl,
-        account,
-        authnType: credentialAuthnType,
-        ...(credentialAuthnType === 'ldap' ? { serviceId } : {}),
-      });
-      setCredentialConnectionReady(true);
-      // The runtime's capability snapshot still says setup is required; refresh it
-      // so returning to this page later does not show the connection step again.
-      onToolsChanged?.();
-    } catch (error) {
-      setCredentialFailure(normalizeError(error).detail);
-    } finally {
-      setCredentialSubmitting(false);
-    }
-  };
-
   const submitCredentialLogin = async () => {
-    if (
-      tool.credentialLogin?.method !== 'conjur-password' ||
-      !ready ||
-      !credentialConnectionReady ||
-      credentialSubmitting ||
-      checking
-    ) {
-      return;
-    }
+    if (tool.credentialLogin?.method !== 'conjur-password' || needsSetup(tool) || !ready || submitting || checking) return;
+    const trimmedIdentity = identity.trim();
+    if (trimmedIdentity.length === 0 || secret.length === 0) return;
 
-    const identity = credentialIdentity.trim();
-    const secret = credentialSecret;
-    if (identity.length === 0 || secret.length === 0) {
-      return;
-    }
-
-    setCredentialSubmitting(true);
-    setCredentialFailure(null);
+    setSubmitting(true);
+    setFailure(null);
     try {
       await loginWithCredentials(status.csrfToken, {
         packId: tool.packId,
         toolId: tool.toolId,
-        identity,
+        identity: trimmedIdentity,
         secret,
       });
-      setCredentialSecret('');
+      setSecret('');
       await verifySession();
     } catch (error) {
-      setCredentialFailure(normalizeError(error).detail);
+      setFailure(normalizeError(error).detail);
     } finally {
-      setCredentialSecret('');
-      setCredentialSubmitting(false);
+      setSecret('');
+      setSubmitting(false);
     }
   };
 
   const launchVendorLogin = async () => {
-    if (
-      tool.credentialLogin?.method !== 'conjur-vendor-login' ||
-      !ready ||
-      credentialSubmitting ||
-      checking
-    ) {
-      return;
-    }
-
-    setCredentialSubmitting(true);
-    setCredentialFailure(null);
+    if (tool.credentialLogin?.method !== 'conjur-vendor-login' || !ready || submitting || checking) return;
+    setSubmitting(true);
+    setFailure(null);
     setVendorLoginOpened(false);
     vendorLoginLeftPageRef.current = false;
     try {
-      await launchInteractiveLogin(status.csrfToken, {
-        packId: tool.packId,
-        toolId: tool.toolId,
-      });
+      await launchInteractiveLogin(status.csrfToken, { packId: tool.packId, toolId: tool.toolId });
       setVendorLoginOpened(true);
     } catch (error) {
-      setCredentialFailure(normalizeError(error).detail);
+      setFailure(normalizeError(error).detail);
     } finally {
-      setCredentialSubmitting(false);
+      setSubmitting(false);
     }
   };
 
@@ -145,7 +84,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
   // departure while the request is in flight, but verify only after the
   // backend confirms that the vendor-owned login process was launched.
   useEffect(() => {
-    if (!credentialSubmitting && !vendorLoginOpened) return undefined;
+    if (!submitting && !vendorLoginOpened) return undefined;
     if (document.visibilityState === 'hidden') vendorLoginLeftPageRef.current = true;
 
     const markAway = () => { vendorLoginLeftPageRef.current = true; };
@@ -168,259 +107,204 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
       window.removeEventListener('focus', recheckOnReturn);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [credentialSubmitting, vendorLoginOpened, checking, verifySession]);
+  }, [submitting, vendorLoginOpened, checking, verifySession]);
+
+  if (!ready) return null;
+
+  if (tool.credentialLogin === undefined) {
+    return (
+      <p className="auth-tool-meta">
+        Sign in with your organization’s approved {tool.toolId} flow, then use the session check here to confirm it.
+        {' If you expected the built-in Conjur password form, review this CLI’s settings and Diagnostics instead of reinstalling the CLI.'}
+      </p>
+    );
+  }
+
+  if (needsSetup(tool)) {
+    return (
+      <div className="auth-setup-callout">
+        <p>{settingsOpen ? 'Choose the Conjur server in settings below' : 'Choose the Conjur server this CLI should use'}, then sign in here.</p>
+        {!settingsOpen && <button type="button" className="secondary-button" onClick={openSettings}>Configure backend</button>}
+      </div>
+    );
+  }
+
+  if (tool.credentialLogin.method === 'conjur-password') {
+    return (
+      <form className="credential-login-form" onSubmit={(event) => { event.preventDefault(); void submitCredentialLogin(); }}>
+        <p id={headingID + '-credential-help'} className="credential-login-help">
+          Your password goes only to this local runtime for this attempt. It is never stored, placed in command
+          arguments or run history, and is cleared after you submit.
+        </p>
+        <div className="credential-login-fields">
+          <label className="field">
+            <span>Identity</span>
+            <input type="text" name="vendor-identity" value={identity} maxLength={256} autoComplete="username"
+              spellCheck={false} aria-describedby={headingID + '-credential-help'} disabled={submitting || checking}
+              onChange={(event) => { setIdentity(event.target.value); setFailure(null); }} required />
+          </label>
+          <label className="field">
+            <span>Password</span>
+            <input type="password" name="vendor-secret" value={secret} maxLength={4096} autoComplete="current-password"
+              spellCheck={false} aria-describedby={headingID + '-credential-help'} disabled={submitting || checking}
+              onChange={(event) => { setSecret(event.target.value); setFailure(null); }} required />
+          </label>
+        </div>
+        <FailureAlert failure={failure} />
+        <div className="credential-login-actions">
+          <button type="submit" disabled={submitting || checking || identity.trim().length === 0 || secret.length === 0}>
+            {submitting ? 'Signing in…' : 'Sign in and verify'}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="credential-login-form">
+      <p className="credential-login-help">
+        Conjur signs you in through its official browser or terminal flow. CLIHarbor never collects vendor credentials
+        or MFA responses. Keep any terminal open until you have read the result.
+      </p>
+      <FailureAlert failure={failure} />
+      {vendorLoginOpened && (
+        <div className="credential-login-success" role="status">
+          <strong>Official Conjur sign-in started.</strong>
+          <span>CLIHarbor re-checks the session when you return to this tab, or select Check session.</span>
+        </div>
+      )}
+      <div className="credential-login-actions">
+        <button type="button" disabled={submitting || checking} onClick={() => void launchVendorLogin()}>
+          {submitting ? 'Starting Conjur sign-in…' : vendorLoginOpened ? 'Start Conjur sign-in again' : 'Start official Conjur sign-in'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// First-run self-hosted connection. No password is collected here; once the
+// runtime reports the connection configured, the login box shows the form.
+function SelfHostedConnectionForm({ status, tool, headingID, checkKind, onToolsChanged }: SignInContext) {
+  const [applianceURL, setApplianceURL] = useState('');
+  const [account, setAccount] = useState('');
+  const [authnType, setAuthnType] = useState<'authn' | 'ldap'>('authn');
+  const [serviceID, setServiceID] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [failure, setFailure] = useState<AppErrorDetail | null>(null);
+  const [saved, setSaved] = useState(false);
+  const disabled = submitting || checkKind === 'checking';
+  const incomplete = applianceURL.trim().length === 0 || account.trim().length === 0 ||
+    (authnType === 'ldap' && serviceID.trim().length === 0);
+  const helpID = headingID + '-connection-help';
+
+  const submit = async () => {
+    if (disabled || incomplete) return;
+    setSubmitting(true);
+    setFailure(null);
+    try {
+      await configureCredentialConnection(status.csrfToken, {
+        packId: tool.packId,
+        toolId: tool.toolId,
+        applianceUrl: applianceURL.trim(),
+        account: account.trim(),
+        authnType,
+        ...(authnType === 'ldap' ? { serviceId: serviceID.trim() } : {}),
+      });
+      setSaved(true);
+      // The runtime recomputes setupRequired from the vendor configuration;
+      // refreshing it swaps this card from setup to the sign-in form.
+      onToolsChanged?.();
+    } catch (error) {
+      setFailure(normalizeError(error).detail);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form className="credential-login-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+      <p className="credential-login-help" id={helpID}>
+        Enter the HTTPS server and account provided by your organization.
+      </p>
+      <div className="credential-login-fields">
+        <label className="field">
+          <span>Conjur server URL</span>
+          <input type="url" name="conjur-appliance-url" value={applianceURL} maxLength={2048}
+            placeholder="https://conjur.example.com" autoComplete="off" spellCheck={false} aria-describedby={helpID}
+            disabled={disabled} onChange={(event) => { setApplianceURL(event.target.value); setFailure(null); }} required />
+        </label>
+        <label className="field">
+          <span>Account</span>
+          <input type="text" name="conjur-account" value={account} maxLength={256} autoComplete="off" spellCheck={false}
+            aria-describedby={helpID} disabled={disabled}
+            onChange={(event) => { setAccount(event.target.value); setFailure(null); }} required />
+        </label>
+        <label className="field">
+          <span>Authentication method</span>
+          <select name="conjur-authn-type" value={authnType} aria-describedby={helpID} disabled={disabled}
+            onChange={(event) => { setAuthnType(event.target.value === 'ldap' ? 'ldap' : 'authn'); setFailure(null); }}>
+            <option value="authn">Conjur username and password</option>
+            <option value="ldap">LDAP username and password</option>
+          </select>
+        </label>
+        {authnType === 'ldap' && (
+          <label className="field">
+            <span>LDAP authenticator service ID</span>
+            <input type="text" name="conjur-service-id" value={serviceID} maxLength={256} autoComplete="off"
+              spellCheck={false} aria-describedby={helpID} disabled={disabled}
+              onChange={(event) => { setServiceID(event.target.value); setFailure(null); }} required />
+          </label>
+        )}
+      </div>
+      <FailureAlert failure={failure} />
+      {saved && <p role="status">Connection saved. Sign in from the card above.</p>}
+      <div className="credential-login-actions">
+        <button type="submit" disabled={disabled || incomplete}>{submitting ? 'Saving connection…' : 'Save connection'}</button>
+      </div>
+    </form>
+  );
+}
+
+function ConjurSettings(context: SignInContext) {
+  const [deployment, setDeployment] = useState<'self-hosted' | 'saas'>('self-hosted');
+  const { status, tool, ready, onToolsChanged, invalidateSession, headingID } = context;
+  if (!ready) return <p className="credential-login-help">Backend settings are available once the Conjur CLI is ready.</p>;
+  const backend = <ConjurBackendConnection status={status} tool={tool} ready={ready}
+    onToolsChanged={onToolsChanged} invalidateSession={invalidateSession} />;
 
   return (
     <>
-      {ready && (tool.credentialLogin?.method !== 'conjur-password' || showSaaSSetup) && (
-        <ConjurBackendConnection
-          status={status} tool={tool} ready={ready}
-          onToolsChanged={onToolsChanged} invalidateSession={invalidateSession}
-        />
-      )}
-      {ready && tool.credentialLogin === undefined && (
-        <p className="auth-tool-meta">
-          Sign in with your organization’s approved {tool.toolId} flow, then use the session check here to confirm it.
-          {' If you expected the built-in Conjur password form, review Diagnostics and the Conjur connection/authentication mode instead of reinstalling the CLI.'}
+      {needsSetup(tool) ? (
+        <>
+          <fieldset className="auth-choice">
+            <legend>Conjur backend</legend>
+            <label>
+              <input type="radio" name={headingID + '-deployment'} checked={deployment === 'self-hosted'}
+                onChange={() => setDeployment('self-hosted')} />
+              Self-hosted Conjur
+            </label>
+            <label>
+              <input type="radio" name={headingID + '-deployment'} checked={deployment === 'saas'}
+                onChange={() => setDeployment('saas')} />
+              Secrets Manager SaaS
+            </label>
+          </fieldset>
+          {deployment === 'self-hosted' ? <SelfHostedConnectionForm {...context} /> : backend}
+        </>
+      ) : backend}
+      <details className="auth-guidance">
+        <summary>How Conjur sign-in works</summary>
+        <p>
+          CLIHarbor never persists the password you enter. For Conjur password authentication, the browser submits it only to
+          the authenticated loopback backend, which hands it directly to the pinned vendor API. The resulting vendor credential
+          stays in Conjur’s configured credential storage.
         </p>
-      )}
-
-      {tool.credentialLogin?.method === 'conjur-password' && ready &&
-        tool.credentialLogin.setupRequired === true && (
-        <button type="button" className="secondary-button"
-          onClick={() => setShowSaaSSetup((previous) => !previous)}>
-          {showSaaSSetup ? 'Use self-hosted connection instead' : 'Configure Secrets Manager SaaS API instead'}
-        </button>
-      )}
-      {tool.credentialLogin?.method === 'conjur-password' && ready && !showSaaSSetup && (
-        <form
-          className="credential-login-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (credentialConnectionReady) {
-              void submitCredentialLogin();
-            } else {
-              void submitCredentialConfiguration();
-            }
-          }}
-        >
-          <div className="credential-login-heading">
-            <div>
-              <p className="status-label">Conjur sign-in</p>
-              <h4>{credentialConnectionReady ? 'Sign in to Conjur' : 'Connect to Conjur'}</h4>
-            </div>
-            <span className="safety-chip">{credentialConnectionReady ? 'Password stays local' : 'No password yet'}</span>
-          </div>
-
-          {!credentialConnectionReady && (
-            <div className="credential-setup-section">
-              <div>
-                <p className="credential-step-label">Step 1 of 2 · Connection</p>
-                <p className="credential-login-help" id={headingID + '-connection-help'}>
-                  Enter the HTTPS server and account provided by your organization. Save the connection first;
-                  you’ll enter your credentials in the next step.
-                </p>
-              </div>
-              <div className="credential-login-fields">
-                <label className="field">
-                  <span>Conjur server URL</span>
-                  <input
-                    type="url"
-                    name="conjur-appliance-url"
-                    value={credentialApplianceURL}
-                    maxLength={2048}
-                    placeholder="https://conjur.example.com"
-                    autoComplete="off"
-                    spellCheck={false}
-                    aria-describedby={headingID + '-connection-help'}
-                    disabled={credentialSubmitting || checking}
-                    onChange={(event) => {
-                      setCredentialApplianceURL(event.target.value);
-                      setCredentialFailure(null);
-                    }}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>Account</span>
-                  <input
-                    type="text"
-                    name="conjur-account"
-                    value={credentialAccount}
-                    maxLength={256}
-                    autoComplete="off"
-                    spellCheck={false}
-                    aria-describedby={headingID + '-connection-help'}
-                    disabled={credentialSubmitting || checking}
-                    onChange={(event) => {
-                      setCredentialAccount(event.target.value);
-                      setCredentialFailure(null);
-                    }}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>Authentication method</span>
-                  <select
-                    name="conjur-authn-type"
-                    value={credentialAuthnType}
-                    aria-describedby={headingID + '-connection-help'}
-                    disabled={credentialSubmitting || checking}
-                    onChange={(event) => {
-                      setCredentialAuthnType(event.target.value === 'ldap' ? 'ldap' : 'authn');
-                      setCredentialFailure(null);
-                    }}
-                  >
-                    <option value="authn">Conjur username and password</option>
-                    <option value="ldap">LDAP username and password</option>
-                  </select>
-                </label>
-                {credentialAuthnType === 'ldap' && (
-                  <label className="field">
-                    <span>LDAP authenticator service ID</span>
-                    <input
-                      type="text"
-                      name="conjur-service-id"
-                      value={credentialServiceID}
-                      maxLength={256}
-                      autoComplete="off"
-                      spellCheck={false}
-                      aria-describedby={headingID + '-connection-help'}
-                      disabled={credentialSubmitting || checking}
-                      onChange={(event) => {
-                        setCredentialServiceID(event.target.value);
-                        setCredentialFailure(null);
-                      }}
-                      required
-                    />
-                  </label>
-                )}
-              </div>
-            </div>
-          )}
-
-          {credentialConnectionReady && (
-            <div className="credential-setup-section">
-              <div>
-                {tool.credentialLogin.setupRequired === true && <p className="credential-step-label">Step 2 of 2 · Credentials</p>}
-                <p id={headingID + '-credential-help'} className="credential-login-help">
-                  Enter your normal Conjur identity and password. The password is sent only to this authenticated local runtime
-                  for this attempt, never placed in command arguments or run history, and cleared from the form after submission.
-                  Conjur remains responsible for its resulting vendor credential.
-                </p>
-              </div>
-              <div className="credential-login-fields">
-                <label className="field">
-                  <span>Identity</span>
-                  <input
-                    type="text"
-                    name="vendor-identity"
-                    value={credentialIdentity}
-                    maxLength={256}
-                    autoComplete="username"
-                    spellCheck={false}
-                    aria-describedby={headingID + '-credential-help'}
-                    disabled={credentialSubmitting || checking}
-                    onChange={(event) => {
-                      setCredentialIdentity(event.target.value);
-                      setCredentialFailure(null);
-                    }}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>Password</span>
-                  <input
-                    type="password"
-                    name="vendor-secret"
-                    value={credentialSecret}
-                    maxLength={4096}
-                    autoComplete="current-password"
-                    spellCheck={false}
-                    aria-describedby={headingID + '-credential-help'}
-                    disabled={credentialSubmitting || checking}
-                    onChange={(event) => {
-                      setCredentialSecret(event.target.value);
-                      setCredentialFailure(null);
-                    }}
-                    required
-                  />
-                </label>
-              </div>
-            </div>
-          )}
-
-          {credentialFailure !== null && (
-            <div className="credential-login-error" role="alert">
-              <strong>{credentialFailure.message}</strong>
-              {credentialFailure.remediation && <span>{credentialFailure.remediation}</span>}
-            </div>
-          )}
-          <div className="credential-login-actions">
-            <button
-              type="submit"
-              disabled={
-                credentialSubmitting ||
-                checking ||
-                (credentialConnectionReady
-                  ? credentialIdentity.trim().length === 0 || credentialSecret.length === 0
-                  : credentialApplianceURL.trim().length === 0 ||
-                    credentialAccount.trim().length === 0 ||
-                    (credentialAuthnType === 'ldap' && credentialServiceID.trim().length === 0))
-              }
-            >
-              {credentialSubmitting
-                ? credentialConnectionReady
-                  ? 'Signing in…'
-                  : 'Saving connection…'
-                : credentialConnectionReady
-                  ? 'Sign in and verify'
-                  : 'Save connection and continue'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {tool.credentialLogin?.method === 'conjur-vendor-login' && ready && (
-        <div className="credential-login-form">
-          <div className="credential-login-heading">
-            <div>
-              <p className="status-label">Official Conjur sign-in</p>
-              <h4>Continue with the vendor login flow</h4>
-            </div>
-            <span className="safety-chip">Credentials stay vendor-owned</span>
-          </div>
-          <p className="credential-login-help">
-            Complete sign-in through Conjur’s official browser or terminal flow. CLIHarbor does not collect
-            vendor credentials or MFA responses. For terminal-based sign-in, keep the window open until you have
-            reviewed the result, then return here to check the session.
-          </p>
-          {credentialFailure !== null && (
-            <div className="credential-login-error" role="alert">
-              <strong>{credentialFailure.message}</strong>
-              {credentialFailure.remediation && <span>{credentialFailure.remediation}</span>}
-            </div>
-          )}
-          {vendorLoginOpened && (
-            <div className="credential-login-success" role="status">
-              <strong>Official Conjur sign-in started.</strong>
-              <span>
-                Complete any vendor browser or terminal flow. CLIHarbor re-checks the session when you return to this tab, or
-                select Check session. If login fails, review the message in the terminal before closing it.
-              </span>
-            </div>
-          )}
-          <div className="credential-login-actions">
-            <button
-              type="button"
-              disabled={credentialSubmitting || checking}
-              onClick={() => void launchVendorLogin()}
-            >
-              {credentialSubmitting ? 'Starting Conjur sign-in…' : vendorLoginOpened ? 'Start Conjur sign-in again' : 'Start official Conjur sign-in'}
-            </button>
-          </div>
-        </div>
-      )}
+        <p>
+          For vendor-owned login modes such as OIDC, JWT, or Idira SaaS, CLIHarbor starts the exact verified Conjur CLI with fixed
+          <code> login</code> argv. Unsupported modes such as certificate/IAM/Azure/GCP continue through your organization’s
+          approved flow. A successful sign-in never bypasses backend task policy.
+        </p>
+      </details>
     </>
   );
 }
@@ -428,37 +312,17 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
 function signedOutDetail(tool: ToolDiagnostic): string | undefined {
   switch (tool.credentialLogin?.method) {
     case 'conjur-password':
-      return 'Your Conjur session is signed out. Use the sign-in form below and CLIHarbor will verify the session automatically.';
+      return 'Your Conjur session is signed out. Sign in below and CLIHarbor will verify the session automatically.';
     case 'conjur-vendor-login':
-      return 'Your Conjur session is signed out. Start the official Conjur sign-in flow below, complete any vendor browser or terminal interaction, then re-check the session.';
+      return 'Your Conjur session is signed out. Start the official Conjur sign-in below, then re-check the session.';
     default:
       return undefined;
   }
 }
 
-const guidance = (
-<details className="panel auth-guidance">
-        <summary>How sign-in works</summary>
-        <p>
-          CLIHarbor never persists the password you enter. For supported Conjur password authentication, the browser submits it
-          only to the authenticated loopback backend, which hands it directly to the pinned vendor API. The resulting vendor
-          credential remains owned by Conjur's configured credential storage.
-        </p>
-        <p className="auth-guidance-step">
-          When the current Conjur configuration uses a reviewed vendor-owned login mode such as OIDC, JWT, or Idira SaaS,
-          CLIHarbor starts the exact verified Conjur CLI with fixed <code>login</code> argv. OIDC/JWT avoid an unnecessary
-          console window; SaaS/cloud retains a vendor-owned terminal when interactive challenges require it. Unsupported
-          modes such as certificate/IAM/Azure/GCP remain outside CLIHarbor and continue through your organization's approved flow.
-        </p>
-        <p>
-          CLIHarbor’s local browser session is a separate trust boundary from vendor sessions. A successful sign-in still does
-          not bypass backend task policy, and the session check remains the authoritative browser-visible evidence.
-        </p>
-      </details>
-);
-
 export const conjurSignIn: ToolSignIn = {
   render: (context) => <ConjurSignIn {...context} />,
+  settings: (context) => <ConjurSettings {...context} />,
+  needsSetup,
   signedOutDetail,
-  guidance,
 };

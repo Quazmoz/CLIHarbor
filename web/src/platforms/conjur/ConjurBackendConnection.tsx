@@ -129,13 +129,6 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
 
   return (
     <section className="credential-login-form" aria-label="Conjur API backend configuration">
-      <div className="credential-login-heading">
-        <div>
-          <p className="status-label">CLI backend configuration</p>
-          <h4>Conjur API connection</h4>
-        </div>
-        <span className="safety-chip">Vendor-managed</span>
-      </div>
       <p className="credential-login-help">
         This is the API server used by the official Conjur CLI, not your CyberArk Identity login webpage.
         For a SaaS tenant, use <code>https://companyname.secretsmgr.cyberark.cloud</code>.

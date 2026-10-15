@@ -518,17 +518,15 @@ async function main() {
       'hasTaskForm: Boolean(document.querySelector(".builder-card form")),' +
       'hasDiagnosticsDetails: Boolean(document.querySelector(".tool-diagnostics")),' +
       'hasTasksLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Command Builder"),' +
-      'hasGuidedSignIn: ["Connect your CLIs", "CLI session checks"].includes(document.querySelector("#overview-login-heading")?.textContent?.trim()),' +
-      'hasConjurForm: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Save connection and continue"),' +
-      'hasDedicatedSignIn: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Open CyberArk Conjur sign-in"),' +
+      'hasTopbarSignIn: document.querySelector(".topbar .topbar-sign-in")?.textContent?.trim() === "Sign in",' +
+      'hasConjurForm: Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Save connection"),' +
       'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth' +
     '}))()');
     assert.equal(overviewSurface.hasTaskForm, false, 'overview must not duplicate the task execution workspace');
     assert.equal(overviewSurface.hasDiagnosticsDetails, false, 'overview must not duplicate diagnostics details');
     assert.equal(overviewSurface.hasTasksLink, true, 'overview must provide primary navigation to the Command Builder');
-    assert.equal(overviewSurface.hasGuidedSignIn, true, 'overview must expose the reviewed guided CLI sign-in surface');
-    assert.equal(overviewSurface.hasConjurForm, false, 'generic overview must not render the dedicated Conjur form (ADR-034)');
-    assert.equal(overviewSurface.hasDedicatedSignIn, true, 'overview must link Conjur to its dedicated sign-in');
+    assert.equal(overviewSurface.hasTopbarSignIn, true, 'the top bar must expose the universal Sign in page (ADR-038)');
+    assert.equal(overviewSurface.hasConjurForm, false, 'overview must not duplicate CLI sign-in forms (ADR-038)');
     assert.equal(overviewSurface.horizontalOverflow, false, 'overview must fit the default browser viewport horizontally');
     const shell = await page.evaluate('(() => ({' +
       'sidebarOnLeft: document.querySelector(".sidebar").getBoundingClientRect().width > 0 && document.querySelector(".sidebar").getBoundingClientRect().right <= document.querySelector("main").getBoundingClientRect().left,' +
@@ -543,7 +541,7 @@ async function main() {
     await page.evaluate('document.querySelector(".section-switcher a").focus()');
     await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
     await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-    await waitJS(page, 'keyboard built-in navigation', 'location.pathname === "/dedicated/conjur" && document.activeElement?.id === "main-content"');
+    await waitJS(page, 'keyboard built-in navigation', 'location.pathname === "/dedicated" && document.activeElement?.id === "main-content"');
     await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Overview").click()');
     await waitJS(page, 'return to overview', 'location.pathname === "/" && document.querySelector("#overview-heading") !== null');
     await capture('overview');
@@ -611,8 +609,8 @@ async function main() {
     assert.equal(bootstrapState.csrfInStorage, false, 'CSRF token must not enter browser storage');
 
     stage('direct authentication route and enterprise viewport');
-    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent?.trim() === "CLI sessions").click()');
-    await waitJS(page, 'per-CLI session navigation', 'location.pathname === "/authentication" && document.activeElement?.id === "main-content"');
+    await page.evaluate('document.querySelector(".topbar .topbar-sign-in").click()');
+    await waitJS(page, 'universal sign-in navigation', 'location.pathname === "/authentication" && document.activeElement?.id === "main-content"');
     await page.call('Emulation.setDeviceMetricsOverride', {
       width: 1366,
       height: 768,
@@ -621,26 +619,21 @@ async function main() {
     });
     await navigate(page, baseURL + '/authentication');
     await waitJS(page, 'authentication route',
-      'location.pathname === "/authentication" && document.querySelector("#authentication-heading")?.textContent?.trim() === "CLI sessions"');
+      'location.pathname === "/authentication" && document.querySelector("#authentication-heading")?.textContent?.trim() === "Sign in"');
     const authSurface = await page.evaluate('(() => ({' +
       'passwordInputs: document.querySelectorAll("input[type=password]").length,' +
       'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,' +
-      'hasAuthLink: Array.from(document.querySelectorAll(".primary-nav a")).some((link) => link.textContent?.trim() === "CLI sessions")' +
+      'hasAuthLink: document.querySelector(".topbar .topbar-sign-in")?.getAttribute("aria-current") === "page"' +
     '}))()');
-    assert.equal(authSurface.passwordInputs, 0, 'authentication route must not contain password inputs');
+    assert.equal(authSurface.passwordInputs, 0, 'first-run Conjur setup must not ask for a password before a backend is configured');
     assert.equal(authSurface.horizontalOverflow, false, 'authentication route must fit the 1366px enterprise viewport horizontally');
-    assert.equal(authSurface.hasAuthLink, true, 'CLI sessions route must remain in primary navigation');
+    assert.equal(authSurface.hasAuthLink, true, 'the top-bar Sign in button must mark the current page');
     await capture('authentication');
 
-    stage('staged Conjur GUI authentication in the dedicated section');
-    await clickButton(page, 'Open CyberArk Conjur sign-in');
-    await waitJS(page, 'dedicated Conjur sign-in route',
-      'location.pathname === "/dedicated/conjur/sign-in" && document.body.innerText.includes("Sign in to CyberArk Conjur")');
-    assert.equal(
-      await page.evaluate('document.body.innerText.includes("Save connection and continue")'),
-      true,
-      'first-run Conjur setup must expose the connection stage',
-    );
+    stage('staged Conjur GUI authentication on the universal sign-in page');
+    await waitJS(page, 'first-run Conjur backend settings open',
+      'document.querySelector("[aria-label$=\\" settings\\"][aria-expanded=true]") !== null && ' +
+        'Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Save connection")');
     const configureRequestPromise = page.waitEvent(
       'Network.requestWillBeSent',
       (params) =>
@@ -649,7 +642,7 @@ async function main() {
     );
     await setTextInput(page, 'Conjur server URL', conjurURL);
     await setTextInput(page, 'Account', 'engineering');
-    await clickButton(page, 'Save connection and continue');
+    await clickButton(page, 'Save connection');
 
     const configureRequest = await configureRequestPromise;
     assert.equal(
@@ -1158,7 +1151,7 @@ async function main() {
     const auditSetup = await page.evaluate('(() => ({' +
       'backend: document.querySelector("input[name=audit-backend-url]").value,' +
       'scanTypes: Array.from(document.querySelector("select[name=audit-scan-type]").options).map((option) => option.value),' +
-      'inDedicated: document.querySelector(".section-switcher a[aria-current=page]")?.getAttribute("href") === "/dedicated/conjur" && document.querySelector(".breadcrumbs").textContent.includes("Security audit"),' +
+      'inDedicated: document.querySelector(".section-switcher a[aria-current=page]")?.getAttribute("href") === "/dedicated" && document.querySelector(".breadcrumbs").textContent.includes("Security audit"),' +
       'inPrimary: Array.from(document.querySelectorAll(".primary-nav a")).some((link) => link.textContent.includes("audit"))' +
     '}))()');
     assert.equal(auditSetup.backend, conjurURL, 'audit target should default to vendor configuration');

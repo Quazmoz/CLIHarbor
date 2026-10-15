@@ -551,8 +551,8 @@ describe('AuthenticationPage', () => {
 
     renderAuth([whoamiTask], [readyTool, kubectl]);
 
-    expect(screen.getByText('CyberArk / Idira Secrets Manager CLI 9.x sign-in')).toBeInTheDocument();
-    expect(screen.getByText('Kubernetes kubectl sign-in')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'CyberArk / Idira Secrets Manager CLI 9.x' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Kubernetes kubectl' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Check session' })).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Session check unavailable' })).toBeInTheDocument();
   });
@@ -658,14 +658,24 @@ describe('AuthenticationPage', () => {
       return Promise.resolve(response(404, {}));
     }));
     renderAuth([whoamiTask], [setupTool]);
+    // Sign-in needs a backend first, so the settings panel opens on its own.
+    expect(screen.getByRole('button', { name: 'CyberArk / Idira Secrets Manager CLI 9.x settings' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('textbox', { name: 'Conjur server URL' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Configure Secrets Manager SaaS API instead' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Secrets Manager SaaS' }));
     expect(screen.queryByRole('textbox', { name: 'Conjur server URL' })).not.toBeInTheDocument();
     expect(await screen.findByRole('textbox', { name: 'Secrets Manager API URL' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('https://companyname.secretsmgr.cyberark.cloud')).toBeInTheDocument();
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Use self-hosted connection instead' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Self-hosted Conjur' }));
     expect(screen.getByRole('textbox', { name: 'Conjur server URL' })).toBeInTheDocument();
+
+    // Closing settings leaves a callout in the login box that reopens them.
+    const toggle = screen.getByRole('button', { name: 'CyberArk / Idira Secrets Manager CLI 9.x settings' });
+    fireEvent.click(toggle);
+    expect(screen.queryByRole('textbox', { name: 'Conjur server URL' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Configure backend' }));
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.queryByRole('button', { name: 'Configure backend' })).not.toBeInTheDocument();
   });
 
   test('keeps the password out of first-run connection setup, then signs in and verifies', async () => {
@@ -709,7 +719,12 @@ describe('AuthenticationPage', () => {
       }),
     );
 
-    renderAuth([whoamiTask], [setupTool]);
+    const toolsChanged = vi.fn();
+    const page = (tool: ToolDiagnostic) => (
+      <AuthenticationPage status={status} tasks={[whoamiTask]} tools={[tool]} onOpenTasks={vi.fn()}
+        onOpenDiagnostics={vi.fn()} onToolsChanged={toolsChanged} signInFor={() => conjurSignIn} />
+    );
+    const view = render(page(setupTool));
 
     expect(document.querySelector('input[type="password"]')).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Identity' })).not.toBeInTheDocument();
@@ -720,7 +735,12 @@ describe('AuthenticationPage', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Account' }), {
       target: { value: 'engineering' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save connection and continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save connection' }));
+
+    await waitFor(() => expect(toolsChanged).toHaveBeenCalledTimes(1));
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    // The refreshed runtime snapshot reports the connection configured.
+    view.rerender(page({ ...setupTool, credentialLogin: { method: 'conjur-password' } }));
 
     const identity = await screen.findByRole('textbox', { name: 'Identity' });
     const password = document.querySelector('input[type="password"]') as HTMLInputElement | null;
@@ -788,7 +808,7 @@ describe('AuthenticationPage', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Account' }), {
       target: { value: 'engineering' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save connection and continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save connection' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Vendor authentication is not currently available.');
     expect(document.querySelector('input[type="password"]')).toBeNull();
@@ -873,25 +893,24 @@ describe('AuthenticationPage', () => {
   });
 
 
-  test('generic page links a dedicated-platform CLI to its dedicated sign-in and renders no vendor form', () => {
-    const open = vi.fn();
+  test('settings button reveals tool details for a custom CLI without a dedicated provider', () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const onOpenDiagnostics = vi.fn();
     render(
-      <AuthenticationPage
-        status={status}
-        tasks={[whoamiTask]}
-        tools={[readyTool]}
-        onOpenTasks={vi.fn()}
-        onOpenDiagnostics={vi.fn()}
-        dedicatedSignInFor={() => ({ platformName: 'CyberArk Conjur', open })}
-      />,
+      <AuthenticationPage status={status} tasks={[whoamiTask]} tools={[readyTool]} onOpenTasks={vi.fn()}
+        onOpenDiagnostics={onOpenDiagnostics} />,
     );
-    expect(screen.queryByRole('textbox', { name: 'Conjur server URL' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
-    expect(screen.queryByText('How sign-in works')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Open CyberArk Conjur sign-in' }));
-    expect(open).toHaveBeenCalledTimes(1);
-  });
+    const settings = screen.getByRole('button', { name: 'CyberArk / Idira Secrets Manager CLI 9.x settings' });
+    expect(settings).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('cyberark-conjur-v9')).not.toBeInTheDocument();
 
+    fireEvent.click(settings);
+    expect(settings).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('cyberark-conjur-v9')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open diagnostics' }));
+    expect(onOpenDiagnostics).toHaveBeenCalledTimes(1);
+  });
   test('notices the vendor console stealing focus before launch request completes', async () => {
     const vendorTool: ToolDiagnostic = {
       ...readyTool,

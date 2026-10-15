@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { VendorSessionCard, type DedicatedSignInLink } from './AuthenticationPage';
 import { fetchRuns, type RunSummary } from './api/runs';
-import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import { runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
@@ -14,14 +12,11 @@ import { ToolIcon } from './ToolIcon';
 export type OverviewDestination = 'authentication' | 'tasks' | 'runs' | 'tools' | 'diagnostics';
 
 interface OverviewPageProps {
-  status: RuntimeStatus;
   tasks: Task[];
   tools: ToolDiagnostic[];
   preferences: TaskPreferences;
   onNavigate: (destination: OverviewDestination) => void;
   onOpenTask: (taskKey: string) => void;
-  /** Tools owned by a dedicated platform sign in from that platform's section. */
-  dedicatedSignInFor?: (tool: ToolDiagnostic) => DedicatedSignInLink | undefined;
 }
 
 function taskKey(task: Task): string {
@@ -69,23 +64,15 @@ function formatShortTime(value?: string): string {
 }
 
 export function OverviewPage({
-  status,
   tasks,
   tools,
   preferences,
   onNavigate,
   onOpenTask,
-  dedicatedSignInFor,
 }: OverviewPageProps) {
   const readyToolCount = tools.filter((tool) => tool.status === 'ready').length;
   const attentionTools = tools.filter((tool) => tool.status !== 'ready');
   const attentionToolCount = attentionTools.length;
-  const vendorSessionTools = tools.filter(
-    (tool) => tool.status === 'ready' && tool.requiresVendorSession === true,
-  );
-  const hasGuidedCredentialLogin = vendorSessionTools.some(
-    (tool) => tool.credentialLogin !== undefined,
-  );
   const shortcuts = useMemo(() => quickTasks(tasks, preferences), [tasks, preferences]);
   const workflowReady = readyToolCount > 0 && tasks.length > 0;
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
@@ -244,31 +231,6 @@ export function OverviewPage({
           )}
         </article>
       </div>
-
-      {vendorSessionTools.length > 0 && (
-        <section className="overview-login" aria-labelledby="overview-login-heading">
-          <div className="route-heading">
-            <p className="status-label">Per-CLI sign-in</p>
-            <h2 id="overview-login-heading">{hasGuidedCredentialLogin ? 'Connect your CLIs' : 'CLI session checks'}</h2>
-            <p>
-              Connect your tools using their supported sign-in method, then check the session before running authenticated tasks.
-            </p>
-          </div>
-          <div className="auth-layout">
-            {vendorSessionTools.map((tool) => (
-              <VendorSessionCard
-                key={tool.packId + '/' + tool.toolId + '/' + tool.packVersion}
-                status={status}
-                tasks={tasks}
-                tool={tool}
-                onOpenTasks={() => onNavigate('tasks')}
-                onOpenDiagnostics={() => onNavigate('diagnostics')}
-                dedicated={dedicatedSignInFor?.(tool)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
     </section>
   );
 }
