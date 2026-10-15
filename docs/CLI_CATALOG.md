@@ -65,7 +65,7 @@ release values and secret values are never printed.
 
 ## Artifact evidence
 
-Portable artifact pins reviewed 2026-10-06. Current declarations are in `packs/conjur/conjur-v9.yaml` (pack 0.7.0),
+Portable artifact pins reviewed 2026-10-06. Current declarations are in `packs/conjur/conjur-v9.yaml` (pack 0.8.0),
 `packs/kubectl/kubectl.yaml` (pack 0.4.0), and `packs/github/github.yaml`
 (pack 0.2.0); the existing pack schema is unchanged. Helm pins in
 `packs/helm/helm.yaml` (reviewed 2026-10-14) match the official

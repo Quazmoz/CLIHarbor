@@ -251,6 +251,13 @@ func TestConjurSecretTasksSendExactPolicyOnStdin(t *testing.T) {
 	if want := "- !variable\n  id: \"db/password\"\n"; plan.Stdin != want || plan.Risk != packs.RiskChange {
 		t.Fatalf("create stdin = %q risk = %s", plan.Stdin, plan.Risk)
 	}
+	plan = build("secret-create-owned", map[string]any{
+		"policy-branch": "apps", "variable-id": "db/password", "owner-kind": "group", "owner-id": hostile,
+	})
+	if err := yaml.Unmarshal([]byte(plan.Stdin), &statements); err != nil || len(statements) != 1 ||
+		statements[0]["owner"].Tag != "!group" || statements[0]["owner"].Value != hostile || plan.Risk != packs.RiskChange {
+		t.Fatalf("create-owned stdin = %q risk = %s err = %v", plan.Stdin, plan.Risk, err)
+	}
 	plan = build("secret-delete", map[string]any{"policy-branch": "root", "variable-id": "db/password"})
 	if want := "- !delete\n  record: !variable \"db/password\"\n"; plan.Stdin != want || plan.Risk != packs.RiskDestructive {
 		t.Fatalf("delete stdin = %q risk = %s", plan.Stdin, plan.Risk)

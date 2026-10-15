@@ -5,7 +5,8 @@ import { createRun, fetchRun, previewRun, subscribeRunEvents } from '../../api/r
 import type { Task } from '../../api/tasks';
 import type { RunPreview, RunSnapshot } from '../../api/runs';
 
-vi.mock('../../api/runs', () => ({
+vi.mock('../../api/runs', async (importOriginal) => ({
+  createRunOutputDecoder: (await importOriginal<typeof import('../../api/runs')>()).createRunOutputDecoder,
   createRun: vi.fn(), previewRun: vi.fn(), fetchRun: vi.fn(),
   subscribeRunEvents: vi.fn(),
 }));
@@ -27,9 +28,9 @@ const context = { fields: [{ label: 'Account', value: 'dev' }, { label: 'Endpoin
 const preview = (commandId: string): RunPreview => ({
   packId: PACK, commandId, toolId: 'conjur', executableName: 'conjur',
   args: ['policy'], risk: 'change',
-  impact: { targetLabel: 'Variable', target: commandId === 'secret-create' ? 'db/password' : 'apps/db/password', effect: 'Write', scope: 'single' },
+  impact: { targetLabel: 'Variable', target: commandId === 'secret-set-value' ? 'apps/db/password' : 'db/password', effect: 'Write', scope: 'single' },
   approval, context,
-  ...(commandId === 'secret-create' ? { stdin: '- !variable\n  id: "db/password"\n' } : {}),
+  ...(commandId === 'secret-set-value' ? {} : { stdin: '- !' + commandId + '\n' }),
 });
 const snapshot = (commandId: string, ok = true): RunSnapshot => ({
   packId: PACK, commandId, toolId: 'conjur', runId: commandId + '-run',
@@ -297,4 +298,61 @@ test('a preview for a different Conjur account fails closed before any write', a
   expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.commandId))
     .toEqual(['resource-exists']);
   expect(within(region).queryByRole('button', { name: 'Create secret and store value' })).not.toBeInTheDocument();
+});
+
+const roleLists: Record<string, string[]> = {
+  policy: ['dev:policy:root', 'dev:policy:apps'], group: ['dev:group:admins'],
+  host: ['dev:host:apps/web'], layer: [], user: ['dev:user:alice', 'other:user:mallory'],
+};
+const listed = (kind: string): RunSnapshot => ({
+  ...snapshot('list-resources'), events: [{ sequence: 1, type: 'stdout.chunk', timestamp: '',
+    dataBase64: btoa(JSON.stringify(roleLists[kind])) }],
+});
+
+test('dropdowns pick parent policy, owner and access, then run three approved steps in order', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'list-resources'
+    ? listed(request.values.kind as string) : snapshot(request.commandId));
+  render(<ConjurCreateSecret csrfToken="test-csrf" account="dev" endpoint="https://example.test" contextKey="current"
+    tasks={[...tasks,
+      task('list-resources', 'read', [['kind', 'enum'], ['limit', 'enum']]),
+      task('secret-create-owned', 'change', [['policy-branch', 'string'], ['variable-id', 'string'],
+        ['owner-kind', 'enum'], ['owner-id', 'string'], ['dry-run', 'boolean']]),
+      task('secret-permit', 'change', [['policy-branch', 'string'], ['variable-id', 'string'],
+        ['role-kind', 'enum'], ['role-id', 'string'], ['privileges', 'enum'], ['dry-run', 'boolean']]),
+    ]} />);
+  const region = screen.getByRole('region', { name: 'Create Conjur secret' });
+  fireEvent.click(within(region).getByRole('button', { name: /Create secret/ }));
+  const parent = await within(region).findByRole('combobox', { name: /^Parent policy/ });
+  expect(within(parent).getAllByRole('option').map((option) => option.textContent)).toEqual(['root', 'apps']);
+  // Roles from another account are never offered.
+  expect(within(region).queryByRole('option', { name: 'mallory' })).not.toBeInTheDocument();
+  fireEvent.change(parent, { target: { value: 'apps' } });
+  fireEvent.change(within(region).getByRole('combobox', { name: /^Owner/ }), { target: { value: 'group:admins' } });
+  fireEvent.change(within(region).getByRole('combobox', { name: /^Accessible by/ }), { target: { value: 'host:apps/web' } });
+  fireEvent.change(within(region).getByRole('textbox', { name: /New variable ID/ }), { target: { value: 'db/password' } });
+  fireEvent.change(within(region).getByLabelText('Initial secret value'), { target: { value: 'never-store-me' } });
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await waitFor(() => expect(previewRun).toHaveBeenCalledTimes(3));
+  fireEvent.click(within(region).getByRole('checkbox', { name: /I approve all three changes/ }));
+  fireEvent.click(within(region).getByRole('button', { name: 'Create secret and store value' }));
+  await waitFor(() => expect(within(region).getByText(/access granted/)).toBeInTheDocument());
+  const writes = vi.mocked(createRun).mock.calls.map(([, request]) => request)
+    .filter((request) => request.commandId.startsWith('secret-'));
+  expect(writes.map((request) => request.commandId)).toEqual(['secret-create-owned', 'secret-set-value', 'secret-permit']);
+  expect(writes[0].values).toMatchObject({ 'policy-branch': 'apps', 'owner-kind': 'group', 'owner-id': '/admins' });
+  expect(writes[2].values).toMatchObject({
+    'policy-branch': 'apps', 'variable-id': 'db/password', 'role-kind': 'host', 'role-id': '/apps/web', privileges: 'read, execute',
+  });
+  expect(writes.every((request) => request.approval?.id === approval.id)).toBe(true);
+});
+
+test('an unlistable inventory keeps the typed branch and default owner without blocking creation', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) => snapshot(request.commandId, request.commandId !== 'list-resources'));
+  render(<ConjurCreateSecret csrfToken="test-csrf" account="dev" endpoint="https://example.test" contextKey="current"
+    tasks={[...tasks, task('list-resources', 'read', [['kind', 'enum'], ['limit', 'enum']])]} />);
+  const region = screen.getByRole('region', { name: 'Create Conjur secret' });
+  fireEvent.click(within(region).getByRole('button', { name: /Create secret/ }));
+  await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('could not be listed'));
+  expect(within(region).getByRole('textbox', { name: /Policy branch/ })).toHaveValue('root');
+  expect(within(region).getByRole('combobox', { name: /^Owner/ })).toBeDisabled();
 });

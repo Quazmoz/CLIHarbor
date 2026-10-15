@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Task } from '../../api/tasks';
 import {
-  createRun, fetchRun, previewRun, subscribeRunEvents,
+  createRun, createRunOutputDecoder, fetchRun, previewRun, subscribeRunEvents,
   type RunPreview, type RunSnapshot,
 } from '../../api/runs';
 import { normalizeConjurSaaSAPIURL } from './ConjurBackendConnection';
@@ -13,6 +13,19 @@ const MAX_RECONCILE_MS = 10_000;
 // Deliberately accept only simple relative policy paths in this guided flow.
 // More complex identifiers remain available through the reviewed generic tasks.
 const PATH = /^[A-Za-z0-9_][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$/u;
+// Role IDs from Conjur only populate dropdowns; the planner quotes each one as a
+// single YAML scalar and the reviewed policy text shows exactly what is loaded.
+const ROLE_ID = /^[^\p{Cc}\p{Cf}]{1,2047}$/u;
+const ROLE_KINDS = ['policy', 'group', 'host', 'layer', 'user'] as const;
+type RoleKind = typeof ROLE_KINDS[number];
+type Inventory = Record<RoleKind, string[]>;
+const KIND_LABELS: Record<RoleKind, string> = {
+  policy: 'Policies', group: 'Groups', host: 'Hosts', layer: 'Layers', user: 'Users',
+};
+const PRIVILEGES = ['read, execute', 'read', 'execute', 'update', 'read, execute, update'];
+const PAGE = 100;
+// ponytail: first 500 IDs per kind in Conjur's order; add list-resources --search typeahead if tenants outgrow it.
+const MAX_PAGES = 5;
 
 interface Props {
   tasks: Task[];
@@ -28,8 +41,33 @@ interface Plan {
   variable: string;
   fullID: string;
   contextKey: string;
+  owner: string;
+  grantee: string;
+  privileges: string;
   create: RunPreview;
   set: RunPreview;
+  permit?: RunPreview;
+}
+
+// Dropdown values are "kind:id" so one select carries a typed Conjur role.
+function splitRole(role: string): [string, string] {
+  const at = role.indexOf(':');
+  return [role.slice(0, at), role.slice(at + 1)];
+}
+
+function createValues(branch: string, variable: string, owner: string): Record<string, unknown> {
+  if (!owner) return { 'policy-branch': branch, 'variable-id': variable, 'dry-run': false };
+  const [kind, id] = splitRole(owner);
+  // A leading slash makes Conjur resolve the selected role absolutely, not under the branch.
+  return { 'policy-branch': branch, 'variable-id': variable, 'owner-kind': kind, 'owner-id': '/' + id, 'dry-run': false };
+}
+
+function permitValues(plan: Pick<Plan, 'branch' | 'variable' | 'grantee' | 'privileges'>): Record<string, unknown> {
+  const [kind, id] = splitRole(plan.grantee);
+  return {
+    'policy-branch': plan.branch, 'variable-id': plan.variable, 'role-kind': kind, 'role-id': '/' + id,
+    privileges: plan.privileges, 'dry-run': false,
+  };
 }
 
 function supportedTask(tasks: Task[], commandId: string, risk: Task['risk'], inputs: Record<string, string>): boolean {
@@ -123,6 +161,29 @@ async function exists(csrfToken: string, fullID: string, account: string): Promi
   throw new Error('Conjur returned an unrecognized existence result.');
 }
 
+// Read-only role inventory for the dropdowns. A failure only disables the
+// dropdowns; it is never evidence about what exists.
+async function listIDs(csrfToken: string, account: string, kind: RoleKind): Promise<string[]> {
+  const prefix = account + ':' + kind + ':';
+  const ids: string[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const snapshot = await completedRun(await createRun(csrfToken, {
+      packId: PACK, commandId: 'list-resources',
+      values: { kind, limit: String(PAGE), ...(page ? { offset: page * PAGE } : {}) },
+    }));
+    if (!successful(snapshot, 'list-resources')) throw new Error('Conjur could not list visible roles.');
+    const entries: unknown = JSON.parse(createRunOutputDecoder()(snapshot).stdout);
+    if (!Array.isArray(entries)) throw new Error('Conjur returned an unrecognized role list.');
+    for (const entry of entries) {
+      if (typeof entry === 'string' && entry.startsWith(prefix) && ROLE_ID.test(entry.slice(prefix.length))) {
+        ids.push(entry.slice(prefix.length));
+      }
+    }
+    if (entries.length < PAGE) break;
+  }
+  return ids;
+}
+
 function safeMessage(error: unknown): string {
   // Do not expose untrusted vendor output or request details in the create flow.
   if (error instanceof ExistenceCheckFailure) return error.message;
@@ -146,6 +207,11 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   const [error, setError] = useState('');
   const [failedCheckRunId, setFailedCheckRunId] = useState('');
   const [outcome, setOutcome] = useState('');
+  const [owner, setOwner] = useState('');
+  const [grantee, setGrantee] = useState('');
+  const [privileges, setPrivileges] = useState(PRIVILEGES[0]);
+  const [inventory, setInventory] = useState<Inventory | null>(null);
+  const [inventoryState, setInventoryState] = useState<'idle' | 'loading' | 'failed'>('idle');
   const busyRef = useRef(false);
   const alive = useRef(true);
   useEffect(() => {
@@ -159,6 +225,37 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       'policy-branch': 'string', 'variable-id': 'string', 'dry-run': 'boolean',
     }) &&
     supportedTask(tasks, 'secret-set-value', 'change', { 'variable-id': 'string', value: 'secret' });
+  const canList = tasks.some((task) => task.packId === PACK && task.toolId === TOOL &&
+    task.commandId === 'list-resources' && task.risk === 'read');
+  const canOwn = supportedTask(tasks, 'secret-create-owned', 'change', {
+    'policy-branch': 'string', 'variable-id': 'string', 'owner-kind': 'enum', 'owner-id': 'string', 'dry-run': 'boolean',
+  });
+  const canPermit = supportedTask(tasks, 'secret-permit', 'change', {
+    'policy-branch': 'string', 'variable-id': 'string', 'role-kind': 'enum', 'role-id': 'string',
+    privileges: 'enum', 'dry-run': 'boolean',
+  });
+  // SaaS only accepts branches under data; keep the current branch listed so the select never lies.
+  const branchOptions = inventory ? [...new Set([...(saas ? [] : ['root']), branch, ...inventory.policy.filter((id) =>
+    PATH.test(id) && id !== 'root' && (!saas || id === 'data' || id.startsWith('data/')))])] : [];
+
+  async function loadInventory() {
+    if (!canList || !account || inventoryState === 'loading') return;
+    setInventoryState('loading');
+    try {
+      // Sequential: the run manager caps concurrent CLI processes.
+      const loaded = {} as Inventory;
+      for (const kind of ROLE_KINDS) loaded[kind] = await listIDs(csrfToken, account, kind);
+      if (alive.current) { setInventory(loaded); setInventoryState('idle'); }
+    } catch {
+      if (alive.current) setInventoryState('failed');
+    }
+  }
+
+  const roleOptions = (kinds: readonly RoleKind[]) => inventory && kinds.map((kind) => inventory[kind].length > 0 && (
+    <optgroup key={kind} label={KIND_LABELS[kind]}>
+      {inventory[kind].map((id) => <option key={id} value={kind + ':' + id}>{id}</option>)}
+    </optgroup>
+  ));
   const fullID = fullVariableID(branch, variable);
   const saasRoot = saas && branch === 'root';
   // The resource-exists task limits the account-prefixed resource ID to 2048 characters.
@@ -166,7 +263,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   const inputReady = Boolean(fullID) && !saasRoot && !resourceIDTooLong && value.length >= 1 && value.length <= 4096 &&
     !/[\r\n\p{Cc}\p{Cf}]/u.test(value);
   const reviewed = plan !== null && plan.branch === branch && plan.variable === variable &&
-    plan.fullID === fullID && plan.contextKey === contextKey;
+    plan.fullID === fullID && plan.contextKey === contextKey && plan.owner === owner &&
+    plan.grantee === grantee && plan.privileges === privileges;
 
   function changed(update: () => void) {
     update();
@@ -190,24 +288,25 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
         throw new Error('Conjur reports this variable already exists. Use Update value instead of creating it.');
       }
       const create = await previewRun(csrfToken, {
-        packId: PACK, commandId: 'secret-create',
-        values: { 'policy-branch': branch, 'variable-id': variable, 'dry-run': false },
+        packId: PACK, commandId: owner ? 'secret-create-owned' : 'secret-create',
+        values: createValues(branch, variable, owner),
       });
       const set = await previewRun(csrfToken, {
         packId: PACK, commandId: 'secret-set-value', values: { 'variable-id': fullID, value },
       });
-      if (create.risk !== 'change' || set.risk !== 'change' ||
-          !create.approval || !set.approval ||
-          create.approval.mode !== 'explicit' || set.approval.mode !== 'explicit' ||
-          !create.context || !set.context || !create.impact || !set.impact ||
-          create.impact.target !== variable || set.impact.target !== fullID ||
-          JSON.stringify(create.context.fields) !== JSON.stringify(set.context.fields) ||
-          create.context.fields.find((field) => field.label === 'Account')?.value !== account ||
-          create.context.fields.find((field) => field.label === 'Endpoint')?.value.replace(/\/$/u, '') !== endpoint?.replace(/\/$/u, '') ||
-          !create.stdin || set.stdin !== undefined) {
-        throw new Error('Conjur did not return matching approved plans for both operations.');
+      const permit = grantee ? await previewRun(csrfToken, {
+        packId: PACK, commandId: 'secret-permit', values: permitValues({ branch, variable, grantee, privileges }),
+      }) : undefined;
+      const policyLoads = permit ? [create, permit] : [create];
+      if ([...policyLoads, set].some((step) => step.risk !== 'change' || step.approval?.mode !== 'explicit' ||
+            !step.context || JSON.stringify(step.context.fields) !== JSON.stringify(create.context?.fields)) ||
+          policyLoads.some((step) => step.impact?.target !== variable || !step.stdin) ||
+          set.impact?.target !== fullID || set.stdin !== undefined ||
+          create.context?.fields.find((field) => field.label === 'Account')?.value !== account ||
+          create.context?.fields.find((field) => field.label === 'Endpoint')?.value.replace(/\/$/u, '') !== endpoint?.replace(/\/$/u, '')) {
+        throw new Error('Conjur did not return matching approved plans for every operation.');
       }
-      if (alive.current) setPlan({ branch, variable, fullID, contextKey, create, set });
+      if (alive.current) setPlan({ branch, variable, fullID, contextKey, owner, grantee, privileges, create, set, permit });
     } catch (caught) {
       if (alive.current) {
         setError(safeMessage(caught));
@@ -221,9 +320,11 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
 
   async function apply() {
     if (busyRef.current || !allowed || !approved || !reviewed || !plan || !account || !inputReady) return;
-    // The second independent approval must remain valid while the first run completes.
+    // Later independent approvals must remain valid while the first run completes.
     // Refuse stale reviews before mutating anything; preserve input for a fresh review.
-    if (Math.min(Date.parse(plan.create.approval!.expiresAt), Date.parse(plan.set.approval!.expiresAt)) <= Date.now() + MAX_RUN_MS + 5_000) {
+    // An optional grant that still lapses later is reported as recoverable partial completion.
+    const approvals = [plan.create, plan.set, ...(plan.permit ? [plan.permit] : [])];
+    if (Math.min(...approvals.map((step) => Date.parse(step.approval!.expiresAt))) <= Date.now() + MAX_RUN_MS + 5_000) {
       setError('The reviewed approvals are too close to expiry. Review both changes again before proceeding.');
       setPlan(null);
       setApproved(false);
@@ -240,6 +341,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     setApproved(false);
     setPlan(null);
     let declared = false;
+    let stored = false;
+    const createCommand = plan.owner ? 'secret-create-owned' : 'secret-create';
     try {
       setStage('Checking the target again');
       if (await exists(csrfToken, plan.fullID, account)) {
@@ -248,29 +351,47 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       if (!alive.current) return;
       setStage('Creating the variable');
       const create = await completedRun(await createRun(csrfToken, {
-        packId: PACK, commandId: 'secret-create',
-        values: { 'policy-branch': plan.branch, 'variable-id': plan.variable, 'dry-run': false },
+        packId: PACK, commandId: createCommand,
+        values: createValues(plan.branch, plan.variable, plan.owner),
         approval: { id: plan.create.approval!.id },
       }));
-      if (!successful(create, 'secret-create')) {
+      if (!successful(create, createCommand)) {
         throw new Error('Conjur did not confirm variable creation. Check Runs before trying again.');
       }
       declared = true;
       if (!alive.current) return; // Never start a second mutation after navigation.
       setStage('Storing the initial secret value');
-      const stored = await completedRun(await createRun(csrfToken, {
+      const setRun = await completedRun(await createRun(csrfToken, {
         packId: PACK, commandId: 'secret-set-value',
         values: { 'variable-id': plan.fullID, value: secret },
         approval: { id: plan.set.approval!.id },
       }));
-      if (!successful(stored, 'secret-set-value')) {
+      if (!successful(setRun, 'secret-set-value')) {
         throw new Error('Conjur created the variable but did not confirm the value was stored.');
       }
-      if (alive.current) setOutcome('Variable created and initial value stored. Assign permissions separately if required.');
+      stored = true;
+      if (plan.permit) {
+        if (!alive.current) return;
+        setStage('Granting access');
+        const permitted = await completedRun(await createRun(csrfToken, {
+          packId: PACK, commandId: 'secret-permit', values: permitValues(plan),
+          approval: { id: plan.permit.approval!.id },
+        }));
+        if (!successful(permitted, 'secret-permit')) {
+          throw new Error('Conjur did not confirm the access grant.');
+        }
+      }
+      if (alive.current) {
+        setOutcome(plan.permit ? 'Variable created, initial value stored and access granted.'
+          : 'Variable created and initial value stored. Assign permissions separately if required.');
+      }
     } catch (caught) {
       if (alive.current) {
-        setError((declared ? 'Partial completion: the variable was created, but value storage is unconfirmed. ' : '') +
-          safeMessage(caught) + ' Never blindly repeat creation; inspect the variable first.');
+        setError(stored
+          ? 'Partial completion: the variable and its value are stored, but the access grant is unconfirmed. ' +
+            safeMessage(caught) + ' Check Runs, then use Grant permission instead of recreating the secret.'
+          : (declared ? 'Partial completion: the variable was created, but value storage is unconfirmed. ' : '') +
+            safeMessage(caught) + ' Never blindly repeat creation; inspect the variable first.');
         setFailedCheckRunId(caught instanceof ExistenceCheckFailure ? caught.runId : '');
       }
     } finally {
@@ -283,22 +404,40 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   return (
     <section className="conjur-create-secret" aria-label="Create Conjur secret">
       <button type="button" className="conjur-action conjur-action--primary" disabled={!allowed || busy}
-        aria-expanded={open} onClick={() => { if (!busy) setOpen(!open); }}>
+        aria-expanded={open} onClick={() => {
+          if (busy) return;
+          if (!open && !inventory) void loadInventory();
+          setOpen(!open);
+        }}>
         <span className="conjur-action-text">
           <strong>Create secret</strong>
           <span>{allowed
-            ? 'Declare a variable and enter its initial value together, using the two approved Conjur commands.'
+            ? 'Choose where the variable lives, who owns it and who can access it, then enter its initial value, using approved Conjur commands.'
             : 'Unavailable until Conjur and the approved commands are ready.'}</span>
         </span>
-        <span className="task-risk-badge task-risk-badge--change">Two approvals</span>
+        <span className="task-risk-badge task-risk-badge--change">Explicit approval</span>
       </button>
       {open && (
         <form className="conjur-create-form" onSubmit={(event) => void review(event)} autoComplete="off">
-          <p>Provide the destination and secret value once. No change runs until you review and approve both operations; review checks existence using an approved read-only command. This is not an atomic Conjur transaction.</p>
-          <label>Policy branch
-            <input required maxLength={512} value={branch} disabled={busy} spellCheck={false}
-              onChange={(event) => changed(() => setBranch(event.target.value))} />
-          </label>
+          <p>Provide the destination and secret value once. No change runs until you review and approve every operation; review checks existence using an approved read-only command. This is not an atomic Conjur transaction.</p>
+          {inventoryState === 'loading' && <p role="status">Loading visible Conjur policies and roles…</p>}
+          {inventoryState === 'failed' && (
+            <p role="alert">Conjur policies and roles could not be listed, so the owner and access dropdowns are unavailable.{' '}
+              <button type="button" className="secondary-button" disabled={busy} onClick={() => void loadInventory()}>Retry</button>
+            </p>
+          )}
+          {inventory ? (
+            <label>Parent policy
+              <select value={branch} disabled={busy} onChange={(event) => changed(() => setBranch(event.target.value))}>
+                {branchOptions.map((id) => <option key={id} value={id}>{id}</option>)}
+              </select>
+            </label>
+          ) : (
+            <label>Policy branch
+              <input required maxLength={512} value={branch} disabled={busy} spellCheck={false}
+                onChange={(event) => changed(() => setBranch(event.target.value))} />
+            </label>
+          )}
           {saasRoot && <p role="alert">Secrets Manager SaaS does not allow changes to the root policy. Use <code>data</code> or a branch under it.</p>}
           <label>New variable ID (relative to branch)
             <input required maxLength={2048} value={variable} disabled={busy} spellCheck={false}
@@ -306,6 +445,29 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
           </label>
           <p>Full variable ID: <code>{fullID ?? 'Enter a simple relative policy path and variable ID'}</code></p>
           {resourceIDTooLong && <p role="alert">The complete Conjur resource ID exceeds the supported 2,048-character limit. Shorten the variable path.</p>}
+          <label>Owner
+            <select value={owner} disabled={busy || !inventory || !canOwn}
+              onChange={(event) => changed(() => setOwner(event.target.value))}>
+              <option value="">Parent policy (Conjur default)</option>
+              {roleOptions(ROLE_KINDS)}
+            </select>
+          </label>
+          <p>The owner holds every privilege on the variable, including reading and changing its value.</p>
+          <label>Accessible by
+            <select value={grantee} disabled={busy || !inventory || !canPermit}
+              onChange={(event) => changed(() => setGrantee(event.target.value))}>
+              <option value="">Owner only (no additional grant)</option>
+              {roleOptions(['group', 'host', 'layer', 'user'])}
+            </select>
+          </label>
+          {grantee && (
+            <label>Permissions
+              <select value={privileges} disabled={busy} onChange={(event) => changed(() => setPrivileges(event.target.value))}>
+                {PRIVILEGES.map((privilege) => <option key={privilege} value={privilege}>{privilege}</option>)}
+              </select>
+            </label>
+          )}
+          {grantee && <p>read shows metadata, execute fetches the secret value, update changes the value.</p>}
           <label>Initial secret value
             <input required type="password" minLength={1} maxLength={4096} value={value}
               disabled={busy} autoComplete="off" spellCheck={false}
@@ -315,18 +477,22 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
           <button type="submit" disabled={!allowed || !inputReady || busy}>Review creation and value</button>
           {reviewed && plan && (
             <section className="mutation-approval" aria-label="Create secret approval">
-              <h4>Review both Conjur changes</h4>
+              <h4>Review {plan.permit ? 'all three' : 'both'} Conjur changes</h4>
               <p><strong>Target:</strong> <code>{plan.fullID}</code></p>
               {plan.create.context?.fields.map((field) => (
                 <p key={field.label}><strong>{field.label}:</strong> {field.value}</p>
               ))}
-              <p><strong>1. Declare the variable:</strong></p>
+              <p><strong>1. Declare the variable{plan.owner ? ' with its owner' : ''}:</strong></p>
               <pre className="mutation-stdin">{plan.create.stdin}</pre>
               <p><strong>2. Set initial value:</strong> secret passed on stdin, never shown.</p>
-              <p>If the first step succeeds and the second fails, the variable may remain without the intended value. There is no automatic rollback.</p>
+              {plan.permit && <>
+                <p><strong>3. Grant access:</strong></p>
+                <pre className="mutation-stdin">{plan.permit.stdin}</pre>
+              </>}
+              <p>If an early step succeeds and a later one fails, the variable may remain without the intended value or access. There is no automatic rollback.</p>
               <label className="conjur-create-consent">
                 <input type="checkbox" checked={approved} onChange={(event) => setApproved(event.target.checked)} />
-                I approve both changes to this exact target and environment.
+                I approve {plan.permit ? 'all three' : 'both'} changes to this exact target and environment.
               </label>
               <button type="button" onClick={() => void apply()} disabled={!approved || busy}>
                 Create secret and store value

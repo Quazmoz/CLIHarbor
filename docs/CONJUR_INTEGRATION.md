@@ -25,7 +25,7 @@ CyberArk release binaries render the reviewed release as `9.3.1-<commit>`. That 
 
 ## Zero-config startup
 
-Pack version `0.7.0` supports installed Conjur on Windows and macOS using the same reviewed 9.x argv/version contract. The upstream [v9.3.1 release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) publishes darwin builds. The automatic pinned fallback and guided external vendor-login launcher remain Windows-specific; on macOS, install an approved official CLI and complete interactive login in your terminal. See [Windows and macOS setup](CROSS_PLATFORM.md).
+Pack version `0.8.0` supports installed Conjur on Windows and macOS using the same reviewed 9.x argv/version contract. The upstream [v9.3.1 release configuration](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/.goreleaser.yml) publishes darwin builds. The automatic pinned fallback and guided external vendor-login launcher remain Windows-specific; on macOS, install an approved official CLI and complete interactive login in your terminal. See [Windows and macOS setup](CROSS_PLATFORM.md).
 
 Normal Windows startup is:
 
@@ -197,6 +197,7 @@ The current pack exposes reviewed non-secret reads and separately approved chang
 | `ldap-user-show/create/delete` | `conjur authn-ldap users <show|create|delete> ...` | Show mappings and approval-gated mutations |
 | `issuer-delete` | `conjur issuer delete --id <id> ...` | Destructive; explicit approval |
 | `secret-create` | `conjur policy update --branch <b> --file - [--dry-run]` + `!variable` | Change, approval required |
+| `secret-create-owned` | `conjur policy update --branch <b> --file - [--dry-run]` + `!variable` with `owner:` | Change, approval required |
 | `secret-delete` | `conjur policy update --branch <b> --file - [--dry-run]` + `!delete` | Destructive, typed approval |
 | `secret-permit` | `conjur policy update --branch <b> --file - [--dry-run]` + `!permit` | Change, approval required |
 | `secret-deny` | `conjur policy update --branch <b> --file - [--dry-run]` + `!deny` | Change, approval required |
@@ -220,6 +221,16 @@ permissions, inventory, and diagnostics:
   `secret-create` and `secret-set-value` reviewed pack commands, not a new
   vendor command or a generic shell. Two mutation plans are previewed and
   explicitly approved together before execution.
+  When the read-only `list-resources` task is available, the form offers
+  dropdowns for the **parent policy**, the **owner** and **accessible by**
+  (one role plus privileges), populated from the first 500 visible IDs per kind
+  for the current account. The default owner is the parent policy (plain
+  `secret-create`); choosing a role uses `secret-create-owned`, which adds
+  `owner: !<kind> /<id>` to the same `!variable` statement. Choosing an access
+  role adds a third approved `secret-permit` step after the value is stored;
+  if it fails, the secret remains and the UI points to Grant permission. If the
+  inventory cannot be listed, the form keeps the typed branch field and the
+  default owner.
 - **Read / browse** opens bounded, metadata-only variable inventory. This is
   deliberately **not** a secret-value retrieval action.
 - **Update value** opens the approval-gated, stdin-only `secret-set-value` task.

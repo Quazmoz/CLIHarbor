@@ -20,7 +20,7 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 	if pack.Metadata.ID != "cyberark-conjur-v9" {
 		t.Fatalf("pack id = %q", pack.Metadata.ID)
 	}
-	if pack.Metadata.Version != "0.7.0" {
+	if pack.Metadata.Version != "0.8.0" {
 		t.Fatalf("pack version = %q", pack.Metadata.Version)
 	}
 	if !strings.Contains(pack.Metadata.Name, "Conjur") {
@@ -81,6 +81,7 @@ func TestConjurV9PackParsesAndStaysReadOnly(t *testing.T) {
 		"role-memberships",
 		"role-show",
 		"secret-create",
+		"secret-create-owned",
 		"secret-delete",
 		"secret-deny",
 		"secret-permit",

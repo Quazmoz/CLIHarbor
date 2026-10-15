@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: cyberark-conjur-v9
   name: Conjur — CyberArk / Idira Secrets Manager CLI 9.x
-  version: 0.7.0
+  version: 0.8.0
   description: >-
     Reviewed Conjur CLI workflows verified from the official cyberark/conjur-cli-go
     v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
@@ -1018,6 +1018,77 @@ commands:
       - id: variable-id
         type: string
         label: Variable ID (relative to the policy branch)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: dry-run
+        type: boolean
+        label: Validate only (dry run, nothing is changed)
+    argv:
+      - literal: policy
+      - literal: update
+      - flag:
+          name: --branch
+          valueFrom: policy-branch
+      - literal: --file
+      - literal: "-"
+      - switch:
+          name: --dry-run
+          enabledFrom: dry-run
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  secret-create-owned:
+    name: Create secret variable with owner
+    description: >-
+      Declare a new Conjur variable under a policy branch with an explicit owner role
+      (conjur policy update). The owner holds every privilege on the variable. The
+      variable starts without a value; use Set secret value afterwards.
+    tool: conjur
+    risk: change
+    impact:
+      targetInput: variable-id
+      targetLabel: Variable
+      effect: Adds a variable declaration owned by the selected role to the policy branch. Existing resources are not changed.
+      scope: single
+    stdin:
+      yamlTemplate: |
+        - !variable
+          id: {{variable-id}}
+          owner: !{{owner-kind}} {{owner-id}}
+    inputs:
+      - id: policy-branch
+        type: string
+        label: Policy branch
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 512
+          disallowLeadingDash: true
+      - id: variable-id
+        type: string
+        label: Variable ID (relative to the policy branch)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: owner-kind
+        type: enum
+        label: Owner kind
+        required: true
+        validation:
+          enum: [policy, group, host, layer, user]
+          disallowLeadingDash: true
+      - id: owner-id
+        type: string
+        label: Owner ID (relative to the policy branch; start with / for an absolute ID)
         required: true
         validation:
           minLength: 1
