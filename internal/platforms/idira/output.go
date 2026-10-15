@@ -6,8 +6,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"regexp"
 	"io"
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	PackID = "cyberark-idira-pam"
-	ToolID = "idsec"
-	maxVendorOutput = 64 << 10
-	maxPageItems = 50
+	PackID                = "cyberark-idira-pam"
+	ToolID                = "idsec"
+	maxVendorOutput       = 64 << 10
+	maxPageItems          = 50
 	maxMetadataValueBytes = 2048
 )
 
@@ -89,9 +89,9 @@ func filterStatus(data []byte) ([]byte, error) {
 		return nil, errUnsafeVendorOutput
 	}
 	return json.Marshal(struct {
-		Profile string `json:"profile"`
-		Exists bool `json:"exists"`
-		Authenticated bool `json:"authenticated"`
+		Profile       string `json:"profile"`
+		Exists        bool   `json:"exists"`
+		Authenticated bool   `json:"authenticated"`
 	}{profile, exists, auth})
 }
 
