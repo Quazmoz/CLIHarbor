@@ -3,7 +3,7 @@
 > **Status: implementation staged for qualification.** This page describes the
 > `cyberark-idira-pam` first-party pack; it is not proof of corporate-tenant
 > acceptance. Do not distribute a CLIHarbor binary from this branch until
-> repository validation and frontend asset generation have succeeded.
+> repository qualification has succeeded.
 
 ## Upstream contract and scope
 
@@ -88,17 +88,18 @@ Generic run history may retain only the allowlisted output and metadata.
    discovery cannot select one exact approved `idsec.exe`, restart with
    `--tool-path "cyberark-idira-pam/idsec=C:\Approved\Path\idsec.exe"`,
    using the real authorized absolute path.
-8. In **Built-in CLIs → Idira PAM**, verify detected version and open
-   **Connection → Check selected profile**. Only a successful explicit
-   result with `authenticated: true` establishes vendor-session
-   readiness. Executable discovery alone is never authentication proof.
-9. Open **Safes**, prepare a 25-item request at offset 0, confirm exact
-   arguments in the shared planner, then run. Confirm only Safe IDs/names
-   appear in the authorized result. Repeat at offset 25 if needed.
-10. Open **Accounts**, optionally restrict to a Safe, run a 25-item page,
-    and verify only account name/ID, Safe name, platform ID are returned.
-    Compare a permitted subset with the vendor console. No credential
-    retrieval is required or approved.
+8. In **Built-in CLIs → Idira PAM**, review discovery, then choose
+   **Browse approved tasks** and open **Check PAM session**. Only a
+   successful explicit result with `authenticated: true` establishes
+   vendor-session readiness. Executable discovery alone is not proof of authentication.
+9. From the shared **Tasks** workspace, open **Browse Safes**, enter
+   `limit=25`, `offset=0`, review the exact preview, then run. Confirm that
+   only Safe IDs/names appear. Repeat with `offset=25` if authorized.
+10. Open **Browse accounts (metadata only)** in the shared task browser,
+    supply `limit=25` and `offset=0`, optionally restrict by Safe, then
+    preview and run. Check that only account ID/name, Safe name and platform
+    ID appear. Compare an authorized subset with the vendor console.
+    No credential retrieval is required or approved.
 11. Test the expected error states: missing Idsec, incompatible version,
     expired session, missing authorization, unreachable corporate proxy,
     and a cancelled inventory read. CLIHarbor must show safe status or
