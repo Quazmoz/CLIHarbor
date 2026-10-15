@@ -295,6 +295,25 @@ The UI manages **variable permissions**, not an arbitrary resource's effective a
 No new backend command, credentials, policy bypass or automatic multi-step mutation
 was introduced.
 
+**Manage permissions** (Access tab) is the guided path. Pick a variable (typed,
+with suggestions from `list-resources`) and the form runs the read-only
+`resource-show` to list its owner, defining policy and every explicit grant
+(role, privilege, granting policy). Only same-account, validated IDs are
+rendered; annotations and other resource fields are discarded. Each grant row
+has **Revoke**, which previews `secret-deny` in the policy that granted it,
+since Conjur only removes grants from the same branch. **Grant access to**
+offers dropdowns of visible groups, hosts, layers and users plus the reviewed
+privilege set, and previews `secret-permit` in the variable's own policy.
+Variable and role IDs are sent absolute (`/id`). Every change is one explicitly
+approved run bound to the displayed account and endpoint, and permissions are
+re-read from Conjur afterwards. Inherited access through role membership is
+not listed.
+
+Guided flows share `web/src/platforms/conjur/conjurRuns.tsx`: approved-run
+completion, plan/context validation, approval freshness, `useConjurInventory`
+(bounded, sequential `list-resources` paging) and `RoleOptions` dropdowns.
+Reuse it for new guided Conjur forms instead of free-text role fields.
+
 ## Access & permissions explorer
 
 Open **Built-in CLIs → CyberArk Conjur → Access & permissions**, or visit `/dedicated/conjur/access-explorer`. This dedicated view runs **only existing backend-advertised read-only tasks**, with bounded inventory pages (25/50/100), a server-side search and a resource kind selector. Every resource or role selection rechecks the configured Conjur endpoint/account, CLI readiness/version, and the `whoami` identity before and after the query. Changed context, failed or incomplete vendor reads, oversized/malformed JSON, and cross-account IDs discard the result rather than imply that access is absent. Each read-only request has an abortable total deadline, including the initial local API call; resource/role existence decisions require the pack-validated structured boolean rather than reparsing raw JSON.

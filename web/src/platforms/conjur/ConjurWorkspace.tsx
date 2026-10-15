@@ -4,6 +4,7 @@ import type { Task } from '../../api/tasks';
 import type { ToolDiagnostic } from '../../api/tools';
 import { fetchSecretAudit } from './secretAuditApi';
 import { ConjurCreateSecret } from './ConjurCreateSecret';
+import { ConjurManagePermissions } from './ConjurManagePermissions';
 import { ConjurMigrationWorkbench } from './ConjurMigrationWorkbench';
 
 interface Props {
@@ -181,6 +182,12 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
           <Action title="Inspect access" risk="read" available={ready && hasFeature('access-explorer')}
             detail="Browse resources and roles with bounded, read-only inventory and labeled permission relationships."
             onOpen={() => onOpenFeature('access-explorer')} />
+          {csrfToken && (
+            <ConjurManagePermissions key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
+              tasks={platformTasks} csrfToken={csrfToken} account={ready ? target?.account : undefined}
+              endpoint={ready ? target?.applianceUrl : undefined}
+              contextKey={discoveryKey + '/' + (target?.applianceUrl ?? '') + '/' + (target?.account ?? '')} />
+          )}
           {taskAction('secret-permit', 'change', 'Grant permission', 'Allow a host, group, layer, or user to read, execute, or update a secret variable.')}
           {taskAction('secret-deny', 'change', 'Revoke permission', 'Remove privileges granted by the same policy branch. Verify the original granting branch first.')}
         </div>

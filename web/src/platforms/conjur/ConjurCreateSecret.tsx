@@ -1,31 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Task } from '../../api/tasks';
-import {
-  createRun, createRunOutputDecoder, fetchRun, previewRun, subscribeRunEvents,
-  type RunPreview, type RunSnapshot,
-} from '../../api/runs';
+import { createRun, previewRun, type RunPreview } from '../../api/runs';
 import { normalizeConjurSaaSAPIURL } from './ConjurBackendConnection';
+import {
+  GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, ROLE_KINDS, RoleOptions,
+  approvalsFresh, completedRun, matchingPlans, safeMessage as sharedSafeMessage, splitRole, successful,
+  supportedTask, useConjurInventory,
+} from './conjurRuns';
 
-const PACK = 'cyberark-conjur-v9';
-const TOOL = 'conjur';
-const MAX_RUN_MS = 60_000;
-const MAX_RECONCILE_MS = 10_000;
 // Deliberately accept only simple relative policy paths in this guided flow.
 // More complex identifiers remain available through the reviewed generic tasks.
 const PATH = /^[A-Za-z0-9_][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$/u;
-// Role IDs from Conjur only populate dropdowns; the planner quotes each one as a
-// single YAML scalar and the reviewed policy text shows exactly what is loaded.
-const ROLE_ID = /^[^\p{Cc}\p{Cf}]{1,2047}$/u;
-const ROLE_KINDS = ['policy', 'group', 'host', 'layer', 'user'] as const;
-type RoleKind = typeof ROLE_KINDS[number];
-type Inventory = Record<RoleKind, string[]>;
-const KIND_LABELS: Record<RoleKind, string> = {
-  policy: 'Policies', group: 'Groups', host: 'Hosts', layer: 'Layers', user: 'Users',
-};
-const PRIVILEGES = ['read, execute', 'read', 'execute', 'update', 'read, execute, update'];
-const PAGE = 100;
-// ponytail: first 500 IDs per kind in Conjur's order; add list-resources --search typeahead if tenants outgrow it.
-const MAX_PAGES = 5;
 
 interface Props {
   tasks: Task[];
@@ -49,12 +34,6 @@ interface Plan {
   permit?: RunPreview;
 }
 
-// Dropdown values are "kind:id" so one select carries a typed Conjur role.
-function splitRole(role: string): [string, string] {
-  const at = role.indexOf(':');
-  return [role.slice(0, at), role.slice(at + 1)];
-}
-
 function createValues(branch: string, variable: string, owner: string): Record<string, unknown> {
   if (!owner) return { 'policy-branch': branch, 'variable-id': variable, 'dry-run': false };
   const [kind, id] = splitRole(owner);
@@ -70,67 +49,11 @@ function permitValues(plan: Pick<Plan, 'branch' | 'variable' | 'grantee' | 'priv
   };
 }
 
-function supportedTask(tasks: Task[], commandId: string, risk: Task['risk'], inputs: Record<string, string>): boolean {
-  const task = tasks.find((candidate) => candidate.packId === PACK && candidate.toolId === TOOL &&
-    candidate.commandId === commandId && candidate.risk === risk && candidate.requiresAuth);
-  if (!task || task.inputs.length !== Object.keys(inputs).length) return false;
-  return task.inputs.every((input) => inputs[input.id] === input.type &&
-    (input.type === 'boolean' || input.required === true));
-}
-
 export function fullVariableID(branch: string, variable: string): string | null {
   if (branch.length > 512 || variable.length > 2048 || !PATH.test(variable) ||
       (branch !== 'root' && !PATH.test(branch))) return null;
   const id = branch === 'root' ? variable : branch + '/' + variable;
   return id.length <= 2048 ? id : null;
-}
-
-function successful(snapshot: RunSnapshot, command: string): boolean {
-  return snapshot.packId === PACK && snapshot.toolId === TOOL && snapshot.commandId === command &&
-    snapshot.status === 'exited' && snapshot.exitCode === 0;
-}
-
-// Every mutation must have authoritative terminal evidence before a dependent
-// mutation may start. A dropped event stream is reconciled once, never replayed.
-async function completedRun(snapshot: RunSnapshot): Promise<RunSnapshot> {
-  if (snapshot.status !== 'running') return snapshot;
-  return new Promise((resolve, reject) => {
-    let done = false;
-    let close = () => {};
-    let reconciling = false;
-    let controller: AbortController | undefined;
-    let reconcileTimeout: ReturnType<typeof setTimeout> | undefined;
-    const finish = (result: RunSnapshot | Error) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timeout);
-      if (reconcileTimeout !== undefined) clearTimeout(reconcileTimeout);
-      controller?.abort();
-      close();
-      if (result instanceof Error) reject(result);
-      else resolve(result);
-    };
-    const reconcile = () => {
-      // SSE completion/error and the deadline can race. Fetch the retained
-      // snapshot at most once, with an independent network deadline.
-      if (done || reconciling) return;
-      reconciling = true;
-      controller = new AbortController();
-      reconcileTimeout = setTimeout(() =>
-        finish(new Error('Run outcome is unknown. Check Runs before retrying.')), MAX_RECONCILE_MS);
-      void fetchRun(snapshot.runId, controller.signal).then((current) => {
-        if (current.status === 'running') finish(new Error('Run completion could not be verified. Check Runs before retrying.'));
-        else finish(current);
-      }).catch(() => finish(new Error('Run outcome is unknown. Check Runs before retrying.')));
-    };
-    const timeout = setTimeout(reconcile, MAX_RUN_MS);
-    close = subscribeRunEvents(snapshot.runId, () => {}, () => {
-      // Stream completion is only a signal: its payload omits retained stdout.
-      // Fetch the authoritative terminal snapshot before any dependent mutation.
-      reconcile();
-    }, reconcile, undefined, snapshot.events?.at(-1)?.sequence ?? 0);
-    if (done) close();
-  });
 }
 
 // A failed CLI read is not evidence of absence. Carry only CLIHarbor's
@@ -161,35 +84,8 @@ async function exists(csrfToken: string, fullID: string, account: string): Promi
   throw new Error('Conjur returned an unrecognized existence result.');
 }
 
-// Read-only role inventory for the dropdowns. A failure only disables the
-// dropdowns; it is never evidence about what exists.
-async function listIDs(csrfToken: string, account: string, kind: RoleKind): Promise<string[]> {
-  const prefix = account + ':' + kind + ':';
-  const ids: string[] = [];
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const snapshot = await completedRun(await createRun(csrfToken, {
-      packId: PACK, commandId: 'list-resources',
-      values: { kind, limit: String(PAGE), ...(page ? { offset: page * PAGE } : {}) },
-    }));
-    if (!successful(snapshot, 'list-resources')) throw new Error('Conjur could not list visible roles.');
-    const entries: unknown = JSON.parse(createRunOutputDecoder()(snapshot).stdout);
-    if (!Array.isArray(entries)) throw new Error('Conjur returned an unrecognized role list.');
-    for (const entry of entries) {
-      if (typeof entry === 'string' && entry.startsWith(prefix) && ROLE_ID.test(entry.slice(prefix.length))) {
-        ids.push(entry.slice(prefix.length));
-      }
-    }
-    if (entries.length < PAGE) break;
-  }
-  return ids;
-}
-
 function safeMessage(error: unknown): string {
-  // Do not expose untrusted vendor output or request details in the create flow.
-  if (error instanceof ExistenceCheckFailure) return error.message;
-  if (error instanceof Error && error.message.startsWith('Run ')) return error.message;
-  if (error instanceof Error && error.message.startsWith('Conjur ')) return error.message;
-  return 'The operation was not confirmed. Review Runs and the Conjur variable before trying again.';
+  return error instanceof ExistenceCheckFailure ? error.message : sharedSafeMessage(error);
 }
 
 export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contextKey, onOpenRuns }: Props) {
@@ -210,8 +106,6 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   const [owner, setOwner] = useState('');
   const [grantee, setGrantee] = useState('');
   const [privileges, setPrivileges] = useState(PRIVILEGES[0]);
-  const [inventory, setInventory] = useState<Inventory | null>(null);
-  const [inventoryState, setInventoryState] = useState<'idle' | 'loading' | 'failed'>('idle');
   const busyRef = useRef(false);
   const alive = useRef(true);
   useEffect(() => {
@@ -225,37 +119,15 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       'policy-branch': 'string', 'variable-id': 'string', 'dry-run': 'boolean',
     }) &&
     supportedTask(tasks, 'secret-set-value', 'change', { 'variable-id': 'string', value: 'secret' });
-  const canList = tasks.some((task) => task.packId === PACK && task.toolId === TOOL &&
-    task.commandId === 'list-resources' && task.risk === 'read');
+  const { inventory, state: inventoryState, load: loadInventory } = useConjurInventory(csrfToken, account, tasks, ROLE_KINDS);
   const canOwn = supportedTask(tasks, 'secret-create-owned', 'change', {
     'policy-branch': 'string', 'variable-id': 'string', 'owner-kind': 'enum', 'owner-id': 'string', 'dry-run': 'boolean',
   });
-  const canPermit = supportedTask(tasks, 'secret-permit', 'change', {
-    'policy-branch': 'string', 'variable-id': 'string', 'role-kind': 'enum', 'role-id': 'string',
-    privileges: 'enum', 'dry-run': 'boolean',
-  });
+  const canPermit = supportedTask(tasks, 'secret-permit', 'change', PERMISSION_INPUTS);
   // SaaS only accepts branches under data; keep the current branch listed so the select never lies.
-  const branchOptions = inventory ? [...new Set([...(saas ? [] : ['root']), branch, ...inventory.policy.filter((id) =>
+  const branchOptions = inventory ? [...new Set([...(saas ? [] : ['root']), branch, ...(inventory.policy ?? []).filter((id) =>
     PATH.test(id) && id !== 'root' && (!saas || id === 'data' || id.startsWith('data/')))])] : [];
 
-  async function loadInventory() {
-    if (!canList || !account || inventoryState === 'loading') return;
-    setInventoryState('loading');
-    try {
-      // Sequential: the run manager caps concurrent CLI processes.
-      const loaded = {} as Inventory;
-      for (const kind of ROLE_KINDS) loaded[kind] = await listIDs(csrfToken, account, kind);
-      if (alive.current) { setInventory(loaded); setInventoryState('idle'); }
-    } catch {
-      if (alive.current) setInventoryState('failed');
-    }
-  }
-
-  const roleOptions = (kinds: readonly RoleKind[]) => inventory && kinds.map((kind) => inventory[kind].length > 0 && (
-    <optgroup key={kind} label={KIND_LABELS[kind]}>
-      {inventory[kind].map((id) => <option key={id} value={kind + ':' + id}>{id}</option>)}
-    </optgroup>
-  ));
   const fullID = fullVariableID(branch, variable);
   const saasRoot = saas && branch === 'root';
   // The resource-exists task limits the account-prefixed resource ID to 2048 characters.
@@ -298,12 +170,9 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
         packId: PACK, commandId: 'secret-permit', values: permitValues({ branch, variable, grantee, privileges }),
       }) : undefined;
       const policyLoads = permit ? [create, permit] : [create];
-      if ([...policyLoads, set].some((step) => step.risk !== 'change' || step.approval?.mode !== 'explicit' ||
-            !step.context || JSON.stringify(step.context.fields) !== JSON.stringify(create.context?.fields)) ||
+      if (!matchingPlans([...policyLoads, set], account, endpoint) ||
           policyLoads.some((step) => step.impact?.target !== variable || !step.stdin) ||
-          set.impact?.target !== fullID || set.stdin !== undefined ||
-          create.context?.fields.find((field) => field.label === 'Account')?.value !== account ||
-          create.context?.fields.find((field) => field.label === 'Endpoint')?.value.replace(/\/$/u, '') !== endpoint?.replace(/\/$/u, '')) {
+          set.impact?.target !== fullID || set.stdin !== undefined) {
         throw new Error('Conjur did not return matching approved plans for every operation.');
       }
       if (alive.current) setPlan({ branch, variable, fullID, contextKey, owner, grantee, privileges, create, set, permit });
@@ -323,8 +192,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     // Later independent approvals must remain valid while the first run completes.
     // Refuse stale reviews before mutating anything; preserve input for a fresh review.
     // An optional grant that still lapses later is reported as recoverable partial completion.
-    const approvals = [plan.create, plan.set, ...(plan.permit ? [plan.permit] : [])];
-    if (Math.min(...approvals.map((step) => Date.parse(step.approval!.expiresAt))) <= Date.now() + MAX_RUN_MS + 5_000) {
+    if (!approvalsFresh([plan.create, plan.set, ...(plan.permit ? [plan.permit] : [])])) {
       setError('The reviewed approvals are too close to expiry. Review both changes again before proceeding.');
       setPlan(null);
       setApproved(false);
@@ -420,12 +288,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       {open && (
         <form className="conjur-create-form" onSubmit={(event) => void review(event)} autoComplete="off">
           <p>Provide the destination and secret value once. No change runs until you review and approve every operation; review checks existence using an approved read-only command. This is not an atomic Conjur transaction.</p>
-          {inventoryState === 'loading' && <p role="status">Loading visible Conjur policies and roles…</p>}
-          {inventoryState === 'failed' && (
-            <p role="alert">Conjur policies and roles could not be listed, so the owner and access dropdowns are unavailable.{' '}
-              <button type="button" className="secondary-button" disabled={busy} onClick={() => void loadInventory()}>Retry</button>
-            </p>
-          )}
+          <InventoryStatus state={inventoryState} disabled={busy} onRetry={() => void loadInventory()} />
           {inventory ? (
             <label>Parent policy
               <select value={branch} disabled={busy} onChange={(event) => changed(() => setBranch(event.target.value))}>
@@ -449,7 +312,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
             <select value={owner} disabled={busy || !inventory || !canOwn}
               onChange={(event) => changed(() => setOwner(event.target.value))}>
               <option value="">Parent policy (Conjur default)</option>
-              {roleOptions(ROLE_KINDS)}
+              <RoleOptions inventory={inventory} kinds={ROLE_KINDS} />
             </select>
           </label>
           <p>The owner holds every privilege on the variable, including reading and changing its value.</p>
@@ -457,7 +320,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
             <select value={grantee} disabled={busy || !inventory || !canPermit}
               onChange={(event) => changed(() => setGrantee(event.target.value))}>
               <option value="">Owner only (no additional grant)</option>
-              {roleOptions(['group', 'host', 'layer', 'user'])}
+              <RoleOptions inventory={inventory} kinds={GRANTEE_KINDS} />
             </select>
           </label>
           {grantee && (

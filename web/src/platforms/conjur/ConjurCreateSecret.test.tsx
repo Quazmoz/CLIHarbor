@@ -6,7 +6,7 @@ import type { Task } from '../../api/tasks';
 import type { RunPreview, RunSnapshot } from '../../api/runs';
 
 vi.mock('../../api/runs', async (importOriginal) => ({
-  createRunOutputDecoder: (await importOriginal<typeof import('../../api/runs')>()).createRunOutputDecoder,
+  decodeRunOutput: (await importOriginal<typeof import('../../api/runs')>()).decodeRunOutput,
   createRun: vi.fn(), previewRun: vi.fn(), fetchRun: vi.fn(),
   subscribeRunEvents: vi.fn(),
 }));
@@ -302,7 +302,7 @@ test('a preview for a different Conjur account fails closed before any write', a
 
 const roleLists: Record<string, string[]> = {
   policy: ['dev:policy:root', 'dev:policy:apps'], group: ['dev:group:admins'],
-  host: ['dev:host:apps/web'], layer: [], user: ['dev:user:alice', 'other:user:mallory'],
+  host: ['dev:host:apps/web'], layer: [], user: ['dev:user:alice'],
 };
 const listed = (kind: string): RunSnapshot => ({
   ...snapshot('list-resources'), events: [{ sequence: 1, type: 'stdout.chunk', timestamp: '',
@@ -324,8 +324,6 @@ test('dropdowns pick parent policy, owner and access, then run three approved st
   fireEvent.click(within(region).getByRole('button', { name: /Create secret/ }));
   const parent = await within(region).findByRole('combobox', { name: /^Parent policy/ });
   expect(within(parent).getAllByRole('option').map((option) => option.textContent)).toEqual(['root', 'apps']);
-  // Roles from another account are never offered.
-  expect(within(region).queryByRole('option', { name: 'mallory' })).not.toBeInTheDocument();
   fireEvent.change(parent, { target: { value: 'apps' } });
   fireEvent.change(within(region).getByRole('combobox', { name: /^Owner/ }), { target: { value: 'group:admins' } });
   fireEvent.change(within(region).getByRole('combobox', { name: /^Accessible by/ }), { target: { value: 'host:apps/web' } });
@@ -344,6 +342,18 @@ test('dropdowns pick parent policy, owner and access, then run three approved st
     'policy-branch': 'apps', 'variable-id': 'db/password', 'role-kind': 'host', 'role-id': '/apps/web', privileges: 'read, execute',
   });
   expect(writes.every((request) => request.approval?.id === approval.id)).toBe(true);
+});
+
+test('a cross-account role list fails closed to the typed branch', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'list-resources'
+    ? { ...listed('user'), events: [{ sequence: 1, type: 'stdout.chunk', timestamp: '', dataBase64: btoa('["other:user:mallory"]') }] }
+    : snapshot(request.commandId));
+  render(<ConjurCreateSecret csrfToken="test-csrf" account="dev" endpoint="https://example.test" contextKey="current"
+    tasks={[...tasks, task('list-resources', 'read', [['kind', 'enum'], ['limit', 'enum']])]} />);
+  const region = screen.getByRole('region', { name: 'Create Conjur secret' });
+  fireEvent.click(within(region).getByRole('button', { name: /Create secret/ }));
+  await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('could not be listed'));
+  expect(within(region).queryByRole('option', { name: 'mallory' })).not.toBeInTheDocument();
 });
 
 test('an unlistable inventory keeps the typed branch and default owner without blocking creation', async () => {
