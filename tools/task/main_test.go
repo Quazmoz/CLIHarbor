@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 	"testing"
 )
 
@@ -342,6 +344,53 @@ func TestSyncWebRejectsRedirectedDestination(t *testing.T) {
 	}
 	if got, err := os.ReadFile(untouched); err != nil || string(got) != "external" {
 		t.Fatalf("external directory modified: %q, %v", got, err)
+	}
+}
+
+func TestRenameWebDirectoryRetriesOnlyTransientWindowsFailures(t *testing.T) {
+	t.Parallel()
+	transient := &os.LinkError{Op: "rename", Err: syscall.Errno(5)}
+	attempts := 0
+	delays := 0
+	err := renameWebDirectoryWith("stage", "static", true, func(_, _ string) error {
+		attempts++
+		if attempts <= 2 {
+			return transient
+		}
+		return nil
+	}, func(delay time.Duration) {
+		if delay <= 0 {
+			t.Fatal("rename backoff was not positive")
+		}
+		delays++
+	})
+	if err != nil || attempts != 3 || delays != 2 {
+		t.Fatalf("recovered rename = (%v, %d calls, %d delays), want success after three calls", err, attempts, delays)
+	}
+
+	for _, tc := range []struct {
+		name      string
+		windows   bool
+		failure   error
+		wantCalls int
+	}{
+		{"windows permanent error", true, syscall.Errno(80), 1},
+		{"non-Windows access denied", false, transient, 1},
+		{"Windows persistent access denied", true, transient, 6},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls, waits := 0, 0
+			err := renameWebDirectoryWith("stage", "static", tc.windows, func(_, _ string) error {
+				calls++
+				return tc.failure
+			}, func(time.Duration) { waits++ })
+			if !errors.Is(err, tc.failure) {
+				t.Fatalf("rename error = %v, want %v", err, tc.failure)
+			}
+			if calls != tc.wantCalls || waits != tc.wantCalls-1 {
+				t.Fatalf("rename attempts/delays = %d/%d, want %d/%d", calls, waits, tc.wantCalls, tc.wantCalls-1)
+			}
+		})
 	}
 }
 
