@@ -169,6 +169,9 @@ type Config struct {
 	NewRunID                func() (string, error)
 	NewApprovalID           func() (string, error)
 	ResolveExecutionContext func(planner.Plan) (ExecutionContext, error)
+	// OutputGuard is a backend-only per-plan allowlist. When present the runner
+	// quarantines both vendor output streams until a complete successful read.
+	OutputGuard             func(planner.Plan) func([]byte) ([]byte, error)
 	Audit                   AuditSink
 }
 
@@ -627,9 +630,70 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 		NewRunID:                func() (string, error) { return rec.runID, nil },
 	})
 
+	// PAM results can contain secrets even when the requested operation is read-only.
+	// Never stream, store or expose either raw process stream for guarded plans.
+	var guard func([]byte) ([]byte, error)
+	if m.config.OutputGuard != nil {
+		guard = m.config.OutputGuard(plan)
+	}
+	var guardedStdout []byte
+	guardTooLarge := false
 	result, runErr := exec.Run(ctx, plan, executor.SinkFunc(func(event executor.Event) error {
-		return m.recordEvent(rec, event)
+		if guard == nil {
+			return m.recordEvent(rec, event)
+		}
+		switch event.Type {
+		case executor.EventStarted:
+			return m.recordEvent(rec, event)
+		case executor.EventStdout:
+			if len(event.Data) > structured.MaxInputBytes-len(guardedStdout) {
+				guardTooLarge = true
+				guardedStdout = nil
+			} else if !guardTooLarge {
+				guardedStdout = append(guardedStdout, event.Data...)
+			}
+		}
+		// Stderr and all terminal events remain quarantined until the subprocess
+		// finishes and its stdout is validated. On errors, expose metadata only.
+		return nil
 	}))
+	if guard != nil {
+		if runErr == nil && result.Status == executor.StatusExited && result.ExitCode == 0 {
+			if guardTooLarge {
+				runErr = errors.New("guarded vendor output exceeds safe limit")
+			} else {
+				var approved []byte
+				approved, runErr = guard(guardedStdout)
+				if runErr == nil && len(approved) != 0 {
+					runErr = m.recordEvent(rec, executor.Event{
+						RunID: rec.runID, Type: executor.EventStdout, Timestamp: time.Now().UTC(), Data: approved,
+					})
+				}
+			}
+		}
+		terminal := executor.EventFailed
+		if runErr == nil {
+			switch result.Status {
+			case executor.StatusExited:
+				terminal = executor.EventExited
+			case executor.StatusCancelled:
+				terminal = executor.EventCancelled
+			case executor.StatusTimedOut:
+				terminal = executor.EventTimedOut
+			}
+		}
+		var exitCode *int
+		if terminal == executor.EventExited {
+			code := result.ExitCode
+			exitCode = &code
+		}
+		if eventErr := m.recordEvent(rec, executor.Event{
+			RunID: rec.runID, Type: terminal, Timestamp: time.Now().UTC(), ExitCode: exitCode,
+		}); eventErr != nil && runErr == nil {
+			runErr = eventErr
+		}
+	}
+
 
 	var failure *apperror.Detail
 	if runErr != nil {
