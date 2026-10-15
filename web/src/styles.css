@@ -3567,3 +3567,68 @@ footer p {
   .builder-layout .task-category-filter { display: none; }
   .builder-layout .task-select-row { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Shared native dropdown treatment: keep OS-owned menus, keyboard handling, and form semantics. */
+select:not([multiple]),
+.builder-step select:not([multiple]) {
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 2.65rem;
+  padding: 0.6rem 2.65rem 0.6rem 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-strong);
+  background-color: var(--surface-inset);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4 6 4 4 4-4' stroke='%239fb4d0' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 1rem 1rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025), 0 1px 2px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+select:not([multiple]):hover:not(:disabled),
+.builder-step select:not([multiple]):hover:not(:disabled) {
+  border-color: var(--accent);
+  background-color: var(--surface-2);
+}
+
+select:not([multiple]):focus-visible {
+  border-color: var(--focus);
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+select:not([multiple])[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+select:not([multiple]):disabled {
+  opacity: 0.65;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+select:not([multiple]) option {
+  color: var(--text-strong);
+  background-color: var(--surface-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  select:not([multiple]) { transition: none; }
+}
+
+/* Native arrows remain available when custom background images are suppressed. */
+@media (forced-colors: active) {
+  select:not([multiple]),
+  .builder-step select:not([multiple]) {
+    appearance: auto;
+    background-image: none;
+    background-color: Field;
+    color: FieldText;
+    border-color: ButtonText;
+    box-shadow: none;
+  }
+}
