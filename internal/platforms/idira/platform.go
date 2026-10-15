@@ -17,11 +17,11 @@ func New() *Platform { return &Platform{} }
 
 func (p *Platform) Descriptor() server.Platform {
 	return server.Platform{
-		ID: "idira",
-		Name: "Idira PAM",
+		ID:      "idira",
+		Name:    "Idira PAM",
 		Summary: "CyberArk Privilege Cloud session readiness and read-only Safe/account metadata through the official idsec CLI.",
-		PackID: PackID,
-		ToolID: ToolID,
+		PackID:  PackID,
+		ToolID:  ToolID,
 		Features: []server.PlatformFeature{
 			{ID: "tasks", Name: "Read-only PAM inventory"},
 		},
