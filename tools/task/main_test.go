@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 )
 
@@ -266,6 +267,21 @@ func TestSyncWebReplacesTreeAndRemovesStaleAssets(t *testing.T) {
 	if err := syncWeb(root); err != nil {
 		t.Fatalf("syncWeb() error = %v", err)
 	}
+	original, err := os.Stat(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Rebuilding identical bytes must not rename/replace the directory.
+	if err := syncWeb(root); err != nil {
+		t.Fatalf("unchanged syncWeb() error = %v", err)
+	}
+	unchanged, err := os.Stat(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(original, unchanged) {
+		t.Fatal("byte-identical frontend unnecessarily replaced the active directory")
+	}
 	if _, err := os.Stat(staleAsset); !os.IsNotExist(err) {
 		t.Fatalf("stale generated asset survived synchronization: %v", err)
 	}
@@ -293,6 +309,53 @@ func TestSyncWebReplacesTreeAndRemovesStaleAssets(t *testing.T) {
 	}
 	if got, err := os.ReadFile(filepath.Join(destination, "assets", "second.css")); err != nil || string(got) != "second asset" {
 		t.Fatalf("second synchronized asset = %q, %v", got, err)
+	}
+}
+
+func TestSyncWebRejectsRedirectedDestination(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	source := filepath.Join(root, "web", "dist")
+	if err := os.MkdirAll(source, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "web", "package.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "index.html"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	parent := filepath.Join(root, "internal", "webui")
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	untouched := filepath.Join(outside, "index.html")
+	if err := os.WriteFile(untouched, []byte("external"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(parent, "static")); err != nil {
+		t.Skipf("directory symlinks unavailable: %v", err)
+	}
+	if err := syncWeb(root); err == nil {
+		t.Fatal("redirected embedded frontend destination accepted")
+	}
+	if got, err := os.ReadFile(untouched); err != nil || string(got) != "external" {
+		t.Fatalf("external directory modified: %q, %v", got, err)
+	}
+}
+
+func TestRetryableWebRenameErrors(t *testing.T) {
+	t.Parallel()
+	for _, code := range []syscall.Errno{5, 32, 33} {
+		if !retryableWebRename(&os.LinkError{Op: "rename", Err: code}) {
+			t.Fatalf("Windows transient rename error %d was not recognized", code)
+		}
+	}
+	for _, err := range []error{os.ErrNotExist, syscall.Errno(80), syscall.Errno(87)} {
+		if retryableWebRename(&os.LinkError{Op: "rename", Err: err}) {
+			t.Fatalf("unrelated error %v was classified as transient", err)
+		}
 	}
 }
 
