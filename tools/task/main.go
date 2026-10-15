@@ -723,18 +723,24 @@ func sameWebTree(source, destination string) (bool, error) {
 }
 
 func renameWebDirectory(source, destination string) error {
+	return renameWebDirectoryWith(source, destination, runtime.GOOS == "windows", os.Rename, time.Sleep)
+}
+
+// The injected rename and delay make the Windows failure/recovery behavior
+// deterministic to test on non-Windows development hosts.
+func renameWebDirectoryWith(source, destination string, windows bool, rename func(string, string) error, pause func(time.Duration)) error {
 	const attempts = 6
 	for attempt := 0; attempt < attempts; attempt++ {
-		err := os.Rename(source, destination)
+		err := rename(source, destination)
 		if err == nil {
 			return nil
 		}
-		if runtime.GOOS != "windows" || !retryableWebRename(err) || attempt == attempts-1 {
+		if !windows || !retryableWebRename(err) || attempt == attempts-1 {
 			return err
 		}
 		// Antivirus/indexers can briefly retain Windows sharing/rename locks.
 		// Retry only these OS errors, with a small bounded total delay.
-		time.Sleep(time.Duration(attempt+1) * 75 * time.Millisecond)
+		pause(time.Duration(attempt+1) * 75 * time.Millisecond)
 	}
 	return fmt.Errorf("unreachable embedded frontend rename state")
 }
