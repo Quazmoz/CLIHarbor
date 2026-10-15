@@ -34,6 +34,9 @@ func OutputGuard(plan planner.Plan) func([]byte) ([]byte, error) {
 		return nil
 	}
 	switch plan.CommandID {
+	case "version":
+		// The local --silent version probe is not PAM data.
+		return nil
 	case "session-status":
 		return filterStatus
 	case "list-safes":
