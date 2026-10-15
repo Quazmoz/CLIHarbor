@@ -29,20 +29,31 @@ inputs. No task runs without an explicit operator action on the task page,
 backend preview and authorization. Secret values are never accepted by the
 template builder, cached in a migration plan, or exported.
 
-### Conjur secrets-first home
+### Conjur workspace
 
-The dedicated CyberArk Conjur home places a four-action **Manage secrets** (Create, Read/browse metadata, Update value, Delete) panel before the three-action **Manage secret permissions**
-panel above the environment overview: **Grant permission** selects the approved
-`secret-permit` task; **Revoke permission** selects `secret-deny`; and
-**Change permissions** opens the read-only Access Explorer. The explorer also
-links to those two approved forms, without copying inferred role relationships
-or executing a mutation. Each grant or revoke still requires backend plan
-validation, explicit approval and mutation auditing in the existing task
-runner. The UI accurately warns that `!deny` only revokes grants created in
-the same policy branch; changing access is not represented as one atomic
-command. Shortcuts are disabled for unavailable CLI discovery, unadvertised
-commands or mismatched risk classification. Other Conjur tools remain available
-lower on the page, and the generic CLI workspace is unchanged.
+The dedicated CyberArk Conjur home starts with a compact environment summary
+(CLI readiness/version, server endpoint, account and an explicitly unverified
+vendor session). It then offers four keyboard-accessible tabs: **Secrets**,
+**Access**, **Audit** and **Tools**. Changing the discovered tool/pack context
+invalidates the prior endpoint/account evidence; an external configuration
+change with unchanged discovery context still needs a fresh API read and must
+never be treated as authentication proof.
+
+**Secrets** groups the guarded create flow, variable-ID browsing, write-only
+value update and destructive delete. **Access** links to the read-only Access
+Explorer and backend-approved grant/revoke tasks. **Audit** links to the regex
+pattern explorer and execution/mutation history. **Tools** groups reviewed
+inventory commands and a collapsible migration/template workbench. Hidden tabs
+stay mounted so switching sections does not destroy an in-progress guarded
+create flow.
+
+Every task shortcut is derived from the backend-advertised pack/tool task
+catalog, respects runtime availability and risk classification, and opens
+the shared `/tasks` runner rather than executing or approving anything.
+Grant/revoke operations require backend preview, explicit approval and mutation
+auditing. `!deny` only revokes grants created in the same policy branch;
+permission changes are not presented as atomic. Secrets are never displayed
+by the regular variable-management surfaces.
 
 ## 2. Core navigation
 
