@@ -3568,9 +3568,9 @@ footer p {
   .builder-layout .task-select-row { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Shared native dropdown treatment: keep OS-owned menus, keyboard handling, and form semantics. */
-select:not([multiple]),
-.builder-step select:not([multiple]) {
+/* Shared native dropdown treatment: OS-owned popup and keyboard/form semantics stay intact.
+   Exclude listboxes (multiple or size), which need their native list presentation. */
+select:not([multiple]):not([size]) {
   appearance: none;
   min-width: 0;
   max-width: 100%;
@@ -3589,41 +3589,34 @@ select:not([multiple]),
   transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
 }
 
-select:not([multiple]):hover:not(:disabled),
-.builder-step select:not([multiple]):hover:not(:disabled) {
+select:not([multiple]):not([size]):hover:not(:disabled) {
   border-color: var(--accent);
   background-color: var(--surface-2);
 }
 
-select:not([multiple]):focus-visible {
+select:not([multiple]):not([size]):focus-visible {
   border-color: var(--focus);
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
-select:not([multiple])[aria-invalid="true"] {
+select:not([multiple]):not([size])[aria-invalid="true"] {
   border-color: var(--danger);
 }
 
-select:not([multiple]):disabled {
+select:not([multiple]):not([size]):disabled {
   opacity: 0.65;
   box-shadow: none;
   cursor: not-allowed;
 }
 
-select:not([multiple]) option {
-  color: var(--text-strong);
-  background-color: var(--surface-2);
-}
-
+/* Preserve the native menu palette rather than trying to style OS popup options. */
 @media (prefers-reduced-motion: reduce) {
-  select:not([multiple]) { transition: none; }
+  select:not([multiple]):not([size]) { transition: none; }
 }
 
-/* Native arrows remain available when custom background images are suppressed. */
 @media (forced-colors: active) {
-  select:not([multiple]),
-  .builder-step select:not([multiple]) {
+  select:not([multiple]):not([size]) {
     appearance: auto;
     background-image: none;
     background-color: Field;
