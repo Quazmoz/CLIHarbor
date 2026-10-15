@@ -16,8 +16,8 @@ func TestGuardedOutputNeverStreamsUnvalidatedVendorBytes(t *testing.T) {
 	registry, discovery := managerFixture(t)
 	manager := newTestManager(t, registry, discovery, Config{
 		MaxOutputBytesPerStream: 1024,
-		MaxEventBytesPerRun: 4096,
-		OutputGuard: func(plan planner.Plan) func([]byte) ([]byte, error) {
+		MaxEventBytesPerRun:     4096,
+		OutputGuard:             func(plan planner.Plan) func([]byte) ([]byte, error) {
 			if plan.CommandID != "inspect" {
 				return nil
 			}
@@ -30,15 +30,16 @@ func TestGuardedOutputNeverStreamsUnvalidatedVendorBytes(t *testing.T) {
 		},
 	})
 	for _, test := range []struct {
-		query string
+		query      string
 		shouldPass bool
 	}{
 		{"TOP-SECRET", false},
 		{"approved", true},
 	} {
 		started, err := manager.Start(Request{
-			PackID: "fixture", CommandID: "inspect",
-			Values: map[string]json.RawMessage{"query": json.RawMessage(`"` + test.query + `"`)},
+			PackID:    "fixture",
+			CommandID: "inspect",
+			Values:    map[string]json.RawMessage{"query": json.RawMessage(`"` + test.query + `"`)},
 		})
 		if err != nil {
 			t.Fatal(err)
