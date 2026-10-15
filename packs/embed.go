@@ -10,6 +10,10 @@ import _ "embed"
 //go:embed conjur/conjur-v9.yaml
 var conjurV9 []byte
 
+// idiraPAM is the reviewed idsec v0.13 Privilege Cloud pack.
+//go:embed idira/idira-pam.yaml
+var idiraPAM []byte
+
 // dockerCLI is the first-party read-only Docker inventory pack. Docker itself
 // remains externally installed and authoritative; CLIHarbor does not provision
 // or modify Docker.
@@ -48,6 +52,7 @@ var vaultCLI []byte
 func Builtins() map[string][]byte {
 	return map[string][]byte{
 		"conjur/conjur-v9.yaml": append([]byte(nil), conjurV9...),
+		"idira/idira-pam.yaml":  append([]byte(nil), idiraPAM...),
 		"docker/docker.yaml":    append([]byte(nil), dockerCLI...),
 		"kubectl/kubectl.yaml":  append([]byte(nil), kubectlCLI...),
 		"github/github.yaml":    append([]byte(nil), githubCLI...),

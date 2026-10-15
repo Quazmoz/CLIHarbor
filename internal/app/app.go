@@ -12,6 +12,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
+	"github.com/Quazmoz/CLIHarbor/internal/platforms/idira"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 	"github.com/Quazmoz/CLIHarbor/internal/toolbootstrap"
@@ -68,9 +69,10 @@ func Run(ctx context.Context, options Options) error {
 	defer audit.Close()
 	// Dedicated platforms layer vendor-specific behavior over the generic core.
 	conjurPlatform := conjur.New(ctx, runtimeState.Discovery)
-	dedicated := platforms.NewSet(runtimeState.Discovery, conjurPlatform)
+	dedicated := platforms.NewSet(runtimeState.Discovery, conjurPlatform, idira.New())
 	runManager, err := runs.NewManager(ctx, runtimeState.Registry, runtimeState.Discovery, runs.Config{
 		ResolveExecutionContext: dedicated.ResolveExecutionContext,
+		OutputGuard:             idira.OutputGuard,
 		Audit:                   audit,
 	})
 	if err != nil {

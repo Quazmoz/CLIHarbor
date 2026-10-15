@@ -61,11 +61,15 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 		}
 	}
 
+	idiraPack, ok := state.Registry.FindPack("cyberark-idira-pam")
+	if !ok || len(idiraPack.Pack.Commands) != 4 {
+		t.Fatal("embedded Idira PAM pack was not loaded with four reviewed tasks")
+	}
 	// Even with no installed executables, every supported CLI remains discoverable
 	// in Add a CLI; only executable tasks are withheld until qualification.
 	catalog := newTaskCatalog(state.Registry, missingInstallSnapshot(state.Registry))
 	tools := catalog.ListTools()
-	if len(tools) != 7 || len(catalog.ListTasks()) != 0 {
+	if len(tools) != 8 || len(catalog.ListTasks()) != 0 {
 		t.Fatalf("missing-tool catalog = %#v; tasks = %#v", tools, catalog.ListTasks())
 	}
 	for _, tool := range tools {
@@ -115,8 +119,8 @@ commands: {}
 	if _, ok := state.Registry.FindPack("other-cli"); !ok {
 		t.Fatal("explicit non-Conjur pack was not added")
 	}
-	if got := len(state.Registry.Packs()); got != 8 {
-		t.Fatalf("configured packs = %d, want 8", got)
+	if got := len(state.Registry.Packs()); got != 9 {
+		t.Fatalf("configured packs = %d, want 9", got)
 	}
 }
 
