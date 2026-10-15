@@ -587,7 +587,7 @@ async function main() {
     assert.ok(selectAppearance, 'tool filter must expose a native select');
     assert.equal(selectAppearance.tag, 'SELECT', 'tool filter must preserve the native select element');
     assert.equal(selectAppearance.appearance, 'none', 'the native select trigger must receive the shared chevron styling');
-    assert.match(selectAppearance.image, /^url\\(/, 'native select must display its local chevron');
+    assert.equal(selectAppearance.image.startsWith('url('), true, 'native select must display its local chevron');
     assert.equal(selectAppearance.fits, true, 'dropdown must fit a 320px viewport');
     assert.notEqual(selectAppearance.listboxAppearance, 'none', 'sized native listboxes must not inherit dropdown styling');
     const nextFilter = await page.evaluate('(() => {' +
