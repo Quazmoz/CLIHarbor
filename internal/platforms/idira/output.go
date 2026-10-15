@@ -111,7 +111,7 @@ func filterRows(data []byte, fields []string) ([]byte, error) {
 			row[field] = value
 		}
 		// Identifiers and the account-to-Safe association are mandatory.
-		if row[fields[0]] == "" || (len(fields) > 2 && row["safe_name"] == "") {
+		if row[fields[0]] == "" || row["safe_name"] == "" {
 			return nil, errUnsafeVendorOutput
 		}
 		rows = append(rows, row)
