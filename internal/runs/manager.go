@@ -694,7 +694,6 @@ func (m *Manager) execute(ctx context.Context, rec *record, plan planner.Plan) {
 		}
 	}
 
-
 	var failure *apperror.Detail
 	if runErr != nil {
 		detail := classifyExecutionFailure(runErr)
