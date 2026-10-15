@@ -94,14 +94,14 @@ export function IdiraWorkspace({ platform, tasks, tool, onOpenRuns, onOpenDiagno
               <h3>{name === 'Safes' ? 'Safe inventory' : 'Account inventory'}</h3>
               <p>Use vetted server-side pagination and filters. Results appear in the existing run output explorer after the read finishes.</p>
               <div className="conjur-action-list">
-                <label htmlFor={searchID}>Name search</label>
-                <input id={searchID} value={search} maxLength={64} onChange={(event) => setSearch(event.target.value)} placeholder="Optional" />
+                <label htmlFor={searchID + '-' + name}>Name search</label>
+                <input id={searchID + '-' + name} value={search} maxLength={64} onChange={(event) => setSearch(event.target.value)} placeholder="Optional" />
                 {name === 'Accounts' && <>
                   <label htmlFor={safeID}>Safe name</label>
                   <input id={safeID} value={safe} maxLength={64} onChange={(event) => setSafe(event.target.value)} placeholder="Optional" />
                 </>}
-                <label htmlFor={offsetID}>Result offset</label>
-                <input id={offsetID} inputMode="numeric" value={offset} onChange={(event) => setOffset(event.target.value)} />
+                <label htmlFor={offsetID + '-' + name}>Result offset</label>
+                <input id={offsetID + '-' + name} inputMode="numeric" value={offset} onChange={(event) => setOffset(event.target.value)} />
                 {!filtersValid && <p role="alert">Use an offset from 0 to 100000 and plain-text filters no longer than 64 characters.</p>}
                 <button type="button" disabled={!ready || !filtersValid || !task(name === 'Safes' ? 'list-safes' : 'list-accounts')}
                   onClick={() => open(name === 'Safes' ? 'list-safes' : 'list-accounts', {
