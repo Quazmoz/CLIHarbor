@@ -1,7 +1,8 @@
 import type { Platform, PlatformFeatureID } from './api/platforms';
 import type { ToolDiagnostic } from './api/tools';
 import type { Task } from './api/tasks';
-import { ConjurWorkspace } from './platforms/conjur/ConjurWorkspace';
+import { dedicatedWorkspace } from './platforms';
+import { ToolIcon } from './ToolIcon';
 
 interface PlatformPageProps {
   platform: Platform;
@@ -25,13 +26,14 @@ const featureDetail: Record<PlatformFeatureID, string> = {
 export function PlatformPage({ platform, tasks, tools = [], csrfToken, onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
   const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
   const taskCount = tasks.filter((task) => task.packId === platform.packId && task.toolId === platform.toolId).length;
+  const Workspace = dedicatedWorkspace[platform.id];
   return (
     <section className="panel platform-page" aria-labelledby="platform-heading">
       <p className="status-label">Built-in CLI</p>
       <h2 id="platform-heading">{platform.name}</h2>
       <p>{platform.summary}</p>
-      {platform.id === 'conjur' ? (
-        <ConjurWorkspace platform={platform} tasks={tasks} tool={tool} csrfToken={csrfToken} onOpenRuns={onOpenRuns}
+      {Workspace ? (
+        <Workspace platform={platform} tasks={tasks} tool={tool} csrfToken={csrfToken} onOpenRuns={onOpenRuns}
           onOpenFeature={onOpenFeature} onOpenDiagnostics={onOpenDiagnostics} onOpenTask={onOpenTask} />
       ) : (
         <>
@@ -58,6 +60,53 @@ export function PlatformPage({ platform, tasks, tools = [], csrfToken, onOpenRun
             ))}
           </ul>
         </>
+      )}
+    </section>
+  );
+}
+
+interface PlatformsPageProps {
+  platforms: Platform[];
+  tasks: Task[];
+  onOpenPlatform: (platformID: string) => void;
+  onOpenTools: () => void;
+}
+
+/** Directory of every dedicated CLI, so the top bar scales past one vendor. */
+export function PlatformsPage({ platforms, tasks, onOpenPlatform, onOpenTools }: PlatformsPageProps) {
+  return (
+    <section className="panel platform-page" aria-labelledby="platforms-heading">
+      <p className="status-label">Built-in CLIs</p>
+      <h2 id="platforms-heading">Choose a built-in CLI</h2>
+      <p>Each built-in CLI adds workflows built and tested for that vendor on top of the generic Command Builder.</p>
+      {platforms.length === 0 ? (
+        <>
+          <p role="status"><strong>No built-in CLIs are loaded.</strong> The generic workspace still works with every configured CLI.</p>
+          <button type="button" className="secondary-button" onClick={onOpenTools}>Open Other CLIs</button>
+        </>
+      ) : (
+        <ul className="platform-features platform-directory">
+          {platforms.map((platform) => {
+            const taskCount = tasks.filter((task) => task.packId === platform.packId && task.toolId === platform.toolId).length;
+            return (
+              <li key={platform.id}>
+                <div className="platform-directory-title">
+                  <ToolIcon tool={{ packId: platform.packId, packName: platform.name, toolId: platform.toolId }} />
+                  <h3>{platform.name}</h3>
+                </div>
+                <span className={'status-pill status-pill--' + (platform.ready ? 'ok' : 'warn')}>
+                  {platform.ready ? 'Ready' : 'Setup needed'}
+                </span>
+                <p>{platform.summary}</p>
+                <p className="platform-directory-meta">
+                  {taskCount} approved task{taskCount === 1 ? '' : 's'}
+                  {platform.features.length > 0 && ' · ' + platform.features.map((feature) => feature.name).join(', ')}
+                </p>
+                <button type="button" onClick={() => onOpenPlatform(platform.id)}>Open {platform.name}</button>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </section>
   );

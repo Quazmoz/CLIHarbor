@@ -22,7 +22,7 @@ import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
 import { SecretAuditPage } from './platforms/conjur/SecretAuditPage';
 import { ConjurAccessExplorer } from './platforms/conjur/ConjurAccessExplorer';
 import { OverviewPage } from './OverviewPage';
-import { PlatformPage } from './PlatformPage';
+import { PlatformPage, PlatformsPage } from './PlatformPage';
 import { dedicatedSignIn } from './platforms';
 import { fetchPlatforms, type Platform, type PlatformFeatureID } from './api/platforms';
 import { ToolsPage } from './ToolsPage';
@@ -540,7 +540,7 @@ function formatActivityTime(at: Date): string {
   return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
 }
 
-type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'access-explorer' | 'tools' | 'diagnostics' | 'platform' | 'platform-sign-in';
+type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'access-explorer' | 'tools' | 'diagnostics' | 'platforms' | 'platform' | 'platform-sign-in';
 
 const routePaths: Record<AppRoute, string> = {
   overview: '/',
@@ -551,6 +551,7 @@ const routePaths: Record<AppRoute, string> = {
   'access-explorer': '/dedicated/conjur/access-explorer',
   tools: '/tools',
   diagnostics: '/diagnostics',
+  platforms: '/dedicated',
   platform: '/dedicated',
   'platform-sign-in': '/dedicated',
 };
@@ -582,6 +583,7 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
   { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
   { route: 'access-explorer', label: 'Conjur access explorer', group: 'Dedicated', icon: 'M12 2v20 M2 12h20 M6 6l12 12' },
+  { route: 'platforms', label: 'Built-in CLIs', group: 'Dedicated', icon: '' },
   { route: 'platform', label: 'Dedicated CLI', group: 'Dedicated', icon: 'M4 6h16v12H4z M8 10l3 2-3 2 M13 14h3' },
   { route: 'platform-sign-in', label: 'Dedicated sign-in', group: 'Dedicated', icon: '' },
 ];
@@ -604,6 +606,8 @@ function routeFromPath(pathname: string): AppRoute {
       return 'access-explorer';
     case '/diagnostics':
       return 'diagnostics';
+    case routePaths.platforms:
+      return 'platforms';
     default:
       if (dedicatedPathPattern.test(pathname)) return 'platform';
       return dedicatedSignInPathPattern.test(pathname) ? 'platform-sign-in' : 'overview';
@@ -1294,8 +1298,11 @@ export function App() {
     (route === 'tasks' && taskFilterPlatform !== undefined);
   // An old dedicated deep link may be opened without a registered platform.
   // Keep the generic section selected rather than highlighting a broken target.
-  const headerDedicatedJourney = inDedicatedJourney && breadcrumbPlatform !== undefined;
-  const headerPlatform = breadcrumbPlatform ?? platforms.find((platform) => platform.id === selectedPlatformID) ?? platforms[0];
+  const headerPlatform = inDedicatedJourney ? breadcrumbPlatform : undefined;
+  const openPlatform = (platformID: string) => {
+    setSelectedPlatformID(platformID);
+    navigate('platform', platformID);
+  };
   const navIcon = (path: string) => (
     <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={path} /></svg>
   );
@@ -1368,29 +1375,13 @@ export function App() {
           <kbd>Ctrl + K</kbd>
         </button>
         <nav className="section-switcher" aria-label="CLI sections">
-          {headerPlatform ? (
-            <a href={pathForRoute('platform', headerPlatform.id)}
-              aria-current={headerDedicatedJourney ? 'page' : undefined}
-              onClick={(event) => {
-                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                event.preventDefault();
-                setSelectedPlatformID(headerPlatform.id);
-                navigate('platform', headerPlatform.id);
-              }}>Built-in CLIs{platforms.length === 1 && <span className="section-current"> · {headerPlatform.name}</span>}</a>
-          ) : <span role="link" aria-disabled="true">Built-in CLIs</span>}
-          {platforms.length > 1 && (
-            <label>
-              <span className="visually-hidden">Switch built-in CLI</span>
-              <select value={headerPlatform?.id ?? ''} onChange={(event) => {
-                const platform = platforms.find((candidate) => candidate.id === event.target.value);
-                if (!platform) return;
-                setSelectedPlatformID(platform.id);
-                navigate('platform', platform.id);
-              }}>
-                {platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}
-              </select>
-            </label>
-          )}
+          <a href={routePaths.platforms}
+            aria-current={route === 'platforms' || headerPlatform !== undefined ? 'page' : undefined}
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              navigate('platforms');
+            }}>Built-in CLIs{headerPlatform && <span className="section-current"> · {headerPlatform.name}</span>}</a>
           <a href="/tools" aria-current={route === 'tools' ? 'page' : undefined} onClick={(event) => {
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
@@ -1428,12 +1419,11 @@ export function App() {
 
       <main ref={mainRef} id="main-content" tabIndex={-1} aria-busy={state.kind === 'loading'}>
         <nav className="breadcrumbs" aria-label="Breadcrumb">
-          <a href={inDedicatedJourney && breadcrumbPlatform !== undefined ? pathForRoute('platform', breadcrumbPlatform.id) : '/'}
+          <a href={inDedicatedJourney ? routePaths.platforms : '/'}
             onClick={(event) => {
               if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               event.preventDefault();
-              if (inDedicatedJourney && breadcrumbPlatform !== undefined) navigate('platform', breadcrumbPlatform.id);
-              else navigate('overview');
+              navigate(inDedicatedJourney ? 'platforms' : 'overview');
             }}>{inDedicatedJourney ? 'Built-in CLIs' : 'CLI workspace'}</a>
           {inDedicatedJourney && breadcrumbPlatform !== undefined && route !== 'platform' && (
             <>
@@ -1545,7 +1535,13 @@ export function App() {
             <p className="status-label">Dedicated CLI</p>
             <h2 id="platform-heading">No dedicated CLI is loaded</h2>
             <p>The generic workspace still works with every configured CLI.</p>
+            <button type="button" className="secondary-button" onClick={() => navigate('platforms')}>Browse built-in CLIs</button>
           </section>
+        )}
+
+        {state.kind === 'ready' && route === 'platforms' && (
+          <PlatformsPage platforms={platforms} tasks={state.tasks} onOpenPlatform={openPlatform}
+            onOpenTools={() => navigate('tools')} />
         )}
 
         {state.kind === 'ready' && route === 'platform' && (activePlatform !== undefined ? (
