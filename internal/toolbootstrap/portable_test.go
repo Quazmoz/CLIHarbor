@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
@@ -42,5 +44,46 @@ func TestCorruptManagedCopyIsNotFoundAndRepaired(t *testing.T) {
 	}
 	if got, found, err := p.ResolveInstalled(ref, tool); !found || err != nil || got != path {
 		t.Fatalf("after repair: path=%q found=%v err=%v", got, found, err)
+	}
+}
+
+// Only old, regular, CLIHarbor-named staging files are reclaimed; a recent one
+// may belong to an in-flight install and anything else is not ours.
+func TestRemoveAbandonedStagingIsBoundedToOwnedStaleFiles(t *testing.T) {
+	dir := t.TempDir()
+	old := time.Now().Add(-2 * abandonedStagingAge)
+	write := func(name string, stale bool) string {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if stale {
+			if err := os.Chtimes(path, old, old); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return path
+	}
+	abandoned := write(".cliharbor-download-1.tmp", true)
+	active := write(".cliharbor-download-2.tmp", false)
+	foreign := write("notes-download-3.tmp", true)
+	executable := write("tool", true)
+	staleDir := filepath.Join(dir, ".cliharbor-download-4.tmp")
+	if err := os.Mkdir(staleDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(staleDir, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	RemoveAbandonedStaging(dir, ".cliharbor-download-*.tmp")
+
+	if _, err := os.Stat(abandoned); !os.IsNotExist(err) {
+		t.Fatalf("abandoned staging file kept: %v", err)
+	}
+	for _, kept := range []string{active, foreign, executable, staleDir} {
+		if _, err := os.Stat(kept); err != nil {
+			t.Fatalf("%s removed: %v", filepath.Base(kept), err)
+		}
 	}
 }

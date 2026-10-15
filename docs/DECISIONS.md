@@ -900,3 +900,18 @@ Add four vendor-verified, page-bounded read-only inventory commands (variables, 
 **Verification:** React parsing and interaction tests, platform API tests, production-browser E2E and Windows/Go build gates; real corporate server qualification remains an explicit follow-up.
 
 **Revisit when:** A reviewed backend-native context-bound Conjur permission-check API and corporate fixture tests can prove actual effective permissions and provide stronger atomic session binding.
+
+## ADR-037 — Explicit audit quarantine, bounded staging cleanup, no non-atomic export fallback
+
+**Date:** 2026-10-15  
+**Status:** Accepted
+
+**Context:** A mutation audit journal that fails verification stops startup with no tool beyond a manual rename. Downloads killed mid-transfer leave staging files in managed tool folders. macOS/Linux exports to exFAT fail because they publish with a hard link.
+
+**Decision:** (1) Add read-only `cliharbor audit verify` and operator-only `cliharbor audit quarantine --confirm`. Quarantine holds the audit lock, refuses intact or unreadable journals, and renames the file unchanged to an exclusively reserved name, printing its SHA-256. Startup verification is unchanged and never bypassed. (2) Before each managed download, delete only regular files in that tool's own folder that match CLIHarbor's staging names and are over an hour old; the download client's 10 minute limit means such a file cannot be in flight. (3) Keep hard-link publishing on macOS/Linux. On a macOS exFAT volume both `link` and `renamex_np(RENAME_EXCL)` return `ENOTSUP`, so the only fallback would be non-atomic or overwriting; document the limitation instead. Windows already uses a no-replace `MoveFileExW`.
+
+**Alternatives considered:** Repairing or truncating a corrupt journal (rejected: destroys evidence). Chaining the new journal to the quarantined one (deferred: needs an entry-schema change and an external anchor to mean anything). A background temp cleaner (rejected: unbounded scope, races active installs).
+
+**Security implications:** Quarantine adds no capability an account owner lacks (they can already rename the file) but makes the path deliberate, locked, and evidence-preserving. A missing journal still starts a new chain silently; anchoring the chain head outside the profile is an open decision.
+
+**Verification:** `TestQuarantinePreservesOnlyCorruptJournals`, `TestRemoveAbandonedStagingIsBoundedToOwnedStaleFiles`; native Windows checks in WORK_LAPTOP_EVALUATION.md section 15.

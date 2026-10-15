@@ -33,6 +33,7 @@ Executable permission, resolved basename, version, and identity checks apply. Fo
 | Guided external Conjur OIDC/JWT/SaaS launcher | Supported | Use the official CLI in your terminal |
 | Descendant cleanup | Job Object | Dedicated process group |
 | Immutable evaluation preflight | Existing Windows amd64 bundle | Use native build/self-test |
+| No-overwrite evidence/diagnostics export | No-replace rename; exFAT/FAT expected to work (not natively verified) | Hard link; fails closed on exFAT/FAT and some network shares |
 
 macOS/Linux groups clean up descendants that retain their process group on cancellation, timeout, and normal teardown. Deliberate process-group/session escape requires a stronger OS sandbox; it is not Job Object containment. The browser UI remains read-only and cannot select executables or arbitrary argv.
 

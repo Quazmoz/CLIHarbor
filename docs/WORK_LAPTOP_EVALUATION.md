@@ -2,7 +2,7 @@
 
 This is the controlled first CLIHarbor run on a company-managed Windows 10/11 laptop.
 
-**Prerequisite:** Issue #59 remains a release blocker until the matching React production frontend is rebuilt, the `web-source.sha256` marker and generated bundle are committed together, all pinned-toolchain quality gates pass, and a new qualified Windows evaluation artifact exists. Do not use an older bundle to validate newer Conjur connection/sign-in screens; a fingerprint alone is not browser E2E evidence.
+**Prerequisite:** Issue #59 remains a release blocker. The committed embedded frontend now rebuilds byte-for-byte from source and `verify-web-sync` passes, but a qualified evaluation artifact still requires an authorized CI run and the native Windows checks in section 15. Do not use an older bundle to validate newer Conjur connection/sign-in screens; a fingerprint alone is not browser E2E evidence.
 
 The target laptop does **not** need Go, Node/npm, Git, PowerShell, administrator rights, a Windows service, or machine-wide installation. The evaluation executable is unsigned. Do not disable, bypass, or weaken Defender, EDR, AppLocker, WDAC, SmartScreen, proxy policy, browser policy, firewall policy, or another company security control to run it.
 
@@ -188,6 +188,8 @@ CLIHarbor refuses to overwrite an existing evidence file and prints:
 Evidence SHA-256: <64-lowercase-hex-digest>
 ```
 
+Exports never overwrite and appear only when complete. On Windows the final step is a no-overwrite rename, which does not need hard-link support; on macOS/Linux it is a hard link, which exFAT/FAT and some network shares refuse, so export locally and copy.
+
 Retain that digest independently if transfer-integrity checking is needed. SHA-256 is not a signature, publisher identity, or host attestation.
 
 Inspect before sharing:
@@ -242,7 +244,42 @@ After evaluation:
 
 If CLIHarbor provisioned its managed Conjur fallback, it may remain under the current user's CLIHarbor cache for reuse. It is not a Windows service or machine-wide installation and is reverified before reuse. Remove it only if company/user policy requires cleanup.
 
-## 14. Scope boundary
+## 14. Recovery
+
+See [Recovering from failures](../QUICKSTART.md#recovering-from-failures) for damaged managed CLIs, interrupted downloads, `.conjurrc` duplicate keys, audit-journal incidents and export failures.
+
+## 15. Native Windows qualification checklist
+
+Run on the managed laptop, in a normal (non-elevated) CMD, from the extracted bundle. `EXE` stands for `bin\cliharbor-windows-x64-evaluation.exe`. Record pass/fail and exact output for each line. Use no production credentials beyond your normal sign-in, and run no Conjur mutation.
+
+| # | Check | Command / action | Expected |
+| --- | --- | --- | --- |
+| 1 | Bundle and runtime | `EXE evaluation preflight --bundle "."` then `EXE self-test` | `READY FOR PHASE 0 INVENTORY`; self-test passes |
+| 2 | First run, embedded UI | `EXE` | Browser opens the CLIHarbor workspace; no UAC prompt |
+| 3 | Loopback only | While running: `netstat -ano \| findstr LISTENING \| findstr <port>` | Only `127.0.0.1:<port>` |
+| 4 | Second instance refused | Start `EXE` in another CMD | Exits: audit trail already locked |
+| 5 | Discovery | `EXE doctor` | Conjur `ready`, or `missing` with a clear reason |
+| 6 | Install and reinstall | If permitted: **Add a CLI → CyberArk Conjur → Install**, or start `EXE` with Conjur missing | Pinned 9.3.1 under `%LOCALAPPDATA%\CLIHarbor\tools\` (`conjur\9.3.1\` from auto-setup, `cyberark-conjur-v9\conjur\9.3.1-7207d6a\` from Add a CLI); no admin prompt |
+| 7 | Damaged managed CLI | Stop CLIHarbor; `echo x>> "%LOCALAPPDATA%\CLIHarbor\tools\conjur\9.3.1\conjur.exe"`; `EXE doctor`; then `EXE` | doctor reports missing, does not crash; serve re-downloads and verifies |
+| 8 | Network interruption | Disconnect the network during check 6 or 7 | Install fails with a download error; no `conjur.exe` is activated; retry after reconnecting succeeds |
+| 9 | Unavailable executable | `EXE doctor --tool-path "cyberark-conjur-v9/conjur=C:\nope\conjur.exe"` | Conjur shows `invalid-override`; CLIHarbor does not fall back to another copy |
+| 10 | Cancellation | Start a read-only Conjur task, press **Cancel**; then Ctrl+C in CMD | Run shows `cancelled`; CLIHarbor exits cleanly |
+| 11 | Restricted paths | `EXE diagnostics export "C:\Windows\cliharbor.json"`; then export twice to the same file under `%USERPROFILE%` | First fails without elevation; second run refuses to overwrite |
+| 12 | Removable media (optional) | `EXE diagnostics export "E:\cliharbor.json"` on an exFAT/FAT USB drive if policy allows | Succeeds |
+| 13 | Audit recovery (scratch copy only) | `mkdir %TEMP%\ch-audit` and create `%TEMP%\ch-audit\t.jsonl` containing `junk`; `EXE audit verify --path %TEMP%\ch-audit\t.jsonl`; `EXE audit quarantine --confirm --path %TEMP%\ch-audit\t.jsonl` | verify reports an integrity failure; quarantine prints a preserved path and SHA-256; never use the real journal for this test |
+| 14 | Application control | Note any Defender/SmartScreen/AppLocker/WDAC event | Record it; never bypass |
+
+Covered by automated tests rather than manual steps (they need Go on Windows, so run them on a Windows developer machine or an explicitly authorized CI run): concurrent `.conjurrc` loads, invalid download responses (wrong size, hash or origin), install timeouts, run timeouts, and startup refusal of a corrupt audit journal. On a Windows developer machine with the pinned Go and Node:
+
+```bat
+go run ./tools/task check
+go run ./tools/task windows-eval
+go run ./tools/task verify-windows-eval-repro
+go run ./tools/task verify-windows-eval
+set CLIHARBOR_BROWSER_E2E=1 && go test -timeout 90s -count=1 -run "^TestProductionEmbeddedBrowserE2E$" ./internal/app
+```
+
+## 16. Scope boundary
 
 The current real Conjur pack is already based on authoritative CyberArk source/release evidence and exposes only reviewed read-only, non-secret workflows.
 

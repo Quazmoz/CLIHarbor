@@ -1,11 +1,17 @@
 package audittrail
 
 import (
-	"github.com/Quazmoz/CLIHarbor/internal/runs"
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/Quazmoz/CLIHarbor/internal/runs"
 )
 
 func TestDurableAuditChainAndTampering(t *testing.T) {
@@ -81,4 +87,70 @@ func TestAuditRejectsUnsafeDataAndPartialAppend(t *testing.T) {
 	if err := s.Append(runs.AuditEvent{RunID: approved.RunID, Action: "completed", Status: "exited"}); err == nil {
 		t.Fatal("duplicate completion admitted")
 	}
+}
+
+// Recovery must never touch intact evidence, never run beside a live instance,
+// and must keep a corrupt journal byte-for-byte while letting a new chain start.
+func TestQuarantinePreservesOnlyCorruptJournals(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit", "mutation-trail.jsonl")
+	store, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Append(runs.AuditEvent{RunID: strings.Repeat("a", 32), Action: "approved", PackID: "p", CommandID: "c", Risk: "change", TargetLabel: "ID", Target: "t", Effect: "changes", Scope: "single"}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 15, 10, 0, 0, 0, time.UTC)
+	if _, _, err := Quarantine(path, now); err == nil {
+		t.Fatal("quarantined a journal held by a running instance")
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := Verify(path); err != nil || n != 1 {
+		t.Fatalf("Verify intact = %d, %v", n, err)
+	}
+	if _, _, err := Quarantine(path, now); err == nil {
+		t.Fatal("quarantined an intact journal")
+	}
+
+	raw, _ := os.ReadFile(path)
+	corrupt := append(raw[:len(raw)-1:len(raw)-1], []byte("garbage")...) // partial final entry
+	if err := os.WriteFile(path, corrupt, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(path); !errors.Is(err, ErrIntegrity) {
+		t.Fatalf("Open corrupt = %v, want ErrIntegrity", err)
+	}
+	if _, err := Verify(path); !errors.Is(err, ErrIntegrity) {
+		t.Fatalf("Verify corrupt = %v, want ErrIntegrity", err)
+	}
+	preserved, digest, err := Quarantine(path, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(preserved); !bytes.Equal(got, corrupt) {
+		t.Fatal("quarantined evidence was altered")
+	}
+	if sum := sha256.Sum256(corrupt); digest != hex.EncodeToString(sum[:]) {
+		t.Fatalf("digest = %s", digest)
+	}
+	// Same timestamp again must not replace the preserved file.
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Quarantine(path, now); err == nil {
+		t.Fatal("quarantine replaced an existing preserved journal")
+	}
+	if got, _ := os.ReadFile(preserved); !bytes.Equal(got, corrupt) {
+		t.Fatal("preserved evidence changed by a colliding quarantine")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := Open(path)
+	if err != nil {
+		t.Fatalf("new chain after quarantine: %v", err)
+	}
+	_ = fresh.Close()
 }

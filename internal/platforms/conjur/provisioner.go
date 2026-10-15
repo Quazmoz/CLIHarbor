@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
+	"github.com/Quazmoz/CLIHarbor/internal/toolbootstrap"
 )
 
 const (
@@ -106,6 +107,7 @@ func (p *ConjurProvisioner) Ensure(ctx context.Context, ref discovery.ToolRef) (
 	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 		return "", false, fmt.Errorf("create managed Conjur directory: %w", err)
 	}
+	toolbootstrap.RemoveAbandonedStaging(filepath.Dir(target), ".conjur-download-*.tmp")
 
 	temp, err := os.CreateTemp(filepath.Dir(target), ".conjur-download-*.tmp")
 	if err != nil {

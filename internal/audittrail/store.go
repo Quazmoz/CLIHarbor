@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +23,10 @@ import (
 
 const maxBytes int64 = 16 << 20
 const maxEntries = 25000
+
+// ErrIntegrity marks a journal whose content fails verification, as opposed to
+// a journal that cannot be opened or read at all.
+var ErrIntegrity = errors.New("audit trail integrity check failed")
 
 type Entry struct {
 	Sequence     uint64    `json:"sequence"`
@@ -43,13 +48,13 @@ type Entry struct {
 }
 
 type Store struct {
-	mu       sync.Mutex
-	file     *os.File
-	lock     *os.File
-	entries  []Entry
-	seen     map[string]bool
-	size     int64
-	failed   bool
+	mu      sync.Mutex
+	file    *os.File
+	lock    *os.File
+	entries []Entry
+	seen    map[string]bool
+	size    int64
+	failed  bool
 }
 
 func DefaultPath() (string, error) {
@@ -105,7 +110,7 @@ func Open(path string) (*Store, error) {
 	entries, err := readEntries(file)
 	if err != nil {
 		_ = file.Close()
-		return fail(fmt.Errorf("audit trail integrity check failed: %w", err))
+		return fail(fmt.Errorf("%w (preserve the file and see 'cliharbor help audit'): %v", ErrIntegrity, err))
 	}
 	seen := make(map[string]bool, len(entries))
 	for _, e := range entries {
@@ -303,4 +308,79 @@ func (s *Store) Close() error {
 		return a
 	}
 	return b
+}
+
+// Verify applies the startup content checks (not the permission checks) to the journal at path without
+// creating, locking or modifying anything, so it can also check a preserved or
+// restored copy. Content failures wrap ErrIntegrity.
+func Verify(path string) (entries int, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+	stat, err := file.Stat()
+	if err != nil {
+		return 0, err
+	}
+	if !stat.Mode().IsRegular() {
+		return 0, errors.New("audit trail is not a regular file")
+	}
+	if stat.Size() > maxBytes {
+		return 0, fmt.Errorf("%w: journal exceeds %d bytes", ErrIntegrity, maxBytes)
+	}
+	list, err := readEntries(file)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrIntegrity, err)
+	}
+	return len(list), nil
+}
+
+// Quarantine is the explicit operator recovery for a journal that fails
+// verification. It holds the audit lock, so no CLIHarbor instance can be using
+// the journal, refuses intact or unreadable journals, and renames the file
+// unchanged to a new name reserved exclusively beside it. Nothing is edited,
+// truncated or deleted; the next start begins a new chain. The returned digest
+// is of the preserved file and belongs in the incident record.
+func Quarantine(path string, now time.Time) (preserved, digest string, err error) {
+	if path == "" || !filepath.IsAbs(path) {
+		return "", "", errors.New("audit path must be absolute")
+	}
+	if st, err := os.Lstat(path); err != nil {
+		return "", "", err
+	} else if !st.Mode().IsRegular() {
+		return "", "", errors.New("audit trail is not a regular file")
+	}
+	lock, err := acquireAuditLock(path + ".lock")
+	if err != nil {
+		return "", "", fmt.Errorf("audit trail locked or inaccessible; stop every CLIHarbor instance first: %w", err)
+	}
+	defer lock.Close()
+	if _, err := Verify(path); err == nil {
+		return "", "", errors.New("audit trail verifies; intact evidence is never quarantined")
+	} else if !errors.Is(err, ErrIntegrity) {
+		return "", "", fmt.Errorf("audit trail could not be read, so it was not quarantined: %w", err)
+	}
+	preserved = strings.TrimSuffix(path, ".jsonl") + ".quarantined-" + now.UTC().Format("20060102T150405Z") + ".jsonl"
+	// O_EXCL proves the name was unused; the rename then replaces only our own
+	// empty placeholder (os.Rename has no portable no-replace mode).
+	reserved, err := os.OpenFile(preserved, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return "", "", fmt.Errorf("reserve quarantine name: %w", err)
+	}
+	_ = reserved.Close()
+	if err := os.Rename(path, preserved); err != nil {
+		_ = os.Remove(preserved)
+		return "", "", fmt.Errorf("move audit trail aside: %w", err)
+	}
+	file, err := os.Open(preserved)
+	if err != nil {
+		return preserved, "", err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return preserved, "", err
+	}
+	return preserved, hex.EncodeToString(hash.Sum(nil)), nil
 }

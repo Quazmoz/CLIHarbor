@@ -19,6 +19,8 @@ Do **not** use **Run as administrator** merely to launch CLIHarbor. If applicati
 3. Download `cliharbor-windows-x64-evaluation-<commit-sha>` from **Artifacts**.
 4. Record that commit SHA with your test notes.
 
+Integrity: `EVALUATION_SHA256SUMS` inside the ZIP is the checksum authority for the executable and Phase 0 pack, and step 4 (preflight) verifies every listed file against it. To check by hand with built-in Windows tools, run `certutil -hashfile bin\cliharbor-windows-x64-evaluation.exe SHA256` and compare with the matching line. A checksum proves the files match the build; it is not a code signature.
+
 You do **not** need to download a separate Conjur pack for the normal path. The reviewed first-party Conjur v9 pack is embedded in the CLIHarbor executable.
 
 Do not substitute a copied standalone EXE. The executable, Phase 0 pack, and `EVALUATION_SHA256SUMS` form one qualified evaluation bundle.
@@ -182,6 +184,32 @@ If CLIHarbor itself unexpectedly triggers UAC/admin credentials, cancel the prom
 | Conjur version is incompatible | Do not bypass the version constraint; use/qualify a compatible approved version |
 | Conjur command reports login required | Open **Authentication**; use the reviewed password bridge only when offered, otherwise authenticate through the approved vendor-owned flow |
 | Browser launch fails | Use the printed short-lived loopback URL in an approved browser if company policy permits it |
+
+## Where CLIHarbor keeps state
+
+Everything is per-user; nothing is written outside your profile unless you choose a custom install base inside it.
+
+| What | Windows | macOS |
+| --- | --- | --- |
+| Managed CLIs (Add a CLI, Conjur auto-setup) | `%LOCALAPPDATA%\CLIHarbor\tools\<pack>\<tool>\<version>\` | `~/Library/Caches/CLIHarbor/tools/...` |
+| Auto-setup Conjur 9.3.1 | `%LOCALAPPDATA%\CLIHarbor\tools\conjur\9.3.1\conjur.exe` (Add a CLI uses the managed-CLI layout above) | n/a |
+| Chosen custom install bases | `%APPDATA%\CLIHarbor\managed-install-locations.json` | `~/Library/Application Support/CLIHarbor/...` |
+| Mutation audit journal and lock | `%APPDATA%\CLIHarbor\audit\` | `~/Library/Application Support/CLIHarbor/audit/` |
+| Conjur endpoint and session | Owned by the Conjur CLI: `%USERPROFILE%\.conjurrc` plus its configured credential storage | `~/.conjurrc` plus its configured credential storage |
+
+Run history is in memory only and is gone after CLIHarbor stops.
+
+## Recovering from failures
+
+| Symptom | Safe recovery |
+| --- | --- |
+| A managed CLI was damaged, truncated or replaced | Run `doctor`; it reports the tool as missing instead of failing. Restart `serve` (auto-setup) or use **Add a CLI → Install**: the bad copy is removed and the pinned bytes are downloaded and verified again. |
+| A download was interrupted (network loss, Ctrl+C, crash) | Nothing is activated until the full SHA-256 matches. Retry the install. Staging files a killed process left behind (`.cliharbor-download-*.tmp`, `.cliharbor-executable-*.tmp`, `.conjur-download-*.tmp`) are deleted by the next install into that folder once they are over an hour old. |
+| Install reports a timeout on a slow link | Downloads may take up to 10 minutes. Retry on a better connection, or use an approved company installation with `--tool-path`. |
+| Conjur commands fail with a YAML "already defined" error | `.conjurrc` holds a duplicated key. CLIHarbor serializes its own reads, but the Conjur CLI itself can append the same default concurrently. Remove the duplicate line or rerun `conjur init`. |
+| Startup stops with `audit trail integrity check failed` | Do not delete or edit the journal. Follow [incident handling](docs/MUTATION_AUDIT.md#incident-handling-journal-fails-verification) (`cliharbor audit verify`, then restore or `audit quarantine --confirm`). |
+| Startup says the audit trail is locked | Another CLIHarbor instance is running for this user. Stop it; never delete the `.lock` file. |
+| Evidence or diagnostics export fails to activate | Exports refuse to overwrite and are published atomically. On Windows they use a no-overwrite rename that does not need hard links, so exFAT/FAT USB drives are expected to work (not yet verified on native Windows); on macOS/Linux, exFAT/FAT and some network shares have no atomic no-overwrite primitive, so export to a local folder and copy the file. |
 
 ## Developer quickstart
 

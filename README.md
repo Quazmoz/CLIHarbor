@@ -6,7 +6,7 @@ A local browser UI for safely exposing curated workflows from official command-l
 
 > **Source/binary qualification:** The latest React source is not guaranteed to be present in a previously downloaded Windows evaluation executable. [Release blocker #59](https://github.com/Quazmoz/CLIHarbor/issues/59) tracks regeneration of `internal/webui/static/`, pinned-toolchain verification, and target-host validation after recent Conjur sign-in changes. Do not treat an older artifact as an acceptance test of those changes or publish it as the latest build. The GitHub Actions pipeline is manual-only and must not be dispatched without specific authorization.
 >
-> **Stale-bundle guard:** The task runner now embeds `web-source.sha256` in the generated frontend and compares it against current `web/` inputs, even when Git reports a clean checkout. This guard is intentionally failing until assets are regenerated and committed with the pinned toolchain. The fingerprint does **not** prove npm/Vite built the assets: use `go run ./tools/task web-build`, verify the generated bundle and run all quality gates before using it for evaluation.
+> **Stale-bundle guard:** The task runner embeds `web-source.sha256` in the generated frontend and compares it against current `web/` inputs, even when Git reports a clean checkout. It passes on `main`, and a pinned-toolchain `web-build` reproduces the committed bundle byte-for-byte. The fingerprint does **not** prove npm/Vite built the assets: use `go run ./tools/task web-build`, verify the generated bundle and run all quality gates before using it for evaluation.
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
@@ -603,7 +603,7 @@ Its value comes from making **known, reviewed CLI workflows** easy to use while 
 
 ## Mutation audit trail and undo safety
 
-Reviewed change and destructive operations are now synchronously journaled to a private, append-only local audit file before execution. Open **Runs → Mutation audit trail** to see approvals, outcomes and targets after restart; this is separate from temporary raw run history. The journal never persists passwords, stdin, stdout/stderr or argv. Failed/unavailable audit storage blocks new mutations. **No automated undo is enabled** until inverse operations are independently qualified with remote pre-state and drift checks. See [Mutation audit and recovery](docs/MUTATION_AUDIT.md).
+Reviewed change and destructive operations are now synchronously journaled to a private, append-only local audit file before execution. Open **Runs → Mutation audit trail** to see approvals, outcomes and targets after restart; this is separate from temporary raw run history. The journal never persists passwords, stdin, stdout/stderr or argv. Failed/unavailable audit storage blocks new mutations. **No automated undo is enabled** until inverse operations are independently qualified with remote pre-state and drift checks. A journal that fails verification blocks startup; `cliharbor audit verify` and the explicit `cliharbor audit quarantine --confirm` preserve the evidence unchanged for incident handling. See [Mutation audit and recovery](docs/MUTATION_AUDIT.md).
 
 ## Configure the Conjur API backend (SaaS)
 

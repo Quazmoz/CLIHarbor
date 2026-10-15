@@ -512,3 +512,12 @@ The header Find task shortcut and Ctrl/Command+K modal consume only the server-a
 ## UI simplification acceptance
 
 Navigation regressions cover top-bar integration destinations, a native selector for multiple built-in CLIs, browser back navigation, unavailable dedicated deep links, and attention-only readiness links. Overview retains conservative per-CLI session checks, actionable unavailable tools, recent run outcomes, and favorite shortcuts while omitting duplicate metrics/Workspace metadata and hiding onboarding after setup or prior use. The embedded Chrome harness verifies that exactly one task tool selector is visible at each supported width, that switching through either selector preserves scope through resizing, and that keyboard navigation reaches the header links and collapsed preflight metadata. Conjur Tools retains inventory and migration workflows; shared runner validation, approval and output boundaries remain covered by the existing suites.
+
+## Stability and recovery regressions (2026-10-15)
+
+- Concurrent `.conjurrc` loads keep the file valid (`TestConcurrentConfigLoadsKeepConjurrcValid`).
+- A truncated managed CLI resolves as missing and is repaired (`TestCorruptManagedCopyIsNotFoundAndRepaired`); a `v`-prefixed pack install version qualifies against discovery's canonical version.
+- Abandoned staging cleanup removes only stale, owned, regular files.
+- Audit quarantine refuses live, intact and unreadable journals, preserves corrupt bytes exactly and never replaces an existing preserved file.
+- Secret audit stops on transport loss and drops results after an endpoint change; the incremental run-output decoder matches a full decode.
+- Native Windows execution of these paths is part of WORK_LAPTOP_EVALUATION.md section 15; cross-compilation alone does not qualify them.

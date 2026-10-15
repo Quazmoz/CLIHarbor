@@ -145,6 +145,7 @@ func (p *PortableProvisioner) EnsureAt(ctx context.Context, ref discovery.ToolRe
 	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 		return "", false, fmt.Errorf("create managed tool directory: %w", err)
 	}
+	RemoveAbandonedStaging(filepath.Dir(target), ".cliharbor-download-*.tmp", ".cliharbor-executable-*.tmp")
 
 	downloadPath, err := p.download(ctx, filepath.Dir(target), artifact)
 	if err != nil {
@@ -292,6 +293,39 @@ func (p *PortableProvisioner) download(ctx context.Context, directory string, ar
 	}
 	keep = true
 	return tempPath, nil
+}
+
+// abandonedStagingAge is far beyond the 10 minute download client timeout, so a
+// staging file last modified earlier cannot belong to an in-flight install.
+const abandonedStagingAge = time.Hour
+
+// RemoveAbandonedStaging deletes staging files a killed or crashed install left
+// in a CLIHarbor-managed tool directory. Only regular files whose names match one
+// of CLIHarbor's own staging patterns and that are older than abandonedStagingAge
+// are removed. Failures are ignored: a leftover file never blocks a new install.
+func RemoveAbandonedStaging(directory string, patterns ...string) {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-abandonedStagingAge)
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() || !matchesAnyPattern(entry.Name(), patterns) {
+			continue
+		}
+		if info, err := entry.Info(); err == nil && info.ModTime().Before(cutoff) {
+			_ = os.Remove(filepath.Join(directory, entry.Name()))
+		}
+	}
+}
+
+func matchesAnyPattern(name string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if matched, _ := filepath.Match(pattern, name); matched {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *PortableProvisioner) allowedDownloadURL(candidate, source *url.URL, redirectHosts []string) bool {

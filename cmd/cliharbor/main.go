@@ -7,10 +7,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/app"
+	"github.com/Quazmoz/CLIHarbor/internal/audittrail"
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/terminal"
@@ -61,7 +64,7 @@ func helpRequest(args []string) ([]string, bool) {
 
 	path := []string{args[0]}
 	switch args[0] {
-	case "pack", "evidence", "diagnostics", "evaluation":
+	case "pack", "evidence", "diagnostics", "evaluation", "audit":
 		if len(args) > 1 && !isHelpFlag(args[1]) && !strings.HasPrefix(args[1], "-") {
 			path = append(path, args[1])
 		}
@@ -82,6 +85,7 @@ Usage:
   cliharbor evidence <command> [options]
   cliharbor diagnostics export [options] <output>
   cliharbor evaluation preflight [options]
+  cliharbor audit <verify|quarantine> [options]
   cliharbor help [command [subcommand]]
 
 Commands:
@@ -94,6 +98,7 @@ Commands:
   evidence      Check or inspect exported Phase 0 evidence.
   diagnostics   Export privacy-preserving support metadata.
   evaluation    Verify an extracted Windows evaluation bundle.
+  audit         Verify the mutation audit journal or quarantine a corrupt one.
   help          Show this help or help for one command/subcommand.
 
 Examples:
@@ -230,6 +235,25 @@ Export allowlisted, privacy-preserving support metadata. Run 'cliharbor help dia
 
 Write a new diagnostics bundle containing allowlisted metadata only. Command output, argv, environment values, executable paths, browser secrets, and credentials are excluded.
 `,
+	"audit": `Usage:
+  cliharbor audit verify [--path <journal>]
+  cliharbor audit quarantine --confirm [--path <journal>]
+
+Startup refuses a mutation audit journal that fails verification. Run 'cliharbor help audit quarantine' before recovering.
+`,
+	"audit verify": `Usage:
+  cliharbor audit verify [--path <journal>]
+
+Run the startup content checks (hash chain, sequence, entry format, size) on the current user's journal, or on a preserved or restored copy given by an absolute --path. Read-only. File permissions are checked only at startup.
+`,
+	"audit quarantine": `Usage:
+  cliharbor audit quarantine --confirm [--path <journal>]
+
+Stop every CLIHarbor instance and copy the journal to your incident evidence store first.
+Refuses a journal that verifies or cannot be read. Otherwise renames it, unchanged, to
+mutation-trail.quarantined-<UTC time>.jsonl in the same folder and prints its SHA-256.
+The next start begins a new, unlinked chain. Nothing is edited, truncated or deleted.
+`,
 	"evaluation": `Usage:
   cliharbor evaluation preflight [--bundle <directory>]
 
@@ -274,6 +298,9 @@ func run(args []string) error {
 	}
 	if len(args) > 0 && args[0] == "diagnostics" {
 		return runDiagnosticsCommand(args[1:])
+	}
+	if len(args) > 0 && args[0] == "audit" {
+		return runAuditCommand(args[1:])
 	}
 	if len(args) > 0 && args[0] == "evaluation" {
 		return runEvaluationCommand(args[1:])
@@ -577,6 +604,52 @@ func runDiagnosticsCommand(args []string) error {
 		PackDirectory: *packDirectory,
 		ToolOverrides: overrides,
 	}, flags.Arg(0))
+}
+
+func runAuditCommand(args []string) error {
+	if len(args) == 0 || (args[0] != "verify" && args[0] != "quarantine") {
+		return fmt.Errorf("usage: cliharbor audit <verify|quarantine> [options]; run 'cliharbor help audit'")
+	}
+	flags := flag.NewFlagSet("cliharbor audit "+args[0], flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	path := flags.String("path", "", "absolute journal path (default: current user's journal)")
+	confirm := flags.Bool("confirm", false, "quarantine-only: acknowledge that the next start begins a new chain")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("unexpected positional arguments")
+	}
+	if *path == "" {
+		defaultPath, err := audittrail.DefaultPath()
+		if err != nil {
+			return fmt.Errorf("locate mutation audit trail: %w", err)
+		}
+		*path = defaultPath
+	}
+	if !filepath.IsAbs(*path) {
+		return fmt.Errorf("--path must be absolute")
+	}
+	if args[0] == "verify" {
+		if *confirm {
+			return fmt.Errorf("--confirm is valid only with quarantine")
+		}
+		entries, err := audittrail.Verify(*path)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Mutation audit journal verified: %d entries\n", entries)
+		return nil
+	}
+	if !*confirm {
+		return fmt.Errorf("quarantine starts a new audit chain at next launch; preserve a copy, then rerun with --confirm")
+	}
+	preserved, digest, err := audittrail.Quarantine(*path, time.Now())
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Corrupt mutation audit journal preserved unchanged at:\n  %s\nSHA-256: %s\nRecord both in your incident ticket. The next start begins a new chain.\n", preserved, digest)
+	return nil
 }
 
 func runEvidenceCommand(args []string) error {
