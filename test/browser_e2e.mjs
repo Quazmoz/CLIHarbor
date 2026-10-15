@@ -573,6 +573,36 @@ async function main() {
       'location.pathname === "/tasks" && document.querySelector(".task-context-header h4")?.textContent?.includes("Inspect fixture argv") && document.querySelector(".task-switcher") === null');
     assert.equal(await page.evaluate('document.querySelector(".run-panel h2")?.textContent === "Succeeded"'), false,
       'quick switcher must not execute a task');
+    stage('native dropdown appearance and selection remain safe at narrow width');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
+    const selectAppearance = await page.evaluate('(() => {' +
+      'const select = document.querySelector(".task-category-filter select");' +
+      'if (!select) return null;' +
+      'const style = getComputedStyle(select); const box = select.getBoundingClientRect();' +
+      'const probe = document.createElement("select"); probe.size = 4; document.body.append(probe);' +
+      'const listboxAppearance = getComputedStyle(probe).appearance; probe.remove();' +
+      'return { tag: select.tagName, appearance: style.appearance, image: style.backgroundImage,' +
+        'fits: box.left >= 0 && box.right <= innerWidth, listboxAppearance };' +
+    '})()');
+    assert.ok(selectAppearance, 'tool filter must expose a native select');
+    assert.equal(selectAppearance.tag, 'SELECT', 'tool filter must preserve the native select element');
+    assert.equal(selectAppearance.appearance, 'none', 'the native select trigger must receive the shared chevron styling');
+    assert.match(selectAppearance.image, /^url\\(/, 'native select must display its local chevron');
+    assert.equal(selectAppearance.fits, true, 'dropdown must fit a 320px viewport');
+    assert.notEqual(selectAppearance.listboxAppearance, 'none', 'sized native listboxes must not inherit dropdown styling');
+    const nextFilter = await page.evaluate('(() => {' +
+      'const select = document.querySelector(".task-category-filter select");' +
+      'const next = Array.from(select.options).find((option) => option.value && option.value !== select.value);' +
+      'if (!next) return null;' +
+      'Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(select, next.value);' +
+      'select.dispatchEvent(new Event("change", { bubbles: true })); return next.value;' +
+    '})()');
+    assert.ok(nextFilter, 'fixture must expose a second tool to exercise selection');
+    await waitJS(page, 'native select remains wired to task filtering',
+      'document.querySelector(".task-category-filter select")?.value === ' + JSON.stringify(nextFilter));
+    assert.equal(await page.evaluate('document.querySelector(".run-panel h2")?.textContent === "Succeeded"'), false,
+      'changing a task filter must never execute a task');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
     await navigate(page, baseURL + '/');
     await waitJS(page, 'overview restored after quick switcher',
       'location.pathname === "/" && document.querySelector("#overview-heading") !== null');
