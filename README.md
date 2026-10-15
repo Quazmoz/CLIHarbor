@@ -12,15 +12,14 @@ CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings
 
 ## Idira PAM read-only candidate
 
-An **Idira PAM** workspace has been staged for review with the trusted `idsec`
-v0.13.x pack, explicit vendor-owned session checks, and backend-allowlisted
-25/50-item Safe and account metadata inspection. The user runs the official
-CyberArk CLI; CLIHarbor does not retrieve passwords or tokens. This new
-integration is **not yet release-qualified or tenant-accepted**. It discovers
-approved existing `idsec` installations but does not automatically install
-or sign in to the vendor CLI. The React bundle must be regenerated through
-the repository's official build task before a qualified artifact can contain
-the new workspace.
+An **Idira PAM** built-in platform is available using the trusted `idsec`
+v0.13.x pack, vendor-owned session checks, and backend-allowlisted,
+50-item-maximum Safe and account metadata inspection. Its initial UI reuses
+the already-embedded generic task forms and run explorer; no separate PAM
+tabs or login wizard are enabled. CLIHarbor never retrieves passwords or
+tokens. The integration is **not yet release-qualified or tenant-accepted**.
+It discovers existing, approved `idsec` installations but does not automatically
+install or sign in to the vendor CLI.
 
 See [Idira PAM integration and work-laptop acceptance](docs/IDIRA_PAM.md).
 The existing Conjur integration remains independent and unchanged.
