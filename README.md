@@ -10,6 +10,21 @@ A local browser UI for safely exposing curated workflows from official command-l
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
+## Idira PAM read-only candidate
+
+An **Idira PAM** workspace has been staged for review with the trusted `idsec`
+v0.13.x pack, explicit vendor-owned session checks, and backend-allowlisted
+25/50-item Safe and account metadata inspection. The user runs the official
+CyberArk CLI; CLIHarbor does not retrieve passwords or tokens. This new
+integration is **not yet release-qualified or tenant-accepted**. It discovers
+approved existing `idsec` installations but does not automatically install
+or sign in to the vendor CLI. The React bundle must be regenerated through
+the repository's official build task before a qualified artifact can contain
+the new workspace.
+
+See [Idira PAM integration and work-laptop acceptance](docs/IDIRA_PAM.md).
+The existing Conjur integration remains independent and unchanged.
+
 ## Browser-managed CLI installation
 
 CLIHarbor can install a CLI from the local browser UI **only when the loaded trusted pack declares an immutable portable artifact contract** for the current OS/architecture.
@@ -584,6 +599,7 @@ docs/                      product, architecture, security and operations docs
 | --- | --- |
 | [Quickstart](QUICKSTART.md) | shortest one-download/non-admin startup path |
 | [Conjur integration](docs/CONJUR_INTEGRATION.md) | upstream provenance, managed fallback and command scope |
+| [Idira PAM integration](docs/IDIRA_PAM.md) | reviewed idsec scope, privacy guard and non-admin acceptance |
 | [PRD](docs/PRD.md) | product scope and acceptance |
 | [Architecture](docs/ARCHITECTURE.md) | component, setup and execution boundaries |
 | [Security](docs/SECURITY.md) | threat model, download controls and trust boundaries |
