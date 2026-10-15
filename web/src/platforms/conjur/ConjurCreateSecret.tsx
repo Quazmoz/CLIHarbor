@@ -20,6 +20,7 @@ interface Props {
   account?: string;
   endpoint?: string;
   contextKey: string;
+  onOpenRuns?: () => void;
 }
 
 interface Plan {
@@ -94,12 +95,23 @@ async function completedRun(snapshot: RunSnapshot): Promise<RunSnapshot> {
   });
 }
 
+// A failed CLI read is not evidence of absence. Carry only CLIHarbor's
+// generated run ID to the UI, never untrusted vendor stdout or stderr.
+class ExistenceCheckFailure extends Error {
+  readonly runId: string;
+
+  constructor(runId: string) {
+    super('Conjur could not verify that the variable is new. The read-only existence check failed; no changes were sent. Inspect Runs for the underlying CLI error.');
+    this.runId = /^[A-Za-z0-9_-]{1,128}$/u.test(runId) ? runId : '';
+  }
+}
+
 async function exists(csrfToken: string, fullID: string, account: string): Promise<boolean> {
   const snapshot = await completedRun(await createRun(csrfToken, {
     packId: PACK, commandId: 'resource-exists',
     values: { 'resource-id': account + ':variable:' + fullID },
   }));
-  if (!successful(snapshot, 'resource-exists')) throw new Error('Conjur could not verify that the variable is new.');
+  if (!successful(snapshot, 'resource-exists')) throw new ExistenceCheckFailure(snapshot.runId);
   const existsField = snapshot.structured?.status === 'available'
     ? snapshot.structured.fields?.find((field) => field.key === 'exists' && field.present && field.type === 'boolean')
     : undefined;
@@ -113,12 +125,13 @@ async function exists(csrfToken: string, fullID: string, account: string): Promi
 
 function safeMessage(error: unknown): string {
   // Do not expose untrusted vendor output or request details in the create flow.
+  if (error instanceof ExistenceCheckFailure) return error.message;
   if (error instanceof Error && error.message.startsWith('Run ')) return error.message;
   if (error instanceof Error && error.message.startsWith('Conjur ')) return error.message;
   return 'The operation was not confirmed. Review Runs and the Conjur variable before trying again.';
 }
 
-export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contextKey }: Props) {
+export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contextKey, onOpenRuns }: Props) {
   // SaaS tenants cannot load policy into root; their secrets live under data.
   // The parent remounts this form when the endpoint changes.
   const saas = Boolean(endpoint && normalizeConjurSaaSAPIURL(endpoint));
@@ -131,6 +144,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
   const [error, setError] = useState('');
+  const [failedCheckRunId, setFailedCheckRunId] = useState('');
   const [outcome, setOutcome] = useState('');
   const busyRef = useRef(false);
   const alive = useRef(true);
@@ -147,7 +161,9 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     supportedTask(tasks, 'secret-set-value', 'change', { 'variable-id': 'string', value: 'secret' });
   const fullID = fullVariableID(branch, variable);
   const saasRoot = saas && branch === 'root';
-  const inputReady = Boolean(fullID) && !saasRoot && value.length >= 1 && value.length <= 4096 &&
+  // The resource-exists task limits the account-prefixed resource ID to 2048 characters.
+  const resourceIDTooLong = Boolean(fullID && account && (account + ':variable:' + fullID).length > 2048);
+  const inputReady = Boolean(fullID) && !saasRoot && !resourceIDTooLong && value.length >= 1 && value.length <= 4096 &&
     !/[\r\n\p{Cc}\p{Cf}]/u.test(value);
   const reviewed = plan !== null && plan.branch === branch && plan.variable === variable &&
     plan.fullID === fullID && plan.contextKey === contextKey;
@@ -157,6 +173,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     setPlan(null);
     setApproved(false);
     setError('');
+    setFailedCheckRunId('');
     setOutcome('');
   }
 
@@ -166,6 +183,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     busyRef.current = true;
     setBusy(true);
     setError('');
+    setFailedCheckRunId('');
     setOutcome('');
     try {
       if (await exists(csrfToken, fullID, account)) {
@@ -191,7 +209,10 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       }
       if (alive.current) setPlan({ branch, variable, fullID, contextKey, create, set });
     } catch (caught) {
-      if (alive.current) setError(safeMessage(caught));
+      if (alive.current) {
+        setError(safeMessage(caught));
+        setFailedCheckRunId(caught instanceof ExistenceCheckFailure ? caught.runId : '');
+      }
     } finally {
       busyRef.current = false;
       if (alive.current) setBusy(false);
@@ -211,6 +232,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     busyRef.current = true;
     setBusy(true);
     setError('');
+    setFailedCheckRunId('');
     setOutcome('');
     const secret = value;
     // Clear React state and the password input before the first process starts.
@@ -249,6 +271,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       if (alive.current) {
         setError((declared ? 'Partial completion: the variable was created, but value storage is unconfirmed. ' : '') +
           safeMessage(caught) + ' Never blindly repeat creation; inspect the variable first.');
+        setFailedCheckRunId(caught instanceof ExistenceCheckFailure ? caught.runId : '');
       }
     } finally {
       // The only remaining reference to the secret is this short-lived async call stack.
@@ -282,6 +305,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
               placeholder="db/password" onChange={(event) => changed(() => setVariable(event.target.value))} />
           </label>
           <p>Full variable ID: <code>{fullID ?? 'Enter a simple relative policy path and variable ID'}</code></p>
+          {resourceIDTooLong && <p role="alert">The complete Conjur resource ID exceeds the supported 2,048-character limit. Shorten the variable path.</p>}
           <label>Initial secret value
             <input required type="password" minLength={1} maxLength={4096} value={value}
               disabled={busy} autoComplete="off" spellCheck={false}
@@ -311,6 +335,14 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
           )}
           <p role="status" aria-live="polite">{busy ? stage || 'Checking Conjur and preparing the approvals…' : outcome}</p>
           {error && <p role="alert">{error}</p>}
+          {error && failedCheckRunId && (
+            <div className="conjur-create-check-failure">
+              <p>Failed read-only check run: <code>{failedCheckRunId}</code></p>
+              {onOpenRuns && <button type="button" className="secondary-button" onClick={onOpenRuns}>
+                Inspect failed check in Runs
+              </button>}
+            </div>
+          )}
         </form>
       )}
     </section>

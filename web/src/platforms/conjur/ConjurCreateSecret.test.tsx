@@ -39,8 +39,9 @@ const snapshot = (commandId: string, ok = true): RunSnapshot => ({
     fields: [{ key: 'exists', label: 'Exists', type: 'boolean' as const, present: true, value: 'false' }],
   } } : {}),
 });
-const setup = () => {
-  render(<ConjurCreateSecret tasks={tasks} csrfToken="test-csrf" account="dev" endpoint="https://example.test" contextKey="current" />);
+const setup = (onOpenRuns?: () => void) => {
+  render(<ConjurCreateSecret tasks={tasks} csrfToken="test-csrf" account="dev" endpoint="https://example.test"
+    contextKey="current" onOpenRuns={onOpenRuns} />);
   const region = screen.getByRole('region', { name: 'Create Conjur secret' });
   fireEvent.click(within(region).getByRole('button', { name: /Create secret/ }));
   fireEvent.change(within(region).getByRole('textbox', { name: /Policy branch/ }), {
@@ -117,6 +118,35 @@ test('failure to store value stops workflow with explicit partial-completion gui
   await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('Partial completion'));
   expect(within(region).getByRole('alert')).not.toHaveTextContent('never-store-me');
   expect(within(region).getByLabelText('Initial secret value')).toHaveValue('');
+});
+
+test('failed Conjur existence checks preserve the run ID without permitting writes', async () => {
+  vi.mocked(createRun).mockResolvedValue(snapshot('resource-exists', false));
+  const onOpenRuns = vi.fn();
+  const region = setup(onOpenRuns);
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('read-only existence check failed'));
+  expect(within(region).getByText('resource-exists-run')).toBeInTheDocument();
+  fireEvent.click(within(region).getByRole('button', { name: 'Inspect failed check in Runs' }));
+  expect(onOpenRuns).toHaveBeenCalledTimes(1);
+  expect(within(region).queryByText('never-store-me')).not.toBeInTheDocument();
+  expect(previewRun).not.toHaveBeenCalled();
+  expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.commandId))
+    .toEqual(['resource-exists']);
+});
+
+test('checks the account-prefixed resource ID against the Conjur input length limit', () => {
+  render(<ConjurCreateSecret tasks={tasks} csrfToken="test-csrf" account="dev" endpoint="https://example.test"
+    contextKey="current" />);
+  const region = screen.getByRole('region', { name: 'Create Conjur secret' });
+  fireEvent.click(within(region).getByRole('button', { name: /Create secret/ }));
+  fireEvent.change(within(region).getByRole('textbox', { name: /New variable ID/ }), {
+    target: { value: 'a'.repeat(2040) },
+  });
+  fireEvent.change(within(region).getByLabelText('Initial secret value'), { target: { value: 'v' } });
+  expect(within(region).getByRole('alert')).toHaveTextContent('2,048-character limit');
+  expect(within(region).getByRole('button', { name: 'Review creation and value' })).toBeDisabled();
+  expect(createRun).not.toHaveBeenCalled();
 });
 
 test('existing variable prevents all mutating previews and execution', async () => {

@@ -160,7 +160,7 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
           {csrfToken ? (
             <ConjurCreateSecret key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
               tasks={platformTasks} csrfToken={csrfToken} account={ready ? target?.account : undefined}
-              endpoint={ready ? target?.applianceUrl : undefined}
+              endpoint={ready ? target?.applianceUrl : undefined} onOpenRuns={onOpenRuns}
               contextKey={discoveryKey + '/' + (target?.applianceUrl ?? '') + '/' + (target?.account ?? '')} />
           ) : <Action title="Create secret" detail="Requires a verified browser session." available={false} onOpen={() => {}} />}
           {taskAction('list-variables', 'read', 'Browse variables', 'Find visible variable IDs without exposing their stored values.')}

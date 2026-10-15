@@ -238,6 +238,11 @@ preview and again before mutation. For asynchronous checks it retrieves the
 authoritative final run snapshot rather than trusting a completion event's
 metadata-only payload. A missing or invalid structured existence boolean
 blocks creation; raw stdout is not used to bypass the approved output schema.
+A failed CLI existence check now exposes a sanitized local run ID and a Runs
+navigation action so the operator can inspect authentication, authorization, or
+service errors. A nonzero exit is **never** interpreted as a missing resource.
+The account-prefixed existence ID, rather than only the relative variable path,
+must also fit the pack's 2,048-character input limit.
 The reconciliation lookup is single-flight and independently time-bounded: a stalled
 HTTP request or duplicate completion signal cannot indefinitely hold the create form.
 This is a best-effort duplicate guard:
