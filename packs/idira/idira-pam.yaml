@@ -1,0 +1,178 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: cyberark-idira-pam
+  name: Idira PAM
+  version: 0.1.0
+  description: Reviewed CyberArk idsec v0.13 Privilege Cloud session and bounded non-secret inventory workflows.
+runtime:
+  platforms: [windows, linux, darwin]
+  tools:
+    idsec:
+      executableNames: [idsec]
+      versionProbe:
+        args: [version, --silent]
+        parser: semver-text
+        timeoutMillis: 2000
+      versionConstraint: ">=0.13.0-0 <0.14.0-0"
+      helpProbes:
+        version:
+          args: [version, --help]
+        session:
+          args: [status, --help]
+        safes:
+          args: [pcloud, safes, list-by, --help]
+        accounts:
+          args: [pcloud, accounts, list-by, --help]
+      sessionCheck:
+        commandId: session-status
+commands:
+  version:
+    name: Idira CLI version
+    description: Show the installed idsec version (local CLI only).
+    tool: idsec
+    risk: read
+    argv:
+      - literal: version
+      - literal: --silent
+    output:
+      mode: raw
+
+  session-status:
+    name: Check PAM session
+    description: Check the selected vendor-owned profile using a local keyring status query; no credentials are printed.
+    tool: idsec
+    risk: read
+    argv:
+      - literal: status
+      - literal: --query
+      - literal: '{profile: .profile, exists: .exists, authenticated: .authenticated}'
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  list-safes:
+    name: Browse Safes
+    description: Bounded read-only Safe identifiers and names; no members, credentials, or arbitrary vendor fields.
+    tool: idsec
+    risk: read
+    inputs:
+      - id: limit
+        type: integer
+        label: Page size
+        required: true
+        validation:
+          min: 1
+          max: 50
+      - id: offset
+        type: integer
+        label: Offset
+        required: true
+        validation:
+          min: 0
+          max: 100000
+      - id: search
+        type: string
+        label: Safe name search
+        validation:
+          minLength: 1
+          maxLength: 64
+          pattern: '^[A-Za-z0-9 ._@/-]+$'
+          disallowLeadingDash: true
+    argv:
+      - literal: pcloud
+      - literal: safes
+      - literal: list-by
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - flag:
+          name: --offset
+          valueFrom: offset
+      - flag:
+          name: --search
+          valueFrom: search
+          omitWhenEmpty: true
+      - literal: --query
+      - literal: '[.[] | {safe_id: .safe_id, safe_name: .safe_name}]'
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  list-accounts:
+    name: Browse accounts (metadata only)
+    description: Bounded account ID, name, Safe association, and platform ID only; never credentials or arbitrary account properties.
+    tool: idsec
+    risk: read
+    inputs:
+      - id: limit
+        type: integer
+        label: Page size
+        required: true
+        validation:
+          min: 1
+          max: 50
+      - id: offset
+        type: integer
+        label: Offset
+        required: true
+        validation:
+          min: 0
+          max: 100000
+      - id: search
+        type: string
+        label: Account search
+        validation:
+          minLength: 1
+          maxLength: 64
+          pattern: '^[A-Za-z0-9 ._@/-]+$'
+          disallowLeadingDash: true
+      - id: safe
+        type: string
+        label: Safe name
+        validation:
+          minLength: 1
+          maxLength: 64
+          pattern: '^[A-Za-z0-9 ._@/-]+$'
+          disallowLeadingDash: true
+    argv:
+      - literal: pcloud
+      - literal: accounts
+      - literal: list-by
+      - flag:
+          name: --limit
+          valueFrom: limit
+      - flag:
+          name: --offset
+          valueFrom: offset
+      - flag:
+          name: --search
+          valueFrom: search
+          omitWhenEmpty: true
+      - flag:
+          name: --safe-name
+          valueFrom: safe
+          omitWhenEmpty: true
+      - literal: --query
+      - literal: '[.[] | {account_id: .account_id, name: .name, safe_name: .safe_name, platform_id: (.platform_id // "")}]'
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
