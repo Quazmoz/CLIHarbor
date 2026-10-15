@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"io"
 	"strings"
 	"unicode"
@@ -35,8 +36,7 @@ func OutputGuard(plan planner.Plan) func([]byte) ([]byte, error) {
 	}
 	switch plan.CommandID {
 	case "version":
-		// The local --silent version probe is not PAM data.
-		return nil
+		return filterVersion
 	case "session-status":
 		return filterStatus
 	case "list-safes":
@@ -51,6 +51,76 @@ func OutputGuard(plan planner.Plan) func([]byte) ([]byte, error) {
 		// Future Idira pack tasks must be reviewed and explicitly admitted.
 		return func([]byte) ([]byte, error) { return nil, errUnsafeVendorOutput }
 	}
+}
+
+// Even a built-in version action is quarantined. In custom-only mode a local
+// pack may reuse this ID; no command may evade the output gate via its name.
+var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?// Package idira contains only the reviewed Idira Privilege Cloud adapter.
+// All PAM execution remains owned by the official CyberArk idsec CLI.
+package idira
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"regexp"
+	"io"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/Quazmoz/CLIHarbor/internal/planner"
+)
+
+const (
+	PackID = "cyberark-idira-pam"
+	ToolID = "idsec"
+	maxVendorOutput = 64 << 10
+	maxPageItems = 50
+	maxMetadataValueBytes = 2048
+)
+
+var errUnsafeVendorOutput = errors.New("vendor output did not match the reviewed non-secret schema")
+
+// OutputGuard identifies PAM operations whose vendor output is NEVER safe to
+// forward as raw events. The run manager buffers both streams before calling
+// this filter and emits only its validated return value. A failed subprocess,
+// unknown schema, oversized response, or unexpected property produces no
+// browser-visible vendor bytes.
+func OutputGuard(plan planner.Plan) func([]byte) ([]byte, error) {
+	if plan.PackID != PackID || plan.ToolID != ToolID {
+		return nil
+	}
+	switch plan.CommandID {
+	case "version":
+		return filterVersion
+	case "session-status":
+		return filterStatus
+	case "list-safes":
+		return func(data []byte) ([]byte, error) {
+			return filterRows(data, []string{"safe_id", "safe_name"})
+		}
+	case "list-accounts":
+		return func(data []byte) ([]byte, error) {
+			return filterRows(data, []string{"account_id", "name", "safe_name", "platform_id"})
+		}
+	default:
+		// Future Idira pack tasks must be reviewed and explicitly admitted.
+		return func([]byte) ([]byte, error) { return nil, errUnsafeVendorOutput }
+	}
+}
+
+)
+
+func filterVersion(data []byte) ([]byte, error) {
+	if len(data) == 0 || len(data) > 64 || !utf8.Valid(data) {
+		return nil, errUnsafeVendorOutput
+	}
+	version := strings.TrimSuffix(string(data), "\\n")
+	if !versionPattern.MatchString(version) {
+		return nil, errUnsafeVendorOutput
+	}
+	return []byte(version + "\\n"), nil
 }
 
 func filterStatus(data []byte) ([]byte, error) {
