@@ -15,8 +15,8 @@ func guardFor(command string) func([]byte) ([]byte, error) {
 func TestOutputGuardAcceptsOnlyReviewedPAMMetadata(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
-		command string
-		input string
+		command  string
+		input    string
 		contains string
 	}{
 		{"version", "0.13.0\n", "0.13.0"},
@@ -38,7 +38,7 @@ func TestOutputGuardRejectsSecretsDuplicatesAndMalformedDocuments(t *testing.T) 
 	t.Parallel()
 	cases := []struct {
 		command string
-		data string
+		data    string
 	}{
 		{"list-accounts", `[{"account_id":"42","name":"service","safe_name":"S","platform_id":"Linux","password":"TOP-SECRET"}]`},
 		{"list-accounts", `[{"account_id":"42","name":"service","safe_name":"S","platform_id":"Linux","credentials":{"password":"TOP-SECRET"}}]`},
