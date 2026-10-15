@@ -60,6 +60,22 @@ beforeEach(() => {
 });
 afterEach(() => { vi.resetAllMocks(); });
 
+test('defaults to the data branch on SaaS and refuses root before any approval', async () => {
+  render(<ConjurCreateSecret tasks={tasks} csrfToken="test-csrf" account="conjur"
+    endpoint="https://tenant.secretsmgr.cyberark.cloud/api" contextKey="current" />);
+  const region = screen.getByRole('region', { name: 'Create Conjur secret' });
+  fireEvent.click(within(region).getByRole('button', { name: /Create secret/ }));
+  const branch = within(region).getByRole('textbox', { name: /Policy branch/ });
+  expect(branch).toHaveValue('data');
+  fireEvent.change(within(region).getByRole('textbox', { name: /New variable ID/ }), { target: { value: 'db/password' } });
+  fireEvent.change(within(region).getByLabelText('Initial secret value'), { target: { value: 'v' } });
+  expect(within(region).getByText('data/db/password')).toBeInTheDocument();
+  fireEvent.change(branch, { target: { value: 'root' } });
+  expect(within(region).getByRole('alert')).toHaveTextContent(/root policy/);
+  expect(within(region).getByRole('button', { name: 'Review creation and value' })).toBeDisabled();
+  expect(createRun).not.toHaveBeenCalled();
+});
+
 test('normalizes simple branch paths and rejects ambiguous identifiers', () => {
   expect(fullVariableID('root', 'db/password')).toBe('db/password');
   expect(fullVariableID('apps', 'db/password')).toBe('apps/db/password');

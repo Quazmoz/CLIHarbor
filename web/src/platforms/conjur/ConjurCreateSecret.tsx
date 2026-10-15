@@ -4,6 +4,7 @@ import {
   createRun, fetchRun, previewRun, subscribeRunEvents,
   type RunPreview, type RunSnapshot,
 } from '../../api/runs';
+import { normalizeConjurSaaSAPIURL } from './ConjurBackendConnection';
 
 const PACK = 'cyberark-conjur-v9';
 const TOOL = 'conjur';
@@ -118,8 +119,11 @@ function safeMessage(error: unknown): string {
 }
 
 export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contextKey }: Props) {
+  // SaaS tenants cannot load policy into root; their secrets live under data.
+  // The parent remounts this form when the endpoint changes.
+  const saas = Boolean(endpoint && normalizeConjurSaaSAPIURL(endpoint));
   const [open, setOpen] = useState(false);
-  const [branch, setBranch] = useState('root');
+  const [branch, setBranch] = useState(saas ? 'data' : 'root');
   const [variable, setVariable] = useState('');
   const [value, setValue] = useState('');
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -142,7 +146,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     }) &&
     supportedTask(tasks, 'secret-set-value', 'change', { 'variable-id': 'string', value: 'secret' });
   const fullID = fullVariableID(branch, variable);
-  const inputReady = Boolean(fullID) && value.length >= 1 && value.length <= 4096 &&
+  const saasRoot = saas && branch === 'root';
+  const inputReady = Boolean(fullID) && !saasRoot && value.length >= 1 && value.length <= 4096 &&
     !/[\r\n\p{Cc}\p{Cf}]/u.test(value);
   const reviewed = plan !== null && plan.branch === branch && plan.variable === variable &&
     plan.fullID === fullID && plan.contextKey === contextKey;
@@ -271,6 +276,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
             <input required maxLength={512} value={branch} disabled={busy} spellCheck={false}
               onChange={(event) => changed(() => setBranch(event.target.value))} />
           </label>
+          {saasRoot && <p role="alert">Secrets Manager SaaS does not allow changes to the root policy. Use <code>data</code> or a branch under it.</p>}
           <label>New variable ID (relative to branch)
             <input required maxLength={2048} value={variable} disabled={busy} spellCheck={false}
               placeholder="db/password" onChange={(event) => changed(() => setVariable(event.target.value))} />
