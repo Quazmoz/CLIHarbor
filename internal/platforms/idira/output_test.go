@@ -19,6 +19,7 @@ func TestOutputGuardAcceptsOnlyReviewedPAMMetadata(t *testing.T) {
 		input string
 		contains string
 	}{
+		{"version", "0.13.0\n", "0.13.0"},
 		{"list-safes", `[{"safe_id":"s-1","safe_name":"Operations"}]`, "Operations"},
 		{"list-safes", `[]`, "[]"},
 		{"list-accounts", `[{"account_id":"42","name":"service","safe_name":"Operations","platform_id":"Linux"}]`, "Linux"},
@@ -52,6 +53,11 @@ func TestOutputGuardRejectsSecretsDuplicatesAndMalformedDocuments(t *testing.T) 
 		{"session-status", `{"profile":"idsec","exists":true,"authenticated":true,"authenticated":false}`},
 		{"session-status", `{"profile":"idsec","exists":false,"authenticated":true}`},
 		{"session-status", `{"profile":"idsec","exists":"true","authenticated":false}`},
+		{"version", "TOP-SECRET"},
+		{"version", "0.13.0\nTOP-SECRET"},
+		{"version", "0.13.0\x1b[31m"},
+		{"version", "0.13.0-beta\nmore"},
+		{"version", "0.13.0\n\n"},
 	}
 	for _, test := range cases {
 		t.Run(test.command+"/"+test.data, func(t *testing.T) {
