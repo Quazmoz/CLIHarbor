@@ -2,7 +2,7 @@
 
 CLIHarbor's foundation, first real vendor read-only integration, and zero-config first-party startup path are implemented. The roadmap is therefore organized around managed-environment qualification and controlled capability expansion rather than generic infrastructure invention.
 
-**Release qualification blocker (issue #59):** Preventive source-drift detection is implemented through the `web-source.sha256` marker written by `sync-web`. Regenerating the committed production bundle with the pinned Go/Node/npm toolchains, passing frontend/Go/browser gates, and completing managed-Windows and corporate Conjur acceptance are separate outstanding steps. A committed source fix, marker alone, or a clean Git tree is not proof that the embedded JavaScript implements the latest sign-in UI.
+**Release qualification blocker (issue #59):** The source-drift guard uses the `web-source.sha256` marker written by `sync-web`, and the stability integration on October 15 (`0a3f59a`) committed a regenerated production bundle. This resolves the historical uncommitted-asset problem for that source revision, but it does not qualify a Windows executable. Repeat the pinned Go/Node/npm frontend, Go, browser and generated-bundle gates at the exact candidate SHA; native Windows and corporate Conjur acceptance remain unverified. A source fingerprint or clean Git tree alone cannot substitute for a freshly built, exercised release artifact.
 
 ## Stage 0 — Foundation
 
@@ -184,9 +184,9 @@ The current evaluation artifact is intentionally unsigned and portable. The pinn
 
 ## Stage 9 — Additional real CLIs
 
-**Status: Docker, kubectl, and GitHub CLI read-only packs implemented; real-host qualification pending.**
+**Status: Docker, kubectl, GitHub CLI, AWS CLI, Helm, and HashiCorp Vault read-only packs implemented; real-host qualification pending.**
 
-CLIHarbor now ships embedded `docker-cli`, `kubectl-cli`, and `github-cli` packs alongside Conjur. All exercise the generic discovery/planner/executor path without vendor-specific backend branches. GitHub CLI adds bounded metadata inventories for repositories, pull requests, issues, workflow runs, and workflows, using explicit targets and the existing vendor session; see [GitHub CLI integration](GITHUB_INTEGRATION.md).
+CLIHarbor now ships seven embedded first-party packs: `cyberark-conjur-v9`, `docker-cli`, `kubectl-cli`, `github-cli`, `aws-cli`, `helm-cli`, and `vault-cli`. The six non-Conjur packs exercise the generic discovery/planner/executor path without vendor-specific backend branches. GitHub CLI adds bounded metadata inventories for repositories, pull requests, issues, workflow runs, and workflows using explicit targets and the existing vendor session; see [GitHub CLI integration](GITHUB_INTEGRATION.md). AWS CLI adds caller identity, bucket names, and selected EC2/Lambda metadata; Helm adds release/history/repository metadata; Vault adds server status and mount/policy-name metadata. All require appropriate vendor sessions for authenticated operations; these packs do not authorize reading secret values, policy bodies or manifests.
 
 Docker provides active-context visibility, narrow container/image/network/volume inventory, summary disk usage, and one-shot container resource statistics. kubectl provides active-context visibility, client version, metadata-only namespace/node/pod/deployment/StatefulSet/DaemonSet/Job inventory, and optional Metrics API CPU/memory snapshots. Neither tool is auto-provisioned.
 
@@ -204,7 +204,7 @@ Selection criteria for future expansion remain:
 
 No additional tool inherits Conjur's bootstrap behavior. Any automatic dependency provisioning requires its own reviewed immutable version/source/digest/platform/install/opt-out contract.
 
-Exit condition: Conjur, Docker, kubectl, and GitHub CLI execute approved read-only workflows on qualified hosts without vendor-specific branches in the generic planner/executor.
+Exit condition: all seven first-party packs load and qualify, and each supported read-only workflow executes on an approved host using the vendor's existing session without broadening the generic planner/executor security boundaries. Windows and real-vendor qualification are still pending.
 
 ## Stage 10 — Pack authoring tooling
 
