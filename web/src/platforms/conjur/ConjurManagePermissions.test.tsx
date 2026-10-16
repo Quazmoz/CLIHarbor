@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { ConjurManagePermissions, parseVariableAccess } from './ConjurManagePermissions';
+import { ConjurManagePermissions, parseVariableAccess, policyRelativeVariableID } from './ConjurManagePermissions';
 import { createRun, previewRun } from '../../api/runs';
 import type { RunSnapshot } from '../../api/runs';
 import type { Task } from '../../api/tasks';
@@ -63,7 +63,7 @@ test('shows current grants, revokes from the granting branch and grants from dro
   fireEvent.click(within(table).getByRole('button', { name: 'Revoke execute from apps/web' }));
   await within(region).findByRole('region', { name: 'Permission change approval' });
   expect(vi.mocked(previewRun).mock.calls[0][1]).toMatchObject({ commandId: 'secret-deny', values: {
-    'policy-branch': 'root', 'variable-id': '/apps/db/password', 'role-kind': 'host', 'role-id': '/apps/web', privileges: 'execute',
+    'policy-branch': 'root', 'variable-id': 'apps/db/password', 'role-kind': 'host', 'role-id': '/apps/web', privileges: 'execute',
   } });
   fireEvent.click(within(region).getByRole('checkbox', { name: /I approve this change/ }));
   fireEvent.click(within(region).getByRole('button', { name: 'Apply permission change' }));
@@ -78,7 +78,7 @@ test('shows current grants, revokes from the granting branch and grants from dro
   fireEvent.click(within(region).getByRole('button', { name: 'Review grant' }));
   await waitFor(() => expect(previewRun).toHaveBeenCalledTimes(2));
   expect(vi.mocked(previewRun).mock.calls[1][1]).toMatchObject({ commandId: 'secret-permit', values: {
-    'policy-branch': 'apps', 'variable-id': '/apps/db/password', 'role-kind': 'group', 'role-id': '/admins', privileges: 'read',
+    'policy-branch': 'apps', 'variable-id': 'db/password', 'role-kind': 'group', 'role-id': '/admins', privileges: 'read',
   } });
 });
 
@@ -90,4 +90,58 @@ test('resource descriptions with cross-account or malformed grants fail closed',
     expect(() => parseVariableAccess(JSON.stringify({ ...resource, permissions }), 'dev')).toThrow(/unexpected/);
   }
   expect(() => parseVariableAccess('[]', 'dev')).toThrow(/unexpected/);
+});
+
+test('policy YAML uses a branch-relative resource ID, including the SaaS data branch', () => {
+  const variable = 'data/vault/app/password';
+  expect(policyRelativeVariableID(variable, 'data')).toBe('vault/app/password');
+  expect(policyRelativeVariableID(variable, 'data/vault')).toBe('app/password');
+  expect(policyRelativeVariableID(variable, 'root')).toBe(variable);
+  expect(policyRelativeVariableID(variable, 'other')).toBeNull();
+  expect(policyRelativeVariableID(variable, 'dat')).toBeNull();
+  expect(policyRelativeVariableID('data', 'data')).toBeNull();
+});
+
+test('a data-policy grant previews the relative variable and absolute role', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) =>
+    request.commandId === 'list-resources' ? run('list-resources', lists[request.values.kind as string])
+      : request.commandId === 'resource-show' ? run('resource-show', {
+        ...resource, id: 'dev:variable:data/vault/app/password',
+        owner: 'dev:policy:data', policy: 'dev:policy:data', permissions: [],
+      }) : run(request.commandId));
+  render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
+  const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
+  fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
+  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }),
+    { target: { value: 'data/vault/app/password' } });
+  fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
+  await within(region).findByRole('region', { name: 'Current permissions' });
+  await within(region).findByRole('option', { name: 'admins' });
+  fireEvent.change(within(region).getByRole('combobox', { name: /Grant access to/ }),
+    { target: { value: 'group:admins' } });
+  fireEvent.click(within(region).getByRole('button', { name: 'Review grant' }));
+  await waitFor(() => expect(previewRun).toHaveBeenCalledTimes(1));
+  expect(vi.mocked(previewRun).mock.calls[0][1]).toMatchObject({
+    commandId: 'secret-permit', values: {
+      'policy-branch': 'data', 'variable-id': 'vault/app/password',
+      'role-kind': 'group', 'role-id': '/admins',
+    },
+  });
+});
+
+test('does not offer an unsafe revoke when the granting policy is unrelated', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) =>
+    request.commandId === 'list-resources' ? run('list-resources', lists[request.values.kind as string])
+      : request.commandId === 'resource-show' ? run('resource-show', {
+        ...resource, permissions: [{ ...resource.permissions[0], policy: 'dev:policy:other' }],
+      }) : run(request.commandId));
+  render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
+  const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
+  fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
+  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }),
+    { target: { value: 'apps/db/password' } });
+  fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
+  const table = await within(region).findByRole('table');
+  expect(within(table).queryByRole('button', { name: /Revoke execute/ })).not.toBeInTheDocument();
+  expect(previewRun).not.toHaveBeenCalled();
 });
