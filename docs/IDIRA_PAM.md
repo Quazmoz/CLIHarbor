@@ -1,9 +1,11 @@
 # Idira PAM — Reviewed read-only integration (candidate)
 
-> **Status: implementation staged for qualification.** This page describes the
-> `cyberark-idira-pam` first-party pack; it is not proof of corporate-tenant
-> acceptance. Do not distribute a CLIHarbor binary from this branch until
-> repository qualification has succeeded.
+> **Status: source merged, Windows and tenant qualification pending.**
+> The `cyberark-idira-pam` first-party pack is present on `main`, including
+> the follow-up pack-identity and vendor-output hardening from PR #71.
+> This is not proof of tested binaries, corporate-tenant acceptance, or
+> employer approval. Only use a Windows evaluation bundle qualified from
+> the exact intended `main` commit after the repository's native gates pass.
 
 ## Upstream contract and scope
 
