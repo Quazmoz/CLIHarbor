@@ -208,21 +208,21 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                   <thead><tr><th scope="col">Role</th><th scope="col">Privilege</th><th scope="col">Granted by policy</th><th scope="col">Action</th></tr></thead>
                   <tbody>
                     {access.permissions.map((grant) => {
+                      const branchMatches = policyRelativeVariableID(shown, localID(grant.policy)) !== null;
                       const revocable = canDeny && (GRANTEE_KINDS as readonly string[]).includes(kindOf(grant.role)) &&
-                        PRIVILEGES.includes(grant.privilege) &&
-                        policyRelativeVariableID(shown, localID(grant.policy)) !== null;
+                        PRIVILEGES.includes(grant.privilege) && branchMatches;
                       const label = 'Revoke ' + grant.privilege + ' from ' + localID(grant.role);
                       return (
                         <tr key={grant.role + '/' + grant.privilege + '/' + grant.policy}>
                           <td><code>{localID(grant.role)}</code> ({kindOf(grant.role)})</td>
                           <td>{grant.privilege}</td>
                           <td><code>{localID(grant.policy)}</code></td>
-                          <td>{revocable && (
+                          <td>{revocable ? (
                             <button type="button" className="secondary-button" disabled={busy} aria-label={label}
                               onClick={() => review('secret-deny', label, localID(grant.policy), grant.role, grant.privilege)}>
                               Revoke
                             </button>
-                          )}</td>
+                          ) : !branchMatches ? <span className="conjur-permission-unavailable">Other policy branch</span> : null}</td>
                         </tr>
                       );
                     })}
