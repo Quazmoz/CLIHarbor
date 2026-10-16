@@ -156,7 +156,7 @@ jobs:
           }
           $doctorText = $doctorOutput -join "`n"
           if ($doctorText -notmatch 'Configured packs: 8') {
-            throw "zero-config doctor did not load exactly seven embedded first-party packs"
+            throw "zero-config doctor did not load exactly eight embedded first-party packs"
           }
           if ($doctorText -notmatch 'cyberark-conjur-v9/conjur:') {
             throw "zero-config doctor did not expose the embedded Conjur tool state"

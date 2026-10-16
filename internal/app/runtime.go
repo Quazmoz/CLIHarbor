@@ -23,12 +23,14 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 	loaded := make([]packs.LoadedPack, 0)
 	usingDefaultPacks := options.LoadDefaultPacks
 
-	if options.LoadDefaultPacks {
-		registry, err := loader.LoadBuiltins(packassets.Builtins())
-		if err != nil {
-			return RuntimeState{}, fmt.Errorf("load default packs: %w", err)
-		}
-		loaded = append(loaded, registry.Packs()...)
+	// First-party IDs retain their authority even when --no-default-packs
+	// hides them. Local packs must never impersonate a dedicated platform.
+	builtinRegistry, err := loader.LoadBuiltins(packassets.Builtins())
+	if err != nil {
+		return RuntimeState{}, fmt.Errorf("load built-in pack identities: %w", err)
+	}
+	if usingDefaultPacks {
+		loaded = append(loaded, builtinRegistry.Packs()...)
 	}
 	if options.PackDirectory != "" {
 		registry, err := loader.LoadDirectory(options.PackDirectory)
@@ -43,6 +45,15 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 			return RuntimeState{}, fmt.Errorf("load explicit pack files: %w", err)
 		}
 		loaded = append(loaded, registry.Packs()...)
+	}
+
+	for _, item := range loaded {
+		if item.Source.Kind == packs.SourceExplicitLocal {
+			if builtin, reserved := builtinRegistry.FindPack(item.Pack.Metadata.ID); reserved &&
+				item.ContentSHA256 != builtin.ContentSHA256 {
+				return RuntimeState{}, fmt.Errorf("explicit pack id %q is reserved for a built-in CLI (only the exact embedded pack is permitted)", item.Pack.Metadata.ID)
+			}
+		}
 	}
 
 	registry, err := packs.NewRegistry(loaded)

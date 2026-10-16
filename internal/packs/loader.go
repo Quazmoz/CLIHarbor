@@ -1,6 +1,7 @@
 package packs
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -39,7 +40,7 @@ func (l *Loader) LoadBuiltins(files map[string][]byte) (*Registry, error) {
 		if err != nil {
 			return nil, &LoadError{Source: Source{Kind: SourceBuiltin, Name: name}, Err: err}
 		}
-		loaded = append(loaded, LoadedPack{Source: Source{Kind: SourceBuiltin, Name: name}, Pack: pack})
+		loaded = append(loaded, LoadedPack{Source: Source{Kind: SourceBuiltin, Name: name}, Pack: pack, ContentSHA256: sha256.Sum256(data)})
 	}
 	return NewRegistry(loaded)
 }
@@ -170,7 +171,7 @@ func (l *Loader) loadLocalFile(path string) (LoadedPack, error) {
 	if err != nil {
 		return LoadedPack{}, &LoadError{Source: source, Err: err}
 	}
-	return LoadedPack{Source: source, Pack: pack}, nil
+	return LoadedPack{Source: source, Pack: pack, ContentSHA256: sha256.Sum256(data)}, nil
 }
 
 func canonicalizePaths(paths []string) ([]string, error) {
