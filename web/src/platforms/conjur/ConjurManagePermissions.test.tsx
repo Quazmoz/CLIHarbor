@@ -143,5 +143,6 @@ test('does not offer an unsafe revoke when the granting policy is unrelated', as
   fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
   const table = await within(region).findByRole('table');
   expect(within(table).queryByRole('button', { name: /Revoke execute/ })).not.toBeInTheDocument();
+  expect(within(table).getByText('Other policy branch')).toBeInTheDocument();
   expect(previewRun).not.toHaveBeenCalled();
 });
