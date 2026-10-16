@@ -3646,3 +3646,4 @@ select:not([multiple]):not([size]):disabled {
 .conjur-permissions-form p { line-height: 1.55; }
 .conjur-permissions-grant { margin-top: 0.4rem; padding-top: 1.2rem; border-top: 1px solid var(--border-strong); }
 .conjur-permissions-form button[type="submit"] { justify-self: start; }
+.conjur-permission-unavailable { color: var(--text-muted); font-size: 0.8rem; }
