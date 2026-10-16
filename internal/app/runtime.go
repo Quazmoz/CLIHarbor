@@ -49,8 +49,9 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 
 	for _, item := range loaded {
 		if item.Source.Kind == packs.SourceExplicitLocal {
-			if _, reserved := builtinRegistry.FindPack(item.Pack.Metadata.ID); reserved {
-				return RuntimeState{}, fmt.Errorf("explicit pack id %q is reserved for a built-in CLI", item.Pack.Metadata.ID)
+			if builtin, reserved := builtinRegistry.FindPack(item.Pack.Metadata.ID); reserved &&
+				item.ContentSHA256 != builtin.ContentSHA256 {
+				return RuntimeState{}, fmt.Errorf("explicit pack id %q is reserved for a built-in CLI (only the exact embedded pack is permitted)", item.Pack.Metadata.ID)
 			}
 		}
 	}

@@ -267,6 +267,9 @@ type Source struct {
 type LoadedPack struct {
 	Source Source `json:"-"`
 	Pack   Pack   `json:"pack"`
+	// ContentSHA256 binds a loaded pack to the validated bytes actually read.
+	// It is never exposed to the browser or accepted from pack metadata.
+	ContentSHA256 [32]byte `json:"-"`
 }
 
 type NamedTool struct {

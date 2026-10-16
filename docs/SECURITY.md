@@ -58,11 +58,12 @@ A discovered path/version is **not** proof of publisher identity. A pinned hash 
 - Third-party/unapproved packs.
 - Web content open in the browser.
 
-Explicit local packs are reviewed separately and cannot claim an ID reserved by
-any embedded first-party pack, even when `--no-default-packs` is selected.
-The embedded pack inventory (not a manually maintained name list) defines the
-reserved namespace. This prevents a custom pack from acquiring Conjur/Idira
-dedicated-platform authority merely by choosing its pack ID.
+Explicit local packs cannot claim an ID reserved by an embedded first-party
+pack unless the validated local file is byte-for-byte identical to that exact
+embedded pack, even when `--no-default-packs` is selected. The embedded
+inventory (not a manually maintained name list) defines the reserved IDs.
+This preserves reviewed single-pack Conjur qualification while preventing a
+custom pack from acquiring Conjur/Idira platform authority through its ID.
 
 ## 4. Core invariants
 

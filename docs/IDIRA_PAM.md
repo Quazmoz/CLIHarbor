@@ -55,9 +55,10 @@ vendor errors or partial output. The backend does **not** expose account
 properties, usernames, addresses, password values, credential retrieval,
 Safe member details, approval tickets, or arbitrary raw output.
 
-Explicit local packs may not reuse `cyberark-idira-pam` or any other
-embedded first-party pack ID, including when built-in packs are disabled.
-An operator-selected custom CLI must use its own unique ID.
+Explicit local packs may use a first-party ID only with an exact byte-identical
+copy of that embedded pack, including when built-ins are disabled. Modified
+packs cannot impersonate `cyberark-idira-pam` or another first-party ID;
+custom CLIs must use unique IDs.
 
 No CLIHarbor password, MFA, or token entry exists in this integration.
 Generic run history may retain only the allowlisted output and metadata.
