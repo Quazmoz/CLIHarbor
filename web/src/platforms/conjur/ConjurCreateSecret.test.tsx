@@ -381,12 +381,12 @@ test('in-flight CLI inventory displays a spinner and dropdown placeholders until
     expect(within(select).getByRole('option', { name: 'Loading roles…' })).toBeInTheDocument();
   }
   await act(async () => { resolvePolicy(listed('policy')); });
-  const parent = await within(region).findByRole('combobox', { name: /^Parent policy/ });
-  await waitFor(() => expect(parent).toBeEnabled());
+  await waitFor(() => expect(within(region).getByRole('combobox', { name: /^Parent policy/ })).toBeEnabled());
   expect(within(region).queryByText('Loading dropdown options from Conjur…')).not.toBeInTheDocument();
-  expect(within(region).getByRole('combobox', { name: /^Owner/ })).toBeEnabled();
+  const owner = within(region).getByRole('combobox', { name: /^Owner/ });
+  expect(owner).toBeEnabled();
   expect(within(region).getByRole('combobox', { name: /^Accessible by/ })).toBeEnabled();
-  expect(within(region).getByRole('option', { name: 'admins' })).toBeInTheDocument();
+  expect(within(owner).getByRole('option', { name: 'admins' })).toBeInTheDocument();
 });
 
 test('an unlistable inventory keeps the typed branch and default owner without blocking creation', async () => {
