@@ -48,8 +48,8 @@ The CLI `--query` reduces source output, and a second backend-only guard
 independently checks the **complete** result before any data event is
 retained or sent to the browser. It rejects unknown fields, duplicates,
 malformed/oversized JSON, unexpected types, control characters, malformed
-escaped Unicode (including unpaired surrogates), missing fields, and more than
-50 rows. Both raw stdout and raw stderr are
+escaped Unicode (including unpaired surrogates), invisible formatting and
+bidirectional override characters, missing fields, and more than 50 rows. Both raw stdout and raw stderr are
 quarantined; a failed CLI process emits only result metadata, never raw
 vendor errors or partial output. The backend does **not** expose account
 properties, usernames, addresses, password values, credential retrieval,

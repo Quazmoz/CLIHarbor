@@ -206,7 +206,8 @@ func validText(s string) bool {
 		// encoding/json silently replaces unpaired escaped UTF-16 surrogates
 		// with U+FFFD. Reject them rather than laundering malformed vendor
 		// metadata into a supposedly validated PAM result.
-		if r == utf8.RuneError || unicode.IsControl(r) {
+		if r == utf8.RuneError || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) ||
+			r == '\u2028' || r == '\u2029' {
 			return false
 		}
 	}
