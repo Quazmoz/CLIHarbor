@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	packassets "github.com/Quazmoz/CLIHarbor/packs"
 )
 
 func TestIdiraPAMPackIsVerifiedReadOnly(t *testing.T) {
@@ -22,6 +24,22 @@ func TestIdiraPAMPackIsVerifiedReadOnly(t *testing.T) {
 	tool := pack.Runtime.Tools["idsec"]
 	if tool.VersionProbe == nil || strings.Join(tool.VersionProbe.Args, " ") != "version --silent" {
 		t.Fatalf("unreviewed CLI version probe: %#v", tool.VersionProbe)
+	}
+	// Probe IDs are separate from command IDs; "version" is reserved for
+	// the loader's version-discovery evidence, not for a help probe.
+	if len(tool.HelpProbes) != 4 {
+		t.Fatalf("expected four Idira help probes, got %d", len(tool.HelpProbes))
+	}
+	for id, expectedArgs := range map[string]string{
+		"cli-version": "version --help",
+		"session":     "status --help",
+		"safes":       "pcloud safes list-by --help",
+		"accounts":    "pcloud accounts list-by --help",
+	} {
+		probe, ok := tool.HelpProbes[id]
+		if !ok || strings.Join(probe.Args, " ") != expectedArgs {
+			t.Fatalf("Idira help probe %q = %#v, expected %q", id, probe, expectedArgs)
+		}
 	}
 	if tool.VersionConstraint != ">=0.13.0-0 <0.14.0-0" ||
 		tool.SessionCheck == nil || tool.SessionCheck.CommandID != "session-status" ||
@@ -47,5 +65,17 @@ func TestIdiraPAMPackIsVerifiedReadOnly(t *testing.T) {
 		if command.Output.Mode != OutputJSON {
 			t.Fatalf("PAM inventory %s not machine-readable", id)
 		}
+	}
+}
+
+// Exercise the same embedded pack collection and loader used during normal
+// CLIHarbor startup, so a broken first-party pack cannot go unnoticed.
+func TestEmbeddedBuiltinsPassPackLoader(t *testing.T) {
+	registry, err := NewLoader().LoadBuiltins(packassets.Builtins())
+	if err != nil {
+		t.Fatalf("embedded built-in packs failed to load: %v", err)
+	}
+	if _, ok := registry.FindPack("cyberark-idira-pam"); !ok {
+		t.Fatal("embedded Idira PAM pack is missing")
 	}
 }

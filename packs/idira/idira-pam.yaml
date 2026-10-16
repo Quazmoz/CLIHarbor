@@ -16,7 +16,7 @@ runtime:
         timeoutMillis: 2000
       versionConstraint: ">=0.13.0-0 <0.14.0-0"
       helpProbes:
-        version:
+        cli-version:
           args: [version, --help]
         session:
           args: [status, --help]
