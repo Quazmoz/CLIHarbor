@@ -304,9 +304,12 @@ has **Revoke**, which previews `secret-deny` in the policy that granted it,
 since Conjur only removes grants from the same branch. **Grant access to**
 offers dropdowns of visible groups, hosts, layers and users plus the reviewed
 privilege set, and previews `secret-permit` in the variable's own policy.
-Variable and role IDs are sent absolute (`/id`). Every change is one explicitly
-approved run bound to the displayed account and endpoint, and permissions are
-re-read from Conjur afterwards. Inherited access through role membership is
+Role IDs are sent absolute (`/id`), but the policy YAML variable reference
+must be relative to the policy branch (for example, variable
+`data/vault/app/password` under policy `data` becomes `vault/app/password`).
+The guided UI refuses cross-branch references it cannot express safely.
+Every change is one explicitly approved run bound to the displayed account
+and endpoint, and permissions are re-read from Conjur afterwards. Inherited access through role membership is
 not listed.
 
 Guided flows share `web/src/platforms/conjur/conjurRuns.tsx`: approved-run

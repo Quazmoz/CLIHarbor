@@ -3625,3 +3625,25 @@ select:not([multiple]):not([size]):disabled {
     box-shadow: none;
   }
 }
+
+/* Guided Conjur permissions: clearly separate inspection and editing. */
+.conjur-permissions-form { gap: 1.25rem; padding: 1.25rem; }
+.conjur-permissions-form > form,
+.conjur-permissions-current,
+.conjur-permissions-grant { display: grid; gap: 0.95rem; min-width: 0; align-items: start; }
+.conjur-permissions-current {
+  padding: 1.1rem; border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md); background: var(--surface-2);
+}
+.conjur-permissions-current h4 { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.conjur-permissions-form label { gap: 0.5rem; }
+.conjur-permissions-form label > input:not([type="checkbox"]),
+.conjur-permissions-form label > select {
+  width: 100%; min-width: 0; min-height: 2.75rem; padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-strong);
+}
+.conjur-permissions-form p { line-height: 1.55; }
+.conjur-permissions-grant { margin-top: 0.4rem; padding-top: 1.2rem; border-top: 1px solid var(--border-strong); }
+.conjur-permissions-form button[type="submit"] { justify-self: start; }
+.conjur-permission-unavailable { color: var(--text-muted); font-size: 0.8rem; }

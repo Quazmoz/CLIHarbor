@@ -17,6 +17,14 @@ export interface VariableAccess { owner: string; policy: string; permissions: Pe
 const localID = (fullID: string) => fullID.split(':').slice(2).join(':');
 const kindOf = (fullID: string) => fullID.split(':')[1];
 
+/** Policy YAML resource IDs must be relative to the branch being updated. */
+export function policyRelativeVariableID(variableID: string, branch: string): string | null {
+  if (branch === 'root') return variableID || null;
+  const prefix = branch + '/';
+  return variableID.startsWith(prefix) && variableID.length > prefix.length
+    ? variableID.slice(prefix.length) : null;
+}
+
 /** Parses `conjur resource show` JSON, keeping only validated same-account ownership and grants. */
 export function parseVariableAccess(output: string, account: string): VariableAccess {
   let parsed: unknown;
@@ -114,12 +122,16 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
     void work(() => readAccess(variable));
   }
 
-  // Grants load into the variable's own policy; revokes load into the policy
-  // that granted them, because Conjur only removes grants from the same branch.
-  // Absolute IDs keep the variable and role unambiguous from either branch.
+  // Grant in the variable's policy, revoke in the granting policy.
+  // Policy YAML requires a branch-relative variable; role IDs may be absolute.
   function review(commandId: Change['commandId'], label: string, branch: string, role: string, privilege: string) {
+    const relativeVariable = policyRelativeVariableID(shown, branch);
+    if (relativeVariable === null) {
+      setError('This variable is outside the granting policy branch. Use the reviewed task workflow to resolve it.');
+      return;
+    }
     const values = {
-      'policy-branch': branch, 'variable-id': '/' + shown, 'role-kind': kindOf(role), 'role-id': '/' + localID(role),
+      'policy-branch': branch, 'variable-id': relativeVariable, 'role-kind': kindOf(role), 'role-id': '/' + localID(role),
       privileges: privilege, 'dry-run': false,
     };
     setApproved(false);
@@ -127,7 +139,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
     setOutcome('');
     void work(async () => {
       const preview = await previewRun(csrfToken, { packId: PACK, commandId, values });
-      if (!matchingPlans([preview], account, endpoint) || preview.impact?.target !== '/' + shown || !preview.stdin) {
+      if (!matchingPlans([preview], account, endpoint) || preview.impact?.target !== relativeVariable || !preview.stdin) {
         throw new Error('Conjur did not return a matching approved plan.');
       }
       if (alive.current) setChange({ label, commandId, values, variable: shown, contextKey, preview });
@@ -173,7 +185,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
         <span className="task-risk-badge task-risk-badge--change">Approval required</span>
       </button>
       {open && (
-        <div className="conjur-create-form">
+        <div className="conjur-create-form conjur-permissions-form">
           <InventoryStatus state={inventoryState} disabled={busy} onRetry={() => void loadInventory()} />
           <form onSubmit={show} autoComplete="off">
             <label>Secret variable ID
@@ -187,7 +199,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
           </form>
 
           {access && (
-            <section aria-label="Current permissions">
+            <section className="conjur-permissions-current" aria-label="Current permissions">
               <h4>Current permissions on <code>{shown}</code></h4>
               <p><strong>Owner:</strong> <code>{localID(access.owner)}</code> ({kindOf(access.owner)}) holds every privilege.
                 {' '}<strong>Defined in policy:</strong> <code>{localID(access.policy)}</code></p>
@@ -196,20 +208,21 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                   <thead><tr><th scope="col">Role</th><th scope="col">Privilege</th><th scope="col">Granted by policy</th><th scope="col">Action</th></tr></thead>
                   <tbody>
                     {access.permissions.map((grant) => {
+                      const branchMatches = policyRelativeVariableID(shown, localID(grant.policy)) !== null;
                       const revocable = canDeny && (GRANTEE_KINDS as readonly string[]).includes(kindOf(grant.role)) &&
-                        PRIVILEGES.includes(grant.privilege);
+                        PRIVILEGES.includes(grant.privilege) && branchMatches;
                       const label = 'Revoke ' + grant.privilege + ' from ' + localID(grant.role);
                       return (
                         <tr key={grant.role + '/' + grant.privilege + '/' + grant.policy}>
                           <td><code>{localID(grant.role)}</code> ({kindOf(grant.role)})</td>
                           <td>{grant.privilege}</td>
                           <td><code>{localID(grant.policy)}</code></td>
-                          <td>{revocable && (
+                          <td>{revocable ? (
                             <button type="button" className="secondary-button" disabled={busy} aria-label={label}
                               onClick={() => review('secret-deny', label, localID(grant.policy), grant.role, grant.privilege)}>
                               Revoke
                             </button>
-                          )}</td>
+                          ) : !branchMatches ? <span className="conjur-permission-unavailable">Other policy branch</span> : null}</td>
                         </tr>
                       );
                     })}
@@ -219,7 +232,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
               <p>These are explicit grants on this variable. Access inherited through role membership is not listed.</p>
 
               {canPermit && (
-                <form onSubmit={(event) => {
+                <form className="conjur-permissions-grant" onSubmit={(event) => {
                   event.preventDefault();
                   if (!grantee) return;
                   const role = account + ':' + grantee;
@@ -237,7 +250,8 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                     </select>
                   </label>
                   <p>read shows metadata, execute fetches the secret value, update changes the value.</p>
-                  <button type="submit" disabled={!grantee || busy}>Review grant</button>
+                  <button type="submit" disabled={!grantee || busy ||
+                    policyRelativeVariableID(shown, localID(access.policy)) === null}>Review grant</button>
                 </form>
               )}
             </section>
