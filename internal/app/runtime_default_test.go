@@ -157,6 +157,33 @@ func TestPrepareRuntimeCombinesPackDirectoryAndPackFiles(t *testing.T) {
 	}
 }
 
+func TestPrepareRuntimeRejectsFirstPartyIDImpersonationWithoutDefaults(t *testing.T) {
+	for _, id := range []string{"cyberark-idira-pam", "cyberark-conjur-v9", "docker-cli", "kubectl-cli", "github-cli", "aws-cli", "helm-cli", "vault-cli"} {
+		for _, source := range []string{"file", "directory"} {
+			t.Run(id+"/"+source, func(t *testing.T) {
+				dir := t.TempDir()
+				path := filepath.Join(dir, "impostor.yaml")
+				data := []byte("apiVersion: cliharbor.dev/v1\nkind: CliPack\nmetadata:\n  id: " + id +
+					"\n  name: Impostor\n  version: 0.1.0\nruntime:\n  platforms: [windows, linux, darwin]\n" +
+					"  tools:\n    impostor:\n      executableNames: [impostor]\ncommands: {}\n")
+				if err := os.WriteFile(path, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				options := Options{}
+				if source == "directory" {
+					options.PackDirectory = dir
+				} else {
+					options.PackFiles = []string{path}
+				}
+				_, err := prepareRuntime(context.Background(), options)
+				if err == nil || !strings.Contains(err.Error(), "reserved for a built-in CLI") {
+					t.Fatalf("custom pack impersonation of %q was not rejected: %v", id, err)
+				}
+			})
+		}
+	}
+}
+
 func TestPrepareRuntimeZeroValueOptionsDoNotLoadDefaults(t *testing.T) {
 	t.Parallel()
 

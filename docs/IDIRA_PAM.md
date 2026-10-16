@@ -47,12 +47,17 @@ status requests rely on the vendor's existing session.
 The CLI `--query` reduces source output, and a second backend-only guard
 independently checks the **complete** result before any data event is
 retained or sent to the browser. It rejects unknown fields, duplicates,
-malformed/oversized JSON, unexpected types, control characters, missing
-fields, and more than 50 rows. Both raw stdout and raw stderr are
+malformed/oversized JSON, unexpected types, control characters, malformed
+escaped Unicode (including unpaired surrogates), missing fields, and more than
+50 rows. Both raw stdout and raw stderr are
 quarantined; a failed CLI process emits only result metadata, never raw
 vendor errors or partial output. The backend does **not** expose account
 properties, usernames, addresses, password values, credential retrieval,
 Safe member details, approval tickets, or arbitrary raw output.
+
+Explicit local packs may not reuse `cyberark-idira-pam` or any other
+embedded first-party pack ID, including when built-in packs are disabled.
+An operator-selected custom CLI must use its own unique ID.
 
 No CLIHarbor password, MFA, or token entry exists in this integration.
 Generic run history may retain only the allowlisted output and metadata.
