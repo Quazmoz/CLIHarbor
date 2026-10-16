@@ -190,7 +190,8 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
           <form onSubmit={show} autoComplete="off">
             <label>Secret variable ID
               <input required maxLength={2048} value={variable} disabled={busy} spellCheck={false} list={listID}
-                placeholder="apps/db/password" onChange={(event) => { setVariable(event.target.value); setError(''); }} />
+                placeholder="apps/db/password" aria-busy={inventoryState === 'loading'}
+                onChange={(event) => { setVariable(event.target.value); setError(''); }} />
             </label>
             <datalist id={listID}>
               {inventory?.variable?.map((id) => <option key={id} value={id} />)}
@@ -239,8 +240,9 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                   review('secret-permit', 'Grant ' + privileges + ' to ' + localID(role), localID(access.policy), role, privileges);
                 }}>
                   <label>Grant access to
-                    <select value={grantee} disabled={busy || !inventory} onChange={(event) => setGrantee(event.target.value)}>
-                      <option value="">Choose a role</option>
+                    <select value={grantee} disabled={busy || !inventory}
+                      aria-busy={inventoryState === 'loading'} onChange={(event) => setGrantee(event.target.value)}>
+                      <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'Choose a role'}</option>
                       <RoleOptions inventory={inventory} kinds={GRANTEE_KINDS} />
                     </select>
                   </label>

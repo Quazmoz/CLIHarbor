@@ -3647,3 +3647,18 @@ select:not([multiple]):not([size]):disabled {
 .conjur-permissions-grant { margin-top: 0.4rem; padding-top: 1.2rem; border-top: 1px solid var(--border-strong); }
 .conjur-permissions-form button[type="submit"] { justify-self: start; }
 .conjur-permission-unavailable { color: var(--text-muted); font-size: 0.8rem; }
+
+/* Inventory-backed fields show CLI activity until the reviewed read completes. */
+.conjur-inventory-status {
+  display: flex; align-items: center; gap: 0.65rem;
+  color: var(--text-muted); font-size: 0.86rem; line-height: 1.5;
+}
+.conjur-inventory-spinner {
+  display: inline-block; flex: 0 0 1rem; width: 1rem; height: 1rem;
+  border: 2px solid var(--border-strong); border-top-color: var(--accent);
+  border-radius: 50%; animation: conjur-inventory-spin 0.8s linear infinite;
+}
+@keyframes conjur-inventory-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .conjur-inventory-spinner { animation: none; }
+}

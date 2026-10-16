@@ -144,7 +144,12 @@ export function useConjurInventory(csrfToken: string, account: string | undefine
 export function InventoryStatus({ state, disabled, onRetry }: {
   state: 'idle' | 'loading' | 'failed'; disabled: boolean; onRetry: () => void;
 }) {
-  if (state === 'loading') return <p role="status">Loading visible Conjur policies and roles…</p>;
+  if (state === 'loading') return (
+    <p className="conjur-inventory-status" role="status" aria-live="polite">
+      <span className="conjur-inventory-spinner" aria-hidden="true" />
+      Loading dropdown options from Conjur…
+    </p>
+  );
   if (state !== 'failed') return null;
   return (
     <p role="alert">Conjur policies and roles could not be listed, so the dropdowns are unavailable.{' '}

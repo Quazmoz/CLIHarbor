@@ -312,6 +312,11 @@ Every change is one explicitly approved run bound to the displayed account
 and endpoint, and permissions are re-read from Conjur afterwards. Inherited access through role membership is
 not listed.
 
+While the reviewed `list-resources` CLI runs, the guided forms show a loading
+spinner and disabled dropdown placeholders. Successful inventory reads replace
+the placeholders with selectable roles/policies; failed reads clear the loading
+indicator and retain the typed-policy fallback where supported.
+
 Guided flows share `web/src/platforms/conjur/conjurRuns.tsx`: approved-run
 completion, plan/context validation, approval freshness, `useConjurInventory`
 (bounded, sequential `list-resources` paging) and `RoleOptions` dropdowns.

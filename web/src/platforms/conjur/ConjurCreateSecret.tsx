@@ -295,6 +295,12 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
                 {branchOptions.map((id) => <option key={id} value={id}>{id}</option>)}
               </select>
             </label>
+          ) : inventoryState === 'loading' ? (
+            <label>Parent policy
+              <select value="" disabled aria-busy="true">
+                <option value="">Loading policies…</option>
+              </select>
+            </label>
           ) : (
             <label>Policy branch
               <input required maxLength={512} value={branch} disabled={busy} spellCheck={false}
@@ -310,16 +316,18 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
           {resourceIDTooLong && <p role="alert">The complete Conjur resource ID exceeds the supported 2,048-character limit. Shorten the variable path.</p>}
           <label>Owner
             <select value={owner} disabled={busy || !inventory || !canOwn}
+              aria-busy={inventoryState === 'loading'}
               onChange={(event) => changed(() => setOwner(event.target.value))}>
-              <option value="">Parent policy (Conjur default)</option>
+              <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'Parent policy (Conjur default)'}</option>
               <RoleOptions inventory={inventory} kinds={ROLE_KINDS} />
             </select>
           </label>
           <p>The owner holds every privilege on the variable, including reading and changing its value.</p>
           <label>Accessible by
             <select value={grantee} disabled={busy || !inventory || !canPermit}
+              aria-busy={inventoryState === 'loading'}
               onChange={(event) => changed(() => setGrantee(event.target.value))}>
-              <option value="">Owner only (no additional grant)</option>
+              <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'Owner only (no additional grant)'}</option>
               <RoleOptions inventory={inventory} kinds={GRANTEE_KINDS} />
             </select>
           </label>

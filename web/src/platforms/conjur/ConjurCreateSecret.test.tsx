@@ -356,6 +356,39 @@ test('a cross-account role list fails closed to the typed branch', async () => {
   expect(within(region).queryByRole('option', { name: 'mallory' })).not.toBeInTheDocument();
 });
 
+test('in-flight CLI inventory displays a spinner and dropdown placeholders until options arrive', async () => {
+  let resolvePolicy!: (run: RunSnapshot) => void;
+  const pending = new Promise<RunSnapshot>((resolve) => { resolvePolicy = resolve; });
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'list-resources'
+    ? (request.values.kind === 'policy' ? pending : listed(request.values.kind as string))
+    : snapshot(request.commandId));
+  render(<ConjurCreateSecret csrfToken="test-csrf" account="dev" endpoint="https://example.test" contextKey="current"
+    tasks={[...tasks, task('list-resources', 'read', [['kind', 'enum'], ['limit', 'enum']]),
+      task('secret-create-owned', 'change', [['policy-branch', 'string'], ['variable-id', 'string'],
+        ['owner-kind', 'enum'], ['owner-id', 'string'], ['dry-run', 'boolean']]),
+      task('secret-permit', 'change', [['policy-branch', 'string'], ['variable-id', 'string'],
+        ['role-kind', 'enum'], ['role-id', 'string'], ['privileges', 'enum'], ['dry-run', 'boolean']])]} />);
+  const region = screen.getByRole('region', { name: 'Create Conjur secret' });
+  fireEvent.click(within(region).getByRole('button', { name: /Create secret/ }));
+  const status = within(region).getByText('Loading dropdown options from Conjur…');
+  expect(status.querySelector('.conjur-inventory-spinner')).toBeInTheDocument();
+  expect(within(region).getByRole('combobox', { name: /^Parent policy/ })).toBeDisabled();
+  expect(within(region).getByRole('option', { name: 'Loading policies…' })).toBeInTheDocument();
+  for (const name of [/^Owner/, /^Accessible by/]) {
+    const select = within(region).getByRole('combobox', { name });
+    expect(select).toBeDisabled();
+    expect(select).toHaveAttribute('aria-busy', 'true');
+    expect(within(select).getByRole('option', { name: 'Loading roles…' })).toBeInTheDocument();
+  }
+  await act(async () => { resolvePolicy(listed('policy')); });
+  const parent = await within(region).findByRole('combobox', { name: /^Parent policy/ });
+  await waitFor(() => expect(parent).toBeEnabled());
+  expect(within(region).queryByText('Loading dropdown options from Conjur…')).not.toBeInTheDocument();
+  expect(within(region).getByRole('combobox', { name: /^Owner/ })).toBeEnabled();
+  expect(within(region).getByRole('combobox', { name: /^Accessible by/ })).toBeEnabled();
+  expect(within(region).getByRole('option', { name: 'admins' })).toBeInTheDocument();
+});
+
 test('an unlistable inventory keeps the typed branch and default owner without blocking creation', async () => {
   vi.mocked(createRun).mockImplementation(async (_, request) => snapshot(request.commandId, request.commandId !== 'list-resources'));
   render(<ConjurCreateSecret csrfToken="test-csrf" account="dev" endpoint="https://example.test" contextKey="current"
@@ -363,6 +396,7 @@ test('an unlistable inventory keeps the typed branch and default owner without b
   const region = screen.getByRole('region', { name: 'Create Conjur secret' });
   fireEvent.click(within(region).getByRole('button', { name: /Create secret/ }));
   await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent('could not be listed'));
+  expect(within(region).queryByText('Loading dropdown options from Conjur…')).not.toBeInTheDocument();
   expect(within(region).getByRole('textbox', { name: /Policy branch/ })).toHaveValue('root');
   expect(within(region).getByRole('combobox', { name: /^Owner/ })).toBeDisabled();
 });

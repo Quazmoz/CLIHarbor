@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { ConjurManagePermissions, parseVariableAccess, policyRelativeVariableID } from './ConjurManagePermissions';
 import { createRun, previewRun } from '../../api/runs';
@@ -145,4 +145,31 @@ test('does not offer an unsafe revoke when the granting policy is unrelated', as
   expect(within(table).queryByRole('button', { name: /Revoke execute/ })).not.toBeInTheDocument();
   expect(within(table).getByText('Other policy branch')).toBeInTheDocument();
   expect(previewRun).not.toHaveBeenCalled();
+});
+
+test('permission dropdown indicates an active CLI read and clears loading on success', async () => {
+  let resolveVariables!: (run: RunSnapshot) => void;
+  const pending = new Promise<RunSnapshot>((resolve) => { resolveVariables = resolve; });
+  vi.mocked(createRun).mockImplementation(async (_, request) =>
+    request.commandId === 'list-resources'
+      ? (request.values.kind === 'variable' ? pending : run('list-resources', lists[request.values.kind as string]))
+      : request.commandId === 'resource-show' ? run('resource-show', resource) : run(request.commandId));
+  render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev"
+    endpoint="https://example.test" contextKey="k" />);
+  const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
+  fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
+  const status = within(region).getByText('Loading dropdown options from Conjur…');
+  expect(status.querySelector('.conjur-inventory-spinner')).toBeInTheDocument();
+  expect(within(region).getByRole('combobox', { name: /Secret variable ID/ })).toHaveAttribute('aria-busy', 'true');
+  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }),
+    { target: { value: 'apps/db/password' } });
+  fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
+  const grantee = await within(region).findByRole('combobox', { name: /Grant access to/ });
+  expect(grantee).toBeDisabled();
+  expect(grantee).toHaveAttribute('aria-busy', 'true');
+  expect(within(grantee).getByRole('option', { name: 'Loading roles…' })).toBeInTheDocument();
+  await act(async () => { resolveVariables(run('list-resources', lists.variable)); });
+  await within(grantee).findByRole('option', { name: 'admins' });
+  expect(grantee).toBeEnabled();
+  expect(within(region).queryByText('Loading dropdown options from Conjur…')).not.toBeInTheDocument();
 });
