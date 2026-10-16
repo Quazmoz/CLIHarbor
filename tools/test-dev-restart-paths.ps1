@@ -51,6 +51,31 @@ try {
     $markerFile = Join-Path -Path $temp -ChildPath 'bin\.cliharbor-dev.pid.json'
     Set-Content -LiteralPath $markerFile -Value 'deliberately-invalid-marker'
     $previousPath = $env:PATH
+    # An older release's empty audit sentinel must fail BEFORE any build or
+    # process stop. It is operator evidence, not a disposable cache file.
+    $legacyAppData = Join-Path -Path $temp -ChildPath 'appdata'
+    $legacyAuditDir = Join-Path -Path $legacyAppData -ChildPath 'CLIHarbor\\audit'
+    New-Item -ItemType Directory -Path $legacyAuditDir -Force | Out-Null
+    $legacyLock = Join-Path -Path $legacyAuditDir -ChildPath 'mutation-trail.jsonl.lock'
+    [IO.File]::WriteAllBytes($legacyLock, [byte[]]@())
+    $previousAppData = $env:APPDATA
+    $legacyFailure = $null
+    try {
+        $env:APPDATA = $legacyAppData
+        $env:PATH = $fakeBin + [IO.Path]::PathSeparator + $previousPath
+        try { & $fixture | Out-Null } catch { $legacyFailure = $_.Exception.Message }
+    } finally {
+        $env:APPDATA = $previousAppData
+        $env:PATH = $previousPath
+    }
+    if ($legacyFailure -notlike 'Legacy empty mutation audit lock prevents startup:*') {
+        throw "Expected early legacy-lock guard, got: $legacyFailure"
+    }
+    if ((Get-Content -LiteralPath $markerFile -Raw).Trim() -cne 'deliberately-invalid-marker' -or
+        (Get-Item -LiteralPath $legacyLock).Length -ne 0) {
+        throw 'Legacy-lock preflight changed the PID marker or legacy audit evidence.'
+    }
+
     $failure = $null
     try {
         $env:PATH = $fakeBin + [IO.Path]::PathSeparator + $previousPath

@@ -119,6 +119,23 @@ if (-not (Test-Path -LiteralPath $pidFile)) {
     Write-Host 'No helper-owned CLIHarbor instance recorded; building and starting a fresh instance.'
 }
 
+# An older CLIHarbor process used an empty O_EXCL audit sentinel. The new
+# kernel-locked format deliberately refuses that marker because its owner
+# cannot be established. Detect it BEFORE replacing/stopping a healthy dev
+# instance. Never remove or rename audit evidence automatically.
+if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
+    $auditLockPath = Join-Path -Path $env:APPDATA -ChildPath 'CLIHarbor\\audit\\mutation-trail.jsonl.lock'
+    if (Test-Path -LiteralPath $auditLockPath) {
+        $auditLockInfo = Get-Item -LiteralPath $auditLockPath -Force
+        if ($auditLockInfo.PSIsContainer -or ($auditLockInfo.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw "Unsafe mutation audit lock path: $auditLockPath. Existing CLIHarbor was not stopped."
+        }
+        if ($auditLockInfo.Length -eq 0) {
+            throw "Legacy empty mutation audit lock prevents startup: $auditLockPath. Existing CLIHarbor was not stopped. First verify that no older CLIHarbor instance or mutation is active; then preserve the empty lock under a different filename as described in docs/MUTATION_AUDIT.md. Never delete the journal or bypass the lock."
+        }
+    }
+}
+
 # Validate and regenerate the frontend while the current version is still
 # running. On Windows, the current executable must be stopped before Go can
 # replace it; failed npm/typecheck/lint/tests must not take a healthy app down.
