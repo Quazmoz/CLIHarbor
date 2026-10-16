@@ -3,6 +3,7 @@
 # never invokes a real Go toolchain or starts CLIHarbor.
 $ErrorActionPreference = 'Stop'
 $initialLocation = (Get-Location).ProviderPath
+$initialAppData = $env:APPDATA
 $origin = (Resolve-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath 'dev-restart.ps1')).ProviderPath
 $temp = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath ('cliharbor-dev-restart-' + [Guid]::NewGuid().ToString('N'))
 $tools = Join-Path -Path $temp -ChildPath 'tools'
@@ -54,7 +55,7 @@ try {
     # An older release's empty audit sentinel must fail BEFORE any build or
     # process stop. It is operator evidence, not a disposable cache file.
     $legacyAppData = Join-Path -Path $temp -ChildPath 'appdata'
-    $legacyAuditDir = Join-Path -Path $legacyAppData -ChildPath 'CLIHarbor\\audit'
+    $legacyAuditDir = Join-Path -Path $legacyAppData -ChildPath 'CLIHarbor\audit'
     New-Item -ItemType Directory -Path $legacyAuditDir -Force | Out-Null
     $legacyLock = Join-Path -Path $legacyAuditDir -ChildPath 'mutation-trail.jsonl.lock'
     [IO.File]::WriteAllBytes($legacyLock, [byte[]]@())
@@ -75,6 +76,10 @@ try {
         (Get-Item -LiteralPath $legacyLock).Length -ne 0) {
         throw 'Legacy-lock preflight changed the PID marker or legacy audit evidence.'
     }
+
+    # Keep every later test in a separate, empty config root as well.
+    $env:APPDATA = Join-Path -Path $temp -ChildPath 'clean-appdata'
+    New-Item -ItemType Directory -Path $env:APPDATA -Force | Out-Null
 
     $failure = $null
     try {
@@ -205,6 +210,7 @@ try {
 
     Write-Host 'PASS: parse, invocation, pull reexecution, fail-safe builds, and checksum synchronization.'
 } finally {
+    $env:APPDATA = $initialAppData
     Set-Location -LiteralPath $initialLocation
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }

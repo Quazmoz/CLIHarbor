@@ -124,7 +124,7 @@ if (-not (Test-Path -LiteralPath $pidFile)) {
 # cannot be established. Detect it BEFORE replacing/stopping a healthy dev
 # instance. Never remove or rename audit evidence automatically.
 if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
-    $auditLockPath = Join-Path -Path $env:APPDATA -ChildPath 'CLIHarbor\\audit\\mutation-trail.jsonl.lock'
+    $auditLockPath = Join-Path -Path $env:APPDATA -ChildPath 'CLIHarbor\audit\mutation-trail.jsonl.lock'
     if (Test-Path -LiteralPath $auditLockPath) {
         $auditLockInfo = Get-Item -LiteralPath $auditLockPath -Force
         if ($auditLockInfo.PSIsContainer -or ($auditLockInfo.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
