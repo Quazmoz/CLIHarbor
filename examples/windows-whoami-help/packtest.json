@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "fixed WHOAMI help argv",
+      "packId": "windows-whoami-help",
+      "commandId": "show-help",
+      "values": {},
+      "expectArgs": ["/?"]
+    },
+    {
+      "name": "reject unexpected browser parameters",
+      "packId": "windows-whoami-help",
+      "commandId": "show-help",
+      "values": {"extra": "ignored?"},
+      "expectError": {"code": "unknown_input", "path": "values.extra"}
+    }
+  ]
+}

@@ -334,6 +334,24 @@ go run ./cmd/cliharbor serve --no-default-packs --pack-dir ./my-packs
 
 Duplicate pack IDs fail closed. Adding a custom pack never grants Conjur's pinned download behavior to that tool; automatic dependency provisioning remains explicitly limited to the reviewed built-in Conjur contract.
 
+### Windows example: register an existing CLI with no elevation
+
+The complete [WHOAMI help-only example](examples/windows-whoami-help/pack.yaml) demonstrates a separately developed CLI integration without modifying the CLIHarbor source or first-party packs. It uses Windows' own `whoami.exe`, fixes the only allowed command to `whoami /?`, and collects **no user-provided arguments or credentials**. The help flag is documented by [Microsoft](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/whoami). The example is **not embedded or auto-loaded**.
+
+From a developer checkout with the repository's pinned Go toolchain:
+
+```powershell
+go run ./cmd/cliharbor pack validate ./examples/windows-whoami-help/pack.yaml
+go run ./cmd/cliharbor pack lint --cases ./examples/windows-whoami-help/packtest.json ./examples/windows-whoami-help/pack.yaml
+go run ./cmd/cliharbor pack test --cases ./examples/windows-whoami-help/packtest.json ./examples/windows-whoami-help/pack.yaml
+go run ./cmd/cliharbor doctor --no-default-packs --pack-file ./examples/windows-whoami-help/pack.yaml
+go run ./cmd/cliharbor serve --no-default-packs --no-auto-setup --pack-file ./examples/windows-whoami-help/pack.yaml
+```
+
+On a restricted Windows laptop, use the **same commands after replacing `go run ./cmd/cliharbor` with the path to a qualified, approved CLIHarbor EXE**. Transfer the example `pack.yaml` and `packtest.json` into a user-writable folder using an approved method; launch from that folder and replace the relative paths accordingly. No Go, Node/npm, Git, administrator login, registry editing, or PATH modification is required for the executable workflow. The `--no-default-packs` flag prevents built-in packs from loading, while `--no-auto-setup` ensures no vendor installation is attempted. This example itself never invokes discovery probes: `doctor` performs normal executable discovery, and `serve` exposes only the explicit help task. If discovery reports ambiguity, **review the correct signed/approved executable before** pinning it with `--tool-path windows-whoami-help/whoami=C:\Windows\System32\whoami.exe`; never use a guessed or unapproved path.
+
+The pack's validation and contract tests are non-executing. Launching `serve` intentionally trusts this local pack for the current process; review third-party pack bytes and declared arguments before opting in. CLIHarbor does not automatically persist that trust across future launches: supply the pack path again when restarting. Local application-control policy still applies.
+
 ## Docker read-only integration
 
 CLIHarbor also ships a small embedded `docker-cli` pack. It adds read-only workflows for the active Docker context, Docker version information, containers, images, networks, volumes, summary disk usage, and a one-shot running-container resource snapshot. `Show active Docker context` makes the selected Docker target visible without exposing endpoint configuration. The output templates intentionally omit container command lines, labels, environment/config inspection, network endpoint detail, volume mount paths, and verbose disk-usage object detail.

@@ -1,0 +1,26 @@
+# Explicit opt-in demonstration only: never embedded or auto-loaded.
+# Microsoft's Windows WHOAMI reference documents the fixed /? help flag.
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: windows-whoami-help
+  name: Windows WHOAMI help example
+  version: 1.0.0
+  description: Read-only fixed help command to demonstrate trusted custom pack registration.
+runtime:
+  platforms: [windows]
+  tools:
+    whoami:
+      executableNames: [whoami.exe]
+commands:
+  show-help:
+    name: Show WHOAMI help
+    description: Display Microsoft's built-in WHOAMI usage text without showing account details.
+    tool: whoami
+    risk: read
+    argv:
+      - literal: /?
+    output:
+      mode: raw
+    requirements:
+      requiresAuth: false
