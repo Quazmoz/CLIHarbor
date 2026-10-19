@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -171,22 +172,46 @@ func readDraftHelpFile(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve pack draft help file: %w", err)
 	}
-	info, err := os.Lstat(absolute)
+	before, err := os.Lstat(absolute)
 	if err != nil {
 		return "", fmt.Errorf("inspect pack draft help file %q: %w", filepath.Base(absolute), err)
 	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+	if before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() {
 		return "", fmt.Errorf("pack draft help file %q must be a regular file, not a symlink", filepath.Base(absolute))
 	}
-	if info.Size() > maxDraftHelpBytes {
+	if before.Size() < 0 || before.Size() > maxDraftHelpBytes {
 		return "", fmt.Errorf("pack draft help file %q exceeds the %d-byte limit", filepath.Base(absolute), maxDraftHelpBytes)
 	}
-	data, err := os.ReadFile(absolute)
+
+	file, err := os.Open(absolute)
+	if err != nil {
+		return "", fmt.Errorf("open pack draft help file %q: %w", filepath.Base(absolute), err)
+	}
+	defer file.Close()
+
+	opened, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("inspect opened pack draft help file %q: %w", filepath.Base(absolute), err)
+	}
+	if !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
+		return "", fmt.Errorf("pack draft help file %q changed while opening", filepath.Base(absolute))
+	}
+	if opened.Size() < 0 || opened.Size() > maxDraftHelpBytes {
+		return "", fmt.Errorf("pack draft help file %q exceeds the %d-byte limit", filepath.Base(absolute), maxDraftHelpBytes)
+	}
+	data, err := io.ReadAll(io.LimitReader(file, maxDraftHelpBytes+1))
 	if err != nil {
 		return "", fmt.Errorf("read pack draft help file %q: %w", filepath.Base(absolute), err)
 	}
-	if int64(len(data)) > maxDraftHelpBytes {
+	if len(data) > maxDraftHelpBytes {
 		return "", fmt.Errorf("pack draft help file %q exceeds the %d-byte limit", filepath.Base(absolute), maxDraftHelpBytes)
+	}
+	after, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("reinspect pack draft help file %q: %w", filepath.Base(absolute), err)
+	}
+	if !os.SameFile(opened, after) || after.Size() != int64(len(data)) || !opened.ModTime().Equal(after.ModTime()) {
+		return "", fmt.Errorf("pack draft help file %q changed while reading", filepath.Base(absolute))
 	}
 	if !utf8.Valid(data) {
 		return "", fmt.Errorf("pack draft help file %q must be valid UTF-8", filepath.Base(absolute))

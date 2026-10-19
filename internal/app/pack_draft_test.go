@@ -132,3 +132,48 @@ func TestParseSubcommandCandidatesDropsUnsafeOrOversizedSummaries(t *testing.T) 
 		t.Fatalf("oversized summary was retained: %q", got["huge"])
 	}
 }
+
+func TestReadDraftHelpFileUsesBoundedRegularFileSnapshot(t *testing.T) {
+	root := t.TempDir()
+	for _, test := range []struct {
+		name    string
+		content []byte
+		wantErr string
+	}{
+		{name: "valid", content: []byte("Commands:\n  inspect  Read resources\n")},
+		{name: "exact limit", content: []byte(strings.Repeat("a", maxDraftHelpBytes))},
+		{name: "oversized", content: []byte(strings.Repeat("b", maxDraftHelpBytes+1)), wantErr: "byte limit"},
+		{name: "invalid UTF-8", content: []byte{0xff}, wantErr: "UTF-8"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(root, test.name+".txt")
+			if err := os.WriteFile(path, test.content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := readDraftHelpFile(path)
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("readDraftHelpFile() error = %v, want %q", err, test.wantErr)
+				}
+				return
+			}
+			if err != nil || got != string(test.content) {
+				t.Fatalf("readDraftHelpFile() len = %d, error = %v", len(got), err)
+			}
+		})
+	}
+	t.Run("non-regular", func(t *testing.T) {
+		if _, err := readDraftHelpFile(root); err == nil || !strings.Contains(err.Error(), "regular file") {
+			t.Fatalf("readDraftHelpFile(directory) error = %v", err)
+		}
+	})
+	t.Run("symlink", func(t *testing.T) {
+		link := filepath.Join(root, "link.txt")
+		if err := os.Symlink(filepath.Join(root, "valid.txt"), link); err != nil {
+			t.Skipf("creating a symlink is unavailable: %v", err)
+		}
+		if _, err := readDraftHelpFile(link); err == nil || !strings.Contains(err.Error(), "symlink") {
+			t.Fatalf("readDraftHelpFile(symlink) error = %v", err)
+		}
+	})
+}
