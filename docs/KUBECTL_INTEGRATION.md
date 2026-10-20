@@ -6,7 +6,7 @@ CLIHarbor includes a small first-party read-only kubectl pack at:
 packs/kubectl/kubectl.yaml
 ```
 
-The pack is embedded for normal `serve` and `doctor` startup alongside the Conjur and Docker packs. kubectl itself is **not** bundled, downloaded, installed, configured, or authenticated by CLIHarbor. Normal executable discovery and identity verification remain authoritative.
+The pack is embedded for normal `serve` and `doctor` startup alongside the Conjur and Docker packs. kubectl itself is **not** bundled, automatically downloaded, configured, or authenticated by CLIHarbor; the operator may explicitly install the pinned kubectl 1.35.3 for the current user from **Add a CLI** (see [CLI_CATALOG.md](CLI_CATALOG.md)). Normal executable discovery and identity verification remain authoritative.
 
 ## Upstream command baseline
 

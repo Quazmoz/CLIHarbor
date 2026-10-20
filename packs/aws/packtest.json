@@ -20,7 +20,8 @@
         "get-caller-identity",
         "--output",
         "json",
-        "--no-cli-pager"
+        "--no-cli-pager",
+        "--no-cli-auto-prompt"
       ]
     },
     {
@@ -35,7 +36,8 @@
         "Buckets[].Name",
         "--output",
         "json",
-        "--no-cli-pager"
+        "--no-cli-pager",
+        "--no-cli-auto-prompt"
       ]
     },
     {
@@ -54,7 +56,8 @@
         "Reservations[].Instances[].{Id:InstanceId,Type:InstanceType,State:State.Name,Zone:Placement.AvailabilityZone}",
         "--output",
         "json",
-        "--no-cli-pager"
+        "--no-cli-pager",
+        "--no-cli-auto-prompt"
       ]
     },
     {
@@ -73,7 +76,8 @@
         "Reservations[].Instances[].{Id:InstanceId,Type:InstanceType,State:State.Name,Zone:Placement.AvailabilityZone}",
         "--output",
         "json",
-        "--no-cli-pager"
+        "--no-cli-pager",
+        "--no-cli-auto-prompt"
       ]
     },
     {
@@ -92,7 +96,8 @@
         "Functions[].{Name:FunctionName,Runtime:Runtime,LastModified:LastModified}",
         "--output",
         "json",
-        "--no-cli-pager"
+        "--no-cli-pager",
+        "--no-cli-auto-prompt"
       ]
     },
     {

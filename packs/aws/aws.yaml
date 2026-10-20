@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: aws-cli
   name: AWS CLI
-  version: 0.1.0
+  version: 0.1.1
   description: >-
     Read-only AWS identity and inventory metadata through the official AWS CLI
     v2 and its existing vendor-owned profile/SSO session. Client-side JMESPath
@@ -47,6 +47,8 @@ commands:
       - literal: --output
       - literal: json
       - literal: --no-cli-pager
+      # cli_auto_prompt=on in ~/.aws/config would otherwise demand a TTY.
+      - literal: --no-cli-auto-prompt
     output:
       mode: json
       sensitivity:
@@ -70,6 +72,8 @@ commands:
       - literal: --output
       - literal: json
       - literal: --no-cli-pager
+      # cli_auto_prompt=on in ~/.aws/config would otherwise demand a TTY.
+      - literal: --no-cli-auto-prompt
     output:
       mode: json
       sensitivity:
@@ -93,7 +97,7 @@ commands:
         validation:
           minLength: 9
           maxLength: 32
-          pattern: '^[a-z]{2}(-[a-z]+)+-[0-9]{1,2}$'
+          pattern: '^[a-z]{2,4}(-[a-z]+)+-[0-9]{1,2}$'
           disallowLeadingDash: true
     argv:
       - literal: ec2
@@ -106,6 +110,8 @@ commands:
       - literal: --output
       - literal: json
       - literal: --no-cli-pager
+      # cli_auto_prompt=on in ~/.aws/config would otherwise demand a TTY.
+      - literal: --no-cli-auto-prompt
     output:
       mode: json
       sensitivity:
@@ -129,7 +135,7 @@ commands:
         validation:
           minLength: 9
           maxLength: 32
-          pattern: '^[a-z]{2}(-[a-z]+)+-[0-9]{1,2}$'
+          pattern: '^[a-z]{2,4}(-[a-z]+)+-[0-9]{1,2}$'
           disallowLeadingDash: true
     argv:
       - literal: lambda
@@ -142,6 +148,8 @@ commands:
       - literal: --output
       - literal: json
       - literal: --no-cli-pager
+      # cli_auto_prompt=on in ~/.aws/config would otherwise demand a TTY.
+      - literal: --no-cli-auto-prompt
     output:
       mode: json
       sensitivity:

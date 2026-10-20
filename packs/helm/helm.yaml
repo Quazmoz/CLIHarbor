@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: helm-cli
   name: Helm
-  version: 0.1.0
+  version: 0.1.1
   description: >-
     Read-only Helm release and repository metadata through the official helm
     CLI and the existing kubeconfig context. Release values, manifests, notes,
@@ -63,6 +63,8 @@ commands:
     argv:
       - literal: list
       - literal: --all-namespaces
+      # Include pending-*/uninstalling releases; plain list hides stuck ones.
+      - literal: --all
       - literal: --output
       - literal: json
     output:

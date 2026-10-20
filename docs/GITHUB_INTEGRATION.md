@@ -1,6 +1,6 @@
 # GitHub CLI integration
 
-CLIHarbor embeds `packs/github/github.yaml` (`github-cli`, version `0.1.0`) alongside Conjur, Docker, and kubectl. The official `gh` executable remains externally installed and owns authentication. No GitHub-specific branch is added to discovery, planning, execution, or run history.
+CLIHarbor embeds `packs/github/github.yaml` (`github-cli`, version `0.2.0`) alongside Conjur, Docker, and kubectl. The official `gh` executable remains externally installed and owns authentication. No GitHub-specific branch is added to discovery, planning, execution, or run history.
 
 The reviewed baseline is GitHub CLI **2.95.0**, checked against its installed version/help output and the official command manual on 2026-10-05. The pack requires `>=2.95.0-0 <3.0.0-0` on Windows, macOS, and Linux. Older versions and future major versions fail compatibility checks.
 
@@ -17,7 +17,7 @@ Every inventory task requires an explicit owner or `OWNER/REPO` target and a max
 
 JSON lists currently use the faithful raw-output view; they do not claim the scalar-card parser supports collections. Stdout/stderr, exit status, cancellation, deadlines, output bounds, and executable revalidation use the ordinary runtime.
 
-Install and authenticate `gh` using the organization's approved vendor process before running authenticated tasks. CLIHarbor does not install `gh`, collect GitHub credentials, launch login, or expose `auth token`, arbitrary `api` requests, extensions, mutations, checkout, or clone. The pack intentionally declares no generic session check: readiness proves executable compatibility, and a task's vendor failure remains authoritative evidence rather than an inferred sign-in verdict. Authentication reports **Session check unavailable**.
+Authenticate `gh` using the organization's approved vendor process before running authenticated tasks. Where the pack declares a reviewed artifact for the host (GitHub CLI 2.101.0 on Windows and macOS; see [CLI_CATALOG.md](CLI_CATALOG.md)), **Add a CLI** can install `gh` for the current user; otherwise use an approved vendor installation. CLIHarbor does not collect GitHub credentials, launch login, or expose `auth token`, arbitrary `api` requests, extensions, mutations, checkout, or clone. The pack intentionally declares no generic session check: readiness proves executable compatibility, and a task's vendor failure remains authoritative evidence rather than an inferred sign-in verdict. Authentication reports **Session check unavailable**.
 
 Pack checks require no GitHub account or network:
 
