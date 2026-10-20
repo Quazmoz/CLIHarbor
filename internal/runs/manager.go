@@ -25,11 +25,13 @@ const (
 	defaultWaitDelay       = 2 * time.Second
 	defaultChunkBytes      = 16 << 10
 	defaultMaxOutputStream = 256 << 10
-	defaultMaxEventBytes   = 1 << 20
-	// Bytes are already bounded by defaultMaxEventBytes; this only caps per-event
-	// overhead. 1024 failed line-streaming CLIs well under the byte cap.
-	// ponytail: coalesce small writes in the executor if event overhead matters.
-	defaultMaxEvents = 8192
+	// Each data event is charged eventOverheadBytes on top of its payload, so
+	// one budget bounds both output and per-event memory. A separate event-count
+	// cap killed line-at-a-time CLIs (one event per line) far below the stream
+	// cap; 2 MiB lets ~10-byte lines reach the 256 KiB stream cap first.
+	// ponytail: coalesce small writes in the executor if retained memory matters.
+	defaultMaxEventBytes = 2 << 20
+	eventOverheadBytes   = 64
 )
 
 type Status string
@@ -162,7 +164,6 @@ type Config struct {
 	ChunkBytes              int
 	MaxOutputBytesPerStream int64
 	MaxEventBytesPerRun     int64
-	MaxEventsPerRun         int
 	ApprovalTTL             time.Duration
 	MaxApprovals            int
 	Now                     func() time.Time
@@ -171,8 +172,8 @@ type Config struct {
 	ResolveExecutionContext func(planner.Plan) (ExecutionContext, error)
 	// OutputGuard is a backend-only per-plan allowlist. When present the runner
 	// quarantines both vendor output streams until a complete successful read.
-	OutputGuard             func(planner.Plan) func([]byte) ([]byte, error)
-	Audit                   AuditSink
+	OutputGuard func(planner.Plan) func([]byte) ([]byte, error)
+	Audit       AuditSink
 }
 
 type Manager struct {
@@ -250,9 +251,6 @@ func NewManager(parent context.Context, registry *packs.Registry, snapshot disco
 	}
 	if config.MaxEventBytesPerRun <= 0 {
 		config.MaxEventBytesPerRun = defaultMaxEventBytes
-	}
-	if config.MaxEventsPerRun <= 0 {
-		config.MaxEventsPerRun = defaultMaxEvents
 	}
 	if config.ApprovalTTL <= 0 {
 		config.ApprovalTTL = defaultApprovalTTL
@@ -412,10 +410,6 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 		m.mu.Unlock()
 		return Snapshot{}, &Error{Code: ErrCapacity}
 	}
-	if err := m.makeRetentionRoomLocked(); err != nil {
-		m.mu.Unlock()
-		return Snapshot{}, err
-	}
 	if _, exists := m.runs[runID]; exists {
 		m.mu.Unlock()
 		return Snapshot{}, fmt.Errorf("generated duplicate run identifier")
@@ -445,6 +439,13 @@ func (m *Manager) Start(request Request) (Snapshot, error) {
 		}
 	}
 
+	// Evict only once the run is accepted, so a rejected Start (bad
+	// confirmation, expired approval) never discards retained evidence.
+	// active < MaxActive <= MaxRetained guarantees a finished run to evict.
+	if err := m.makeRetentionRoomLocked(); err != nil {
+		m.mu.Unlock()
+		return Snapshot{}, err
+	}
 	runCtx, cancel := context.WithCancel(m.ctx)
 	rec := &record{
 		runID:              runID,
@@ -784,8 +785,14 @@ func (m *Manager) recordEvent(rec *record, event executor.Event) error {
 	if rec.status != StatusRunning {
 		return errors.New("run is no longer active")
 	}
-	dataBytes := int64(len(event.Data))
-	if rec.eventBytes+dataBytes > m.config.MaxEventBytesPerRun || len(rec.events) >= m.config.MaxEventsPerRun {
+	// Data-less lifecycle events (started, exited) are a fixed handful per run
+	// and must always land, or a run whose output used the whole budget would
+	// be reported failed despite exiting cleanly.
+	var dataBytes int64
+	if len(event.Data) != 0 {
+		dataBytes = int64(len(event.Data)) + eventOverheadBytes
+	}
+	if rec.eventBytes+dataBytes > m.config.MaxEventBytesPerRun {
 		return errEventCapacity
 	}
 	if rec.structuredSpec != nil && event.Type == executor.EventStdout && len(event.Data) != 0 && !rec.structuredTooLarge {

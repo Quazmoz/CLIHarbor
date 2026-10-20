@@ -166,8 +166,9 @@ func TestManagedInstallQualifiesAndPublishesTasksWithoutRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	digest := identity.ContentSHA256()
-	// The "v" prefix must still match discovery's canonical "1.2.3".
-	tool.Install = &packs.ToolInstall{Version: "v1.2.3", Artifacts: map[string]packs.InstallArtifact{
+	// The "v" prefix and build metadata (helm prints "v4.3.0+g<commit>") must
+	// still match discovery's "1.2.3".
+	tool.Install = &packs.ToolInstall{Version: "v1.2.3+g1a2b3c4", Artifacts: map[string]packs.InstallArtifact{
 		runtime.GOOS + "-" + runtime.GOARCH: {Format: packs.InstallFormatExecutable, SHA256: hex.EncodeToString(digest[:])},
 	}}
 	loaded.Pack.Runtime.Tools[fixture.ref.ToolID] = tool

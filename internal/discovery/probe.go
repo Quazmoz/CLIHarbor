@@ -82,6 +82,11 @@ func (ExecProbeRunner) Run(ctx context.Context, executablePath string, probe pac
 	}
 	waitErr := cmd.Wait()
 	closeErr := controller.Close()
+	if errors.Is(waitErr, exec.ErrWaitDelay) {
+		// The CLI exited cleanly but a lingering child held its output open
+		// past WaitDelay; the controller's close above ends that child.
+		waitErr = nil
+	}
 	if waitErr != nil {
 		if errors.Is(probeCtx.Err(), context.DeadlineExceeded) {
 			return "", fmt.Errorf("version probe timed out")

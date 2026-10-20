@@ -83,7 +83,9 @@ func (p *PortableProvisioner) ResolveInstalledAt(ref discovery.ToolRef, tool pac
 	}
 	target, err := p.targetPathAt(ref, tool.Install.Version, artifact.ExecutableName, installRoot)
 	if err != nil {
-		return "", false, err
+		// No resolvable cache (e.g. $HOME unset) holds no managed copy; startup
+		// falls back to PATH discovery. EnsureAt still reports the error.
+		return "", false, nil
 	}
 	finalSHA, finalSize, err := finalExecutableIdentity(artifact)
 	if err != nil {

@@ -44,21 +44,16 @@ if [ "$1" = "variable" ]; then printf 'Value added\n'; else printf '{"created_ro
 	t.Setenv("CONJURRC", conjurrc)
 	t.Setenv("CLIHARBOR_TEST_CONJUR_LOG", logPath)
 
-	source, err := os.ReadFile(filepath.Join("..", "..", "packs", "conjur", "conjur-v9.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	packPath := filepath.Join(tempDir, "conjur-v9.yaml")
-	// The shipped pack targets windows/darwin; widen only this copy so CI can run it.
-	widened := strings.Replace(string(source), "platforms: [windows, darwin]", "platforms: [windows, darwin, linux]", 1)
-	if err := os.WriteFile(packPath, []byte(widened), 0o600); err != nil {
-		t.Fatal(err)
+	// Only the exact embedded pack may carry the reserved Conjur ID, and it
+	// targets windows/darwin; the stand-in is POSIX, so this runs on darwin.
+	if runtime.GOOS != "darwin" {
+		t.Skip("embedded Conjur pack does not target " + runtime.GOOS)
 	}
 
 	state, err := prepareRuntime(t.Context(), Options{
-		Out:           io.Discard,
-		PackFiles:     []string{packPath},
-		ToolOverrides: map[discovery.ToolRef]string{{PackID: conjur.PackID, ToolID: conjur.ToolID}: conjurPath},
+		Out:              io.Discard,
+		LoadDefaultPacks: true,
+		ToolOverrides:    map[discovery.ToolRef]string{{PackID: conjur.PackID, ToolID: conjur.ToolID}: conjurPath},
 	})
 	if err != nil {
 		t.Fatalf("prepareRuntime() error = %v", err)

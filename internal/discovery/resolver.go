@@ -293,17 +293,18 @@ func executableVariants(name, goos string) []string {
 	if goos != "windows" || filepath.Ext(name) != "" {
 		return []string{name}
 	}
-	return []string{name, name + ".exe", name + ".com"}
+	// An extensionless file on Windows (e.g. an npm or Git Bash sh shim next
+	// to the .exe) is not something CreateProcess can run.
+	return []string{name + ".exe", name + ".com"}
 }
 
 func matchesDeclaredExecutable(actual string, declared []string, goos string) bool {
 	for _, name := range declared {
 		if goos == "windows" {
-			if strings.EqualFold(actual, name) {
-				return true
-			}
-			if filepath.Ext(name) == "" && (strings.EqualFold(actual, name+".exe") || strings.EqualFold(actual, name+".com")) {
-				return true
+			for _, variant := range executableVariants(name, goos) {
+				if strings.EqualFold(actual, variant) {
+					return true
+				}
 			}
 			continue
 		}

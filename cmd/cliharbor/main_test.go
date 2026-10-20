@@ -54,6 +54,16 @@ func TestCommandSpecificFlagsFailClosed(t *testing.T) {
 	}
 }
 
+func TestPackDirFlagRejectsRepeat(t *testing.T) {
+	var dir onceString
+	if err := dir.Set("a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := dir.Set("b"); err == nil || dir.value != "a" {
+		t.Fatalf("second --pack-dir accepted: value=%q err=%v", dir.value, err)
+	}
+}
+
 func TestInventoryProbeFlagCannotSupplyExecutableOrArgv(t *testing.T) {
 	for _, selector := range []string{
 		"demo/tool/help/extra",

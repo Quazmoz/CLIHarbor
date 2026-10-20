@@ -143,11 +143,22 @@ func TestRunLingeringDescendantDoesNotHangRun(t *testing.T) {
 func TestRunFailsClosedWhenOutputLimitExceeded(t *testing.T) {
 	t.Setenv(helperEnv, "1")
 	executor := testExecutor(2*time.Second, 64)
-	result, err := executor.Run(context.Background(), helperPlan(t, "flood"), &eventCollector{})
+	collector := &eventCollector{}
+	result, err := executor.Run(context.Background(), helperPlan(t, "flood"), collector)
 	if result.Status != StatusFailed {
 		t.Fatalf("status = %s, want failed", result.Status)
 	}
 	assertExecutorCode(t, err, ErrOutputLimit)
+	// Output up to the limit is kept, not dropped with the crossing write.
+	var kept int
+	for _, event := range collector.Events() {
+		if event.Type == EventStdout {
+			kept += len(event.Data)
+		}
+	}
+	if kept != 64 {
+		t.Fatalf("kept %d stdout bytes, want 64", kept)
+	}
 }
 
 func TestRunCancelsWhenEventSinkFails(t *testing.T) {

@@ -99,6 +99,10 @@ func TestPortableInstallValidationRejectsUnsafeOrIncompatibleMetadata(t *testing
 			data: strings.Replace(valid, "        version: 1.2.3\n", "        version: 2.0.0\n", 1),
 		},
 		{
+			name: "install without version probe",
+			data: strings.Replace(valid, "      versionProbe:\n        args: [--version]\n        parser: semver-text\n      versionConstraint: '>=1.0.0 <2.0.0'\n", "", 1),
+		},
+		{
 			name: "archive-only field on direct executable",
 			data: strings.Replace(valid, "            executableName: fixture-cli.exe\n", "            executableName: fixture-cli.exe\n            archivePath: bin/fixture-cli.exe\n", 1),
 		},
@@ -109,4 +113,12 @@ func TestPortableInstallValidationRejectsUnsafeOrIncompatibleMetadata(t *testing
 			assertCode(t, err, ErrSemantic)
 		})
 	}
+}
+
+// No argv/stdin mapping accepts a list, so a multiselect input would be
+// validated and then silently dropped; it must fail at load instead.
+func TestMultiselectInputIsRejected(t *testing.T) {
+	pack := strings.Replace(minimalPack, "    risk: read\n", "    risk: read\n    inputs:\n      - id: pick\n        type: multiselect\n        label: Pick\n        validation:\n          enum: [one, two]\n", 1)
+	_, err := Parse([]byte(pack))
+	assertCode(t, err, ErrSemantic)
 }

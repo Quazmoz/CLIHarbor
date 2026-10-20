@@ -128,7 +128,9 @@ func RunReadOnlyProbe(ctx context.Context, executablePath string, args []string,
 		result.ExitCode = cmd.ProcessState.ExitCode()
 	}
 
-	if waitErr == nil {
+	// ErrWaitDelay: the CLI exited cleanly but a lingering child held its
+	// output open; the deferred controller close ends that child.
+	if waitErr == nil || errors.Is(waitErr, exec.ErrWaitDelay) {
 		return result, nil
 	}
 	var exitErr *exec.ExitError

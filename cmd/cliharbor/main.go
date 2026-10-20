@@ -36,6 +36,19 @@ func (s *stringList) Set(value string) error {
 	return nil
 }
 
+// onceString is a flag that may be given at most once, so a repeated
+// --pack-dir fails instead of silently dropping the earlier directory.
+type onceString struct{ value string }
+
+func (s *onceString) String() string { return s.value }
+func (s *onceString) Set(value string) error {
+	if s.value != "" {
+		return fmt.Errorf("may be given only once")
+	}
+	s.value = value
+	return nil
+}
+
 func isHelpFlag(value string) bool {
 	return value == "-h" || value == "--help"
 }
@@ -325,7 +338,8 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("cliharbor", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	webDevURL := flags.String("web-dev-url", "", "development-only Vite origin (must be http://127.0.0.1:<port>)")
-	packDirectory := flags.String("pack-dir", "", "explicit trusted directory containing pack YAML files")
+	var packDirectory onceString
+	flags.Var(&packDirectory, "pack-dir", "explicit trusted directory containing pack YAML files")
 	exportPath := flags.String("export", "", "inventory-only sanitized Phase 0 evidence JSON destination")
 	noAutoSetup := flags.Bool("no-auto-setup", false, "serve-only: disable automatic current-user setup of missing first-party CLI dependencies")
 	noDefaultPacks := flags.Bool("no-default-packs", false, "serve/doctor-only: do not load embedded first-party packs; use only explicitly supplied packs")
@@ -354,7 +368,7 @@ func run(args []string) error {
 		return fmt.Errorf("--export and --probe are valid only with inventory")
 	}
 	if (command == "version" || command == "self-test") &&
-		(*packDirectory != "" || len(packFiles) != 0 || len(toolPaths) != 0) {
+		(packDirectory.value != "" || len(packFiles) != 0 || len(toolPaths) != 0) {
 		return fmt.Errorf("pack and tool flags are not valid with %s", command)
 	}
 
@@ -370,7 +384,7 @@ func run(args []string) error {
 		Browser:            browser.SystemLauncher(),
 		WebDevURL:          *webDevURL,
 		PackFiles:          append([]string(nil), packFiles...),
-		PackDirectory:      *packDirectory,
+		PackDirectory:      packDirectory.value,
 		ToolOverrides:      overrides,
 		LoadDefaultPacks:   (command == "serve" || command == "doctor") && !*noDefaultPacks,
 		AutoProvisionTools: command == "serve" && !*noAutoSetup,
@@ -452,7 +466,8 @@ func runPackCommand(args []string) error {
 	case "capture-help":
 		flags := flag.NewFlagSet("cliharbor pack capture-help", flag.ContinueOnError)
 		flags.SetOutput(io.Discard)
-		packDirectory := flags.String("pack-dir", "", "explicit trusted directory containing pack YAML files")
+		var packDirectory onceString
+		flags.Var(&packDirectory, "pack-dir", "explicit trusted directory containing pack YAML files")
 		toolSelector := flags.String("tool", "", "trusted tool selector as pack/tool")
 		probeID := flags.String("probe", "", "pack-declared help probe id")
 		var packFiles stringList
@@ -465,7 +480,7 @@ func runPackCommand(args []string) error {
 		if flags.NArg() != 1 || flags.Arg(0) == "" || *toolSelector == "" || *probeID == "" {
 			return fmt.Errorf("usage: cliharbor pack capture-help --pack-file <pack.yaml> [--pack-file <pack.yaml> ...] [--pack-dir <dir>] --tool <pack/tool> --probe <probe-id> [--tool-path <pack/tool=/absolute/path>] <output.txt>")
 		}
-		if len(packFiles) == 0 && *packDirectory == "" {
+		if len(packFiles) == 0 && packDirectory.value == "" {
 			return fmt.Errorf("pack capture-help requires at least one explicit --pack-file or --pack-dir trust source")
 		}
 		overrides, err := parseToolOverrides(toolPaths)
@@ -477,7 +492,7 @@ func runPackCommand(args []string) error {
 		return app.CapturePackHelp(ctx, app.Options{
 			Out:           os.Stdout,
 			PackFiles:     append([]string(nil), packFiles...),
-			PackDirectory: *packDirectory,
+			PackDirectory: packDirectory.value,
 			ToolOverrides: overrides,
 		}, app.PackHelpCaptureConfig{
 			ToolSelector: *toolSelector,
@@ -578,7 +593,8 @@ func runDiagnosticsCommand(args []string) error {
 	}
 	flags := flag.NewFlagSet("cliharbor diagnostics export", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	packDirectory := flags.String("pack-dir", "", "explicit trusted directory containing pack YAML files")
+	var packDirectory onceString
+	flags.Var(&packDirectory, "pack-dir", "explicit trusted directory containing pack YAML files")
 	var packFiles stringList
 	var toolPaths stringList
 	flags.Var(&packFiles, "pack-file", "explicit trusted pack YAML file (repeatable)")
@@ -601,7 +617,7 @@ func runDiagnosticsCommand(args []string) error {
 		Commit:        commit,
 		BuildMode:     buildMode,
 		PackFiles:     append([]string(nil), packFiles...),
-		PackDirectory: *packDirectory,
+		PackDirectory: packDirectory.value,
 		ToolOverrides: overrides,
 	}, flags.Arg(0))
 }

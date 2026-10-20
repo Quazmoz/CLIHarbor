@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -493,5 +494,22 @@ func TestMacSearchDirectoriesIncludeBothHomebrewLocationsAndDocker(t *testing.T)
 		if !found {
 			t.Fatalf("macOS fallback directories omit %q", want)
 		}
+	}
+}
+
+// On Windows an extensionless sh shim beside gh.exe must neither be selected
+// nor make discovery ambiguous; only runnable .exe/.com files count.
+func TestWindowsIgnoresExtensionlessShims(t *testing.T) {
+	if got := executableVariants("gh", "windows"); slices.Contains(got, "gh") {
+		t.Fatalf("variants = %v, want no extensionless name", got)
+	}
+	if matchesDeclaredExecutable("gh", []string{"gh"}, "windows") {
+		t.Fatal("extensionless gh matched on windows")
+	}
+	if !matchesDeclaredExecutable("GH.EXE", []string{"gh"}, "windows") || !matchesDeclaredExecutable("gh.exe", []string{"gh.exe"}, "windows") {
+		t.Fatal("gh.exe did not match on windows")
+	}
+	if !matchesDeclaredExecutable("gh", []string{"gh"}, "darwin") {
+		t.Fatal("gh did not match on darwin")
 	}
 }

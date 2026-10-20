@@ -200,7 +200,7 @@ Implemented input types:
 - `integer`
 - `boolean`
 - `enum`
-- `multiselect`
+- `multiselect` — reserved: rejected at load until an argv/stdin mapping for lists exists
 - `secret` — write-only; see §11.6
 
 Validation metadata includes numeric bounds, string-length bounds, RE2-compatible patterns, enum values, and `disallowLeadingDash`.

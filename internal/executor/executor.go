@@ -316,10 +316,12 @@ func (w *eventWriter) Write(p []byte) (int, error) {
 	defer w.mu.Unlock()
 
 	original := len(p)
+	var limitErr error
 	if w.total+int64(len(p)) > w.maxBytes {
-		err := &Error{Code: ErrOutputLimit, Message: "process output exceeded the configured per-stream limit"}
-		w.state.fail(err)
-		return 0, err
+		// Keep output up to the limit; dropping the whole crossing write would
+		// lose up to a pipe buffer of output just before it.
+		p = p[:w.maxBytes-w.total]
+		limitErr = &Error{Code: ErrOutputLimit, Message: "process output exceeded the configured per-stream limit"}
 	}
 	w.total += int64(len(p))
 	for len(p) > 0 {
@@ -332,6 +334,10 @@ func (w *eventWriter) Write(p []byte) (int, error) {
 			return 0, err
 		}
 		p = p[n:]
+	}
+	if limitErr != nil {
+		w.state.fail(limitErr)
+		return 0, limitErr
 	}
 	return original, nil
 }

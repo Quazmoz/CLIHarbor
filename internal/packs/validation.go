@@ -530,6 +530,10 @@ func validateToolInstall(pack Pack, toolID string, tool Tool) error {
 	}
 
 	path := "runtime.tools." + toolID + ".install"
+	// Installs are qualified by probing the exact pinned version afterwards.
+	if tool.VersionProbe == nil {
+		return validationError(ErrSemantic, path, "managed install requires a tool versionProbe")
+	}
 	if tool.VersionConstraint != "" {
 		constraint, err := semver.NewConstraint(tool.VersionConstraint)
 		if err != nil {
@@ -723,7 +727,11 @@ func validateInput(input Input, path string) error {
 	}
 
 	switch input.Type {
-	case InputEnum, InputMultiselect:
+	case InputMultiselect:
+		// No argv or stdin mapping accepts a list, so the value could never
+		// reach the CLI; fail at load instead of silently dropping it.
+		return validationError(ErrSemantic, path+".type", "multiselect inputs cannot be mapped to argv or stdin yet")
+	case InputEnum:
 		if len(validation.Enum) == 0 {
 			return validationError(ErrSemantic, path+".validation.enum", "enum and multiselect inputs require predefined values")
 		}

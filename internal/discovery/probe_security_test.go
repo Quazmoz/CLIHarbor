@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -76,6 +77,15 @@ func TestExecProbeRunnerTimeoutDoesNotExposeOutput(t *testing.T) {
 	}
 }
 
+// A CLI that exits 0 while a child still holds stdout (e.g. a daemon it
+// spawned) must not mark the tool probe-failed.
+func TestExecProbeRunnerToleratesLingeringDescendant(t *testing.T) {
+	output, err := runVersionProbeHelperWithTimeout(t, "orphan", 10000)
+	if err != nil || !strings.Contains(output, "1.2.3") {
+		t.Fatalf("Run() = %q, %v; want version output", output, err)
+	}
+}
+
 func runVersionProbeHelper(t *testing.T, mode string) (string, error) {
 	t.Helper()
 	return runVersionProbeHelperWithTimeout(t, mode, 2000)
@@ -134,6 +144,16 @@ func TestVersionProbeHelperProcess(t *testing.T) {
 		fmt.Fprintln(os.Stdout, " 1.2.3")
 	case "invalid-utf8":
 		_, _ = os.Stdout.Write([]byte{0xff, ' ', '1', '.', '2', '.', '3'})
+	case "orphan":
+		child := exec.Command(os.Args[0], append(append([]string{}, os.Args[1:index+1]...), "linger")...)
+		child.Stdout = os.Stdout
+		if err := child.Start(); err != nil {
+			os.Exit(93)
+		}
+		fmt.Fprintln(os.Stdout, "1.2.3")
+		os.Exit(0)
+	case "linger":
+		time.Sleep(30 * time.Second)
 	case "timeout":
 		fmt.Fprintln(os.Stdout, "password=should-not-escape")
 		time.Sleep(2 * time.Second)

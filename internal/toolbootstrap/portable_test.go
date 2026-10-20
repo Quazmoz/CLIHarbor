@@ -45,6 +45,14 @@ func TestCorruptManagedCopyIsNotFoundAndRepaired(t *testing.T) {
 	if got, found, err := p.ResolveInstalled(ref, tool); !found || err != nil || got != path {
 		t.Fatalf("after repair: path=%q found=%v err=%v", got, found, err)
 	}
+	// An unresolvable root (relative here; unset $HOME in practice) must not
+	// abort startup, but an install there must still fail.
+	if _, found, err := p.ResolveInstalledAt(ref, tool, "relative"); found || err != nil {
+		t.Fatalf("unresolvable root: found=%v err=%v, want not found without error", found, err)
+	}
+	if _, _, err := p.EnsureAt(context.Background(), ref, tool, "relative"); err == nil {
+		t.Fatal("install into unresolvable root succeeded")
+	}
 }
 
 // Only old, regular, CLIHarbor-named staging files are reclaimed; a recent one

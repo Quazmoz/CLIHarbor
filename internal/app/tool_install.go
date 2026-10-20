@@ -87,9 +87,11 @@ func (i *managedToolInstaller) InstallTool(ctx context.Context, request server.T
 			return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallUnavailable}
 		}
 		state, ok := qualified.Find(ref)
-		// Discovery reports the canonical form ("1.2.3"); packs may write "v1.2.3".
+		// Compare semantically: packs may write "v1.2.3" and CLIs may append
+		// build metadata (helm prints "v4.3.0+g<commit>").
 		expected, versionErr := semver.NewVersion(tool.Install.Version)
-		if !ok || !state.Healthy() || versionErr != nil || state.Version != expected.String() {
+		found, foundErr := semver.NewVersion(state.Version)
+		if !ok || !state.Healthy() || versionErr != nil || foundErr != nil || !found.Equal(expected) {
 			return server.ToolInstallResult{}, &server.ToolInstallError{Code: server.ToolInstallUnavailable}
 		}
 		artifact, supported := tool.Install.Artifacts[runtime.GOOS+"-"+runtime.GOARCH]

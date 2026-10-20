@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
+	"github.com/Quazmoz/CLIHarbor/internal/executor"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	"github.com/Quazmoz/CLIHarbor/internal/planner"
 	"github.com/Quazmoz/CLIHarbor/internal/structured"
 )
 
@@ -335,6 +337,58 @@ func TestManagerEvictsCompletedRunsButNeverActiveRuns(t *testing.T) {
 	}
 	if _, ok := manager.Get(second.RunID); !ok {
 		t.Fatal("new run missing")
+	}
+}
+
+// A rejected Start must not evict retained evidence of a completed run.
+func TestManagerRejectedStartKeepsRetainedRuns(t *testing.T) {
+	t.Setenv(managerHelperEnv, "1")
+	registry, snapshot := managerFixture(t)
+	manager := newTestManager(t, registry, snapshot, Config{
+		MaxActive:               1,
+		MaxRetained:             1,
+		MaxOutputBytesPerStream: 1024,
+		MaxEventBytesPerRun:     4096,
+		NewRunID:                fixedRunIDs(strings.Repeat("e", 32), strings.Repeat("f", 32)),
+		ResolveExecutionContext: func(planner.Plan) (ExecutionContext, error) {
+			return ExecutionContext{Fields: []ExecutionContextField{{Label: "Account", Value: "a"}}}, nil
+		},
+	})
+	first, err := manager.Start(Request{PackID: "fixture", CommandID: "inspect", Values: map[string]json.RawMessage{"query": rawRunJSON(t, "first")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	if _, err := manager.Wait(waitCtx, first.RunID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Start(Request{PackID: "fixture", CommandID: "change", Values: map[string]json.RawMessage{"target": rawRunJSON(t, "x")}}); err == nil {
+		t.Fatal("unapproved change started")
+	}
+	if _, ok := manager.Get(first.RunID); !ok {
+		t.Fatal("rejected Start evicted a retained run")
+	}
+}
+
+// CLIs that write one line per write() produce one event per line. With
+// default limits 10,000 short-line events must fit, and the exit event must
+// still land once data has used the whole budget.
+func TestRecordEventBudgetsLineAtATimeOutput(t *testing.T) {
+	registry, snapshot := managerFixture(t)
+	manager := newTestManager(t, registry, snapshot, Config{})
+	rec := &record{status: StatusRunning, changed: make(chan struct{})}
+	line := executor.Event{Type: executor.EventStdout, Data: []byte("item-0001\n")}
+	for i := range 10000 {
+		if err := manager.recordEvent(rec, line); err != nil {
+			t.Fatalf("line %d: %v", i, err)
+		}
+	}
+	for manager.recordEvent(rec, line) == nil {
+	}
+	code := 0
+	if err := manager.recordEvent(rec, executor.Event{Type: executor.EventExited, ExitCode: &code}); err != nil {
+		t.Fatalf("exit event after full budget: %v", err)
 	}
 }
 
