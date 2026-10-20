@@ -21,6 +21,18 @@ describe('browser error contract', () => {
     });
   });
 
+  test('keeps the install location field so the form can mark it invalid', () => {
+    const detail = parseServerErrorDetail({
+      code: 'invalid_input',
+      category: 'validation',
+      message: 'Choose a directory inside your user home.',
+      remediation: 'Correct the highlighted field and retry.',
+      retryable: false,
+      field: 'installRoot',
+    });
+    expect(detail?.field).toBe('installRoot');
+  });
+
   test('rejects unknown codes, control characters, unsafe fields, and oversized detail', () => {
     expect(
       parseServerErrorDetail({

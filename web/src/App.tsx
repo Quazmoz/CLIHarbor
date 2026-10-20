@@ -458,7 +458,6 @@ function InputControl({
           max={input.type === 'integer' ? validation.max : undefined}
           minLength={input.type === 'string' || input.type === 'secret' ? validation.minLength : undefined}
           maxLength={input.type === 'string' || input.type === 'secret' ? validation.maxLength : undefined}
-          pattern={input.type === 'string' ? validation.pattern : undefined}
           aria-invalid={error === undefined ? undefined : true}
           aria-describedby={describedBy}
           onChange={(event) => onChange(event.target.value)}
@@ -757,6 +756,8 @@ export function App() {
         try {
           const [tasks, tools] = await Promise.all([fetchTasks(), fetchTools()]);
           setState((current) => current.kind === 'ready' ? { ...current, tasks, tools } : current);
+          // Installing a dedicated platform's CLI flips that platform to ready.
+          void fetchPlatforms().then(setPlatforms, () => undefined);
           if (state.tasks.length === 0 && tasks[0]) selectTaskByKey(tasks[0].packId + '/' + tasks[0].commandId, tasks);
         } catch {
           setToolInstallNotice({ key, message: 'CLI installed and verified. Reload this page to show its approved tasks.' });
@@ -1122,6 +1123,9 @@ export function App() {
       return;
     }
     const formSnapshot = cloneFormValues(retry.formValues);
+    // selectedTask only searches the filtered list; a filter set since the
+    // run would otherwise show (and review) a different task.
+    if (taskToolFilter !== '' && taskToolFilter !== taskToolKey(task)) setTaskToolFilter(taskToolKey(task));
     setSelectedTaskKey(retry.taskKey);
     setFormValues(formSnapshot);
     previewRequestRef.current += 1;
@@ -1494,7 +1498,7 @@ export function App() {
           />
         )}
 
-        {state.kind === 'ready' && route === 'platform' && activePlatform === undefined && (
+        {state.kind === 'ready' && activePlatform === undefined && (route === 'platform' || route === 'access-explorer') && (
           <section className="panel" aria-labelledby="platform-heading">
             <p className="status-label">Dedicated CLI</p>
             <h2 id="platform-heading">No dedicated CLI is loaded</h2>

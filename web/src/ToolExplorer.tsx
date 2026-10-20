@@ -48,7 +48,7 @@ export function ToolExplorer({ tools, tasks, selectedToolKey, disabled, onSelect
         <span>All tools</span>
         <span className="tool-explorer-count">{tasks.length} task{tasks.length === 1 ? '' : 's'}</span>
       </button>
-      {groups.length === 0 && <p className="tool-explorer-empty">No tools match “{query.trim()}”.</p>}
+      {groups.length === 0 && <p className="tool-explorer-empty">{tools.length === 0 ? 'No CLIs are configured yet. Use Add a CLI to set one up.' : <>No tools match “{query.trim()}”.</>}</p>}
       {groups.map((group) => (
         <details key={group.id} className="tool-explorer-group" open>
           <summary>

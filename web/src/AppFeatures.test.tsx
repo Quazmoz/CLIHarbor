@@ -586,6 +586,35 @@ describe('command preview and retry workflows', () => {
     ]);
     expect(query).toHaveValue('original');
   });
+
+  test('retry shows the retried task even after the Tool filter moved to another CLI', async () => {
+    const createBodies: unknown[] = [];
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [
+        { packId: 'alpha', packName: 'Alpha', commandId: 'inspect', name: 'Inspect alpha', toolId: 'alpha',
+          inputs: [{ id: 'query', type: 'string', label: 'Query', required: true, validation: {} }] },
+        { packId: 'beta', packName: 'Beta', commandId: 'inspect', name: 'Inspect beta', toolId: 'beta', inputs: [] },
+      ] }));
+      if (path === '/api/v1/runs' && init?.method === 'POST') {
+        createBodies.push(JSON.parse(String(init.body)));
+        return Promise.resolve(response(202, {
+          runId: String(createBodies.length).repeat(32), packId: 'alpha', commandId: 'inspect',
+          toolId: 'alpha', toolVersion: '1.2.3', status: 'exited', exitCode: 0,
+        }));
+      }
+      return Promise.resolve(baseRuntimeResponse(path) ?? response(404, {}));
+    }));
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Query' }), { target: { value: 'original' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
+    const retry = await screen.findByRole('button', { name: 'Retry with inputs' });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tool' }), { target: { value: 'beta/beta' } });
+    fireEvent.click(retry);
+    await waitFor(() => expect(createBodies).toHaveLength(2));
+    expect(screen.getByRole('heading', { name: 'Inspect alpha' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Query' })).toHaveValue('original');
+  });
 });
 
 

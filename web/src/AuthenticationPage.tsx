@@ -228,7 +228,8 @@ function VendorSessionCard({
     (tool.sessionCheck !== undefined && sessionTask === undefined) ||
     check.kind === 'failed';
   const label = tool.packName || tool.toolId;
-  const headingID = 'vendor-session-' + tool.packId + '-' + tool.toolId;
+  // IDs are [a-z0-9-], so '__' keeps pack a-b/tool c and pack a/tool b-c apart.
+  const headingID = 'vendor-session-' + tool.packId + '__' + tool.toolId;
 
   useEffect(
     () => () => {

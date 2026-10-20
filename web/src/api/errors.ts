@@ -138,7 +138,7 @@ function safeDisplayText(value: unknown, maxLength: number): value is string {
 function safeField(value: unknown): value is string {
   return (
     typeof value === 'string' &&
-    (value === 'packId' || value === 'commandId' || /^values\.[a-z][a-z0-9-]{0,62}$/u.test(value))
+    (value === 'packId' || value === 'commandId' || value === 'installRoot' || /^values\.[a-z][a-z0-9-]{0,62}$/u.test(value))
   );
 }
 
