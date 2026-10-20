@@ -212,6 +212,8 @@ func TestDiscoverVersionPrefixSelectsLabelledToken(t *testing.T) {
 		{"aws-cli/", "aws-cli/2.15.0 Python/3.11.6 Darwin/23.0.0", "2.15.0"},
 		{"Client Version:", "Client Version: v1.2.3\nClient Version: v1.2.4", ""}, // still fails closed
 		{"Server Version:", output, ""},
+		// kubectl's JSON form, for both current and <=1.27 clients.
+		{`"gitVersion": "`, "{\n  \"clientVersion\": {\n    \"gitVersion\": \"v1.27.3\",\n    \"platform\": \"linux/amd64\"\n  },\n  \"kustomizeVersion\": \"v5.0.1\"\n}", "1.27.3"},
 	} {
 		dir := t.TempDir()
 		createExecutable(t, dir, platformExecutableName("fixture"))

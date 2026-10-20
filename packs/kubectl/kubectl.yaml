@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: kubectl-cli
   name: Kubernetes kubectl
-  version: 0.4.0
+  version: 0.4.1
   description: >-
     Narrow read-only Kubernetes inventory pack derived from the official kubectl
     reference. It exposes context visibility and selected metadata-only get
@@ -61,10 +61,12 @@ runtime:
             sizeBytes: 55826944
             url: https://dl.k8s.io/release/v1.35.3/bin/windows/arm64/kubectl.exe
       versionProbe:
-        args: [version, --client=true]
+        args: [version, --client=true, --output=json]
         parser: semver-text
-        # kubectl >=1.24 also prints "Kustomize Version: v5.x"; read only the client token.
-        prefix: "Client Version:"
+        # JSON keeps one gitVersion key on every release; the text form changed
+        # in 1.28 (older clients print "Client Version: version.Info{...}") and
+        # also lists a kustomizeVersion, so read only the client's gitVersion.
+        prefix: '"gitVersion": "'
         timeoutMillis: 2000
 commands:
   context:

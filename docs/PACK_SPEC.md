@@ -143,7 +143,7 @@ versionProbe:
 versionConstraint: ">=9.3.1 <10.0.0"
 ```
 
-When a CLI prints several versions (for example kubectl's `Client Version: v1.36.1` plus `Kustomize Version: v5.8.1`), declare an optional single-line `prefix` such as `prefix: "Client Version:"`. Only the semantic version immediately after that literal label is considered; every other version in the output is ignored, and multiple distinct labelled versions still fail closed as ambiguous. Do not include the optional leading `v` in the prefix.
+When a CLI prints several versions (for example `aws --version` prints `aws-cli/2.18.0 Python/3.12.6 ...`, and kubectl's JSON lists `gitVersion` plus `kustomizeVersion`), declare an optional single-line `prefix` such as `prefix: "aws-cli/"` or `prefix: '"gitVersion": "'`. Only the semantic version immediately after that literal label is considered; every other version in the output is ignored, and multiple distinct labelled versions still fail closed as ambiguous. Do not include the optional leading `v` in the prefix.
 
 Rules:
 
