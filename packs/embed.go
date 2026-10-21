@@ -47,8 +47,9 @@ var helmCLI []byte
 //go:embed vault/vault.yaml
 var vaultCLI []byte
 
-// terraformCLI provides offline version and CLI help tasks only; it never
-// grants browser-selected working directories or infrastructure mutations.
+// terraformCLI is the reviewed first-party Terraform pack: help-only tasks
+// plus constrained local-state address inspection and typed-approved detachment.
+// It never grants a browser-selected working directory or cloud operations.
 //go:embed terraform/terraform.yaml
 var terraformCLI []byte
 

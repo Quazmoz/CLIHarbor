@@ -561,6 +561,50 @@
         "code": "invalid_input",
         "path": "values.address"
       }
+    },
+    {
+      "name": "dry-run rejects leading dash resource address",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget-preview",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate",
+        "address": "-lock=false"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.address"
+      }
+    },
+    {
+      "name": "state listing accepts Windows absolute state path",
+      "packId": "terraform-cli",
+      "commandId": "local-state-resources",
+      "values": {
+        "state-file": "C:\\Users\\operator\\terraform.tfstate"
+      },
+      "expectArgs": [
+        "state",
+        "list",
+        "-state",
+        "C:\\Users\\operator\\terraform.tfstate"
+      ]
+    },
+    {
+      "name": "state detach accepts numbered instance address",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate",
+        "address": "aws_instance.worker[0]"
+      },
+      "expectArgs": [
+        "state",
+        "rm",
+        "-lock-timeout=5s",
+        "-state",
+        "/home/operator/project/terraform.tfstate",
+        "aws_instance.worker[0]"
+      ]
     }
   ]
 }
