@@ -66,15 +66,37 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if !ok {
 		t.Fatal("embedded Terraform pack was not loaded")
 	}
-	if terraform.Pack.Runtime.Tools["terraform"].Install != nil {
-		t.Fatal("unreviewed Terraform managed installation was enabled")
+	tool, ok := terraform.Pack.Runtime.Tools["terraform"]
+	if !ok || tool.Install != nil {
+		t.Fatal("Terraform tool missing or an unreviewed managed installation was enabled")
 	}
-	approvedTerraform := map[string]bool{
-		"version": true, "command-reference": true, "provider-reference": true, "formatting-reference": true,
+	if tool.VersionProbe == nil || tool.VersionProbe.Parser != packs.VersionParserSemverText ||
+		strings.Join(tool.VersionProbe.Args, " ") != "version -json" ||
+		tool.VersionProbe.Prefix != `"terraform_version": "` {
+		t.Fatal("Terraform version discovery must match the CLI version field, not provider versions")
+	}
+	// This is a regression guard on the embedded authority, not merely on the
+	// separately-maintained packtest fixture: no workspaces, state, or mutations.
+	approvedTerraform := map[string][]string{
+		"version": {"version", "-json"},
+		"command-reference": {"help"},
+		"provider-reference": {"providers", "-help"},
+		"formatting-reference": {"fmt", "-help"},
 	}
 	for id, command := range terraform.Pack.Commands {
-		if !approvedTerraform[id] || command.Risk != packs.RiskRead || len(command.Inputs) != 0 || command.Requirements.RequiresAuth {
-			t.Fatalf("unsafe embedded Terraform command %s: risk=%s, inputs=%d", id, command.Risk, len(command.Inputs))
+		expected, approved := approvedTerraform[id]
+		if !approved || command.Tool != "terraform" || command.Risk != packs.RiskRead ||
+			len(command.Inputs) != 0 || command.Requirements.RequiresAuth ||
+			command.Stdin != nil || command.Impact != nil ||
+			command.Output.Sensitivity.ContainsSecrets || command.Output.Sensitivity.PersistRawOutput ||
+			command.Output.Sensitivity.RevealByDefault || len(command.Argv) != len(expected) {
+			t.Fatalf("unsafe embedded Terraform task %s", id)
+		}
+		for i, arg := range command.Argv {
+			if arg.Literal != expected[i] || arg.Flag != nil || arg.Switch != nil ||
+				arg.Map != nil || arg.Positional != nil {
+				t.Fatalf("Terraform task %s argv[%d] must be a fixed reviewed literal", id, i)
+			}
 		}
 	}
 

@@ -20,7 +20,7 @@ CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings
 
 ## Built-in Terraform CLI
 
-CLIHarbor embeds **HashiCorp Terraform** as a built-in, discoverable CLI. An approved local Terraform 1.5+ binary enables version inspection and offline built-in help for commands, providers and formatting; use **Add a CLI** to find it. No Terraform installation, project selection, backend access or sign-in is performed by CLIHarbor.
+CLIHarbor embeds **HashiCorp Terraform** as a built-in, discoverable CLI. An approved local Terraform CLI (`>=1.5.0 <2.0.0`) enables version inspection and offline built-in help for commands, providers and formatting; use **Add a CLI** to find it. The commands run with a minimal environment in isolated temporary directories, not against Terraform files in the checkout or a user-selected project. No Terraform installation, project selection, backend access or sign-in is performed by CLIHarbor.
 
 **Infrastructure operations are not yet available.** Terraform `providers` can access state, and configuration checks can expose HCL snippets in diagnostics. CLIHarbor therefore does not run `fmt`, `validate`, `init`, `plan`, `apply`, `destroy`, state/output inspection or arbitrary `-chdir` today. Those require a reviewed project-directory and secret-output boundary. See [Terraform support and limitations](docs/CLI_CATALOG.md#hashicorp-terraform-first-party-support).
 

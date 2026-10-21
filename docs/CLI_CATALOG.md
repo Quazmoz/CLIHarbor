@@ -16,7 +16,7 @@ startup and can use the same catalog.
 | Helm | 4.3.0 | Windows amd64 and arm64; macOS/Linux discovery only (Helm publishes tar.gz there) |
 | AWS CLI v2 | Existing installation | Discovery only; AWS ships installers, not portable archives |
 | HashiCorp Vault | Existing installation | Discovery only; executables exceed the 512 MiB portable-install bound |
-| HashiCorp Terraform | Existing approved Terraform v1.5+ installation | Discovery only; version and offline command help; no project, state or mutation operations |
+| HashiCorp Terraform | Existing approved Terraform 1.5.x–1.x installation | Discovery only; version and offline command help; no project, state or mutation operations |
 
 Idira PAM intentionally omits managed-download metadata despite the upstream v0.13.0 release: the Windows ZIP has an official archive digest, but no independently reviewed embedded executable hash and organization approval. See [Idira PAM](IDIRA_PAM.md).
 
@@ -69,9 +69,9 @@ release values and secret values are never printed.
 
 ## HashiCorp Terraform first-party support
 
-Terraform is included in the first-party registry as `terraform-cli` (source: `packs/terraform/terraform.yaml`) and appears in **Add a CLI**, Diagnostics and Tasks even before installation. CLIHarbor discovers an existing approved Terraform 1.5+ executable and checks its version with `terraform version -json`, using the JSON `terraform_version` field rather than provider versions.
+Terraform is included in the first-party registry as `terraform-cli` (source: `packs/terraform/terraform.yaml`) and appears in **Add a CLI**, Diagnostics and Tasks even before installation. CLIHarbor discovers an existing approved Terraform CLI version `>=1.5.0 <2.0.0` and checks it with `terraform version -json`, using the JSON `terraform_version` field rather than provider versions.
 
-Four offline, fixed-argv tasks become available for an approved installed binary: **Terraform CLI version** (`terraform version -json`), **Terraform command reference** (`terraform help`), **Terraform provider command help** (`terraform providers -help`), and **Terraform formatting command help** (`terraform fmt -help`). They do not initialize backends, load Terraform files, inspect state, download providers, require credentials or modify infrastructure. Each task has no browser inputs; unapproved argv/path/state/remote values are refused by the production planner.
+Four offline, fixed-argv tasks become available for an approved installed binary: **Terraform CLI version** (`terraform version -json`), **Terraform command reference** (`terraform help`), **Terraform provider command help** (`terraform providers -help`), and **Terraform formatting command help** (`terraform fmt -help`). Discovery probes and task executions use a fresh temporary working directory and a minimal synthetic environment, so they do not use the CLIHarbor checkout, the operator's Terraform root module, `TF_CLI_ARGS` or normal Terraform credentials. The version JSON can include `provider_selections` from the isolated working directory; the planner does not treat those entries as CLI versions. These tasks do not initialize backends, inspect state, download providers or modify infrastructure. Each task has no browser inputs; unapproved argv/path/state/remote values are refused by the production planner.
 
 **Current scope is deliberate.** This initial integration is not a project runner and does not claim to validate Terraform code or inspect infrastructure. `terraform providers` without `-help` reads backend state; even `terraform fmt -check` and `terraform validate` can surface HCL source excerpts in diagnostics. Until CLIHarbor has a reviewed workspace trust policy, controlled project-directory selection and a secret-safe output boundary, do not expose `init`, `plan`, `apply`, `destroy`, `providers` execution, `fmt` execution, `validate`, state or output retrieval. No managed Terraform download is offered without independent artifact verification and organization approval.
 

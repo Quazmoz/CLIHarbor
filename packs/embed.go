@@ -47,8 +47,8 @@ var helmCLI []byte
 //go:embed vault/vault.yaml
 var vaultCLI []byte
 
-// terraformCLI exposes bounded local configuration metadata without letting the
-// browser select a working directory or invoke infrastructure mutations.
+// terraformCLI provides offline version and CLI help tasks only; it never
+// grants browser-selected working directories or infrastructure mutations.
 //go:embed terraform/terraform.yaml
 var terraformCLI []byte
 

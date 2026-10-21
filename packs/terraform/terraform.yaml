@@ -3,12 +3,13 @@ kind: CliPack
 metadata:
   id: terraform-cli
   name: HashiCorp Terraform
-  version: 0.1.1
+  version: 0.1.2
   description: >-
-    Offline first-party Terraform CLI discovery and command-reference tasks.
-    This initial pack never reads HCL configuration, state, variables, secrets,
-    backend or workspace data, never downloads providers, and never mutates
-    infrastructure. Project-scoped tasks require a separate reviewed design.
+    Offline Terraform CLI version and command-reference tasks. Discovery and
+    execution use isolated temporary working directories with a minimal
+    environment rather than the operator's Terraform project and credentials.
+    This pack never runs infrastructure operations or reads state. Project
+    workflows need a separately reviewed execution and output boundary.
 runtime:
   platforms: [windows, linux, darwin]
   tools:
@@ -31,7 +32,7 @@ runtime:
 commands:
   version:
     name: Terraform CLI version
-    description: Show the installed Terraform CLI version/platform, without inspecting project, state, workspace or backend.
+    description: Show Terraform CLI version and platform in an isolated temporary directory without contacting a backend. Terraform may include provider selections from that isolated directory.
     tool: terraform
     risk: read
     argv:
