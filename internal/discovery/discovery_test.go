@@ -213,9 +213,9 @@ func TestDiscoverVersionPrefixSelectsLabelledToken(t *testing.T) {
 		{"Client Version:", "Client Version: v1.2.3\nClient Version: v1.2.4", ""}, // still fails closed
 		{"Server Version:", output, ""},
 		// Terraform JSON can include provider versions before the CLI version.
-		{`"terraform_version": "`, "{\\n  \\"provider_selections\\": {\\"registry.terraform.io/hashicorp/aws\\": \\"6.9.0\\"},\\n  \\"terraform_version\\": \\"1.16.4\\",\\n  \\"platform\\": \\"windows_amd64\\"\\n}", "1.16.4"},
-		{`"terraform_version": "`, "{\\n  \\"terraform_version\\": \\"1.16.4\\",\\n  \\"terraform_version\\": \\"1.16.5\\"\\n}", ""},
-		// kubectl's JSON form, for both current and <=1.27 clients.
+		{`"terraform_version": "`, `{"provider_selections":{"registry.terraform.io/hashicorp/aws":"6.9.0"},"terraform_version": "1.16.4","platform":"windows_amd64"}`, "1.16.4"},
+		{`"terraform_version": "`, `{"terraform_version": "1.16.4","terraform_version": "1.16.5"}`, ""},
+				// kubectl's JSON form, for both current and <=1.27 clients.
 		{`"gitVersion": "`, "{\n  \"clientVersion\": {\n    \"gitVersion\": \"v1.27.3\",\n    \"platform\": \"linux/amd64\"\n  },\n  \"kustomizeVersion\": \"v5.0.1\"\n}", "1.27.3"},
 	} {
 		dir := t.TempDir()
