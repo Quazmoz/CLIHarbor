@@ -143,6 +143,16 @@ func check(root string) error {
 	if err := run(root, "go", "mod", "verify"); err != nil {
 		return err
 	}
+	// Explicit roots keep gofmt out of web/node_modules, which ships stray Go files.
+	gofmt := exec.Command("gofmt", "-l", "cmd", "internal", "packs", "schemas", "tools")
+	gofmt.Dir = root
+	unformatted, err := gofmt.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("gofmt failed: %w: %s", err, strings.TrimSpace(string(unformatted)))
+	}
+	if files := strings.TrimSpace(string(unformatted)); files != "" {
+		return fmt.Errorf("Go sources are not gofmt-formatted; run gofmt -w on:\n%s", files)
+	}
 	for _, args := range [][]string{{"vet", "./..."}, {"test", "-timeout", "2m", "./..."}} {
 		if err := run(root, "go", args...); err != nil {
 			return err
