@@ -18,6 +18,12 @@ Use `git switch dev` before starting development; explicitly select `dev` as the
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
+## Built-in Terraform CLI
+
+CLIHarbor now includes a reviewed **HashiCorp Terraform** pack: discovery of an already approved local `terraform` v1.5+ binary, version inspection, provider-requirement inspection and a non-writing format check. Open **Add a CLI** and search for Terraform; when qualified, select its tasks. No Terraform installation or authentication is performed by CLIHarbor.
+
+Terraform's configuration commands operate only in **CLIHarbor's process working directory**, not in a directory chosen by the browser. Do not mistake an empty project check for validation of your actual infrastructure. Terraform state/secret retrieval, `init`, `plan`, `apply`, `destroy` and arbitrary project selection are intentionally outside this first safe milestone. See [Terraform in the supported CLI catalog](docs/CLI_CATALOG.md#hashicorp-terraform-first-party-support).
+
 ## Idira PAM read-only candidate
 
 An **Idira PAM** built-in platform is available using the trusted `idsec`

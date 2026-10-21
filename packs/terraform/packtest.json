@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "cliharbor.packtest/v1",
+  "cases": [
+    {
+      "name": "terraform client version only",
+      "packId": "terraform-cli",
+      "commandId": "version",
+      "values": {},
+      "expectArgs": [
+        "version",
+        "-json"
+      ]
+    },
+    {
+      "name": "read provider requirements",
+      "packId": "terraform-cli",
+      "commandId": "provider-requirements",
+      "values": {},
+      "expectArgs": [
+        "providers",
+        "-no-color"
+      ]
+    },
+    {
+      "name": "non-writing formatting check",
+      "packId": "terraform-cli",
+      "commandId": "format-check",
+      "values": {},
+      "expectArgs": [
+        "fmt",
+        "-check",
+        "-list=false"
+      ]
+    },
+    {
+      "name": "reject custom terraform chdir input",
+      "packId": "terraform-cli",
+      "commandId": "provider-requirements",
+      "values": {
+        "chdir": "../secret-module"
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.chdir"
+      }
+    },
+    {
+      "name": "reject injection of apply argv",
+      "packId": "terraform-cli",
+      "commandId": "version",
+      "values": {
+        "argv": [
+          "apply",
+          "-auto-approve"
+        ]
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.argv"
+      }
+    },
+    {
+      "name": "reject browser-selected state file",
+      "packId": "terraform-cli",
+      "commandId": "format-check",
+      "values": {
+        "stateFile": "terraform.tfstate"
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.stateFile"
+      }
+    }
+  ]
+}

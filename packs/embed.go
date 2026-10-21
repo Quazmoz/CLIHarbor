@@ -47,6 +47,11 @@ var helmCLI []byte
 //go:embed vault/vault.yaml
 var vaultCLI []byte
 
+// terraformCLI exposes bounded local configuration metadata without letting the
+// browser select a working directory or invoke infrastructure mutations.
+//go:embed terraform/terraform.yaml
+var terraformCLI []byte
+
 // Builtins returns defensive copies of the first-party pack bytes that are safe
 // to hand to the hardened pack loader.
 func Builtins() map[string][]byte {
@@ -59,5 +64,6 @@ func Builtins() map[string][]byte {
 		"aws/aws.yaml":          append([]byte(nil), awsCLI...),
 		"helm/helm.yaml":        append([]byte(nil), helmCLI...),
 		"vault/vault.yaml":      append([]byte(nil), vaultCLI...),
+		"terraform/terraform.yaml": append([]byte(nil), terraformCLI...),
 	}
 }

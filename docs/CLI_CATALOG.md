@@ -16,6 +16,7 @@ startup and can use the same catalog.
 | Helm | 4.3.0 | Windows amd64 and arm64; macOS/Linux discovery only (Helm publishes tar.gz there) |
 | AWS CLI v2 | Existing installation | Discovery only; AWS ships installers, not portable archives |
 | HashiCorp Vault | Existing installation | Discovery only; executables exceed the 512 MiB portable-install bound |
+| HashiCorp Terraform | Existing approved Terraform v1.5+ installation | Discovery only; local read-only version, provider-requirements and format-check tasks |
 
 Idira PAM intentionally omits managed-download metadata despite the upstream v0.13.0 release: the Windows ZIP has an official archive digest, but no independently reviewed embedded executable hash and organization approval. See [Idira PAM](IDIRA_PAM.md).
 
@@ -65,6 +66,20 @@ CLI uses its existing profile/SSO session (`AWS_PROFILE` is inherited); Vault
 uses `VAULT_ADDR` and its token helper. All three new packs are read-only and
 use client-side field selection so tags, user data, environment variables,
 release values and secret values are never printed.
+
+## HashiCorp Terraform first-party support
+
+Terraform is embedded as `terraform-cli` (source: `packs/terraform/terraform.yaml`) and appears in **Add a CLI**, Diagnostics and Tasks even before installation. CLIHarbor discovers an existing approved `terraform` executable (v1.5.x through v1.x), checks its version with `terraform version -json`, and exposes three fixed read-only tasks:
+
+- **Terraform CLI version** — local version and platform in JSON.
+- **Inspect Terraform provider requirements** — `terraform providers -no-color` reads provider requirements from local configuration.
+- **Check Terraform formatting** — `terraform fmt -check -list=false` checks formatting without changing files or listing paths; nonzero exit means formatting needs attention.
+
+**Working-directory boundary:** The latter two tasks run in CLIHarbor's own process working directory, **not a browser-selected Terraform project directory**. A normal CLIHarbor checkout is not automatically the user's Terraform workspace. CLIHarbor v1 deliberately forbids browser-controlled working directories; consequently these tasks are useful only when the host process is intentionally started from an appropriate approved Terraform configuration directory. Do not interpret success from an empty/non-Terraform directory as validation of an intended Terraform project.
+
+Terraform provider configuration and modules can contain sensitive environment context; review tool output before copying. Terraform can use existing local configuration and environment, but CLIHarbor does not read Terraform credentials, variables or state. No `init`, `plan`, `apply`, `destroy`, workspace change, state/output retrieval, provider installation or HCL source display is authorized. A project-selection/plan workflow requires a separately reviewed directory trust boundary and secret-safe output policy; this pack does not claim that capability. No automatic or browser-managed Terraform download is included without separately reviewed immutable artifact hashes and organization approval.
+
+Reference: [HashiCorp CLI reference](https://developer.hashicorp.com/terraform/cli/commands), [version](https://developer.hashicorp.com/terraform/cli/commands/version), [providers](https://developer.hashicorp.com/terraform/cli/commands/providers), and [fmt](https://developer.hashicorp.com/terraform/cli/commands/fmt). Planner contracts are in `packs/terraform/packtest.json`.
 
 ## Artifact evidence
 

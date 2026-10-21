@@ -1,0 +1,81 @@
+apiVersion: cliharbor.dev/v1
+kind: CliPack
+metadata:
+  id: terraform-cli
+  name: HashiCorp Terraform
+  version: 0.1.0
+  description: >-
+    Read-only, locally installed Terraform CLI discovery and configuration
+    checks. Commands use CLIHarbor's existing process working directory;
+    the browser cannot select a Terraform project directory, backend, workspace,
+    state file, plan file or variables. Does not expose init, plan, apply,
+    destroy, state inspection, output values or credentials.
+runtime:
+  platforms: [windows, linux, darwin]
+  tools:
+    terraform:
+      executableNames: [terraform]
+      versionProbe:
+        args: [version, -json]
+        parser: semver-text
+        # Terraform JSON also lists provider versions; inspect only the CLI field.
+        prefix: '"terraform_version": "'
+        timeoutMillis: 5000
+      versionConstraint: ">=1.5.0 <2.0.0-0"
+      helpProbes:
+        root:
+          args: [help]
+        providers:
+          args: [providers, -help]
+commands:
+  version:
+    name: Terraform CLI version
+    description: Show the local Terraform binary version and platform as JSON, without inspecting state or contacting a backend.
+    tool: terraform
+    risk: read
+    argv:
+      - literal: version
+      - literal: -json
+    output:
+      mode: json
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  provider-requirements:
+    name: Inspect Terraform provider requirements
+    description: Inspect provider source and version requirements from configuration in CLIHarbor's process working directory. No backend initialization or provider download is performed. Module names may be shown.
+    tool: terraform
+    risk: read
+    argv:
+      - literal: providers
+      - literal: -no-color
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
+
+  format-check:
+    name: Check Terraform formatting
+    description: Check only Terraform files in CLIHarbor's process working directory, without rewriting files or displaying file paths. A nonzero exit means formatting needs attention. This does not choose a project folder or validate infrastructure.
+    tool: terraform
+    risk: read
+    argv:
+      - literal: fmt
+      - literal: -check
+      - literal: -list=false
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
+    requirements:
+      requiresAuth: false
