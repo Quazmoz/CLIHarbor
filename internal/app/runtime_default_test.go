@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
+	"github.com/Quazmoz/CLIHarbor/internal/packs"
 )
 
 func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testing.T) {
@@ -58,6 +59,22 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	for id, want := range map[string]int{"aws-cli": 5, "helm-cli": 4, "vault-cli": 5, "terraform-cli": 4} {
 		if got := len(state.Registry.Commands(id)); got != want {
 			t.Fatalf("embedded %s commands = %d, want %d", id, got, want)
+		}
+	}
+
+	terraform, ok := state.Registry.FindPack("terraform-cli")
+	if !ok {
+		t.Fatal("embedded Terraform pack was not loaded")
+	}
+	if terraform.Pack.Runtime.Tools["terraform"].Install != nil {
+		t.Fatal("unreviewed Terraform managed installation was enabled")
+	}
+	approvedTerraform := map[string]bool{
+		"version": true, "command-reference": true, "provider-reference": true, "formatting-reference": true,
+	}
+	for id, command := range terraform.Pack.Commands {
+		if !approvedTerraform[id] || command.Risk != packs.RiskRead || len(command.Inputs) != 0 || command.Requirements.RequiresAuth {
+			t.Fatalf("unsafe embedded Terraform command %s: risk=%s, inputs=%d", id, command.Risk, len(command.Inputs))
 		}
 	}
 
