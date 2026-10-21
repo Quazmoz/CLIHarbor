@@ -56,14 +56,14 @@ var terraformCLI []byte
 // to hand to the hardened pack loader.
 func Builtins() map[string][]byte {
 	return map[string][]byte{
-		"conjur/conjur-v9.yaml": append([]byte(nil), conjurV9...),
-		"idira/idira-pam.yaml":  append([]byte(nil), idiraPAM...),
-		"docker/docker.yaml":    append([]byte(nil), dockerCLI...),
-		"kubectl/kubectl.yaml":  append([]byte(nil), kubectlCLI...),
-		"github/github.yaml":    append([]byte(nil), githubCLI...),
-		"aws/aws.yaml":          append([]byte(nil), awsCLI...),
-		"helm/helm.yaml":        append([]byte(nil), helmCLI...),
-		"vault/vault.yaml":      append([]byte(nil), vaultCLI...),
+		"conjur/conjur-v9.yaml":    append([]byte(nil), conjurV9...),
+		"idira/idira-pam.yaml":     append([]byte(nil), idiraPAM...),
+		"docker/docker.yaml":       append([]byte(nil), dockerCLI...),
+		"kubectl/kubectl.yaml":     append([]byte(nil), kubectlCLI...),
+		"github/github.yaml":       append([]byte(nil), githubCLI...),
+		"aws/aws.yaml":             append([]byte(nil), awsCLI...),
+		"helm/helm.yaml":           append([]byte(nil), helmCLI...),
+		"vault/vault.yaml":         append([]byte(nil), vaultCLI...),
 		"terraform/terraform.yaml": append([]byte(nil), terraformCLI...),
 	}
 }
