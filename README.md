@@ -20,7 +20,7 @@ CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings
 
 ## Built-in Terraform workspace (read-only first milestone)
 
-HashiCorp Terraform is discoverable in **Add a CLI**. Approved Terraform versions `>=1.5.0 <2.0.0` provide version cards and fixed offline CLI help (including an enum-backed workflow-help dropdown; it runs only `-help`).
+HashiCorp Terraform is discoverable in **Add a CLI**. When missing, **Get Terraform — official download** opens HashiCorp's installer page; download the ZIP, extract `terraform.exe` into your own user folder (no admin), and restart CLIHarbor (with `--tool-path terraform-cli/terraform=C:\Users\you\tools\terraform.exe` if necessary). The native managed auto-install button remains unavailable pending independent executable hash/size qualification. Approved Terraform versions `>=1.5.0 <2.0.0` provide a plain-text version task and fixed offline CLI help (including an enum-backed workflow-help dropdown; it runs only `-help`).
 
 For local state browsing, start CLIHarbor with the operator-approved project root:
 
@@ -30,7 +30,7 @@ For local state browsing, start CLIHarbor with the operator-approved project roo
 
 Open **Built-in CLIs → HashiCorp Terraform → Projects** and choose the approved directory and a local direct-child `.tfstate` file. The dedicated **Resources** view lists resource addresses, types, modules and managed/data classification from a bounded local state-v4 snapshot. Use the search box and resource/type/category selectors; **State management** describes the deliberately disabled detach workflow. No state attributes, outputs or secrets are returned to the browser. An existing Terraform binary is qualified separately; local browsing does not execute Terraform or contact a backend. Project roots cannot be approved from browser inputs.
 
-**Important safety hold:** The previous generic `local-state-resources`, `local-state-forget-preview` and `local-state-forget` tasks are removed from execution authority in pack v0.4.0. The former dry-run was advisory, not bound to a filesystem snapshot; its approval was unsafe against stale/changed state. CLIHarbor **cannot currently preview or remove state bindings**. It has not verified Terraform backups/locking on Windows, and does not execute `init`, `plan`, `apply`, `destroy`, `fmt` or `validate`. A future `terraform state rm` would forget tracking rather than delete infrastructure; a later apply could recreate it.
+**Important safety hold:** The previous generic `local-state-resources`, `local-state-forget-preview` and `local-state-forget` tasks are removed from execution authority in pack v0.4.1. The former dry-run was advisory, not bound to a filesystem snapshot; its approval was unsafe against stale/changed state. CLIHarbor **cannot currently preview or remove state bindings**. It has not verified Terraform backups/locking on Windows, and does not execute `init`, `plan`, `apply`, `destroy`, `fmt` or `validate`. A future `terraform state rm` would forget tracking rather than delete infrastructure; a later apply could recreate it.
 
 See [Terraform integration and quickstart](docs/TERRAFORM_INTEGRATION.md) and [CLI catalog](docs/CLI_CATALOG.md).
 

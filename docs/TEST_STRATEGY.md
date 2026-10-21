@@ -34,7 +34,7 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 
 ### Terraform first-party pack and read-only inventory checkpoint
 
-The `terraform-cli` v0.4.0 pack is fixed to five offline commands: version, command reference, provider help, formatting help and a constrained help-only workflow dropdown. All state-related generic tasks, including `local-state-forget`, must yield `unknown_command`; browser-originated state mutation is not allowed while filesystem identity, enforced fresh dry-run approval, locking and backup recovery are unverified.
+The `terraform-cli` v0.4.1 pack is fixed to five offline commands: plain-text version, command reference, provider help, formatting help and a constrained help-only workflow dropdown. All state-related generic tasks, including `local-state-forget`, must yield `unknown_command`; browser-originated state mutation is not allowed while filesystem identity, enforced fresh dry-run approval, locking and backup recovery are unverified.
 
 `internal/app/runtime_default_test.go` asserts the trusted embedded pack's fixed literal command set; `packs/terraform/packtest.json` covers exact argv and negative cases. `internal/platforms/terraform/platform_test.go` adds synthetic local state-v4 fixtures and tests trusted project selections, disallowed selectors, malformed and oversized snapshots, symlink escapes, ambiguous resource instances and absence of secret attributes in returned metadata. `internal/server/terraform_api_test.go` rejects unexpected/duplicate query parameters and mutation methods. `web/src/platforms/terraform/TerraformWorkspace.test.tsx` checks cascading selection resets and the disabled removal affordance.
 

@@ -100,7 +100,19 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                       </div>
                     </div>
                   )}
-                  {catalog && tool.status === 'missing' && tool.install === undefined && (
+                  {catalog && tool.packId === 'terraform-cli' && tool.status === 'missing' && tool.install === undefined && (
+                    <div className="tool-install-controls" aria-label="Install Terraform for your user">
+                      <a className="secondary-button terraform-download-link" href="https://developer.hashicorp.com/terraform/install"
+                        target="_blank" rel="noopener noreferrer">Get Terraform — official download</a>
+                      <p>Download the Windows ZIP from HashiCorp, extract <code>terraform.exe</code> into a folder you own
+                        (no administrator rights required), then restart CLIHarbor so it can discover the executable.</p>
+                      <p>If the folder is not on PATH, start CLIHarbor with
+                        <code> --tool-path terraform-cli/terraform=C:\Users\you\tools\terraform.exe</code>.
+                        CLIHarbor checks the installed version before enabling tasks.</p>
+                      <small>Manual verified-source setup. In-app one-click installation is not yet enabled because the ZIP member hash and size have not been independently qualified.</small>
+                    </div>
+                  )}
+                  {catalog && tool.packId !== 'terraform-cli' && tool.status === 'missing' && tool.install === undefined && (
                     <p>{tool.toolId === 'docker'
                       ? 'Install Docker through your approved setup, including a working Docker engine, then restart CLIHarbor.'
                       : 'A verified download is not available for this platform. Use your approved installer, then restart CLIHarbor.'}</p>

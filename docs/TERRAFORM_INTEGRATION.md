@@ -7,12 +7,12 @@ CLIHarbor provides a dedicated Terraform workspace, while preserving existing Co
 Idira, Docker, Kubernetes, GitHub, AWS, Helm and Vault packs.
 
 The existing Terraform installation can be discovered and version-qualified
-(`>=1.5.0 <2.0.0`). Five offline help/version tasks remain.
+(`>=1.5.0 <2.0.0`). Five offline help/version tasks remain. The version task uses plain-text output; JSON remains in the version-discovery probe, because Terraform's version JSON includes additional undeclared fields not supported by CLIHarbor's strict structured-card parser.
 No provider installation, network backend access or Terraform subprocess is used for state inventory.
 
 ## Quickstart
 
-1. Install an organization-approved Terraform executable in your ordinary user context. Open **Add a CLI** and confirm Terraform discovery/version readiness. This does not authenticate you to any provider.
+1. Open **Add a CLI → HashiCorp Terraform**. If missing, choose **Get Terraform — official download**. Download the Windows ZIP from HashiCorp, extract the CLI to a folder owned by your Windows user (no admin elevation), then restart CLIHarbor. If Terraform is not discoverable on PATH, restart with `--tool-path terraform-cli/terraform=C:\Users\you\tools\terraform.exe`. Verify discovery/version readiness; this does not authenticate to any cloud provider. The vendor link is a guided manual download, **not** in-app installation. The latter remains disabled pending independently qualified ZIP member hash and size.
 2. Identify an existing, **trusted local Terraform root directory**, not a remote backend. Stop concurrent writers before relying on the inventory.
 3. Launch CLIHarbor with a startup-only approval, for example:
    - Windows PowerShell: `.\cliharbor.exe serve --terraform-project "C:\Users\you\infra\demo"`
@@ -40,7 +40,7 @@ cannot add roots, select alternate paths, pass shell arguments, or disable locki
 ## State detach, backups and recovery
 
 The old v0.3.0 generic `local-state-resources`, `local-state-forget-preview`
-and `local-state-forget` tasks were removed in v0.4.0. The former dry-run was
+and `local-state-forget` tasks were removed in v0.4.0 and remain disabled in v0.4.1. The former dry-run was
 an independent, advisory command, not an enforced snapshot-bound prerequisite.
 
 **There is currently no state detachment and no CLIHarbor-created backup.**

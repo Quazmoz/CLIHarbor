@@ -269,6 +269,65 @@ func TestParseStructuredOutputContract(t *testing.T) {
 	}
 }
 
+func TestTerraformBuiltinPackLoadsWithVersionProbeAndSafeDisplay(t *testing.T) {
+	data, err := os.ReadFile("../../packs/terraform/terraform.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pack, err := Parse(data)
+	if err != nil {
+		t.Fatalf("built-in Terraform pack must pass exact embedded schema: %v", err)
+	}
+	tool := pack.Runtime.Tools["terraform"]
+	if tool.VersionProbe == nil || strings.Join(tool.VersionProbe.Args, " ") != "version -json" {
+		t.Fatal("Terraform discovery must continue using vendor version -json")
+	}
+	version := pack.Commands["version"]
+	if version.Output.Mode != OutputRaw || len(version.Argv) != 1 || version.Argv[0].Literal != "version" {
+		t.Fatal("Terraform user-facing version task must avoid strict parsing of the vendor JSON extensions")
+	}
+	if len(pack.Commands) != 5 {
+		t.Fatalf("Terraform includes %d commands; only 5 offline commands should be enabled", len(pack.Commands))
+	}
+}
+
+func TestStructuredOutputKeysAcceptVendorJSONWithoutRelaxingCommandIDs(t *testing.T) {
+	good := strings.Replace(minimalPack, "      mode: raw", `      mode: json
+      renderer: cards
+      structured:
+        fields:
+          - key: terraform_version
+            label: Terraform version
+            type: string
+            required: true
+`, 1)
+	pack, err := Parse([]byte(good))
+	if err != nil {
+		t.Fatalf("valid upstream Terraform JSON field failed schema: %v", err)
+	}
+	if got := pack.Commands["status"].Output.Structured.Fields[0].Key; got != "terraform_version" {
+		t.Fatalf("unexpected version JSON field: %q", got)
+	}
+	for _, tc := range []struct {
+		name string
+		key  string
+	}{
+		{"dot traversal", "terraform.version"},
+		{"key with space", "terraform version"},
+		{"key with bracket", "terraform[version]"},
+		{"key with dash flag", "--terraform_version"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bad := strings.Replace(good, "terraform_version", tc.key, 1)
+			_, err := Parse([]byte(bad))
+			assertCode(t, err, ErrSchema)
+		})
+	}
+	badID := strings.Replace(minimalPack, "  status:\n", "  bad_id:\n", 1)
+	_, err = Parse([]byte(badID))
+	assertCode(t, err, ErrSchema)
+}
+
 func TestRegistryDeepCopiesStructuredOutput(t *testing.T) {
 	data := strings.Replace(minimalPack, "      mode: raw", `      mode: json
       renderer: cards

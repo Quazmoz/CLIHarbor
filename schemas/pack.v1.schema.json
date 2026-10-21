@@ -619,7 +619,8 @@
       ],
       "properties": {
         "key": {
-          "$ref": "#/$defs/id"
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,127}$"
         },
         "label": {
           "type": "string",

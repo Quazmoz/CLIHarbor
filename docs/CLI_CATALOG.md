@@ -16,7 +16,7 @@ startup and can use the same catalog.
 | Helm | 4.3.0 | Windows amd64 and arm64; macOS/Linux discovery only (Helm publishes tar.gz there) |
 | AWS CLI v2 | Existing installation | Discovery only; AWS ships installers, not portable archives |
 | HashiCorp Vault | Existing installation | Discovery only; executables exceed the 512 MiB portable-install bound |
-| HashiCorp Terraform | Existing approved Terraform 1.5.x–1.x installation | Discovery; offline help; dedicated, approved-project read-only local state inventory (no mutations) |
+| HashiCorp Terraform | Official HashiCorp download link (manual current-user setup) | Discovery; offline help; dedicated, approved-project read-only local state inventory (no mutations) |
 
 Idira PAM intentionally omits managed-download metadata despite the upstream v0.13.0 release: the Windows ZIP has an official archive digest, but no independently reviewed embedded executable hash and organization approval. See [Idira PAM](IDIRA_PAM.md).
 
@@ -25,6 +25,8 @@ button. Conjur's existing Windows-only automatic setup remains separate;
 macOS Conjur, kubectl, and GitHub CLI downloads require an explicit Install action.
 
 The **Create a custom CLI pack** guide on the same page is separate from the install catalog. It downloads a discovery-only pack YAML file with no runnable tasks and no backend writes. It does not import, install, or activate a CLI. After independent review, validate/lint locally and explicitly start CLIHarbor with `--pack-file`. See [Pack specification](PACK_SPEC.md) and [README authoring quickstart](../README.md#add-another-cli-without-changing-go-code).
+
+For Terraform, **Add a CLI** offers **Get Terraform — official download** when no executable is detected. The link opens HashiCorp's installation page; operators extract the approved ZIP into their user directory and restart CLIHarbor (with `--tool-path` if the executable is not on PATH). This is *not* CLIHarbor's automatic managed installer: the exact archive member hash and size have not yet been independently verified, so in-app automatic installation remains disabled. The workflow requires no administrator credentials to place the binary in an operator-owned folder.
 
 The catalog lists tools from already-loaded trusted packs. Adding an arbitrary
 executable or URL does not generate command authority. Additional CLIs need a
@@ -69,9 +71,9 @@ release values and secret values are never printed.
 
 ## HashiCorp Terraform first-party support
 
-Terraform is in the reviewed first-party registry as `terraform-cli` (pack v0.4.0) and appears in **Add a CLI**, Diagnostics, Tasks and the **Built-in CLIs** directory. Existing approved Terraform installations are version-qualified with `terraform version -json` (`>=1.5.0 <2.0.0`). There is no unreviewed managed download.
+Terraform is in the reviewed first-party registry as `terraform-cli` (pack v0.4.1) and appears in **Add a CLI**, Diagnostics, Tasks and the **Built-in CLIs** directory. Existing approved Terraform installations are version-qualified with `terraform version -json` (`>=1.5.0 <2.0.0`). There is no unreviewed managed download.
 
-Five offline tasks remain: version, top-level help, provider help, formatter help, and an allowlisted workflow command-help selector. The latter appends `-help` and does not execute the selected workflow. No user-provided arbitrary CLI arguments are accepted.
+Five offline tasks remain: plain-text version, top-level help, provider help, formatter help, and an allowlisted workflow command-help selector. The latter appends `-help` and does not execute the selected workflow. No user-provided arbitrary CLI arguments are accepted.
 
 The dedicated **HashiCorp Terraform** workspace can inspect only explicitly approved local directories passed as `--terraform-project <absolute-directory>` when CLIHarbor starts. The browser selects opaque project/state IDs, not filesystem paths. A read-only backend enumerates direct-child regular `.tfstate` files (no symlinked files) and extracts resource addresses, module locations, types and managed/data labels from bounded Terraform state-v4 JSON snapshots. It returns no state attributes or output values. This is local snapshot metadata parsing, **not** `terraform state list` CLI verification, a backend connection, or a cloud resource query. Large, malformed, changed and unsupported files fail closed.
 

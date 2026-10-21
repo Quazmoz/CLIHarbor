@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: terraform-cli
   name: HashiCorp Terraform
-  version: 0.4.0
+  version: 0.4.1
   description: >-
     Built-in Terraform CLI with offline version and help tasks only. Local
     state resource browsing uses a separate approved-project, read-only
@@ -32,25 +32,13 @@ runtime:
 commands:
   version:
     name: Terraform CLI version
-    description: Show Terraform CLI version and platform in an isolated temporary directory without contacting a backend. Terraform may include provider selections from that isolated directory.
+    description: Show the installed CLI version as plain text in an isolated temporary directory without contacting a backend.
     tool: terraform
     risk: read
     argv:
       - literal: version
-      - literal: -json
     output:
-      mode: json
-      renderer: cards
-      structured:
-        fields:
-          - key: terraform_version
-            label: Terraform version
-            type: string
-            required: true
-          - key: platform
-            label: Platform
-            type: string
-            required: true
+      mode: raw
       sensitivity:
         containsSecrets: false
         persistRawOutput: false

@@ -79,7 +79,7 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	// The trusted pack must retain only offline, fixed-argv commands.
 	// State mutation is disabled until a server-side snapshot approval is enforced.
 	approvedTerraform := map[string][]string{
-		"version": {"version", "-json"},
+		"version": {"version"},
 		"command-reference": {"help"},
 		"provider-reference": {"providers", "-help"},
 		"formatting-reference": {"fmt", "-help"},
@@ -141,11 +141,8 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	}
 
 	versionOutput := terraform.Pack.Commands["version"].Output
-	if versionOutput.Mode != packs.OutputJSON || versionOutput.Renderer != "cards" ||
-		versionOutput.Structured == nil || len(versionOutput.Structured.Fields) != 2 ||
-		versionOutput.Structured.Fields[0].Key != "terraform_version" ||
-		versionOutput.Structured.Fields[1].Key != "platform" {
-		t.Fatal("Terraform version must display only its reviewed version/platform card fields")
+	if versionOutput.Mode != packs.OutputRaw || versionOutput.Renderer != "" || versionOutput.Structured != nil {
+		t.Fatal("Terraform version must use plain-text output, not strict structured JSON (which rejects vendor extension fields)")
 	}
 
 	idiraPack, ok := state.Registry.FindPack("cyberark-idira-pam")

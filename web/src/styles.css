@@ -3685,3 +3685,22 @@ select:not([multiple]):not([size]):disabled {
 .terraform-help { display: flex; gap: .5rem; flex-wrap: wrap; }
 .terraform-safety { border-inline-start: 3px solid currentColor; padding-inline-start: 1rem; display: grid; gap: .5rem; }
 @media(max-width: 420px) { .terraform-table { min-width: 34rem; } }
+
+/* Official Terraform acquisition opens an external vendor page; it is not an in-app install. */
+a.terraform-download-link {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 2.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 1rem;
+  background: var(--button-bg);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+a.terraform-download-link:hover { filter: brightness(1.15); }
+a.terraform-download-link:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
