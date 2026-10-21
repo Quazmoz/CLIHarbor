@@ -34,7 +34,9 @@ Automated coverage verifies loopback-only binding, exact Host/Origin/CSRF/sessio
 
 ### Terraform first-party pack checkpoint
 
-`packs/terraform/terraform.yaml` is embedded through the same trusted registry path as other first-party packs, with a `terraform version -json` probe pinned to the `terraform_version` field rather than provider versions. Pack contract fixtures assert exact argv for version, provider requirements, and write-disabled formatting; negative cases refuse browser-provided directories, state paths and apply argv. Runtime/default-load tests check built-in presence, the missing-tool catalog and reserved ID collision behavior. CLIHarbor's local process working directory remains fixed by the launcher: **no arbitrary Terraform project path, init, plan, apply, destroy or credential/state output has been added.** As with other packs, contract fixtures do not execute a real Terraform binary. Native CLI and Windows acceptance remain unverified until run on a qualified host.
+`packs/terraform/terraform.yaml` is embedded through the trusted registry and probes `terraform version -json` using the `terraform_version` prefix, ignoring provider version fields. Planner fixtures assert exact offline argv for version, top-level command help, provider help and formatter help; negative cases reject browser-provided directories, state paths, backend data and executable argv. Runtime/default-load tests assert built-in registration, catalog counts and reserved first-party IDs.
+
+**Boundary:** Provider inspection may access backend state; `fmt -check` and `validate` may emit HCL source snippets on diagnostics. These commands and infrastructure mutations are deliberately not exposed. The current four tasks consume no project state or CLI credentials. Contract fixtures never execute a real Terraform binary. The Go test suite, actual Terraform CLI and Windows acceptance still require execution on a qualified host.
 
 ### Stage 9 additional-real-CLI checkpoint
 

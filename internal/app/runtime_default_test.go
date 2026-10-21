@@ -55,7 +55,7 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if len(state.Registry.Commands("github-cli")) != 6 {
 		t.Fatalf("embedded GitHub commands = %d, want 6", len(state.Registry.Commands("github-cli")))
 	}
-	for id, want := range map[string]int{"aws-cli": 5, "helm-cli": 4, "vault-cli": 5, "terraform-cli": 3} {
+	for id, want := range map[string]int{"aws-cli": 5, "helm-cli": 4, "vault-cli": 5, "terraform-cli": 4} {
 		if got := len(state.Registry.Commands(id)); got != want {
 			t.Fatalf("embedded %s commands = %d, want %d", id, got, want)
 		}
@@ -120,7 +120,7 @@ commands: {}
 		t.Fatal("explicit non-Conjur pack was not added")
 	}
 	if got := len(state.Registry.Packs()); got != 10 {
-		t.Fatalf("configured packs = %d, want 9", got)
+		t.Fatalf("configured packs = %d, want 10", got)
 	}
 }
 

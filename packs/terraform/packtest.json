@@ -2,7 +2,7 @@
   "schemaVersion": "cliharbor.packtest/v1",
   "cases": [
     {
-      "name": "terraform client version only",
+      "name": "offline Terraform version",
       "packId": "terraform-cli",
       "commandId": "version",
       "values": {},
@@ -12,32 +12,40 @@
       ]
     },
     {
-      "name": "read provider requirements",
+      "name": "top level Terraform CLI help",
       "packId": "terraform-cli",
-      "commandId": "provider-requirements",
+      "commandId": "command-reference",
+      "values": {},
+      "expectArgs": [
+        "help"
+      ]
+    },
+    {
+      "name": "provider command help only",
+      "packId": "terraform-cli",
+      "commandId": "provider-reference",
       "values": {},
       "expectArgs": [
         "providers",
-        "-no-color"
+        "-help"
       ]
     },
     {
-      "name": "non-writing formatting check",
+      "name": "formatting command help only",
       "packId": "terraform-cli",
-      "commandId": "format-check",
+      "commandId": "formatting-reference",
       "values": {},
       "expectArgs": [
         "fmt",
-        "-check",
-        "-list=false"
+        "-help"
       ]
     },
     {
-      "name": "reject custom terraform chdir input",
+      "name": "refuse project directory injection",
       "packId": "terraform-cli",
-      "commandId": "provider-requirements",
+      "commandId": "provider-reference",
       "values": {
-        "chdir": "../secret-module"
+        "chdir": "/secrets"
       },
       "expectError": {
         "code": "unknown_input",
@@ -45,9 +53,9 @@
       }
     },
     {
-      "name": "reject injection of apply argv",
+      "name": "refuse terraform apply arguments",
       "packId": "terraform-cli",
-      "commandId": "version",
+      "commandId": "command-reference",
       "values": {
         "argv": [
           "apply",
@@ -60,15 +68,27 @@
       }
     },
     {
-      "name": "reject browser-selected state file",
+      "name": "refuse reading terraform state file",
       "packId": "terraform-cli",
-      "commandId": "format-check",
+      "commandId": "formatting-reference",
       "values": {
         "stateFile": "terraform.tfstate"
       },
       "expectError": {
         "code": "unknown_input",
         "path": "values.stateFile"
+      }
+    },
+    {
+      "name": "refuse choosing cloud backend",
+      "packId": "terraform-cli",
+      "commandId": "version",
+      "values": {
+        "backend": "remote"
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.backend"
       }
     }
   ]

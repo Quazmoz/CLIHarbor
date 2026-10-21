@@ -3,13 +3,12 @@ kind: CliPack
 metadata:
   id: terraform-cli
   name: HashiCorp Terraform
-  version: 0.1.0
+  version: 0.1.1
   description: >-
-    Read-only, locally installed Terraform CLI discovery and configuration
-    checks. Commands use CLIHarbor's existing process working directory;
-    the browser cannot select a Terraform project directory, backend, workspace,
-    state file, plan file or variables. Does not expose init, plan, apply,
-    destroy, state inspection, output values or credentials.
+    Offline first-party Terraform CLI discovery and command-reference tasks.
+    This initial pack never reads HCL configuration, state, variables, secrets,
+    backend or workspace data, never downloads providers, and never mutates
+    infrastructure. Project-scoped tasks require a separate reviewed design.
 runtime:
   platforms: [windows, linux, darwin]
   tools:
@@ -18,7 +17,7 @@ runtime:
       versionProbe:
         args: [version, -json]
         parser: semver-text
-        # Terraform JSON also lists provider versions; inspect only the CLI field.
+        # Terraform JSON includes provider versions; identify only the CLI version.
         prefix: '"terraform_version": "'
         timeoutMillis: 5000
       versionConstraint: ">=1.5.0 <2.0.0-0"
@@ -27,10 +26,12 @@ runtime:
           args: [help]
         providers:
           args: [providers, -help]
+        fmt:
+          args: [fmt, -help]
 commands:
   version:
     name: Terraform CLI version
-    description: Show the local Terraform binary version and platform as JSON, without inspecting state or contacting a backend.
+    description: Show the installed Terraform CLI version/platform, without inspecting project, state, workspace or backend.
     tool: terraform
     risk: read
     argv:
@@ -45,37 +46,40 @@ commands:
     requirements:
       requiresAuth: false
 
-  provider-requirements:
-    name: Inspect Terraform provider requirements
-    description: Inspect provider source and version requirements from configuration in CLIHarbor's process working directory. No backend initialization or provider download is performed. Module names may be shown.
+  command-reference:
+    name: Terraform command reference
+    description: Show the installed CLI's top-level command help without reading project configuration or connecting to a backend.
+    tool: terraform
+    risk: read
+    argv:
+      - literal: help
+    output:
+      mode: raw
+    requirements:
+      requiresAuth: false
+
+  provider-reference:
+    name: Terraform provider command help
+    description: Show syntax for the providers command without executing the state-reading providers subcommand.
     tool: terraform
     risk: read
     argv:
       - literal: providers
-      - literal: -no-color
+      - literal: -help
     output:
       mode: raw
-      sensitivity:
-        containsSecrets: false
-        persistRawOutput: false
-        revealByDefault: false
     requirements:
       requiresAuth: false
 
-  format-check:
-    name: Check Terraform formatting
-    description: Check only Terraform files in CLIHarbor's process working directory, without rewriting files or displaying file paths. A nonzero exit means formatting needs attention. This does not choose a project folder or validate infrastructure.
+  formatting-reference:
+    name: Terraform formatting command help
+    description: Show safe formatter options without reading or writing Terraform configuration files.
     tool: terraform
     risk: read
     argv:
       - literal: fmt
-      - literal: -check
-      - literal: -list=false
+      - literal: -help
     output:
       mode: raw
-      sensitivity:
-        containsSecrets: false
-        persistRawOutput: false
-        revealByDefault: false
     requirements:
       requiresAuth: false

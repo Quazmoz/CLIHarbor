@@ -170,7 +170,7 @@ func TestAdditionalPackPlannerContractsAndLint(t *testing.T) {
 		{"aws", 15},
 		{"helm", 12},
 		{"vault", 7},
-		{"terraform", 6},
+		{"terraform", 8},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
