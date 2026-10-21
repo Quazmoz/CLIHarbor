@@ -293,6 +293,46 @@
         "code": "unknown_input",
         "path": "values.chdir"
       }
+    },
+    {
+      "name": "refuse undeclared Terraform workspace",
+      "packId": "terraform-cli",
+      "commandId": "workspace",
+      "values": {},
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
+    },
+    {
+      "name": "refuse undeclared Terraform output",
+      "packId": "terraform-cli",
+      "commandId": "output",
+      "values": {},
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
+    },
+    {
+      "name": "refuse undeclared Terraform fmt",
+      "packId": "terraform-cli",
+      "commandId": "fmt",
+      "values": {},
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
+    },
+    {
+      "name": "refuse undeclared Terraform providers",
+      "packId": "terraform-cli",
+      "commandId": "providers",
+      "values": {},
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
     }
   ]
 }

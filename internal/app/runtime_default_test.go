@@ -103,9 +103,13 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 			if len(command.Inputs) != 1 || len(command.Argv) != 2 ||
 				command.Inputs[0].ID != "workflow" || command.Inputs[0].Type != packs.InputEnum ||
 				!command.Inputs[0].Required || !command.Inputs[0].Validation.DisallowLeadingDash ||
-				len(command.Inputs[0].Validation.Enum) != len(approvedWorkflow) ||
+				!reflect.DeepEqual(command.Inputs[0].Validation.Enum, []string{
+					"init", "validate", "plan", "apply", "destroy", "workspace", "state", "output",
+				}) ||
 				command.Argv[0].Map == nil || command.Argv[0].Map.ValueFrom != "workflow" ||
 				!reflect.DeepEqual(command.Argv[0].Map.Values, approvedWorkflow) ||
+				command.Argv[0].Literal != "" || command.Argv[0].Flag != nil ||
+				command.Argv[0].Switch != nil || command.Argv[0].Positional != nil ||
 				command.Argv[1].Literal != "-help" || command.Argv[1].Map != nil ||
 				command.Argv[1].Flag != nil || command.Argv[1].Positional != nil ||
 				command.Argv[1].Switch != nil {
