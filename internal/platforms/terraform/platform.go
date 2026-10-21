@@ -57,9 +57,13 @@ func New(paths []string) (*Platform, error) {
 		}
 		clean := filepath.Clean(path)
 		resolved, err := filepath.EvalSymlinks(clean)
-		if err != nil || resolved != clean {
+		// Windows EvalSymlinks also canonicalizes drive and component case, so a
+		// case-only difference is the same directory, not a junction.
+		if err != nil || (resolved != clean && !(runtime.GOOS == "windows" && strings.EqualFold(resolved, clean))) {
 			return nil, errors.New("Terraform project roots cannot contain symlinks or junctions")
 		}
+		// Keep the canonical spelling: later redirect checks compare exactly.
+		clean = resolved
 		info, err := os.Stat(clean)
 		if err != nil || !info.IsDir() {
 			return nil, errors.New("Terraform project root must be an accessible directory")

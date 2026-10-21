@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -113,5 +114,26 @@ func TestStateMutationCommandsAreNotAuthorized(t *testing.T) {
 	}
 	if !p.TaskAvailable("terraform-cli", "workflow-reference") {
 		t.Fatal("safe help blocked")
+	}
+}
+
+func TestWindowsRootCaseDifferenceIsNotAJunction(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("EvalSymlinks canonicalizes case only on Windows")
+	}
+	root := resolvedTempDir(t)
+	if err := os.WriteFile(filepath.Join(root, "terraform.tfstate"), []byte(`{"version":4,"resources":[]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := New([]string{strings.ToLower(root)})
+	if err != nil {
+		t.Fatalf("lower-case spelling of an approved root rejected: %v", err)
+	}
+	projects, err := p.Projects()
+	if err != nil || len(projects) != 1 || len(projects[0].States) != 1 {
+		t.Fatalf("projects = %#v, %v", projects, err)
+	}
+	if _, err := p.Resources("project-1", projects[0].States[0].ID); err != nil {
+		t.Fatalf("state under case-variant root unreadable: %v", err)
 	}
 }
