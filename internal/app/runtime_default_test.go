@@ -211,7 +211,15 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if len(tools) != 9 || len(catalog.ListTasks()) != 0 {
 		t.Fatalf("missing-tool catalog = %#v; tasks = %#v", tools, catalog.ListTasks())
 	}
+	terraformCatalogued := false
 	for _, tool := range tools {
+		if tool.PackID == "terraform-cli" {
+			terraformCatalogued = true
+			if tool.PackName != "HashiCorp Terraform" || tool.ToolID != "terraform" ||
+				tool.Install != nil || tool.Status != string(discovery.StatusMissing) {
+				t.Fatalf("embedded Terraform does not have a safe built-in Add a CLI entry: %#v", tool)
+			}
+		}
 		if tool.PackID != "cyberark-conjur-v9" {
 			continue
 		}
@@ -221,6 +229,9 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 		if (runtime.GOOS == "darwin" || runtime.GOOS == "windows" && runtime.GOARCH == "amd64") && tool.Install == nil {
 			t.Fatal("missing Conjur has no supported native installer")
 		}
+	}
+	if !terraformCatalogued {
+		t.Fatal("Terraform is absent from the built-in CLI catalog")
 	}
 }
 
