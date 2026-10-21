@@ -150,6 +150,149 @@
         "code": "unknown_command",
         "path": "commandId"
       }
+    },
+    {
+      "name": "show init help without executing init",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "init"
+      },
+      "expectArgs": [
+        "init",
+        "-help"
+      ]
+    },
+    {
+      "name": "show validate help without executing validate",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "validate"
+      },
+      "expectArgs": [
+        "validate",
+        "-help"
+      ]
+    },
+    {
+      "name": "show plan help without executing plan",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "plan"
+      },
+      "expectArgs": [
+        "plan",
+        "-help"
+      ]
+    },
+    {
+      "name": "show apply help without executing apply",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "apply"
+      },
+      "expectArgs": [
+        "apply",
+        "-help"
+      ]
+    },
+    {
+      "name": "show destroy help without executing destroy",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "destroy"
+      },
+      "expectArgs": [
+        "destroy",
+        "-help"
+      ]
+    },
+    {
+      "name": "show workspace help without executing workspace",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "workspace"
+      },
+      "expectArgs": [
+        "workspace",
+        "-help"
+      ]
+    },
+    {
+      "name": "show state help without executing state",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "state"
+      },
+      "expectArgs": [
+        "state",
+        "-help"
+      ]
+    },
+    {
+      "name": "show output help without executing output",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "output"
+      },
+      "expectArgs": [
+        "output",
+        "-help"
+      ]
+    },
+    {
+      "name": "workflow selection required",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {},
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.workflow"
+      }
+    },
+    {
+      "name": "unknown workflow rejected",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "terraform-plan"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.workflow"
+      }
+    },
+    {
+      "name": "workflow flag injection rejected",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "--auto-approve"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.workflow"
+      }
+    },
+    {
+      "name": "workflow does not accept browser flags",
+      "packId": "terraform-cli",
+      "commandId": "workflow-reference",
+      "values": {
+        "workflow": "plan",
+        "chdir": "../production"
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.chdir"
+      }
     }
   ]
 }

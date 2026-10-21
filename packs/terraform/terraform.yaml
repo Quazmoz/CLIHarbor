@@ -3,13 +3,13 @@ kind: CliPack
 metadata:
   id: terraform-cli
   name: HashiCorp Terraform
-  version: 0.1.2
+  version: 0.2.0
   description: >-
-    Offline Terraform CLI version and command-reference tasks. Discovery and
-    execution use isolated temporary working directories with a minimal
-    environment rather than the operator's Terraform project and credentials.
-    This pack never runs infrastructure operations or reads state. Project
-    workflows need a separately reviewed execution and output boundary.
+    Offline Terraform CLI version and guided help-only workflow references.
+    Discovery and execution use isolated temporary working directories with
+    a minimal environment, not the operator's Terraform project or credentials.
+    Even when a workflow name is selected the only executable action is -help;
+    no infrastructure operation or state access is authorized.
 runtime:
   platforms: [windows, linux, darwin]
   tools:
@@ -40,6 +40,17 @@ commands:
       - literal: -json
     output:
       mode: json
+      renderer: cards
+      structured:
+        fields:
+          - key: terraform_version
+            label: Terraform version
+            type: string
+            required: true
+          - key: platform
+            label: Platform
+            type: string
+            required: true
       sensitivity:
         containsSecrets: false
         persistRawOutput: false
@@ -82,5 +93,43 @@ commands:
       - literal: -help
     output:
       mode: raw
+    requirements:
+      requiresAuth: false
+
+  workflow-reference:
+    name: Terraform workflow command help
+    description: >-
+      Choose a Terraform workflow command to read its official built-in -help
+      text. This never executes that workflow, opens a project, reads state,
+      accesses a backend, or forwards flags supplied by the browser.
+    tool: terraform
+    risk: read
+    inputs:
+      - id: workflow
+        type: enum
+        label: Workflow command
+        required: true
+        validation:
+          enum: [init, validate, plan, apply, destroy, workspace, state, output]
+          disallowLeadingDash: true
+    argv:
+      - map:
+          valueFrom: workflow
+          values:
+            init: init
+            validate: validate
+            plan: plan
+            apply: apply
+            destroy: destroy
+            workspace: workspace
+            state: state
+            output: output
+      - literal: -help
+    output:
+      mode: raw
+      sensitivity:
+        containsSecrets: false
+        persistRawOutput: false
+        revealByDefault: false
     requirements:
       requiresAuth: false

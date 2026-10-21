@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"reflect"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -56,7 +57,7 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if len(state.Registry.Commands("github-cli")) != 6 {
 		t.Fatalf("embedded GitHub commands = %d, want 6", len(state.Registry.Commands("github-cli")))
 	}
-	for id, want := range map[string]int{"aws-cli": 5, "helm-cli": 4, "vault-cli": 5, "terraform-cli": 4} {
+	for id, want := range map[string]int{"aws-cli": 5, "helm-cli": 4, "vault-cli": 5, "terraform-cli": 5} {
 		if got := len(state.Registry.Commands(id)); got != want {
 			t.Fatalf("embedded %s commands = %d, want %d", id, got, want)
 		}
@@ -83,13 +84,42 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 		"provider-reference": {"providers", "-help"},
 		"formatting-reference": {"fmt", "-help"},
 	}
+	approvedWorkflow := map[string]string{
+		"init": "init", "validate": "validate", "plan": "plan", "apply": "apply",
+		"destroy": "destroy", "workspace": "workspace", "state": "state", "output": "output",
+	}
+	if len(terraform.Pack.Commands) != len(approvedTerraform)+1 {
+		t.Fatal("Terraform builtin command count changed without security review")
+	}
 	for id, command := range terraform.Pack.Commands {
-		expected, approved := approvedTerraform[id]
-		if !approved || command.Tool != "terraform" || command.Risk != packs.RiskRead ||
-			len(command.Inputs) != 0 || command.Requirements.RequiresAuth ||
+		if command.Tool != "terraform" || command.Risk != packs.RiskRead ||
+			command.Requirements.RequiresAuth || command.Requirements.AuthMode != "" ||
 			command.Stdin != nil || command.Impact != nil ||
 			command.Output.Sensitivity.ContainsSecrets || command.Output.Sensitivity.PersistRawOutput ||
-			command.Output.Sensitivity.RevealByDefault || len(command.Argv) != len(expected) {
+			command.Output.Sensitivity.RevealByDefault {
+			t.Fatalf("unsafe embedded Terraform task %s", id)
+		}
+		if id == "workflow-reference" {
+			if len(command.Inputs) != 1 || len(command.Argv) != 2 ||
+				command.Inputs[0].ID != "workflow" || command.Inputs[0].Type != packs.InputEnum ||
+				!command.Inputs[0].Required || !command.Inputs[0].Validation.DisallowLeadingDash ||
+				len(command.Inputs[0].Validation.Enum) != len(approvedWorkflow) ||
+				command.Argv[0].Map == nil || command.Argv[0].Map.ValueFrom != "workflow" ||
+				!reflect.DeepEqual(command.Argv[0].Map.Values, approvedWorkflow) ||
+				command.Argv[1].Literal != "-help" || command.Argv[1].Map != nil ||
+				command.Argv[1].Flag != nil || command.Argv[1].Positional != nil ||
+				command.Argv[1].Switch != nil {
+				t.Fatal("Terraform workflow help must select only an allowlisted command and append -help")
+			}
+			for _, value := range command.Inputs[0].Validation.Enum {
+				if approvedWorkflow[value] != value {
+					t.Fatalf("Terraform workflow enum contains unreviewed command %q", value)
+				}
+			}
+			continue
+		}
+		expected, approved := approvedTerraform[id]
+		if !approved || len(command.Inputs) != 0 || len(command.Argv) != len(expected) {
 			t.Fatalf("unsafe embedded Terraform task %s", id)
 		}
 		for i, arg := range command.Argv {
@@ -98,6 +128,13 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 				t.Fatalf("Terraform task %s argv[%d] must be a fixed reviewed literal", id, i)
 			}
 		}
+	}
+	versionOutput := terraform.Pack.Commands["version"].Output
+	if versionOutput.Mode != packs.OutputJSON || versionOutput.Renderer != "cards" ||
+		versionOutput.Structured == nil || len(versionOutput.Structured.Fields) != 2 ||
+		versionOutput.Structured.Fields[0].Key != "terraform_version" ||
+		versionOutput.Structured.Fields[1].Key != "platform" {
+		t.Fatal("Terraform version must display only its reviewed version/platform card fields")
 	}
 
 	idiraPack, ok := state.Registry.FindPack("cyberark-idira-pam")
