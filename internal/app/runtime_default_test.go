@@ -57,7 +57,7 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	if len(state.Registry.Commands("github-cli")) != 6 {
 		t.Fatalf("embedded GitHub commands = %d, want 6", len(state.Registry.Commands("github-cli")))
 	}
-	for id, want := range map[string]int{"aws-cli": 5, "helm-cli": 4, "vault-cli": 5, "terraform-cli": 8} {
+	for id, want := range map[string]int{"aws-cli": 5, "helm-cli": 4, "vault-cli": 5, "terraform-cli": 5} {
 		if got := len(state.Registry.Commands(id)); got != want {
 			t.Fatalf("embedded %s commands = %d, want %d", id, got, want)
 		}
@@ -76,8 +76,8 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 		tool.VersionProbe.Prefix != `"terraform_version": "` {
 		t.Fatal("Terraform version discovery must match the CLI version field, not provider versions")
 	}
-	// This is a regression guard on the embedded authority, not merely on the
-	// separately-maintained packtest fixture: no workspaces, state, or mutations.
+	// The trusted pack must retain only offline, fixed-argv commands.
+	// State mutation is disabled until a server-side snapshot approval is enforced.
 	approvedTerraform := map[string][]string{
 		"version": {"version", "-json"},
 		"command-reference": {"help"},
@@ -88,7 +88,7 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 		"init": "init", "validate": "validate", "plan": "plan", "apply": "apply",
 		"destroy": "destroy", "workspace": "workspace", "state": "state", "output": "output",
 	}
-	if len(terraform.Pack.Commands) != len(approvedTerraform)+4 {
+	if len(terraform.Pack.Commands) != len(approvedTerraform)+1 {
 		t.Fatal("Terraform builtin command count changed without security review")
 	}
 	for id, command := range terraform.Pack.Commands {
@@ -98,9 +98,6 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 			command.Output.Sensitivity.ContainsSecrets || command.Output.Sensitivity.PersistRawOutput ||
 			command.Output.Sensitivity.RevealByDefault {
 			t.Fatalf("unsafe embedded Terraform task %s", id)
-		}
-		if id == "local-state-resources" || id == "local-state-forget-preview" || id == "local-state-forget" {
-			continue // Exact approved state argv and input contracts checked below.
 		}
 		if id == "workflow-reference" {
 			if command.Risk != packs.RiskRead || command.Impact != nil || len(command.Inputs) != 1 || len(command.Argv) != 2 ||
@@ -137,58 +134,9 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 			}
 		}
 	}
-	// The trusted built-in state workflow never allows the browser to select
-	// alternate subcommands, backup destinations, or disable Terraform locking.
-	stateCases := map[string]struct {
-		risk       packs.Risk
-		argv       []string
-		inputCount int
-	}{
-		"local-state-resources":      {packs.RiskRead, []string{"state", "list", "<state-file>"}, 1},
-		"local-state-forget-preview": {packs.RiskRead, []string{"state", "rm", "-dry-run", "<state-file>", "<address>"}, 2},
-		"local-state-forget":         {packs.RiskChange, []string{"state", "rm", "-lock-timeout=5s", "<state-file>", "<address>"}, 2},
-	}
-	for id, tc := range stateCases {
-		command, ok := terraform.Pack.Commands[id]
-		if !ok || command.Risk != tc.risk || command.Tool != "terraform" ||
-			len(command.Inputs) != tc.inputCount || len(command.Argv) != len(tc.argv) ||
-			command.Requirements.RequiresAuth || command.Requirements.AuthMode != "" ||
-			command.Output.Sensitivity.ContainsSecrets || command.Stdin != nil {
-			t.Fatalf("Terraform local-state task %s has an unreviewed contract", id)
-		}
-		if command.Inputs[0].ID != "state-file" || !command.Inputs[0].Required ||
-			command.Inputs[0].Type != packs.InputString || command.Inputs[0].Validation.Pattern == "" {
-			t.Fatalf("Terraform local-state task %s lost state path validation", id)
-		}
-		for n, expected := range tc.argv {
-			arg := command.Argv[n]
-			switch expected {
-			case "<state-file>":
-				if arg.Flag == nil || arg.Flag.Name != "-state" || arg.Flag.ValueFrom != "state-file" {
-					t.Fatalf("%s argv[%d] must use the state-file input", id, n)
-				}
-			case "<address>":
-				if arg.Positional == nil || arg.Positional.ValueFrom != "address" {
-					t.Fatalf("%s argv[%d] must use resource address as one argv token", id, n)
-				}
-			default:
-				if arg.Literal != expected || arg.Flag != nil || arg.Positional != nil ||
-					arg.Map != nil || arg.Switch != nil {
-					t.Fatalf("%s argv[%d] must be a fixed reviewed literal", id, n)
-				}
-			}
-		}
-		if id != "local-state-resources" && (command.Inputs[1].ID != "address" ||
-			!command.Inputs[1].Required || command.Inputs[1].Validation.Pattern == "") {
-			t.Fatalf("%s resource address validation is missing", id)
-		}
-		if id == "local-state-forget" {
-			if command.Impact == nil || command.Impact.TargetInput != "address" ||
-				command.Impact.Scope != packs.ImpactScopeMultiple {
-				t.Fatal("state removal must require typed multiple-resource approval")
-			}
-		} else if command.Impact != nil {
-			t.Fatalf("read-only state task %s unexpectedly has mutation impact", id)
+	for _, blocked := range []string{"local-state-resources", "local-state-forget-preview", "local-state-forget"} {
+		if _, exists := terraform.Pack.Commands[blocked]; exists {
+			t.Fatalf("unsafe generic Terraform state task %s was re-enabled", blocked)
 		}
 	}
 

@@ -272,3 +272,10 @@ qualification remains distinct. Pinned kubectl and GitHub CLI artifacts reuse th
 pack-declared portable installer only on explicit user request. This does not
 expand Conjur's automatic bootstrap to other tools. See
 [Supported CLI catalog](CLI_CATALOG.md) for versions, platforms, and acceptance.
+
+
+## Terraform staged qualification (current dev milestone)
+
+- **Implemented as source (read-only):** built-in catalog presence and version/help pack; startup-approved local project roots; local state-v4 resource address inventory; dedicated filtering and selection UI; removal of unsafe generic state mutation authority.
+- **Not implemented:** Terraform executable-backed state-list parity, HCL/config inspection, provider-dependent validation, previews, state mutation, verified snapshot approval/locking/backups/reconciliation, plan execution, remote backend and Terraform-specific mutation history.
+- **Required for promotion:** pinned Go/Node test/build/lint/race checks, `web-build` and `verify-web-sync`, native Windows path and reparse-point acceptance, accessibility checks, malicious filesystem race tests, and independent mutation workflow qualification. No GitHub Actions dispatch is implicit.

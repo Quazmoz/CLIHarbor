@@ -18,11 +18,21 @@ Use `git switch dev` before starting development; explicitly select `dev` as the
 
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
-## Built-in Terraform CLI
+## Built-in Terraform workspace (read-only first milestone)
 
-CLIHarbor embeds **HashiCorp Terraform** as a built-in, discoverable CLI. An approved local Terraform CLI (`>=1.5.0 <2.0.0`) now exposes structured **version and platform** cards, built-in help for commands/providers/formatting and a **guided workflow reference**. The workflow reference is a dropdown for `init`, `validate`, `plan`, `apply`, `destroy`, `workspace`, `state` or `output`; the backend always appends `-help` and never executes the selected operation. Use **Add a CLI** to find it. The commands run with a minimal environment in isolated temporary directories, not against Terraform files in the checkout or a user-selected project. No Terraform installation, project selection, backend access or sign-in is performed by CLIHarbor.
+HashiCorp Terraform is discoverable in **Add a CLI**. Approved Terraform versions `>=1.5.0 <2.0.0` provide version cards and fixed offline CLI help (including an enum-backed workflow-help dropdown; it runs only `-help`).
 
-**Local state resource removal:** In Tasks, choose **List resources in local state** and enter an absolute `.tfstate` path, then copy the resource address you want to forget. Run **Preview local state resource removal** (`terraform state rm -dry-run`) and verify every matched address. This preview is strongly recommended but not enforced by the backend before final approval. Only then use **Forget resource bindings from local state** and type CLIHarbor's multi-record confirmation. This uses Terraform's lock and mandatory backup. **It removes tracking, not real infrastructure**; a future apply can recreate forgotten resources. The UI does not read secret attributes, accept relative/UNC paths, support remote backends, or run `init`, `plan`, `apply`, `destroy`, `fmt`, `validate`, or arbitrary `-chdir`. Use approved local files only and secure their backups. See [Terraform safety and limitations](docs/CLI_CATALOG.md#hashicorp-terraform-first-party-support). See [Terraform support and limitations](docs/CLI_CATALOG.md#hashicorp-terraform-first-party-support).
+For local state browsing, start CLIHarbor with the operator-approved project root:
+
+```powershell
+.\cliharbor.exe serve --terraform-project "C:\Users\you\infra\my-project"
+```
+
+Open **Built-in CLIs → HashiCorp Terraform → Projects** and choose the approved directory and a local direct-child `.tfstate` file. The dedicated **Resources** view lists resource addresses, types, modules and managed/data classification from a bounded local state-v4 snapshot. Use the search box and resource/type/category selectors; **State management** describes the deliberately disabled detach workflow. No state attributes, outputs or secrets are returned to the browser. An existing Terraform binary is qualified separately; local browsing does not execute Terraform or contact a backend. Project roots cannot be approved from browser inputs.
+
+**Important safety hold:** The previous generic `local-state-resources`, `local-state-forget-preview` and `local-state-forget` tasks are removed from execution authority in pack v0.4.0. The former dry-run was advisory, not bound to a filesystem snapshot; its approval was unsafe against stale/changed state. CLIHarbor **cannot currently preview or remove state bindings**. It has not verified Terraform backups/locking on Windows, and does not execute `init`, `plan`, `apply`, `destroy`, `fmt` or `validate`. A future `terraform state rm` would forget tracking rather than delete infrastructure; a later apply could recreate it.
+
+See [Terraform integration and quickstart](docs/TERRAFORM_INTEGRATION.md) and [CLI catalog](docs/CLI_CATALOG.md).
 
 ## Idira PAM read-only candidate
 

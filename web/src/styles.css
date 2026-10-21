@@ -3662,3 +3662,26 @@ select:not([multiple]):not([size]):disabled {
 @media (prefers-reduced-motion: reduce) {
   .conjur-inventory-spinner { animation: none; }
 }
+
+
+/* Approved Terraform local-state workbench: compact controls, no mutation shortcuts. */
+.terraform-workspace { display: grid; gap: 1rem; min-width: 0; }
+.terraform-context { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: .9rem; }
+.terraform-context strong { margin-right: .3rem; }
+.terraform-navigation { display: flex; flex-wrap: wrap; gap: .4rem; }
+.terraform-navigation button { min-height: 2.5rem; }
+.terraform-current { font-weight: 700; }
+.terraform-section { display: grid; gap: .75rem; min-width: 0; }
+.terraform-section h3,.terraform-section h4 { margin: .25rem 0; }
+.terraform-section p { margin: 0; }
+.terraform-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem),1fr)); gap: .75rem; }
+.terraform-controls label,.terraform-section > label { display: grid; gap: .35rem; min-width: 0; }
+.terraform-controls select,.terraform-controls input,.terraform-section > label select { width: 100%; min-width: 0; }
+.terraform-table-wrap { max-width: 100%; overflow-x: auto; }
+.terraform-table { width: 100%; border-collapse: collapse; text-align: left; }
+.terraform-table th,.terraform-table td { padding: .5rem; border-bottom: 1px solid var(--line, #565c69); vertical-align: middle; }
+.terraform-table code { overflow-wrap: anywhere; }
+.terraform-json { max-height: 24rem; max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.terraform-help { display: flex; gap: .5rem; flex-wrap: wrap; }
+.terraform-safety { border-inline-start: 3px solid currentColor; padding-inline-start: 1rem; display: grid; gap: .5rem; }
+@media(max-width: 420px) { .terraform-table { min-width: 34rem; } }

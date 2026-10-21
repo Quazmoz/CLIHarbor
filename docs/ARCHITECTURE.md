@@ -415,3 +415,8 @@ The `internal/audittrail` store serializes mutation approval/terminal records in
 ## Managed CLI install-location recovery
 
 Custom install locations are stored in a bounded (64 KiB) current-user JSON registry. Reads are limited before allocation, and updates replace a fully synced staging file without deleting the previous registry after a failed rename. In live activation mode, the application records a custom location only after executable discovery, version and pinned-content qualification succeed. Rejected installs leave that location unchanged; ordinary launch still independently revalidates managed tools.
+
+
+## Terraform first-class read-only integration
+
+`internal/platforms/terraform` owns the approved local roots and read-only Terraform state-v4 address parser, separate from the generic pack executor. The process operator supplies one or more `--terraform-project` directories at launch; the browser only receives opaque project/state IDs and sanitized address metadata over session-protected `GET /api/v1/terraform/projects` and `GET /api/v1/terraform/resources?project=<id>&state=<id>`. No browser-provided path, arbitrary CLI argv or mutating action is accepted. The trusted Terraform pack retains version and fixed help-only commands; `state rm` remains removed pending a state-specific preview/approval/identity adapter. The frontend lives at `web/src/platforms/terraform`, rendered through the established dedicated platform registry. Its source requires regeneration of `internal/webui/static` before packaging; source-only changes are not a release artifact.

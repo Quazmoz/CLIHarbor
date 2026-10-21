@@ -528,3 +528,10 @@ A pre/post endpoint/account/version/identity comparison rejects detected session
 
 Default `id-regex` matching only reads the authenticated variable inventory and **never invokes** `RetrieveSecret` or `RetrieveBatchSecretsSafe`; it verifies the visible inventory has not drifted before publishing a result. Value regex is an explicit opt-in preserving backend equality validation, privilege checks, bounded value handling, and closed reason codes. Expressions are validated server-side as bounded RE2 and are excluded from snapshots, browser reports, logs and execution history. Matching a name or value does not imply a vulnerability. Conjur inventory shortcuts use fixed approved `list --kind` argument vectors and mandatory pagination, not shell execution.
 
+
+
+## Terraform local snapshot boundary (read-only milestone)
+
+Only startup-approved `--terraform-project` absolute local roots enter the Terraform inventory service. The authenticated loopback browser passes opaque project/state identifiers, never paths or raw Terraform argv. Direct-child regular local `.tfstate` files are capped at 8 MiB; resource inventory is capped at 5,000 addresses. Unsupported state schema, symlinks and changed/missing root or state identities fail closed. The API returns metadata-only resource addresses; address labels themselves can be sensitive. No Terraform subprocess, provider, network, backend mutation or state attribute output is involved.
+
+The previous generic `terraform state rm` task is removed from the trusted pack. The prior separate `-dry-run` task did **not** atomically authorize the subsequent mutation; generic CLIHarbor approvals must not be treated as an atomic local-state preview and filesystem identity guarantee. Re-enable only after a separate reviewed backend state machine enforces state identity, exact selected instances, TTL/one-use preview, locking, bounded cancellation and verifiable backup/reconciliation. Native Windows file-identity and reparse-path hardening remain acceptance gates, not assumed properties of the read-only parser.

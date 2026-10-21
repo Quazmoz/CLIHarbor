@@ -52,6 +52,7 @@ type Config struct {
 	ToolInstaller              ToolInstallService
 	SecretAudit                SecretAuditService
 	Platforms                  PlatformService
+	Terraform                   TerraformStateService
 	MaxEventStreams            int
 }
 
@@ -81,6 +82,7 @@ type Server struct {
 	toolInstaller              ToolInstallService
 	secretAudit                SecretAuditService
 	platforms                  PlatformService
+	terraform                  TerraformStateService
 	runStreamSlots             chan struct{}
 	streamCtx                  context.Context
 	streamCancel               context.CancelFunc
@@ -151,6 +153,7 @@ func New(config Config) (*Server, error) {
 		toolInstaller:              config.ToolInstaller,
 		secretAudit:                config.SecretAudit,
 		platforms:                  config.Platforms,
+		terraform:                  config.Terraform,
 		runStreamSlots:             make(chan struct{}, maxEventStreams),
 		streamCtx:                  streamCtx,
 		streamCancel:               streamCancel,
@@ -191,6 +194,10 @@ func New(config Config) (*Server, error) {
 	}
 	if s.platforms != nil {
 		mux.Handle("/api/v1/platforms", s.requireSession(http.HandlerFunc(s.handlePlatforms)))
+	}
+	if s.terraform != nil {
+		mux.Handle("/api/v1/terraform/projects", s.requireSession(http.HandlerFunc(s.handleTerraformProjects)))
+		mux.Handle("/api/v1/terraform/resources", s.requireSession(http.HandlerFunc(s.handleTerraformResources)))
 	}
 	mux.Handle("/api/", s.requireSession(http.HandlerFunc(s.handleAPINotFound)))
 	mux.Handle("/", s.requireSession(config.Frontend))

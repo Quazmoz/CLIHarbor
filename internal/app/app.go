@@ -13,6 +13,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/platforms"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms/idira"
+	"github.com/Quazmoz/CLIHarbor/internal/platforms/terraform"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 	"github.com/Quazmoz/CLIHarbor/internal/toolbootstrap"
@@ -33,6 +34,7 @@ type Options struct {
 	ToolOverrides      map[discovery.ToolRef]string
 	LoadDefaultPacks   bool
 	AutoProvisionTools bool
+	TerraformProjects  []string // Operator-approved local roots; browser cannot add roots.
 	AuditPath          string // Tests or explicitly reviewed deployments may override local audit storage.
 	ToolProvisioner    toolbootstrap.Provisioner
 }
@@ -69,7 +71,11 @@ func Run(ctx context.Context, options Options) error {
 	defer audit.Close()
 	// Dedicated platforms layer vendor-specific behavior over the generic core.
 	conjurPlatform := conjur.New(ctx, runtimeState.Discovery)
-	dedicated := platforms.NewSet(runtimeState.Discovery, conjurPlatform, idira.New())
+	terraformPlatform, err := terraform.New(options.TerraformProjects)
+	if err != nil {
+		return fmt.Errorf("configure Terraform project approval: %w", err)
+	}
+	dedicated := platforms.NewSet(runtimeState.Discovery, conjurPlatform, idira.New(), terraformPlatform)
 	runManager, err := runs.NewManager(ctx, runtimeState.Registry, runtimeState.Discovery, runs.Config{
 		ResolveExecutionContext: dedicated.ResolveExecutionContext,
 		OutputGuard:             idira.OutputGuard,
@@ -116,6 +122,7 @@ func Run(ctx context.Context, options Options) error {
 		ToolInstaller:              toolInstaller,
 		SecretAudit:                conjurPlatform.Audit,
 		Platforms:                  dedicated,
+		Terraform:                   terraformPlatform,
 	})
 	if err != nil {
 		_ = shutdownRuns()

@@ -341,12 +341,10 @@
       "values": {
         "state-file": "/home/operator/project/terraform.tfstate"
       },
-      "expectArgs": [
-        "state",
-        "list",
-        "-state",
-        "/home/operator/project/terraform.tfstate"
-      ]
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
     },
     {
       "name": "dry-run targeted local state removal",
@@ -356,14 +354,10 @@
         "state-file": "/home/operator/project/terraform.tfstate",
         "address": "module.app.aws_instance.server[\"blue\"]"
       },
-      "expectArgs": [
-        "state",
-        "rm",
-        "-dry-run",
-        "-state",
-        "/home/operator/project/terraform.tfstate",
-        "module.app.aws_instance.server[\"blue\"]"
-      ]
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
     },
     {
       "name": "approve local state detachment with lock and backup",
@@ -373,14 +367,10 @@
         "state-file": "/home/operator/project/terraform.tfstate",
         "address": "module.app.aws_instance.server[\"blue\"]"
       },
-      "expectArgs": [
-        "state",
-        "rm",
-        "-lock-timeout=5s",
-        "-state",
-        "/home/operator/project/terraform.tfstate",
-        "module.app.aws_instance.server[\"blue\"]"
-      ]
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
     },
     {
       "name": "state list requires explicit file",
@@ -388,8 +378,8 @@
       "commandId": "local-state-resources",
       "values": {},
       "expectError": {
-        "code": "missing_input",
-        "path": "values.state-file"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -400,8 +390,8 @@
         "state-file": "/home/operator/project/terraform.tfstate"
       },
       "expectError": {
-        "code": "missing_input",
-        "path": "values.address"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -412,8 +402,8 @@
         "address": "module.app.aws_instance.server[\"blue\"]"
       },
       "expectError": {
-        "code": "missing_input",
-        "path": "values.state-file"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -424,8 +414,8 @@
         "state-file": "/home/operator/project/terraform.tfstate"
       },
       "expectError": {
-        "code": "missing_input",
-        "path": "values.address"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -436,8 +426,8 @@
         "state-file": "./terraform.tfstate"
       },
       "expectError": {
-        "code": "invalid_input",
-        "path": "values.state-file"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -449,8 +439,8 @@
         "address": "module.app.aws_instance.server[\"blue\"]"
       },
       "expectError": {
-        "code": "invalid_input",
-        "path": "values.state-file"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -462,8 +452,8 @@
         "address": "module.app.aws_instance.server[\"blue\"]"
       },
       "expectError": {
-        "code": "invalid_input",
-        "path": "values.state-file"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -475,8 +465,8 @@
         "address": "module.app.aws_instance.server[\"blue\"]"
       },
       "expectError": {
-        "code": "invalid_input",
-        "path": "values.state-file"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -488,8 +478,8 @@
         "address": "--lock=false"
       },
       "expectError": {
-        "code": "invalid_input",
-        "path": "values.address"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -501,8 +491,8 @@
         "address": "aws_instance.vm;terraform destroy"
       },
       "expectError": {
-        "code": "invalid_input",
-        "path": "values.address"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -517,8 +507,8 @@
         ]
       },
       "expectError": {
-        "code": "unknown_input",
-        "path": "values.argv"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -531,8 +521,8 @@
         "backup": "/tmp/backup"
       },
       "expectError": {
-        "code": "unknown_input",
-        "path": "values.backup"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -545,8 +535,8 @@
         "dry-run": false
       },
       "expectError": {
-        "code": "unknown_input",
-        "path": "values.dry-run"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -558,8 +548,8 @@
         "address": "module.prod.*"
       },
       "expectError": {
-        "code": "invalid_input",
-        "path": "values.address"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -571,8 +561,8 @@
         "address": "-lock=false"
       },
       "expectError": {
-        "code": "invalid_input",
-        "path": "values.address"
+        "code": "unknown_command",
+        "path": "commandId"
       }
     },
     {
@@ -582,12 +572,10 @@
       "values": {
         "state-file": "C:\\Users\\operator\\terraform.tfstate"
       },
-      "expectArgs": [
-        "state",
-        "list",
-        "-state",
-        "C:\\Users\\operator\\terraform.tfstate"
-      ]
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
     },
     {
       "name": "state detach accepts numbered instance address",
@@ -597,14 +585,10 @@
         "state-file": "/home/operator/project/terraform.tfstate",
         "address": "aws_instance.worker[0]"
       },
-      "expectArgs": [
-        "state",
-        "rm",
-        "-lock-timeout=5s",
-        "-state",
-        "/home/operator/project/terraform.tfstate",
-        "aws_instance.worker[0]"
-      ]
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
     }
   ]
 }

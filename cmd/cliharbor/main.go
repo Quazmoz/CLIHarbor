@@ -132,6 +132,7 @@ Options:
   --pack-file <file>        Add an explicit trusted pack file (repeatable).
   --pack-dir <dir>          Add an explicit trusted pack directory.
   --tool-path <ref=path>    Pin pack/tool to an approved absolute executable path (repeatable).
+  --terraform-project <dir>  Approve a local Terraform project root (repeatable, serve-only).
   --no-default-packs        Omit embedded first-party packs.
   --no-auto-setup           Disable current-user setup of missing first-party dependencies.
   --web-dev-url <url>       Development only: use a Vite origin on 127.0.0.1.
@@ -343,6 +344,8 @@ func run(args []string) error {
 	exportPath := flags.String("export", "", "inventory-only sanitized Phase 0 evidence JSON destination")
 	noAutoSetup := flags.Bool("no-auto-setup", false, "serve-only: disable automatic current-user setup of missing first-party CLI dependencies")
 	noDefaultPacks := flags.Bool("no-default-packs", false, "serve/doctor-only: do not load embedded first-party packs; use only explicitly supplied packs")
+	var terraformProjects stringList
+	flags.Var(&terraformProjects, "terraform-project", "serve-only approved local Terraform project root (repeatable)")
 	var packFiles stringList
 	var toolPaths stringList
 	var probes stringList
@@ -354,6 +357,9 @@ func run(args []string) error {
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments")
+	}
+	if command != "serve" && len(terraformProjects) > 0 {
+		return fmt.Errorf("--terraform-project is valid only with serve")
 	}
 	if command != "serve" && *webDevURL != "" {
 		return fmt.Errorf("--web-dev-url is valid only with serve")
@@ -386,6 +392,7 @@ func run(args []string) error {
 		PackFiles:          append([]string(nil), packFiles...),
 		PackDirectory:      packDirectory.value,
 		ToolOverrides:      overrides,
+		TerraformProjects:  append([]string(nil), terraformProjects...),
 		LoadDefaultPacks:   (command == "serve" || command == "doctor") && !*noDefaultPacks,
 		AutoProvisionTools: command == "serve" && !*noAutoSetup,
 	}

@@ -3,15 +3,13 @@ kind: CliPack
 metadata:
   id: terraform-cli
   name: HashiCorp Terraform
-  version: 0.3.0
+  version: 0.4.0
   description: >-
-    Built-in Terraform CLI with offline help and an explicit local-state
-    resource-detachment workflow. State file paths are browser-selected,
-    constrained absolute .tfstate files (local backend only). State changes
-    require a separate dry run and a typed multiple-resource approval.
-    Terraform performs state locking and writes a mandatory backup.
-    No cloud resources are destroyed, remote backends are unsupported, and
-    credentials, providers, init, plan, apply or destroy are never invoked.
+    Built-in Terraform CLI with offline version and help tasks only. Local
+    state resource browsing uses a separate approved-project, read-only
+    backend API. Generic task execution cannot read arbitrary state paths or
+    detach resource bindings. Mutations stay disabled until an independently
+    verified state identity, preview, locking and backup lifecycle is built.
 runtime:
   platforms: [windows, linux, darwin]
   tools:
@@ -136,138 +134,3 @@ commands:
     requirements:
       requiresAuth: false
 
-  local-state-resources:
-    name: List resources in local state
-    description: >-
-      List resource addresses (not attributes or secret values) in one absolute
-      local .tfstate file. This requires read access to the state file.
-      Resource addresses can still be sensitive metadata. Remote backend
-      state is not supported.
-    tool: terraform
-    risk: read
-    inputs:
-      - id: state-file
-        type: string
-        label: Absolute local Terraform .tfstate path
-        required: true
-        validation:
-          minLength: 9
-          maxLength: 480
-          disallowLeadingDash: true
-          pattern: '^(/[A-Za-z0-9 _-][A-Za-z0-9 _.-]*(/[A-Za-z0-9 _-][A-Za-z0-9 _.-]*)*|[A-Za-z]:\\[A-Za-z0-9 _-][A-Za-z0-9 _.-]*(\\[A-Za-z0-9 _-][A-Za-z0-9 _.-]*)*)\.tfstate$'
-    argv:
-      - literal: state
-      - literal: list
-      - flag:
-          name: -state
-          valueFrom: state-file
-    output:
-      mode: raw
-      sensitivity:
-        containsSecrets: false
-        persistRawOutput: false
-        revealByDefault: false
-    requirements:
-      requiresAuth: false
-
-  local-state-forget-preview:
-    name: Preview local state resource removal
-    description: >-
-      Run terraform state rm -dry-run against a local .tfstate file and show
-      matched addresses without changing state. A resource prefix may match
-      multiple instances. Re-preview immediately before final approval.
-    tool: terraform
-    risk: read
-    inputs:
-      - id: state-file
-        type: string
-        label: Absolute local Terraform .tfstate path
-        required: true
-        validation:
-          minLength: 9
-          maxLength: 480
-          disallowLeadingDash: true
-          pattern: '^(/[A-Za-z0-9 _-][A-Za-z0-9 _.-]*(/[A-Za-z0-9 _-][A-Za-z0-9 _.-]*)*|[A-Za-z]:\\[A-Za-z0-9 _-][A-Za-z0-9 _.-]*(\\[A-Za-z0-9 _-][A-Za-z0-9 _.-]*)*)\.tfstate$'
-      - id: address
-        type: string
-        label: Terraform resource address (not a shell command)
-        required: true
-        validation:
-          minLength: 3
-          maxLength: 256
-          disallowLeadingDash: true
-          pattern: '^(module\.[A-Za-z_][A-Za-z0-9_-]*(\[([0-9]+|"[A-Za-z0-9_-]+")\])?\.)*(data\.)?[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*(\[([0-9]+|"[A-Za-z0-9_-]+")\])?$'
-    argv:
-      - literal: state
-      - literal: rm
-      - literal: -dry-run
-      - flag:
-          name: -state
-          valueFrom: state-file
-      - positional:
-          valueFrom: address
-    output:
-      mode: raw
-      sensitivity:
-        containsSecrets: false
-        persistRawOutput: false
-        revealByDefault: false
-    requirements:
-      requiresAuth: false
-
-  local-state-forget:
-    name: Forget resource bindings from local state
-    description: >-
-      This CHANGES the selected local .tfstate file without destroying real
-      infrastructure. Terraform's mandatory backup is written to disk and
-      normal state locking is kept enabled. Run the separate dry-run preview
-      first. One address may match MANY resource instances. Terraform may
-      recreate forgotten infrastructure at the next apply while its HCL
-      declarations remain. Remote backends are NOT supported.
-    tool: terraform
-    risk: change
-    impact:
-      targetInput: address
-      targetLabel: Resource address to forget from state
-      effect: >-
-        Detaches every matching resource instance from the local Terraform
-        state file, without destroying real infrastructure. A later apply
-        may recreate the objects. Requires a pre-reviewed dry-run and relies
-        on Terraform's mandatory local-state backup and locking.
-      scope: multiple
-    inputs:
-      - id: state-file
-        type: string
-        label: Absolute local Terraform .tfstate path
-        required: true
-        validation:
-          minLength: 9
-          maxLength: 480
-          disallowLeadingDash: true
-          pattern: '^(/[A-Za-z0-9 _-][A-Za-z0-9 _.-]*(/[A-Za-z0-9 _-][A-Za-z0-9 _.-]*)*|[A-Za-z]:\\[A-Za-z0-9 _-][A-Za-z0-9 _.-]*(\\[A-Za-z0-9 _-][A-Za-z0-9 _.-]*)*)\.tfstate$'
-      - id: address
-        type: string
-        label: Terraform resource address (not a shell command)
-        required: true
-        validation:
-          minLength: 3
-          maxLength: 256
-          disallowLeadingDash: true
-          pattern: '^(module\.[A-Za-z_][A-Za-z0-9_-]*(\[([0-9]+|"[A-Za-z0-9_-]+")\])?\.)*(data\.)?[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*(\[([0-9]+|"[A-Za-z0-9_-]+")\])?$'
-    argv:
-      - literal: state
-      - literal: rm
-      - literal: -lock-timeout=5s
-      - flag:
-          name: -state
-          valueFrom: state-file
-      - positional:
-          valueFrom: address
-    output:
-      mode: raw
-      sensitivity:
-        containsSecrets: false
-        persistRawOutput: false
-        revealByDefault: false
-    requirements:
-      requiresAuth: false
