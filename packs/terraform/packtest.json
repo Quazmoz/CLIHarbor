@@ -333,6 +333,234 @@
         "code": "unknown_command",
         "path": "commandId"
       }
+    },
+    {
+      "name": "list local state resource addresses",
+      "packId": "terraform-cli",
+      "commandId": "local-state-resources",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate"
+      },
+      "expectArgs": [
+        "state",
+        "list",
+        "-state",
+        "/home/operator/project/terraform.tfstate"
+      ]
+    },
+    {
+      "name": "dry-run targeted local state removal",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget-preview",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate",
+        "address": "module.app.aws_instance.server[\"blue\"]"
+      },
+      "expectArgs": [
+        "state",
+        "rm",
+        "-dry-run",
+        "-state",
+        "/home/operator/project/terraform.tfstate",
+        "module.app.aws_instance.server[\"blue\"]"
+      ]
+    },
+    {
+      "name": "approve local state detachment with lock and backup",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate",
+        "address": "module.app.aws_instance.server[\"blue\"]"
+      },
+      "expectArgs": [
+        "state",
+        "rm",
+        "-lock-timeout=5s",
+        "-state",
+        "/home/operator/project/terraform.tfstate",
+        "module.app.aws_instance.server[\"blue\"]"
+      ]
+    },
+    {
+      "name": "state list requires explicit file",
+      "packId": "terraform-cli",
+      "commandId": "local-state-resources",
+      "values": {},
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.state-file"
+      }
+    },
+    {
+      "name": "dry-run requires resource address",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget-preview",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate"
+      },
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.address"
+      }
+    },
+    {
+      "name": "state mutation requires file",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "address": "module.app.aws_instance.server[\"blue\"]"
+      },
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.state-file"
+      }
+    },
+    {
+      "name": "state mutation requires address",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate"
+      },
+      "expectError": {
+        "code": "missing_input",
+        "path": "values.address"
+      }
+    },
+    {
+      "name": "reject relative state path",
+      "packId": "terraform-cli",
+      "commandId": "local-state-resources",
+      "values": {
+        "state-file": "./terraform.tfstate"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.state-file"
+      }
+    },
+    {
+      "name": "reject traversal state path",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "/tmp/../infra/terraform.tfstate",
+        "address": "module.app.aws_instance.server[\"blue\"]"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.state-file"
+      }
+    },
+    {
+      "name": "reject remote backend URL",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "https://host/state.tfstate",
+        "address": "module.app.aws_instance.server[\"blue\"]"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.state-file"
+      }
+    },
+    {
+      "name": "reject non-state filename",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "/home/operator/credentials.json",
+        "address": "module.app.aws_instance.server[\"blue\"]"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.state-file"
+      }
+    },
+    {
+      "name": "reject shell-like resource flag",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate",
+        "address": "--lock=false"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.address"
+      }
+    },
+    {
+      "name": "reject whitespace and compound address",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate",
+        "address": "aws_instance.vm;terraform destroy"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.address"
+      }
+    },
+    {
+      "name": "reject unknown state command parameter",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate",
+        "address": "module.app.aws_instance.server[\"blue\"]",
+        "argv": [
+          "-lock=false"
+        ]
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.argv"
+      }
+    },
+    {
+      "name": "reject browser-selected backup override",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate",
+        "address": "module.app.aws_instance.server[\"blue\"]",
+        "backup": "/tmp/backup"
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.backup"
+      }
+    },
+    {
+      "name": "reject browser dry-run skip flag",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget-preview",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate",
+        "address": "module.app.aws_instance.server[\"blue\"]",
+        "dry-run": false
+      },
+      "expectError": {
+        "code": "unknown_input",
+        "path": "values.dry-run"
+      }
+    },
+    {
+      "name": "reject parent module state removal address",
+      "packId": "terraform-cli",
+      "commandId": "local-state-forget",
+      "values": {
+        "state-file": "/home/operator/project/terraform.tfstate",
+        "address": "module.prod.module.db"
+      },
+      "expectError": {
+        "code": "invalid_input",
+        "path": "values.address"
+      }
     }
   ]
 }
