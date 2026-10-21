@@ -65,11 +65,19 @@ After frontend, Go, or embedded-asset changes, do not restart an old `bin/clihar
 
 The helpers may stop **only** a prior instance they started and verified by executable path plus PID start identity. Never use broad `pkill`, guessed ports, another process's PID, browser-cache/profile deletion, vendor credential/cache clearing, or `git reset --hard` as a restart shortcut. Never start a new version after a failed build. The restarted browser receives a new ephemeral loopback port; direct the user to the new browser tab. Generated embedded assets still need to be committed and checked in release work. Follow the GitHub Actions authorization policy below.
 
-## Default development integration: main
+## Development branches and promotion policy
 
-The repository's normal integration target is `main`. For routine CLIHarbor development, integrate each coherent fix into `main` before concluding work. Temporary branches and PRs may be used to stage or review changes, but do not leave finished work stranded in them. Inspect the live target head and merge conflicts before integrating; never force-push `main` or bypass known security defects.
+CLIHarbor uses three long-lived branches:
 
-Merging source does **not** establish a qualified Windows executable or authorize production deployment. Preserve testing and security gates below, the repository's generated-frontend authority, and all manual-only GitHub Actions restrictions. If a toolchain or device is unavailable, explicitly report unrun checks and keep release qualification blocked; never claim a source-only merge updated an installed application.
+- `dev` — **default development integration branch**. Start all routine implementation from the current live `dev` head, and commit completed coherent work to `dev` after applicable local checks. Any feature/fix PR should normally target `dev`.
+- `beta` — release-candidate integration/acceptance branch. Promote reviewed `dev` changes to `beta` only after the affected tests, typecheck/lint, Go checks and source-to-embedded-frontend synchronization pass. Run relevant integration and Windows acceptance before promotion onward.
+- `main` — stable/release baseline. Do not merge routine development directly to `main`, and do not automatically promote `dev` to `main`. Promote the qualified `beta` candidate only when required release/security/Windows validation is complete and the user has requested promotion. A branch named `main` is not evidence of a qualified artifact.
+
+GitHub's repository default branch is independent of the development base. **Explicitly select `dev` for routine reads, edits, commits and PR bases even if GitHub still presents `main` by default.** Inspect live branch heads, diverging histories, in-flight PRs, generated artifacts, and required gates before every promotion. No force push, reset, unreviewed history rewrite, or bypass of failing checks.
+
+For an expressly requested urgent `main` hotfix, preserve all safeguards, validate the exact change, and then reconcile the fix forward into `beta` and `dev` so later promotions cannot regress it. A failed or unexecuted check is a hold, not permission to merge. Update docs when the branch process changes.
+
+Merging source does **not** establish a qualified Windows executable or authorize production deployment. Preserve testing and security gates below, the repository's generated-frontend authority, and all manual-only GitHub Actions restrictions on every branch. If a toolchain or device is unavailable, explicitly report unrun checks and keep release qualification blocked; never claim a source-only merge updated an installed application.
 
 ## GitHub Actions execution policy (explicit user authorization required)
 
