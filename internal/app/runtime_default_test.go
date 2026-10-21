@@ -92,9 +92,9 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 		t.Fatal("Terraform builtin command count changed without security review")
 	}
 	for id, command := range terraform.Pack.Commands {
-		if command.Tool != "terraform" || command.Risk != packs.RiskRead ||
+		if command.Tool != "terraform" ||
 			command.Requirements.RequiresAuth || command.Requirements.AuthMode != "" ||
-			command.Stdin != nil || command.Impact != nil ||
+			command.Stdin != nil ||
 			command.Output.Sensitivity.ContainsSecrets || command.Output.Sensitivity.PersistRawOutput ||
 			command.Output.Sensitivity.RevealByDefault {
 			t.Fatalf("unsafe embedded Terraform task %s", id)
@@ -103,7 +103,7 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 			continue // Exact approved state argv and input contracts checked below.
 		}
 		if id == "workflow-reference" {
-			if len(command.Inputs) != 1 || len(command.Argv) != 2 ||
+			if command.Risk != packs.RiskRead || command.Impact != nil || len(command.Inputs) != 1 || len(command.Argv) != 2 ||
 				command.Inputs[0].ID != "workflow" || command.Inputs[0].Type != packs.InputEnum ||
 				!command.Inputs[0].Required || !command.Inputs[0].Validation.DisallowLeadingDash ||
 				!reflect.DeepEqual(command.Inputs[0].Validation.Enum, []string{
@@ -126,7 +126,8 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 			continue
 		}
 		expected, approved := approvedTerraform[id]
-		if !approved || len(command.Inputs) != 0 || len(command.Argv) != len(expected) {
+		if !approved || command.Risk != packs.RiskRead || command.Impact != nil ||
+			len(command.Inputs) != 0 || len(command.Argv) != len(expected) {
 			t.Fatalf("unsafe embedded Terraform task %s", id)
 		}
 		for i, arg := range command.Argv {

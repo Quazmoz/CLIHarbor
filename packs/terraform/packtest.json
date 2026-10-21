@@ -550,12 +550,12 @@
       }
     },
     {
-      "name": "reject parent module state removal address",
+      "name": "reject malformed Terraform address punctuation",
       "packId": "terraform-cli",
       "commandId": "local-state-forget",
       "values": {
         "state-file": "/home/operator/project/terraform.tfstate",
-        "address": "module.prod.module.db"
+        "address": "module.prod.*"
       },
       "expectError": {
         "code": "invalid_input",
