@@ -140,13 +140,13 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	// The trusted built-in state workflow never allows the browser to select
 	// alternate subcommands, backup destinations, or disable Terraform locking.
 	stateCases := map[string]struct {
-		risk packs.Risk
-		argv []string
+		risk       packs.Risk
+		argv       []string
 		inputCount int
 	}{
-		"local-state-resources": {packs.RiskRead, []string{"state", "list", "<state-file>"}, 1},
+		"local-state-resources":      {packs.RiskRead, []string{"state", "list", "<state-file>"}, 1},
 		"local-state-forget-preview": {packs.RiskRead, []string{"state", "rm", "-dry-run", "<state-file>", "<address>"}, 2},
-		"local-state-forget": {packs.RiskChange, []string{"state", "rm", "-lock-timeout=5s", "<state-file>", "<address>"}, 2},
+		"local-state-forget":         {packs.RiskChange, []string{"state", "rm", "-lock-timeout=5s", "<state-file>", "<address>"}, 2},
 	}
 	for id, tc := range stateCases {
 		command, ok := terraform.Pack.Commands[id]
