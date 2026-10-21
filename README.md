@@ -8,6 +8,14 @@ A local browser UI for safely exposing curated workflows from official command-l
 >
 > **Stale-bundle guard:** The task runner embeds `web-source.sha256` in the generated frontend and compares it against current `web/` inputs, even when Git reports a clean checkout. It passes on `main`, and a pinned-toolchain `web-build` reproduces the committed bundle byte-for-byte. The fingerprint does **not** prove npm/Vite built the assets: use `go run ./tools/task web-build`, verify the generated bundle and run all quality gates before using it for evaluation.
 
+## Development branch workflow
+
+- **`dev` (everyday work):** branch or commit routine features and fixes here, not on `main`.
+- **`beta` (validation):** receive tested changes from `dev` for integrated and Windows acceptance testing.
+- **`main` (stable baseline):** receive only expressly promoted, qualified `beta` candidates or validated emergency hotfixes. The current branch name is not proof of production qualification.
+
+Use `git switch dev` before starting development; explicitly select `dev` as the target of new pull requests even if GitHub's site still defaults to `main`. A qualified release requires the existing frontend/Go/security/Windows gates. GitHub Actions are manual-only and may not be dispatched without specific authorization. See [AGENTS.md](AGENTS.md) for the authoritative development/promotion policy.
+
 CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
 
 ## Idira PAM read-only candidate
