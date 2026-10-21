@@ -97,6 +97,8 @@ test('Conjur workflows only show backend-advertised tasks owned by this platform
   const onOpenTask = vi.fn();
   render(<PlatformPage platform={platform} tasks={tasks} onOpenFeature={() => {}} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
   expect(screen.getByRole('button', { name: 'Delete variable' })).toHaveTextContent('Destructive · approval required');
+  // aria-label replaces the content, so the risk must reach screen readers as the description.
+  expect(screen.getByRole('button', { name: 'Delete variable' })).toHaveAccessibleDescription(/Destructive · approval required/);
   expect(screen.queryByText('Spoof task')).not.toBeInTheDocument();
   openTab('Access');
   const inspection = screen.getByRole('group', { name: 'Access inspection' });

@@ -29,6 +29,8 @@ test('project selection changes invalidate downstream selections and removal rem
   const selected = await screen.findByLabelText('Selected resource');
   fireEvent.change(selected, { target: { value: 'aws_instance.demo[0]' } });
   expect(screen.getByText('Exact address:')).toBeInTheDocument();
+  // Row buttons are distinguishable by address for screen-reader users.
+  expect(screen.getByRole('button', { name: 'Selected aws_instance.demo[0]' })).toHaveAttribute('aria-pressed', 'true');
   fireEvent.change(project, { target: { value: 'project-2' } });
   expect(screen.queryByText('Exact address:')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Local state file')).toHaveValue('');

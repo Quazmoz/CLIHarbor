@@ -38,12 +38,12 @@ function Action({ title, detail, risk, available, onOpen }: {
   const id = useId();
   return (
     <button type="button" className={'conjur-action' + (risk ? ' conjur-action--' + risk : '')} disabled={!available}
-      aria-label={title} aria-describedby={id} onClick={() => { if (available) onOpen(); }}>
+      aria-label={title} aria-describedby={risk ? id + ' ' + id + '-risk' : id} onClick={() => { if (available) onOpen(); }}>
       <span className="conjur-action-text">
         <strong>{title}</strong>
         <span id={id}>{available ? detail : detail + ' Unavailable until the CLI and approved task are ready.'}</span>
       </span>
-      {risk && <span className={'task-risk-badge task-risk-badge--' + risk}>{riskLabel[risk]}</span>}
+      {risk && <span id={id + '-risk'} className={'task-risk-badge task-risk-badge--' + risk}>{riskLabel[risk]}</span>}
     </button>
   );
 }

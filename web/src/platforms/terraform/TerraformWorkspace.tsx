@@ -86,7 +86,7 @@ export function TerraformWorkspace({ platform, tasks, tool, onOpenRuns, onOpenDi
 
   return (
     <div className="terraform-workspace">
-      <div className="terraform-context" role="status">
+      <div className="terraform-context">
         <span><strong>CLI</strong> {tool?.status ?? 'Unavailable'}{tool?.version ? ' · ' + tool.version : ''}</span>
         <span><strong>Projects</strong> {projects.length} approved</span>
         <span><strong>Mode</strong> Read-only local state</span>
@@ -169,6 +169,7 @@ export function TerraformWorkspace({ platform, tasks, tool, onOpenRuns, onOpenDi
                   <td>{r.category}</td><td>{r.type}</td><td>{r.module || 'Root'}</td>
                   <td><code>{r.address}</code></td>
                   <td><button type="button" className="secondary-button" aria-pressed={selected === r.address}
+                    aria-label={(selected === r.address ? 'Selected ' : 'Select ') + r.address}
                     onClick={() => setSelected(r.address)}>{selected === r.address ? 'Selected' : 'Select'}</button></td>
                 </tr>)}</tbody>
               </table>

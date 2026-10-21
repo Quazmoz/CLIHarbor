@@ -173,3 +173,26 @@ test('permission dropdown indicates an active CLI read and clears loading on suc
   expect(grantee).toBeEnabled();
   expect(within(region).queryByText('Loading dropdown options from Conjur…')).not.toBeInTheDocument();
 });
+
+test('a change whose reload fails does not claim the table is current', async () => {
+  let shows = 0;
+  vi.mocked(createRun).mockImplementation(async (_, request) => {
+    if (request.commandId === 'list-resources') return run('list-resources', lists[request.values.kind as string]);
+    if (request.commandId !== 'resource-show') return run(request.commandId);
+    shows += 1;
+    return shows === 1 ? run('resource-show', resource) : { ...run('resource-show'), exitCode: 1 };
+  });
+  render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
+  const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
+  fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
+  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }), { target: { value: 'apps/db/password' } });
+  fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
+  const table = await within(region).findByRole('table');
+  fireEvent.click(within(table).getByRole('button', { name: 'Revoke execute from apps/web' }));
+  await within(region).findByRole('region', { name: 'Permission change approval' });
+  fireEvent.click(within(region).getByRole('checkbox', { name: /I approve this change/ }));
+  fireEvent.click(within(region).getByRole('button', { name: 'Apply permission change' }));
+  expect(await within(region).findByText(/applied, but current permissions could not be reloaded/)).toBeInTheDocument();
+  expect(within(region).queryByText(/Current permissions were reloaded/)).not.toBeInTheDocument();
+  expect(within(region).queryByRole('table')).not.toBeInTheDocument();
+});

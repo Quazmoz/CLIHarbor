@@ -163,8 +163,17 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
       if (!successful(result, pending.commandId)) {
         throw new Error('Conjur did not confirm the permission change. Check Runs before trying again.');
       }
+      try {
+        await readAccess(pending.variable);
+      } catch {
+        // Don't leave the pre-change table on screen as if it were current.
+        if (alive.current) {
+          setAccess(null);
+          setOutcome(pending.label + ' applied, but current permissions could not be reloaded. Check Runs, then show access again.');
+        }
+        return;
+      }
       if (alive.current) setOutcome(pending.label + ' applied. Current permissions were reloaded from Conjur.');
-      await readAccess(pending.variable);
     });
   }
 
