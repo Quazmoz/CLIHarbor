@@ -14,7 +14,7 @@ function validID(value: unknown): value is string {
 }
 function validText(value: unknown, max = 512): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= max &&
-    !/[\u0000-\u001f\u007f]/.test(value);
+    !/\p{Cc}/u.test(value);
 }
 async function read<T>(path: string, key: string, parse: (value: unknown) => T, signal: AbortSignal): Promise<T[]> {
   const response = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal });

@@ -71,11 +71,11 @@
       "packId": "terraform-cli",
       "commandId": "formatting-reference",
       "values": {
-        "stateFile": "terraform.tfstate"
+        "state-file": "terraform.tfstate"
       },
       "expectError": {
         "code": "unknown_input",
-        "path": "values.stateFile"
+        "path": "values.state-file"
       }
     },
     {
