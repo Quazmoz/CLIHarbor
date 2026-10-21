@@ -20,7 +20,7 @@ No provider installation, network backend access or Terraform subprocess is used
    - Repeat `--terraform-project` for additional independent roots (maximum 16). Quoting a path containing spaces is supported. **Never** pass a project from an untrusted source.
 4. Open **Built-in CLIs → HashiCorp Terraform → Projects**. Select the approved project from the dropdown, then one direct-child `.tfstate` file. Symlinks, nested paths, UNC paths and remote backend connections are unavailable.
 5. Open **Resources**. Filter the managed/data category and resource type, search exact addresses, or switch between Table, JSON addresses and Safe summary.
-6. Select exactly one resource address for inspection. Selecting or switching values never invokes Terraform. The **State management** tab explains consequences, but **Preview removal and Confirm removal are deliberately disabled**.
+6. Select exactly one resource address for inspection. Selecting or switching values never invokes Terraform. The **State management** tab explains consequences, but the **Preview removal** button is deliberately disabled and there is no removal action.
 
 ## What is read
 

@@ -197,13 +197,14 @@ official installed or exact verified managed CLI
 ```
 
 **Conjur secret management (CRUD):** Open **Built-in CLIs → CyberArk Conjur**.
-The top **Manage secrets** panel provides **Create secret**, **Read / browse**,
-**Update value**, and **Delete secret**. Create collects the policy branch,
-relative variable ID, and initial secret value in one form, then presents two
-reviewed Conjur mutations for a single explicit user approval. The backend
-runs variable declaration first and writes the value only after confirmed
-success. These are not atomic writes: if the value update fails, the variable
-may exist without the desired value. Read/browse intentionally returns
+The **Secrets** tab provides **Create secret**, **Browse variables**,
+**Update value**, and **Delete variable**. Create collects the policy branch,
+relative variable ID, initial secret value and optional owner/access grant in
+one form, previews each reviewed Conjur mutation for explicit approval, then
+the browser runs them in order: declare the variable, set its value only after
+confirmed success, and grant access last. These are not atomic writes: a
+failed later step is reported as partial completion, and the variable may
+exist without the desired value or grant. Browse intentionally returns
 metadata only, not stored secret values; destructive delete retains typed
 confirmation. Live Conjur acceptance testing is still required. See
 [Conjur integration](docs/CONJUR_INTEGRATION.md).
@@ -217,9 +218,9 @@ mapping. Policy starters clear environment-specific identifiers and use only
 reviewed variable/grant shapes. LDAP starters open the existing approved forms;
 no template auto-executes or handles secret values.
 
-**Conjur migration workbench:** Open **Built-in CLIs → CyberArk Conjur → Migration playbooks & templates** for guided inventory, LDAP/role comparison, destination preparation and cutover verification. Generate review-only variable/grant policy YAML without secret values, or open the existing approval-gated Conjur tasks with safe prefilled fields. These shortcuts do not execute a migration, transfer secrets, or skip the backend approval process.
+**Conjur migration workbench:** Open **Built-in CLIs → CyberArk Conjur → Tools → Migration playbooks & policy templates** for guided inventory, LDAP/role comparison, destination preparation and cutover verification. Generate review-only variable/grant policy YAML without secret values, or open the existing approval-gated Conjur tasks with safe prefilled fields. These shortcuts do not execute a migration, transfer secrets, or skip the backend approval process.
 
-**Conjur pattern explorer:** Open **Built-in CLIs → CyberArk Conjur → Security audit**. The default **Variable IDs · regex** mode uses metadata-only Conjur inventory searches, with credential-name, production, service-account and legacy-path presets plus custom Go/RE2 expressions. It never reads secret values. Select **Secret values · regex** only when an authorized value scan is necessary; it requires explicit acknowledgement and returns only variable IDs and match reasons, never values. The Conjur home also has read-only, paginated shortcuts for variables, policies, hosts and groups and links to reviewed access/change tasks. All commands still go through the shared task confirmation path.
+**Conjur pattern explorer:** Open **Built-in CLIs → CyberArk Conjur → Audit → Regex pattern explorer**. The default **Variable IDs · regex** mode uses metadata-only Conjur inventory searches, with credential-name, production, service-account and legacy-path presets plus custom Go/RE2 expressions. It never reads secret values. Select **Secret values · regex** only when an authorized value scan is necessary; it requires explicit acknowledgement and returns only variable IDs and match reasons, never values. The Conjur home also has read-only, paginated shortcuts for variables, policies, hosts and groups and links to reviewed access/change tasks. All commands still go through the shared task confirmation path.
 
 The vendor CLI remains the operational authority. The browser never chooses an executable file, executable path used for task execution, subcommand, flag name, shell string, raw argv, dependency URL, or expected hash. For pack-declared portable installs only, the browser may choose a constrained base directory beneath the current user's home; CLIHarbor still derives the final executable path and verifies the exact reviewed bytes.
 
