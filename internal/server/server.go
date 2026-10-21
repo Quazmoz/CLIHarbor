@@ -52,7 +52,7 @@ type Config struct {
 	ToolInstaller              ToolInstallService
 	SecretAudit                SecretAuditService
 	Platforms                  PlatformService
-	Terraform                   TerraformStateService
+	Terraform                  TerraformStateService
 	MaxEventStreams            int
 }
 

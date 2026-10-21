@@ -84,4 +84,3 @@ func acquireAuditLock(path string) (*os.File, error) {
 	}
 	return lock, nil
 }
-

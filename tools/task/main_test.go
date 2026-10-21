@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
-	"time"
 	"testing"
+	"time"
 )
 
 func TestValidateBuildDestinationRejectsRedirectedAndSpecialTargets(t *testing.T) {

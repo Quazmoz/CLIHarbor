@@ -35,7 +35,7 @@ type Options struct {
 	LoadDefaultPacks   bool
 	AutoProvisionTools bool
 	TerraformProjects  []string // Operator-approved local roots; browser cannot add roots.
-	AuditPath          string // Tests or explicitly reviewed deployments may override local audit storage.
+	AuditPath          string   // Tests or explicitly reviewed deployments may override local audit storage.
 	ToolProvisioner    toolbootstrap.Provisioner
 }
 
@@ -122,7 +122,7 @@ func Run(ctx context.Context, options Options) error {
 		ToolInstaller:              toolInstaller,
 		SecretAudit:                conjurPlatform.Audit,
 		Platforms:                  dedicated,
-		Terraform:                   terraformPlatform,
+		Terraform:                  terraformPlatform,
 	})
 	if err != nil {
 		_ = shutdownRuns()

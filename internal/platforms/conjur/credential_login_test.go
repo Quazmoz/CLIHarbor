@@ -790,7 +790,9 @@ func TestConjurSaaSConnectionReportsVendorEndpointNotIdentityShortcut(t *testing
 	config := configuredSaaSTestConfig("https://tenant.secretsmgr.cyberark.cloud/api")
 	service.loadConfig = func() (conjurapi.Config, error) { return config, nil }
 	details, err := service.Connection()
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if details.Environment != "saas" || details.ApplianceURL != config.ApplianceURL ||
 		details.Account != "conjur" || !details.Configurable {
 		t.Fatalf("unexpected connection summary: %#v", details)
@@ -810,9 +812,11 @@ func TestConjurSaaSFirstRunUsesVendorInitWithoutForceAndReconciles(t *testing.T)
 	request := server.CredentialConfigurationRequest{
 		PackID: PackID, ToolID: ToolID, Environment: "saas",
 		ApplianceURL: "https://tenant.secretsmgr.cyberark.cloud",
-		Account: "conjur", AuthnType: "cloud",
+		Account:      "conjur", AuthnType: "cloud",
 	}
-	if err := service.Configure(context.Background(), request); err != nil { t.Fatal(err) }
+	if err := service.Configure(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
 	if want := []string{"init", "saas", "--url", "https://tenant.secretsmgr.cyberark.cloud"}; !reflect.DeepEqual(args, want) {
 		t.Fatalf("vendor arguments = %q want %q", args, want)
 	}
@@ -839,15 +843,21 @@ func TestConjurSaaSChangeRequiresCASAndExplicitForce(t *testing.T) {
 		if !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
 			t.Fatalf("unsafe replacement = %v, want unsupported", err)
 		}
-		if len(args) != 0 { t.Fatalf("init was run without confirmation: %q", args) }
+		if len(args) != 0 {
+			t.Fatalf("init was run without confirmation: %q", args)
+		}
 	}
 	assertUnsupported()
 	request.ExpectedApplianceURL = "https://other.secretsmgr.cyberark.cloud/api"
 	assertUnsupported()
 	request.ExpectedApplianceURL = "https://old.secretsmgr.cyberark.cloud/api"
-	if err := service.Configure(context.Background(), request); err != nil { t.Fatal(err) }
+	if err := service.Configure(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
 	want := []string{"init", "saas", "--url", "https://new.secretsmgr.cyberark.cloud", "--force"}
-	if !reflect.DeepEqual(args, want) { t.Fatalf("argv = %q, want %q", args, want) }
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("argv = %q, want %q", args, want)
+	}
 }
 
 func TestConjurSaaSRejectsNonSaaSModeReplacement(t *testing.T) {
@@ -868,7 +878,6 @@ func TestConjurSaaSRejectsNonSaaSModeReplacement(t *testing.T) {
 	}
 }
 
-
 func TestConjurSaaSRefusesEnvironmentOverriddenConnection(t *testing.T) {
 	t.Setenv("CONJUR_APPLIANCE_URL", "https://overridden.secretsmgr.cyberark.cloud/api")
 	service := NewCredentialLoginService(readyConjurSnapshotWithExecutable(t))
@@ -879,7 +888,9 @@ func TestConjurSaaSRefusesEnvironmentOverriddenConnection(t *testing.T) {
 		return nil
 	}
 	details, err := service.Connection()
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if details.Configurable {
 		t.Fatal("SaaS endpoint controlled through env unexpectedly editable")
 	}

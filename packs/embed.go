@@ -11,6 +11,7 @@ import _ "embed"
 var conjurV9 []byte
 
 // idiraPAM is the reviewed idsec v0.13 Privilege Cloud pack.
+//
 //go:embed idira/idira-pam.yaml
 var idiraPAM []byte
 
@@ -50,6 +51,7 @@ var vaultCLI []byte
 // terraformCLI is the reviewed first-party Terraform pack: help-only tasks
 // plus constrained local-state address inspection and typed-approved detachment.
 // It never grants a browser-selected working directory or cloud operations.
+//
 //go:embed terraform/terraform.yaml
 var terraformCLI []byte
 

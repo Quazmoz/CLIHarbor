@@ -17,7 +17,7 @@ func TestGuardedOutputNeverStreamsUnvalidatedVendorBytes(t *testing.T) {
 	manager := newTestManager(t, registry, discovery, Config{
 		MaxOutputBytesPerStream: 1024,
 		MaxEventBytesPerRun:     4096,
-		OutputGuard:             func(plan planner.Plan) func([]byte) ([]byte, error) {
+		OutputGuard: func(plan planner.Plan) func([]byte) ([]byte, error) {
 			if plan.CommandID != "inspect" {
 				return nil
 			}

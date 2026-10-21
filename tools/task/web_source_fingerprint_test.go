@@ -21,7 +21,7 @@ func TestWebSourceFingerprintDetectsSourceChangesNotBuildOutput(t *testing.T) {
 	source := filepath.Join(web, "src", "App.tsx")
 	for path, data := range map[string]string{
 		filepath.Join(web, "package.json"): "{}",
-		source: "export const app = true",
+		source:                             "export const app = true",
 	} {
 		if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
 			t.Fatal(err)

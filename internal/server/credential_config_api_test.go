@@ -10,10 +10,10 @@ import (
 )
 
 type fakeCredentialConfigurationService struct {
-	mu      sync.Mutex
-	request CredentialConfigurationRequest
-	err     error
-	calls   int
+	mu         sync.Mutex
+	request    CredentialConfigurationRequest
+	err        error
+	calls      int
 	connection CredentialConnection
 }
 
@@ -164,17 +164,25 @@ func TestCredentialConnectionGETRequiresSessionAndReturnsOnlyNonSecretFields(t *
 	}}
 	s := newTestServer(t, Config{CredentialConfiguration: service})
 	unauthed, err := http.Get(s.BaseURL() + "/api/v1/auth/configure")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	unauthed.Body.Close()
-	if unauthed.StatusCode == http.StatusOK { t.Fatal("unauthenticated connection metadata leaked") }
+	if unauthed.StatusCode == http.StatusOK {
+		t.Fatal("unauthenticated connection metadata leaked")
+	}
 
 	client := sessionClient(t)
 	bootstrap(t, client, s)
 	resp, err := client.Get(s.BaseURL() + "/api/v1/auth/configure")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(data), "tenant.secretsmgr.cyberark.cloud/api") {
 		t.Fatalf("GET connection status %d body %s", resp.StatusCode, data)
 	}
@@ -192,12 +200,16 @@ func TestCredentialConfigurationAcceptsOnlyReviewedSaaSConnectionFields(t *testi
 	send := func(body string) int {
 		t.Helper()
 		req, err := http.NewRequest(http.MethodPost, s.BaseURL()+"/api/v1/auth/configure", strings.NewReader(body))
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Origin", s.BaseURL())
 		req.Header.Set(csrfHeaderName, csrf)
 		res, err := client.Do(req)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer res.Body.Close()
 		return res.StatusCode
 	}
@@ -219,5 +231,7 @@ func TestCredentialConfigurationAcceptsOnlyReviewedSaaSConnectionFields(t *testi
 			t.Fatalf("invalid SaaS request %q status %d", bad, got)
 		}
 	}
-	if service.calls != 1 { t.Fatalf("unexpected service calls: %d", service.calls) }
+	if service.calls != 1 {
+		t.Fatalf("unexpected service calls: %d", service.calls)
+	}
 }

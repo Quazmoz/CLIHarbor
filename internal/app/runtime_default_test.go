@@ -2,9 +2,9 @@ package app
 
 import (
 	"context"
-	"reflect"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -79,9 +79,9 @@ func TestPrepareRuntimeLoadsEmbeddedFirstPartyPacksWhenDefaultsEnabled(t *testin
 	// The trusted pack must retain only offline, fixed-argv commands.
 	// State mutation is disabled until a server-side snapshot approval is enforced.
 	approvedTerraform := map[string][]string{
-		"version": {"version"},
-		"command-reference": {"help"},
-		"provider-reference": {"providers", "-help"},
+		"version":              {"version"},
+		"command-reference":    {"help"},
+		"provider-reference":   {"providers", "-help"},
 		"formatting-reference": {"fmt", "-help"},
 	}
 	approvedWorkflow := map[string]string{
