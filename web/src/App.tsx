@@ -639,7 +639,7 @@ export function App() {
   const [toolInstallRoots, setToolInstallRoots] = useState<Record<string, string>>({});
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [outputTab, setOutputTab] = useState<'output' | 'activity'>('output');
-  const [copiedPreview, setCopiedPreview] = useState<RunPreview | null>(null);
+  const [copyResult, setCopyResult] = useState<{ preview: RunPreview; copied: boolean } | null>(null);
   const runtimeErrorRef = useRef<HTMLElement>(null);
   const taskErrorRef = useRef<HTMLDivElement>(null);
   const resultHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -723,13 +723,20 @@ export function App() {
     setFormValues(initialValues(firstTask));
   }, []);
 
+  const toolsRequestRef = useRef(0);
   const refreshTools = useCallback(() => {
     // Best effort: on failure the current snapshot stays and a reload recovers.
+    // Only the newest refresh may land, so a slow older response cannot win.
+    const request = ++toolsRequestRef.current;
     void fetchTools().then(
-      (tools) => setState((current) => (current.kind === 'ready' ? { ...current, tools } : current)),
+      (tools) => {
+        if (toolsRequestRef.current === request) setState((current) => (current.kind === 'ready' ? { ...current, tools } : current));
+      },
       () => undefined,
     );
-    void fetchPlatforms().then(setPlatforms, () => undefined);
+    void fetchPlatforms().then((next) => {
+      if (toolsRequestRef.current === request) setPlatforms(next);
+    }, () => undefined);
   }, []);
 
   const loadFailure = useCallback((error: unknown) => {
@@ -755,6 +762,7 @@ export function App() {
       if (!result.restartRequired) {
         try {
           const [tasks, tools] = await Promise.all([fetchTasks(), fetchTools()]);
+          toolsRequestRef.current += 1; // supersede any older in-flight refresh
           setState((current) => current.kind === 'ready' ? { ...current, tasks, tools } : current);
           // Installing a dedicated platform's CLI flips that platform to ready.
           void fetchPlatforms().then(setPlatforms, () => undefined);
@@ -1000,6 +1008,13 @@ export function App() {
         setRunActionFailure(failure);
       }
     } finally {
+      // The server consumes an approval when it accepts (or audits) the run, so
+      // never leave a spent approval on screen as if it could be reused.
+      if (request.approval !== undefined) {
+        previewRequestRef.current += 1;
+        setCommandPreview(null);
+        setApprovalConfirmation('');
+      }
       startingRef.current = false;
       setStarting(false);
     }
@@ -1619,7 +1634,6 @@ export function App() {
                         <span className="step-badge" aria-hidden="true">1</span>Select tool and command
                       </h3>
                       <TaskDiscovery
-                        key={taskToolFilter}
                         tasks={state.tasks}
                         selectedTaskKey={selectedTaskKey}
                         preferences={taskPreferences}
@@ -1824,12 +1838,20 @@ export function App() {
                             onClick={() => {
                               if (commandPreview === null) return;
                               const copied = commandPreview;
-                              void navigator.clipboard?.writeText(formatInvocation(copied)).then(() => setCopiedPreview(copied), () => undefined);
+                              const write = navigator.clipboard?.writeText(formatInvocation(copied)) ?? Promise.reject(new Error('clipboard unavailable'));
+                              void write.then(
+                                () => setCopyResult({ preview: copied, copied: true }),
+                                () => setCopyResult({ preview: copied, copied: false }),
+                              );
                             }}
                           >
-                            {commandPreview !== null && copiedPreview === commandPreview ? 'Copied' : 'Copy command'}
+                            {copyResult === null || copyResult.preview !== commandPreview ? 'Copy command' : copyResult.copied ? 'Copied' : 'Copy failed'}
                           </button>
-                          <span className="visually-hidden" role="status">{commandPreview !== null && copiedPreview === commandPreview ? 'Command copied' : ''}</span>
+                          <span className="visually-hidden" role="status">
+                            {copyResult === null || copyResult.preview !== commandPreview
+                              ? ''
+                              : copyResult.copied ? 'Command copied' : 'Clipboard unavailable. Select the command preview to copy it manually.'}
+                          </span>
                           <button
                             type="button"
                             className="secondary-button"
@@ -1872,7 +1894,10 @@ export function App() {
                 )}
                 {taskFailure && !taskHasFieldFailure && (
                   <div ref={taskErrorRef} tabIndex={-1}>
-                    <FailureNotice title="Task could not start" failure={taskFailure} />
+                    <FailureNotice
+                      title={taskFailure.category === 'validation' ? 'Task inputs need attention' : 'Task could not start'}
+                      failure={taskFailure}
+                    />
                   </div>
                 )}
               </article>
@@ -1883,7 +1908,7 @@ export function App() {
               tool={selectedTask === undefined ? undefined : state.tools.find((tool) => taskToolKey(tool) === taskToolKey(selectedTask))}
               validated={commandPreview !== null}
               validating={previewing}
-              validationFailed={taskFailure !== null}
+              validationFailed={taskFailure?.category === 'validation'}
               approvalReady={mutationApprovalReady}
             />
 

@@ -427,8 +427,14 @@ function VendorSessionCard({
     closeStreamRef.current = null;
     activeRunRef.current = null;
     try {
-      await cancelRun(status.csrfToken, runId);
+      const snapshot = await cancelRun(status.csrfToken, runId);
       if (attemptRef.current !== cancellationAttempt) {
+        return;
+      }
+      // The check may have finished before the cancel landed; report its real outcome.
+      if (snapshot.status !== 'running') {
+        evidenceFromSnapshot(snapshot, stdoutRef, stderrRef, decodersRef);
+        finishAttempt(cancellationAttempt, snapshot.status, snapshot.exitCode, snapshot.failure);
         return;
       }
       setCheck({ kind: 'cancelled', checkedAt: new Date().toISOString() });

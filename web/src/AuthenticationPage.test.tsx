@@ -1117,4 +1117,27 @@ describe('AuthenticationPage', () => {
     expect(screen.getByText('restored')).toBeInTheDocument();
     expect(attempts).toBe(2);
   });
+  test('a cancel that loses the race to completion reports the real outcome', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    const run = '30303030303030303030303030303030';
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/runs') {
+        return Promise.resolve(response(202, { runId: run, packId: whoamiTask.packId, toolId: 'conjur', commandId: 'whoami', status: 'running' }));
+      }
+      if (path === '/api/v1/runs/' + run + '/cancel') {
+        return Promise.resolve(response(202, {
+          runId: run, packId: whoamiTask.packId, toolId: 'conjur', commandId: 'whoami', status: 'exited', exitCode: 0,
+          events: [{ runId: run, sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-08T10:00:00Z', dataBase64: btoa('{"account":"finished-first"}') }],
+        }));
+      }
+      return Promise.resolve(response(404, {}));
+    }));
+
+    renderAuth();
+    fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel check' }));
+    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+    expect(screen.getByText('finished-first')).toBeInTheDocument();
+  });
 });

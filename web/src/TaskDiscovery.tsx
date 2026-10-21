@@ -129,6 +129,13 @@ export function TaskDiscovery({
 }: TaskDiscoveryProps) {
   const [query, setQuery] = useState('');
   const [catalogOpen, setCatalogOpen] = useState(!collapsed);
+  // Re-derive the catalog state on a filter change without remounting, so the
+  // focused Tool select keeps keyboard focus.
+  const [shownFilter, setShownFilter] = useState(toolFilter);
+  if (shownFilter !== toolFilter) {
+    setShownFilter(toolFilter);
+    setCatalogOpen(!collapsed);
+  }
   const catalogRef = useRef<HTMLDetailsElement>(null);
   const summaryRef = useRef<HTMLElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);

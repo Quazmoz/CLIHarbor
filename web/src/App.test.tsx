@@ -90,7 +90,12 @@ describe('App', () => {
     }));
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: /Target first/ }), { target: { value: 'first-context' } });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Tool' }), { target: { value: 'suite/second' } });
+    const toolSelect = screen.getByRole('combobox', { name: 'Tool' });
+    toolSelect.focus();
+    fireEvent.change(toolSelect, { target: { value: 'suite/second' } });
+    // Changing the filter must not remount the select and drop keyboard focus.
+    expect(screen.getByRole('combobox', { name: 'Tool' })).toBe(toolSelect);
+    expect(toolSelect).toHaveFocus();
     expect(screen.getByRole('textbox', { name: /Target second/ })).toHaveValue('');
     expect(screen.queryByRole('textbox', { name: /Target first/ })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole('textbox', { name: /Target second/ }), { target: { value: 'second-context' } });
@@ -1419,6 +1424,8 @@ describe('App routing', () => {
         },
       }),
     );
+    // The server consumed that approval; the spent checkpoint must not linger.
+    await waitFor(() => expect(screen.queryByLabelText('Typed approval')).not.toBeInTheDocument());
   });
 
 
@@ -1493,6 +1500,9 @@ describe('App routing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review change' }));
     expect(await screen.findByText(/Sent to the CLI on standard input only. It is not shown here/u)).toBeInTheDocument();
     expect(screen.queryByText('hunter2')).toBeNull();
+    // jsdom has no navigator.clipboard: the copy must report failure, not do nothing.
+    fireEvent.click(screen.getByRole('button', { name: 'Copy command' }));
+    expect(await screen.findByRole('button', { name: 'Copy failed' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve change and run' }));
     await waitFor(() => expect(submitted).toHaveLength(2));
