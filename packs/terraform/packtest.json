@@ -90,6 +90,66 @@
         "code": "unknown_input",
         "path": "values.backend"
       }
+    },
+    {
+      "name": "refuse undeclared Terraform init",
+      "packId": "terraform-cli",
+      "commandId": "init",
+      "values": {},
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
+    },
+    {
+      "name": "refuse undeclared Terraform validate",
+      "packId": "terraform-cli",
+      "commandId": "validate",
+      "values": {},
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
+    },
+    {
+      "name": "refuse undeclared Terraform plan",
+      "packId": "terraform-cli",
+      "commandId": "plan",
+      "values": {},
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
+    },
+    {
+      "name": "refuse undeclared Terraform apply",
+      "packId": "terraform-cli",
+      "commandId": "apply",
+      "values": {},
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
+    },
+    {
+      "name": "refuse undeclared Terraform destroy",
+      "packId": "terraform-cli",
+      "commandId": "destroy",
+      "values": {},
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
+    },
+    {
+      "name": "refuse undeclared Terraform state",
+      "packId": "terraform-cli",
+      "commandId": "state",
+      "values": {},
+      "expectError": {
+        "code": "unknown_command",
+        "path": "commandId"
+      }
     }
   ]
 }
