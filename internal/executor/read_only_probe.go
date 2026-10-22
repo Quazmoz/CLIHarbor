@@ -46,9 +46,10 @@ type ReadOnlyProbeResult struct {
 }
 
 // RunReadOnlyProbe directly executes one already-authorized executable plus a
-// fixed argv. It never invokes a shell, never supplies interactive stdin, uses
-// a neutral temporary working directory, and reuses the platform process-tree
-// controller used by normal CLIHarbor execution.
+// fixed argv. It never invokes a shell or an interactive credential prompt.
+// Its optional, bounded stdin payload is caller-owned and noninteractive.
+// A neutral temporary working directory and shared process-tree controller
+// preserve the normal CLIHarbor execution boundaries.
 func RunReadOnlyProbe(ctx context.Context, executablePath string, args []string, config ReadOnlyProbeConfig) (ReadOnlyProbeResult, error) {
 	if ctx == nil {
 		ctx = context.Background()

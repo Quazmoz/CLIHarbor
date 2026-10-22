@@ -106,7 +106,7 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
   const managedCount = resources.filter((resource) => resource.category === 'managed').length;
   const dataCount = resources.length - managedCount;
   const startFormatCheck = () => {
-    if (!project || !ready || !csrfToken || checkingFormat) return;
+    if (!project || !ready || !csrfToken || checkingFormat || project.configurationFiles > 64) return;
     setFormatReport(null);
     setFormatError('');
     setFormatFilter('all');
@@ -244,7 +244,7 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
           <h3 id="terraform-format-heading">Configuration formatting</h3>
           <p>Check direct-child .tf files in the selected approved project. Files are read into bounded memory and sent over stdin to the verified local Terraform CLI, never modified or uploaded. No source excerpts or diffs are displayed.</p>
           <div className="terraform-format-actions">
-            <button type="button" onClick={startFormatCheck} disabled={!project || !ready || !csrfToken || checkingFormat || loadingProjects}>
+            <button type="button" onClick={startFormatCheck} disabled={!project || !ready || !csrfToken || checkingFormat || loadingProjects || project.configurationFiles > 64}>
               {checkingFormat ? 'Checking formatting…' : 'Check formatting'}
             </button>
             <span>{project
@@ -253,7 +253,8 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
                 : project.configurationFiles + ' eligible files'
               : 'Select an approved project'}</span>
           </div>
-          {!ready && <p role="status">Terraform CLI must be ready before checking formatting.</p>}
+          {project && project.configurationFiles > 64 && <p role="alert">Formatting is unavailable for projects with more than 64 eligible .tf files. State inspection remains available.</p>}
+          {!ready && <p role="status">Terraform CLI must be ready before checking formatting.</p>
           {ready && !csrfToken && <p role="alert">The browser session must be refreshed before formatting checks are available.</p>}
           {checkingFormat && <p role="status">Checking formatting without changing project files…</p>}
           {formatError && <p role="alert">{formatError}</p>}

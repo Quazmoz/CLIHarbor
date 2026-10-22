@@ -105,3 +105,18 @@ test('late formatting response from a previous project cannot contaminate the ne
   expect(screen.queryByText('stale.tf')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Check formatting' })).toBeEnabled();
 });
+
+test('oversized project disables format checks without hiding project selection', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({
+    projects: [{ id: 'project-1', name: 'large', configurationFiles: 65, states: [
+      { id: 'state-a', name: 'terraform.tfstate' },
+    ] }],
+  }) })));
+  render(<TerraformWorkspace {...props} csrfToken="test-token" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
+  fireEvent.change(await screen.findByLabelText('Approved project'), { target: { value: 'project-1' } });
+  expect(screen.getByRole('button', { name: 'Check formatting' })).toBeDisabled();
+  expect(screen.getByRole('alert')).toHaveTextContent('more than 64');
+  expect(screen.getByRole('option', { name: 'terraform.tfstate' })).toBeInTheDocument();
+  expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+});
