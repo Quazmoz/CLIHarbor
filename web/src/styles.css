@@ -3705,6 +3705,13 @@ a.terraform-download-link {
 a.terraform-download-link:hover { filter: brightness(1.15); }
 a.terraform-download-link:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
+/* No-admin Terraform setup: keep numbered steps readable inside diagnostic cards. */
+.tool-list .terraform-setup-steps { display: grid; gap: .65rem; margin: .25rem 0; padding-left: 1.5rem; list-style: decimal; }
+.tool-list .terraform-setup-steps > li { border: 0; padding: 0; min-width: 0; list-style: decimal; }
+.terraform-setup-steps > li > span { display: block; margin-top: .3rem; }
+.terraform-setup-steps code { overflow-wrap: anywhere; }
+.terraform-setup-steps .tool-install-actions { margin-top: .5rem; }
+
 /* Terraform configuration-health: purposeful, readable operator telemetry. */
 .terraform-health { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .65rem; }
 .terraform-health > div { display: grid; align-content: start; gap: .4rem; padding: .85rem; border: 1px solid var(--line, #565c69); border-radius: var(--radius-sm); min-width: 0; }
