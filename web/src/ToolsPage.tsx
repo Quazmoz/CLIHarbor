@@ -59,7 +59,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
             </a>
           </div>
           <h3>Install a supported CLI</h3>
-          <p>Choose a CLI from the reviewed catalog. CLIHarbor verifies the official download and adds its approved tasks to your workspace.</p>
+          <p>Choose a reviewed CLI. Where verified in-app installation is available, CLIHarbor can install it for your user. Other tools have guided manual setup.</p>
           <p>Installation is for your user only. Sign-in and service configuration remain separate.</p>
           <label>Find a CLI<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search supported tools" /></label>
           <p role="status">{visible.length} supported {visible.length === 1 ? 'CLI' : 'CLIs'}</p>
@@ -82,7 +82,9 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                     <span className={'tool-status ' + (view.ready ? 'tool-status--ready' : 'tool-status--attention')}>{view.statusText}</span>
                   </div>
                   <p>{view.summary}</p>
-                  <p className="tool-next-step"><strong>Next:</strong> {view.nextStep}</p>
+                  <p className="tool-next-step"><strong>Next:</strong> {catalog && tool.packId === 'terraform-cli' && tool.status === 'missing' && !tool.install
+                    ? 'Follow the no-admin Windows setup below; editing PATH is optional.'
+                    : view.nextStep}</p>
                   {tool.status === 'ready' && (
                     <div className="tool-install-actions">
                       {taskCount > 0 && <button type="button" disabled={tasksLocked} onClick={() => onOpenTasks(key)}>Open {taskCount} {taskCount === 1 ? 'task' : 'tasks'}</button>}
