@@ -126,11 +126,11 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
         <span><strong>CLI</strong> {tool?.status ?? 'Unavailable'}{tool?.version ? ' · ' + tool.version : ''}</span>
         <span><strong>Projects</strong> {projects.length} approved</span>
         <span><strong>Mode</strong> Read-only configuration + local state</span>
-        {!ready && <>
-          <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>Check Terraform discovery</button>
-          {tool?.status === 'missing' && <a className="secondary-button terraform-download-link" href="https://developer.hashicorp.com/terraform/install"
-            target="_blank" rel="noopener noreferrer">Get Terraform (official)</a>}
-        </>}
+        {!ready && (
+          <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>
+            {tool?.status === 'missing' ? 'Set up Terraform (no admin required)' : 'Open Terraform diagnostics'}
+          </button>
+        )}
       </div>
       <nav className="terraform-navigation" aria-label="Terraform workspace">
         {tabs.map(({ id, label }) => (
