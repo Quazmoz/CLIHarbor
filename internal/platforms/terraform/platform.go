@@ -170,13 +170,16 @@ func (p *Platform) Projects() ([]server.TerraformProject, error) {
 		if err != nil {
 			return nil, err
 		}
-		configs, err := configurationEntries(root)
+		// Project/state discovery must remain usable even when a project
+		// exceeds the stricter 64-file formatter limit.
+		configs, err := boundedDirectoryEntries(root.path)
 		if err != nil { return nil, err }
 		eligible := 0
 		for _, entry := range configs {
-			if entry.Type()&os.ModeSymlink != 0 || entry.IsDir() { continue }
+			if !strings.HasSuffix(entry.Name(), ".tf") ||
+				entry.Type()&os.ModeSymlink != 0 || entry.IsDir() { continue }
 			info, statErr := entry.Info()
-			if statErr == nil && info.Mode().IsRegular() && info.Size() <= maxConfigBytes { eligible++ }
+			if statErr == nil && info.Mode().IsRegular() && info.Size() >= 0 && info.Size() <= maxConfigBytes { eligible++ }
 		}
 		result = append(result, server.TerraformProject{
 			ID: id, Name: filepath.Base(root.path), States: stateFiles, ConfigurationFiles: eligible,

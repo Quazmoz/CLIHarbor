@@ -41,9 +41,9 @@ cannot add roots, select alternate paths, pass shell arguments, or disable locki
 ## Configuration formatting contract
 
 The browser posts an opaque approved project ID to a same-origin, CSRF-protected
-`/api/v1/terraform/format-check` endpoint. Each check enumerates at most 64
+`/api/v1/terraform/format-check` endpoint. Each check accepts at most 64
 direct-child `.tf` entries under an approved root (maximum 4096 directory
-entries), up to 256 KiB per file and 2 MiB total. It uses traversal-resistant
+entries), up to 256 KiB per file and 2 MiB total. Projects exceeding the\n64-file formatting limit still appear in the approved-project list and\ncontinue to support read-only state inventory; their formatting requests\nfail closed. It uses traversal-resistant
 Go `os.Root` file access with identity, modification-time and size
 revalidation. Symlinks, oversized files, unreadable files and replacement
 races fail closed.

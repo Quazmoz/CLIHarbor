@@ -247,7 +247,11 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
             <button type="button" onClick={startFormatCheck} disabled={!project || !ready || !csrfToken || checkingFormat || loadingProjects}>
               {checkingFormat ? 'Checking formatting…' : 'Check formatting'}
             </button>
-            <span>{project ? project.configurationFiles + ' eligible files' : 'Select an approved project'}</span>
+            <span>{project
+              ? project.configurationFiles > 64
+                ? project.configurationFiles + ' eligible files · check limit 64 files'
+                : project.configurationFiles + ' eligible files'
+              : 'Select an approved project'}</span>
           </div>
           {!ready && <p role="status">Terraform CLI must be ready before checking formatting.</p>}
           {ready && !csrfToken && <p role="alert">The browser session must be refreshed before formatting checks are available.</p>}

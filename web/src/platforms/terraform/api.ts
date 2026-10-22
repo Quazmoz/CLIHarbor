@@ -35,7 +35,7 @@ function parseProject(value: unknown): TerraformProject {
   });
   if (states.length > 128) throw clientError('invalid_response');
   if (!Number.isSafeInteger(value.configurationFiles) || (value.configurationFiles as number) < 0 ||
-    (value.configurationFiles as number) > 64) throw clientError('invalid_response');
+    (value.configurationFiles as number) > 4096) throw clientError('invalid_response');
   return { id: value.id, name: value.name, states, configurationFiles: value.configurationFiles as number };
 }
 function parseResource(value: unknown): TerraformResource {

@@ -3,6 +3,7 @@ package terraform
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"bytes"
 	"os"
 	"os/exec"
@@ -222,5 +223,24 @@ func TestFormatCheckWithInstalledTerraformDoesNotModifyFilesOrLeakSource(t *test
 	if err != nil { t.Fatal(err) }
 	if bytes.Contains(encoded, []byte("SECRET-MUST-NOT-LEAK")) || bytes.Contains(encoded,bad) {
 		t.Fatal("formatting result revealed source content")
+	}
+}
+
+func TestLargeConfigurationProjectStillExposesStateInventory(t *testing.T) {
+	root := resolvedTempDir(t)
+	for i := range maxConfigFiles+1 {
+		name := filepath.Join(root, fmt.Sprintf("config-%03d.tf", i))
+		if err := os.WriteFile(name, []byte("locals {}\n"), 0600); err != nil { t.Fatal(err) }
+	}
+	if err := os.WriteFile(filepath.Join(root, "terraform.tfstate"), []byte(`{"version":4,"resources":[]}`), 0600); err != nil { t.Fatal(err) }
+	p, err := New([]string{root})
+	if err != nil { t.Fatal(err) }
+	projects, err := p.Projects()
+	if err != nil { t.Fatal(err) }
+	if len(projects) != 1 || len(projects[0].States) != 1 || projects[0].ConfigurationFiles != maxConfigFiles+1 {
+		t.Fatalf("state inventory or accurate eligible count lost: %#v", projects)
+	}
+	if _, err := configurationEntries(p.roots[0]); err == nil {
+		t.Fatal("formatter file limit unexpectedly lifted")
 	}
 }
