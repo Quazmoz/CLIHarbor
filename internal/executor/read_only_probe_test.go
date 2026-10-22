@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -129,9 +130,25 @@ func TestReadOnlyProbeHelperProcess(t *testing.T) {
 		} else {
 			fmt.Fprint(os.Stdout, "home-present")
 		}
+	case "stdin":
+		input, err := io.ReadAll(io.LimitReader(os.Stdin, 1024))
+		if err != nil { os.Exit(93) }
+		fmt.Fprintf(os.Stdout, "stdin-bytes=%d", len(input))
 	case "invalid-utf8":
 		_, _ = os.Stdout.Write([]byte{0xff, 'x'})
 	default:
 		os.Exit(92)
+	}
+}
+
+func TestReadOnlyProbeSupportsBoundedExplicitInput(t *testing.T) {
+	result, err := runProbeHelper(t, "stdin", ReadOnlyProbeConfig{
+		Timeout: 2 * time.Second, MaxOutputBytes: 128, Input: []byte("abcde"),
+	})
+	if err != nil || result.ExitCode != 0 || string(result.Stdout) != "stdin-bytes=5" {
+		t.Fatalf("stdin probe result=%#v, err=%v", result, err)
+	}
+	if _, err := runProbeHelper(t, "stdin", ReadOnlyProbeConfig{Input: bytes.Repeat([]byte("x"), maxReadOnlyProbeInputBytes+1)}); err == nil {
+		t.Fatal("oversized stdin accepted")
 	}
 }

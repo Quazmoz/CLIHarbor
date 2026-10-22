@@ -1,14 +1,14 @@
-# Terraform integration — approved local inventory
+# Terraform integration — approved local configuration checks and state inventory
 
 ## Status
 
-**Read-only state inventory implementation (dev source); not a qualified Windows release.**
+**Read-only configuration formatting and state inventory (dev source); not a qualified Windows release.**
 CLIHarbor provides a dedicated Terraform workspace, while preserving existing Conjur,
 Idira, Docker, Kubernetes, GitHub, AWS, Helm and Vault packs.
 
 The existing Terraform installation can be discovered and version-qualified
 (`>=1.5.0 <2.0.0`). Five offline help/version tasks remain. The version task uses plain-text output; JSON remains in the version-discovery probe, because Terraform's version JSON includes additional undeclared fields not supported by CLIHarbor's strict structured-card parser.
-No provider installation, network backend access or Terraform subprocess is used for state inventory.
+State inventory does not spawn Terraform. Configuration formatting invokes only the version-qualified, identity-checked Terraform executable using bounded stdin in an isolated temporary working directory.
 
 ## Quickstart
 
@@ -18,9 +18,10 @@ No provider installation, network backend access or Terraform subprocess is used
    - Windows PowerShell: `.\cliharbor.exe serve --terraform-project "C:\Users\you\infra\demo"`
    - Linux/macOS: `./cliharbor serve --terraform-project "/home/you/infra/demo"`
    - Repeat `--terraform-project` for additional independent roots (maximum 16). Quoting a path containing spaces is supported. **Never** pass a project from an untrusted source.
-4. Open **Built-in CLIs → HashiCorp Terraform → Projects**. Select the approved project from the dropdown, then one direct-child `.tfstate` file. Symlinks, nested paths, UNC paths and remote backend connections are unavailable.
-5. Open **Resources**. Filter the managed/data category and resource type, search exact addresses, or switch between Table, JSON addresses and Safe summary.
-6. Select exactly one resource address for inspection. Selecting or switching values never invokes Terraform. The **State management** tab explains consequences, but the **Preview removal** button is deliberately disabled and there is no removal action.
+4. Open **Built-in CLIs → HashiCorp Terraform → Configuration**. Select an approved project and choose **Check formatting**. The operation checks only eligible direct-child `.tf` files and never modifies them. Check the file-by-file formatted, needs-formatting, unsupported or inspection-failed statuses. A ready official Terraform CLI and active browser session are required.
+5. In **Projects**, choose an approved project and one direct-child `.tfstate` file. Symlinks, nested paths, UNC paths and remote backend connections are unavailable.
+6. Open **Resources**. Filter the managed/data category and resource type, search exact addresses, or switch between Table, JSON addresses and Safe summary.
+7. Select exactly one resource address for inspection. Selecting or switching values never invokes Terraform. The **State management** tab explains consequences, but the **Preview removal** button is deliberately disabled and there is no removal action.
 
 ## What is read
 
@@ -36,6 +37,41 @@ files are refused. No Terraform command is started for this inventory.
 Project roots are approved by the **launching process operator**, not through
 browser-supplied paths. Browser requests use opaque identifiers. API requests
 cannot add roots, select alternate paths, pass shell arguments, or disable locking.
+
+## Configuration formatting contract
+
+The browser posts an opaque approved project ID to a same-origin, CSRF-protected
+`/api/v1/terraform/format-check` endpoint. Each check enumerates at most 64
+direct-child `.tf` entries under an approved root (maximum 4096 directory
+entries), up to 256 KiB per file and 2 MiB total. It uses traversal-resistant
+Go `os.Root` file access with identity, modification-time and size
+revalidation. Symlinks, oversized files, unreadable files and replacement
+races fail closed.
+
+For each bounded snapshot, CLIHarbor runs
+`terraform fmt -check -write=false -no-color -` with the configuration passed
+on standard input. The process has a neutral home, no inherited Terraform
+CLI argument environment, no shell, a five-second per-file timeout, 30-second
+request deadline, 1024-byte-per-stream output bound and one concurrent
+project formatting operation across the local runtime. Exit 0 means formatted;
+exit 3 means needs formatting only when there were no diagnostics; errors,
+timeouts, unexpected exits and truncated output mean inspection failed.
+Raw stdout, stderr, source text and diffs are discarded, not sent to the browser
+or persisted. The browser sees only the direct-child filename, status,
+conservative reason and completion time.
+
+Formatting is **not** syntax/type validation, provider execution,
+remote backend access, drift detection or an infrastructure plan. Sensitive
+configuration text is still read by a local executable; approve only projects
+and binaries you trust. `.tfvars`, nested modules and `.tf.json` are not
+included in this milestone. An inspection can be stale if another process
+changes source after the snapshot; rerun after changes.
+
+**Qualification hold:** This development change must not be promoted to
+`beta` until pinned Go/Node checks, embedded web-asset synchronization,
+real Terraform synthetic-fixture integration, and native Windows reparse
+and process acceptance pass. A dev source commit alone does not update the
+embedded production frontend.
 
 ## State detach, backups and recovery
 
@@ -59,7 +95,7 @@ outside CLIHarbor according to your organization's policy.
 ## Unsupported
 
 Remote backends, HCP Terraform, workspace switching, provider downloads,
-`init`, `fmt`, `validate`, `plan`, `apply`, `destroy`, state attributes,
+`init`, mutating `fmt`, `validate`, `plan`, `apply`, `destroy`, state attributes,
 output values, mutating tasks, automatic backup and mutation history are all
 unavailable in this milestone. The tabs reserve navigation space but do not
 claim those operations execute.
