@@ -24,7 +24,7 @@ test('Terraform offers a no-PATH current-user setup instead of unqualified autom
   expect(screen.getByText(/>=1.5.0 <2.0.0/)).toBeInTheDocument();
   expect(screen.getByText('%USERPROFILE%')).toBeInTheDocument();
   expect(screen.getByText('%USERPROFILE%\\bin\\terraform.exe')).toBeInTheDocument();
-  expect(screen.getByText(/directly inside that/)).toBeInTheDocument();
+  expect(screen.getByText(/not in a nested folder/)).toBeInTheDocument();
   expect(screen.getByText(/Refreshing this page alone is not enough/)).toBeInTheDocument();
   expect(screen.getByText(/In-app automatic Terraform installation is disabled/)).toBeInTheDocument();
   expect(onInstall).not.toHaveBeenCalled();
