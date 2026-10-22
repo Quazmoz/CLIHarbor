@@ -18,15 +18,14 @@ const (
 	maxConfigFiles = 64
 	maxConfigBytes = 256 << 10
 	maxConfigTotalBytes = 2 << 20
-	maxFormatDuration = 30 * time.Second
+	maxFormatDuration = 25 * time.Second
 )
 
 // Only direct-child .tf files enter this inventory. terraform fmt also accepts
 // tfvars; never pass them here because they commonly contain secret values.
 func configurationEntries(root approvedRoot) ([]os.DirEntry, error) {
-	entries, err := os.ReadDir(root.path)
-	if err != nil { return nil, errors.New("cannot enumerate approved Terraform configuration") }
-	if len(entries) > 4096 { return nil, errors.New("approved Terraform directory contains too many entries") }
+	entries, err := boundedDirectoryEntries(root.path)
+	if err != nil { return nil, errors.New("cannot enumerate bounded approved Terraform configuration") }
 	files := make([]os.DirEntry, 0)
 	for _, entry := range entries {
 		if !strings.HasSuffix(entry.Name(), ".tf") { continue }

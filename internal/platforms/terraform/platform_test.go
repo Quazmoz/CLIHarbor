@@ -3,14 +3,15 @@ package terraform
 import (
 	"context"
 	"encoding/json"
-	"os/exec"
 	"bytes"
-	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 )
 
 // resolvedTempDir strips OS-level ancestor symlinks (macOS /var -> /private/var),

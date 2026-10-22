@@ -51,7 +51,7 @@ races fail closed.
 For each bounded snapshot, CLIHarbor runs
 `terraform fmt -check -write=false -no-color -` with the configuration passed
 on standard input. The process has a neutral home, no inherited Terraform
-CLI argument environment, no shell, a five-second per-file timeout, 30-second
+CLI argument environment, no shell, a five-second per-file timeout, 25-second
 request deadline, 1024-byte-per-stream output bound and one concurrent
 project formatting operation across the local runtime. Exit 0 means formatted;
 exit 3 means needs formatting only when there were no diagnostics; errors,

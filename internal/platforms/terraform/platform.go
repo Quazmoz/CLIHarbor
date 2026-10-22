@@ -136,12 +136,9 @@ func stateID(name string) string {
 	return "state-" + hex.EncodeToString(sum[:12])
 }
 func states(root approvedRoot) ([]server.TerraformState, error) {
-	files, err := os.ReadDir(root.path)
+	files, err := boundedDirectoryEntries(root.path)
 	if err != nil {
 		return nil, err
-	}
-	if len(files) > 4096 {
-		return nil, errors.New("project directory too large")
 	}
 	result := make([]server.TerraformState, 0)
 	for _, entry := range files {
@@ -310,4 +307,15 @@ func (p *Platform) Resources(projectID, selectedStateID string) ([]server.Terraf
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Address < result[j].Address })
 	return result, nil
+}
+
+// boundedDirectoryEntries never loads an unbounded directory into memory.
+func boundedDirectoryEntries(path string) ([]os.DirEntry, error) {
+	directory, err := os.Open(path)
+	if err != nil { return nil, err }
+	defer directory.Close()
+	files, err := directory.ReadDir(4097)
+	if err != nil && !errors.Is(err, io.EOF) { return nil, err }
+	if len(files) > 4096 { return nil, errors.New("project directory too large") }
+	return files, nil
 }

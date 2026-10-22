@@ -90,7 +90,7 @@ func (s *Server) handleTerraformFormatCheck(w http.ResponseWriter, r *http.Reque
 	}
 	query := r.URL.Query()
 	if len(query) != 1 || len(query["project"]) != 1 || !terraformSelector.MatchString(query.Get("project")) ||
-		r.ContentLength > 0 {
+		r.ContentLength != 0 {
 		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidInput)
 		return
 	}

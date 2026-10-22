@@ -45,7 +45,7 @@ test('empty authorized project list gives setup guidance without a mutation acti
 });
 
 test('selected project formatting is explicit, filtered, and never shows source', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => ({
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: true, json: async () => url.includes('/format-check')
       ? { projectId: 'project-1', terraformVersion: '1.16.0', checkedAt: '2026-10-22T13:00:00Z', files: [
         { name: 'good.tf', status: 'formatted' },
@@ -53,13 +53,12 @@ test('selected project formatting is explicit, filtered, and never shows source'
         { name: 'locked.tf', status: 'inspection-failed', reason: 'Inspection failed.' },
       ] }
       : { projects: [{ id: 'project-1', name: 'local', configurationFiles: 3, states: [] }] },
-    ...(!url.includes('/format-check') ? {} : { postedWithCSRF: options?.headers }),
   })));
   render(<TerraformWorkspace {...props} csrfToken="test-token" />);
   fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
   fireEvent.change(await screen.findByLabelText('Approved project'), { target: { value: 'project-1' } });
   fireEvent.click(screen.getByRole('button', { name: 'Check formatting' }));
-  await screen.findByText('Needs formatting');
+  await screen.findByRole('cell', { name: 'Needs formatting' });
   expect(screen.getByText('Inspection failed')).toBeInTheDocument();
   expect(screen.queryByText('SECRET-MUST-NOT-LEAK')).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Filter formatting results'), { target: { value: 'failed' } });

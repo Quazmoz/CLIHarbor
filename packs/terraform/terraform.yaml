@@ -5,9 +5,10 @@ metadata:
   name: HashiCorp Terraform
   version: 0.4.1
   description: >-
-    Built-in Terraform CLI with offline version and help tasks only. Local
-    state resource browsing uses a separate approved-project, read-only
-    backend API. Generic task execution cannot read arbitrary state paths or
+    Built-in Terraform CLI with offline version and help tasks only. Bounded
+    configuration format checks and local state resource browsing use separate
+    approved-project, read-only backend APIs. Generic task execution cannot
+    read arbitrary state paths or
     detach resource bindings. Mutations stay disabled until an independently
     verified state identity, preview, locking and backup lifecycle is built.
 runtime:
