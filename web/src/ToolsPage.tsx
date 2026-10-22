@@ -152,7 +152,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                           <li>Under <strong>User variables</strong>, select <strong>Path → Edit → New</strong>. Enter the folder containing <code>terraform.exe</code>, not the executable itself.</li>
                           <li>Save the dialogs, open a <strong>new</strong> terminal, and relaunch CLIHarbor. Do this only if your organization's policies allow it.</li>
                         </ol>
-                        <p>Alternatively, the CLIHarbor operator can start the backend with <code>--tool-path "terraform-cli/terraform=C:\\path\\to\\terraform.exe"</code>. The browser cannot change which executable is trusted.</p>
+                        <p>Alternatively, the CLIHarbor operator can start the backend with <code>--tool-path "terraform-cli/terraform=C:\path\to\terraform.exe"</code>. The browser cannot change which executable is trusted.</p>
                         <p>On macOS or Linux, use an approved CLI installation in your existing PATH or user <code>~/bin</code> directory.</p>
                       </details>
                       <small>Manual official download only. In-app automatic Terraform installation is disabled until the executable's hash and size are independently qualified. CLIHarbor still verifies the discovered executable and version before enabling tasks.</small>
