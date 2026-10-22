@@ -237,6 +237,12 @@ Still deferred:
 
 Do not add export to secret-bearing results without explicit classification and review. Copy behavior must also be revisited before any secret-bearing browser workflow is enabled.
 
+### Terraform manual Windows setup and discovery recovery
+
+When the backend reports Terraform missing and no reviewed managed installer exists, **Add a CLI** and **Diagnostics** show the same no-admin procedure. Copy **%USERPROFILE%**, an existing user-profile folder, into File Explorer; create `bin` there, then place an approved `terraform.exe` directly at `%USERPROFILE%\bin\terraform.exe`. Do not make users copy a folder path that may not exist yet. Show the version constraint advertised by the backend, and explain that a full CLIHarbor restart from a fresh terminal is required: refreshing the browser does not repeat executable discovery. The dedicated Terraform workspace opens this canonical diagnostics guide rather than bypassing it with a direct vendor download.
+
+A found-but-incompatible Terraform installation is a different state: an existing PATH match takes precedence over the user-bin fallback, so another user-bin copy will not fix it. Invalid `--tool-path` overrides likewise require operator correction; the browser cannot select executables. Keep optional User PATH and backend override instructions inside an advanced disclosure. Do not claim automatic download, live rediscovery, administrator bypass or vendor-authentication readiness.
+
 ## Managed CLI installation
 
 **Add a CLI** at `/tools` provides a searchable catalog of configured supported CLIs with readiness, pinned install versions, and **Open tasks**. Overview links to it. Diagnostics retains the same install controls. **Install <tool>** appears only for a missing tool with a trusted portable artifact for the current OS/architecture.
