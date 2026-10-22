@@ -7,7 +7,7 @@ afterEach(() => vi.unstubAllGlobals());
 function renderMissingTerraform(onInstall = vi.fn()) {
   render(<ToolsPage catalog tasks={[]} tools={[{
     packId: 'terraform-cli', packName: 'HashiCorp Terraform', packVersion: '0.4.1',
-    toolId: 'terraform', status: 'missing',
+    toolId: 'terraform', status: 'missing', versionConstraint: '>=1.5.0 <2.0.0',
   }]} installingKey={null} installRoots={{}} notice={null} tasksLocked={false}
     onInstall={onInstall} onInstallRoot={vi.fn()} onOpenTasks={vi.fn()} onOpenAuthentication={vi.fn()} />);
   return onInstall;
@@ -19,6 +19,7 @@ test('Terraform offers a no-PATH current-user setup instead of unqualified autom
   expect(link).toHaveAttribute('href', 'https://developer.hashicorp.com/terraform/install');
   expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   expect(screen.getByText(/no administrator or PATH changes needed/)).toBeInTheDocument();
+  expect(screen.getByText(/>=1.5.0 <2.0.0/)).toBeInTheDocument();
   expect(screen.getByText('%USERPROFILE%\\bin')).toBeInTheDocument();
   expect(screen.getByText(/directly inside that/)).toBeInTheDocument();
   expect(screen.getByText(/Refreshing this page alone is not enough/)).toBeInTheDocument();
