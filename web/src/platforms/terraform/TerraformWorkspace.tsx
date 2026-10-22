@@ -65,7 +65,7 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
     const controller = new AbortController();
     void fetchTerraformFormatCheck(formatRequest.projectId, csrfToken, controller.signal).then((report) => {
       if (!controller.signal.aborted) { setFormatReport(report); setFormatError(''); }
-    }).catch((_error: unknown) => {
+    }).catch(() => {
       if (!controller.signal.aborted) {
         setFormatReport(null);
         setFormatError('Formatting check failed. Verify Terraform readiness, project permissions and configuration limits.');
