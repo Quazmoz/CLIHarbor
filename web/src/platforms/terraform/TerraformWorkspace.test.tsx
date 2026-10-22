@@ -80,3 +80,28 @@ test('formatting cannot run without an authenticated CSRF token', async () => {
   expect(screen.getByRole('button', { name: 'Check formatting' })).toBeDisabled();
   expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
 });
+
+test('late formatting response from a previous project cannot contaminate the new selection', async () => {
+  let finishOld: ((response: { ok: boolean; json: () => Promise<unknown> }) => void) | undefined;
+  vi.stubGlobal('fetch', vi.fn((url: string) => url.includes('/format-check')
+    ? new Promise((resolve) => { finishOld = resolve; })
+    : Promise.resolve({ ok: true, json: async () => ({ projects: [
+      { id: 'project-1', name: 'first', configurationFiles: 1, states: [] },
+      { id: 'project-2', name: 'second', configurationFiles: 1, states: [] },
+    ] }) }),
+  ));
+  render(<TerraformWorkspace {...props} csrfToken="test-token" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
+  const selector = await screen.findByLabelText('Approved project');
+  fireEvent.change(selector, { target: { value: 'project-1' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Check formatting' }));
+  await waitFor(() => expect(finishOld).toBeDefined());
+  fireEvent.change(selector, { target: { value: 'project-2' } });
+  finishOld?.({ ok: true, json: async () => ({
+    projectId: 'project-1', terraformVersion: '1.16.0', checkedAt: '2026-10-22T13:00:00Z',
+    files: [{ name: 'stale.tf', status: 'needs-formatting' }],
+  }) });
+  await waitFor(() => expect(screen.getByText('No completed formatting check for this project.')).toBeInTheDocument());
+  expect(screen.queryByText('stale.tf')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Check formatting' })).toBeEnabled();
+});

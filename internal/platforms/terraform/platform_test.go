@@ -244,3 +244,11 @@ func TestLargeConfigurationProjectStillExposesStateInventory(t *testing.T) {
 		t.Fatal("formatter file limit unexpectedly lifted")
 	}
 }
+
+func TestMissingTerraformCLIRefusesFormatting(t *testing.T) {
+	root := resolvedTempDir(t)
+	if err := os.WriteFile(filepath.Join(root,"main.tf"), []byte("locals {}\n"), 0600); err != nil { t.Fatal(err) }
+	p, err := New([]string{root})
+	if err != nil { t.Fatal(err) }
+	if _, err := p.FormatCheck(context.Background(), "project-1"); err == nil { t.Fatal("unavailable CLI was accepted") }
+}
