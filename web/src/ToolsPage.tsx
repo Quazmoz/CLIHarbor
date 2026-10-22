@@ -6,6 +6,9 @@ import { describeToolReadiness } from './operatorLanguage';
 import { PackAuthoringWizard } from './PackAuthoringWizard';
 import { ToolIcon } from './ToolIcon';
 
+// CLIHarbor already searches this user-owned Windows directory at startup.
+const TERRAFORM_WINDOWS_USER_BIN = '%USERPROFILE%\\bin';
+
 interface ToolsPageProps {
   tools: ToolDiagnostic[];
   tasks: Task[];
@@ -23,6 +26,15 @@ interface ToolsPageProps {
 export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice, installRoots, tasksLocked,
   onInstall, onInstallRoot, onOpenTasks, onOpenAuthentication }: ToolsPageProps) {
   const [query, setQuery] = useState('');
+  const [terraformPathCopy, setTerraformPathCopy] = useState<'copied' | 'failed' | null>(null);
+  const copyTerraformPath = async () => {
+    try {
+      await navigator.clipboard.writeText(TERRAFORM_WINDOWS_USER_BIN);
+      setTerraformPathCopy('copied');
+    } catch {
+      setTerraformPathCopy('failed');
+    }
+  };
   const search = query.trim().toLocaleLowerCase();
   const visible = tools.filter((tool) => !catalog || `${tool.packName} ${tool.packId} ${tool.toolId}`.toLocaleLowerCase().includes(search));
   return (
@@ -101,15 +113,45 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                     </div>
                   )}
                   {catalog && tool.packId === 'terraform-cli' && tool.status === 'missing' && tool.install === undefined && (
-                    <div className="tool-install-controls" aria-label="Install Terraform for your user">
-                      <a className="secondary-button terraform-download-link" href="https://developer.hashicorp.com/terraform/install"
-                        target="_blank" rel="noopener noreferrer">Get Terraform — official download</a>
-                      <p>Download the Windows ZIP from HashiCorp, extract <code>terraform.exe</code> into a folder you own
-                        (no administrator rights required), then restart CLIHarbor so it can discover the executable.</p>
-                      <p>If the folder is not on PATH, start CLIHarbor with
-                        <code> --tool-path terraform-cli/terraform=C:\Users\you\tools\terraform.exe</code>.
-                        CLIHarbor checks the installed version before enabling tasks.</p>
-                      <small>Manual verified-source setup. In-app one-click installation is not yet enabled because the ZIP member hash and size have not been independently qualified.</small>
+                    <div className="tool-install-controls" aria-label="Set up Terraform for your Windows account">
+                      <p><strong>Windows: no administrator or PATH changes needed.</strong> CLIHarbor checks your user-owned <code>bin</code> folder automatically when it starts.</p>
+                      <ol className="terraform-setup-steps">
+                        <li>
+                          <a className="secondary-button terraform-download-link" href="https://developer.hashicorp.com/terraform/install"
+                            target="_blank" rel="noopener noreferrer">Download Terraform from HashiCorp</a>
+                          <span>Get the Windows ZIP for your computer (an organization-approved version in the supported range).</span>
+                        </li>
+                        <li>
+                          <span>Open File Explorer. Enter <code>%USERPROFILE%</code> in the address bar, then create a folder named <code>bin</code> if it does not exist.</span>
+                        </li>
+                        <li>
+                          <span>Extract the ZIP and put <code>terraform.exe</code> directly inside that <code>bin</code> folder (not inside another subfolder).</span>
+                          <div className="tool-install-actions">
+                            <code>{TERRAFORM_WINDOWS_USER_BIN}</code>
+                            <button type="button" className="secondary-button" onClick={() => { void copyTerraformPath(); }}>Copy folder path</button>
+                          </div>
+                          <small role="status" aria-live="polite">{terraformPathCopy === 'copied'
+                            ? 'Copied. Paste into the File Explorer address bar.'
+                            : terraformPathCopy === 'failed'
+                              ? 'Clipboard unavailable. You can select and copy the folder path shown above.'
+                              : ''}</small>
+                        </li>
+                        <li>
+                          <span>Close CLIHarbor and launch it again from a new terminal so it can detect and check Terraform. Refreshing this page alone is not enough.</span>
+                        </li>
+                      </ol>
+                      <details className="technical-details">
+                        <summary>Already have Terraform elsewhere? Optional PATH setup</summary>
+                        <p>If your approved installation is in another folder, you can add the <strong>folder containing terraform.exe</strong> to your <strong>User Path</strong> (not the system Path):</p>
+                        <ol className="terraform-setup-steps">
+                          <li>Search Windows Start for <strong>Edit environment variables for your account</strong>.</li>
+                          <li>Under <strong>User variables</strong>, select <strong>Path → Edit → New</strong>. Enter the folder containing <code>terraform.exe</code>, not the executable itself.</li>
+                          <li>Save the dialogs, open a <strong>new</strong> terminal, and relaunch CLIHarbor. Do this only if your organization's policies allow it.</li>
+                        </ol>
+                        <p>Alternatively, the CLIHarbor operator can start the backend with <code>--tool-path "terraform-cli/terraform=C:\\path\\to\\terraform.exe"</code>. The browser cannot change which executable is trusted.</p>
+                        <p>On macOS or Linux, use an approved CLI installation in your existing PATH or user <code>~/bin</code> directory.</p>
+                      </details>
+                      <small>Manual official download only. In-app automatic Terraform installation is disabled until the executable's hash and size are independently qualified. CLIHarbor still verifies the discovered executable and version before enabling tasks.</small>
                     </div>
                   )}
                   {catalog && tool.packId !== 'terraform-cli' && tool.status === 'missing' && tool.install === undefined && (
