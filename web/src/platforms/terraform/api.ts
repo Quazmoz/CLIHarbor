@@ -34,9 +34,9 @@ function parseProject(value: unknown): TerraformProject {
     return { id: state.id, name: state.name };
   });
   if (states.length > 128) throw clientError('invalid_response');
-  if (!Number.isSafeInteger(value.configurationFiles) || (value.configurationFiles as number) < 0 ||
-    (value.configurationFiles as number) > 4096) throw clientError('invalid_response');
-  return { id: value.id, name: value.name, states, configurationFiles: value.configurationFiles as number };
+  if (typeof value.configurationFiles !== 'number' || !Number.isSafeInteger(value.configurationFiles) ||
+    value.configurationFiles < 0 || value.configurationFiles > 4096) throw clientError('invalid_response');
+  return { id: value.id, name: value.name, states, configurationFiles: value.configurationFiles };
 }
 function parseResource(value: unknown): TerraformResource {
   if (!record(value) || !validText(value.address) || !validText(value.type, 128) ||
