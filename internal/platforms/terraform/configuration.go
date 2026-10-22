@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,7 +23,7 @@ const (
 // Only direct-child .tf files enter this inventory. terraform fmt also accepts
 // tfvars; never pass them here because they commonly contain secret values.
 func configurationEntries(root approvedRoot) ([]os.DirEntry, error) {
-	entries, err := boundedDirectoryEntries(root.path)
+	entries, err := boundedDirectoryEntries(root)
 	if err != nil { return nil, errors.New("cannot enumerate bounded approved Terraform configuration") }
 	files := make([]os.DirEntry, 0)
 	for _, entry := range entries {
@@ -38,8 +37,8 @@ func configurationEntries(root approvedRoot) ([]os.DirEntry, error) {
 // readConfiguration takes a bounded snapshot. os.Root ensures a swapped
 // symlink/junction cannot redirect the read outside the approved root even
 // between path checks. The checks also reject in-root redirection/replacement.
-func readConfiguration(root *os.Root, path string, name string) ([]byte, string) {
-	before, err := os.Lstat(path)
+func readConfiguration(root *os.Root, name string) ([]byte, string) {
+	before, err := root.Lstat(name)
 	if err != nil { return nil, "inspection-failed" }
 	if !before.Mode().IsRegular() { return nil, "unsupported" }
 	if before.Size() < 0 || before.Size() > maxConfigBytes { return nil, "unsupported" }
@@ -50,7 +49,7 @@ func readConfiguration(root *os.Root, path string, name string) ([]byte, string)
 	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(before, opened) { return nil, "inspection-failed" }
 	data, err := io.ReadAll(io.LimitReader(file, maxConfigBytes+1))
 	if err != nil || len(data) > maxConfigBytes { return nil, "inspection-failed" }
-	after, err := os.Lstat(path)
+	after, err := root.Lstat(name)
 	openedAfter, openedErr := file.Stat()
 	if err != nil || openedErr != nil || !os.SameFile(before, after) || !os.SameFile(before, openedAfter) ||
 		before.Size() != after.Size() || before.Size() != openedAfter.Size() ||
@@ -87,11 +86,9 @@ func (p *Platform) FormatCheck(ctx context.Context, projectID string) (server.Te
 
 	// OpenRoot is traversal-resistant in the pinned Go toolchain (>=1.24).
 	// Reject a root replaced after startup before inspecting any file content.
-	dir, err := os.OpenRoot(root.path)
-	if err != nil { return empty, errors.New("approved Terraform root cannot be opened") }
+	dir, err := openApprovedRoot(root)
+	if err != nil { return empty, err }
 	defer dir.Close()
-	dirInfo, err := dir.Stat(".")
-	if err != nil || !os.SameFile(root.info, dirInfo) { return empty, errors.New("approved Terraform root replaced") }
 
 	ctx, cancel := context.WithTimeout(ctx, maxFormatDuration)
 	defer cancel()
@@ -116,8 +113,7 @@ func (p *Platform) FormatCheck(ctx context.Context, projectID string) (server.Te
 			report.Files = append(report.Files, item)
 			continue
 		}
-		path := filepath.Join(root.path, entry.Name())
-		data, problem := readConfiguration(dir, path, entry.Name())
+		data, problem := readConfiguration(dir, entry.Name())
 		if problem != "" {
 			item.Status = problem
 			item.Reason = "This file is unsafe, oversized, inaccessible, or changed while reading."

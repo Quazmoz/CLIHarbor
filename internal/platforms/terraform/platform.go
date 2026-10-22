@@ -136,7 +136,7 @@ func stateID(name string) string {
 	return "state-" + hex.EncodeToString(sum[:12])
 }
 func states(root approvedRoot) ([]server.TerraformState, error) {
-	files, err := boundedDirectoryEntries(root.path)
+	files, err := boundedDirectoryEntries(root)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func (p *Platform) Projects() ([]server.TerraformProject, error) {
 		}
 		// Project/state discovery must remain usable even when a project
 		// exceeds the stricter 64-file formatter limit.
-		configs, err := boundedDirectoryEntries(root.path)
+		configs, err := boundedDirectoryEntries(root)
 		if err != nil { return nil, err }
 		eligible := 0
 		for _, entry := range configs {
@@ -220,34 +220,35 @@ func (p *Platform) Resources(projectID, selectedStateID string) ([]server.Terraf
 	if name == "" {
 		return nil, errors.New("unknown approved local state file")
 	}
-	path := filepath.Join(root.path, name)
-	if filepath.Dir(path) != root.path {
-		return nil, errors.New("state file escaped approved root")
-	}
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil || resolved != path {
-		return nil, errors.New("state file symlink or junction rejected")
-	}
-	file, err := os.Open(path)
+	// Pin a verified startup-approved directory handle. A concurrent path
+	// replacement cannot redirect state reads outside this root.
+	dir, err := openApprovedRoot(root)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-	before, err := file.Stat()
-	if err != nil || !before.Mode().IsRegular() || before.Size() > maxStateBytes {
+	defer dir.Close()
+	before, err := dir.Lstat(name)
+	if err != nil || !before.Mode().IsRegular() || before.Size() < 0 || before.Size() > maxStateBytes {
 		return nil, errors.New("state must be a bounded regular file")
 	}
-	current, err := os.Lstat(path)
-	if err != nil || !os.SameFile(before, current) {
+	file, err := dir.Open(name)
+	if err != nil {
+		return nil, errors.New("state file cannot be opened inside approved root")
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
 		return nil, errors.New("state file changed before inspection")
 	}
 	payload, err := io.ReadAll(io.LimitReader(file, maxStateBytes+1))
 	if err != nil || len(payload) > maxStateBytes {
 		return nil, errors.New("state read failed or oversized")
 	}
-	after, err := os.Lstat(path)
-	if err != nil || !os.SameFile(before, after) || before.Size() != after.Size() ||
-		!before.ModTime().Equal(after.ModTime()) {
+	after, err := dir.Lstat(name)
+	openedAfter, openedErr := file.Stat()
+	if err != nil || openedErr != nil || !os.SameFile(before, after) || !os.SameFile(before, openedAfter) ||
+		before.Size() != after.Size() || before.Size() != openedAfter.Size() ||
+		!before.ModTime().Equal(after.ModTime()) || !before.ModTime().Equal(openedAfter.ModTime()) {
 		return nil, errors.New("state changed while inspecting")
 	}
 	var snapshot stateSnapshot
@@ -312,12 +313,32 @@ func (p *Platform) Resources(projectID, selectedStateID string) ([]server.Terraf
 	return result, nil
 }
 
-// boundedDirectoryEntries never loads an unbounded directory into memory.
-func boundedDirectoryEntries(path string) ([]os.DirEntry, error) {
-	directory, err := os.Open(path)
+// openApprovedRoot pins the directory authorized at startup. Go's os.Root
+// resolves every child path beneath the pinned directory handle instead of
+// relying on path-string checks that race with filesystem replacement.
+func openApprovedRoot(root approvedRoot) (*os.Root, error) {
+	dir, err := os.OpenRoot(root.path)
+	if err != nil {
+		return nil, errors.New("approved Terraform root cannot be opened")
+	}
+	current, err := dir.Stat(".")
+	if err != nil || !current.IsDir() || !os.SameFile(root.info, current) {
+		dir.Close()
+		return nil, errors.New("approved Terraform root identity changed")
+	}
+	return dir, nil
+}
+
+// boundedDirectoryEntries does not load an unbounded directory into memory
+// and never reopens its path outside the verified root.
+func boundedDirectoryEntries(root approvedRoot) ([]os.DirEntry, error) {
+	dir, err := openApprovedRoot(root)
 	if err != nil { return nil, err }
-	defer directory.Close()
-	files, err := directory.ReadDir(4097)
+	defer dir.Close()
+	file, err := dir.Open(".")
+	if err != nil { return nil, errors.New("cannot enumerate approved Terraform root") }
+	defer file.Close()
+	files, err := file.ReadDir(4097)
 	if err != nil && !errors.Is(err, io.EOF) { return nil, err }
 	if len(files) > 4096 { return nil, errors.New("project directory too large") }
 	return files, nil

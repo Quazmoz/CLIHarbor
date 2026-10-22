@@ -170,9 +170,9 @@ func TestConfigurationInventoryIsBoundedAndIgnoresVariableValues(t *testing.T) {
 	dir, err := os.OpenRoot(root)
 	if err != nil { t.Fatal(err) }
 	defer dir.Close()
-	if _, status := readConfiguration(dir, filepath.Join(root,"oversized.tf"),"oversized.tf"); status != "unsupported" { t.Fatalf("oversize status = %q", status) }
+	if _, status := readConfiguration(dir, "oversized.tf"); status != "unsupported" { t.Fatalf("oversize status = %q", status) }
 	if _, statErr := os.Lstat(filepath.Join(root,"link.tf")); statErr == nil {
-		if _, status := readConfiguration(dir, filepath.Join(root,"link.tf"),"link.tf"); status != "unsupported" { t.Fatalf("symlink status = %q", status) }
+		if _, status := readConfiguration(dir, "link.tf"); status != "unsupported" { t.Fatalf("symlink status = %q", status) }
 	}
 }
 
@@ -251,4 +251,25 @@ func TestMissingTerraformCLIRefusesFormatting(t *testing.T) {
 	p, err := New([]string{root})
 	if err != nil { t.Fatal(err) }
 	if _, err := p.FormatCheck(context.Background(), "project-1"); err == nil { t.Fatal("unavailable CLI was accepted") }
+}
+
+
+func TestApprovedRootHandleRefusesReplacement(t *testing.T) {
+	root := resolvedTempDir(t)
+	p, err := New([]string{root})
+	if err != nil { t.Fatal(err) }
+	pinned, err := openApprovedRoot(p.roots[0])
+	if err != nil { t.Fatal(err) }
+	pinned.Close()
+
+	// Swapping the path to an unrelated directory must not cause CLIHarbor to
+	// enumerate the replacement, even when it has well-formed .tf files.
+	displaced := root + "-moved"
+	if err := os.Rename(root, displaced); err != nil { t.Skipf("cannot rename root: %v", err) }
+	t.Cleanup(func() { _ = os.Rename(displaced, root) })
+	if err := os.Mkdir(root, 0700); err != nil { t.Fatal(err) }
+	t.Cleanup(func() { _ = os.Remove(root) })
+	if err := os.WriteFile(filepath.Join(root, "outside.tf"), []byte("locals {}"), 0600); err != nil { t.Fatal(err) }
+	if _, err := openApprovedRoot(p.roots[0]); err == nil { t.Fatal("replaced root admitted") }
+	if _, err := p.Projects(); err == nil { t.Fatal("replacement project was exposed") }
 }

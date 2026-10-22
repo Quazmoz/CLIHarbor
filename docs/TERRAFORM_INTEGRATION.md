@@ -47,8 +47,9 @@ entries), up to 256 KiB per file and 2 MiB total. Projects exceeding the
 64-file formatting limit still appear in the approved-project list and
 continue to support read-only state inventory; their formatting requests
 fail closed. It uses traversal-resistant
-Go `os.Root` file access with identity, modification-time and size
-revalidation. Symlinks, oversized files, unreadable files and replacement
+Go `os.Root` directory handles with startup identity, modification-time and
+size revalidation. Both configuration and state listing/reads use those
+handles to avoid path-replacement directory traversal. Symlinks, oversized files, unreadable files and replacement
 races fail closed.
 
 For each bounded snapshot, CLIHarbor runs
