@@ -254,7 +254,7 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
               : 'Select an approved project'}</span>
           </div>
           {project && project.configurationFiles > 64 && <p role="alert">Formatting is unavailable for projects with more than 64 eligible .tf files. State inspection remains available.</p>}
-          {!ready && <p role="status">Terraform CLI must be ready before checking formatting.</p>
+          {!ready && <p role="status">Terraform CLI must be ready before checking formatting.</p>}
           {ready && !csrfToken && <p role="alert">The browser session must be refreshed before formatting checks are available.</p>}
           {checkingFormat && <p role="status">Checking formatting without changing project files…</p>}
           {formatError && <p role="alert">{formatError}</p>}
