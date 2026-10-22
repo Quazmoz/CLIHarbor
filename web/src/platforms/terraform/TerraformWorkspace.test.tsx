@@ -120,3 +120,21 @@ test('oversized project disables format checks without hiding project selection'
   expect(screen.getByRole('option', { name: 'terraform.tfstate' })).toBeInTheDocument();
   expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
 });
+
+test('missing Terraform opens the guided setup instead of bypassing it with a direct download', () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ projects: [] }) })));
+  render(<TerraformWorkspace {...props} platform={{ ...platform, ready: false }}
+    tool={{ ...props.tool, status: 'missing' }} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Set up Terraform (no admin required)' }));
+  expect(props.onOpenDiagnostics).toHaveBeenCalledExactlyOnceWith();
+  expect(screen.queryByRole('link', { name: /Get Terraform/ })).not.toBeInTheDocument();
+});
+
+test('incompatible Terraform opens diagnostics without suggesting a missing-install workflow', () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ projects: [] }) })));
+  render(<TerraformWorkspace {...props} platform={{ ...platform, ready: false }}
+    tool={{ ...props.tool, status: 'incompatible' }} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Terraform diagnostics' }));
+  expect(props.onOpenDiagnostics).toHaveBeenCalledExactlyOnceWith();
+  expect(screen.queryByRole('button', { name: /Set up Terraform/ })).not.toBeInTheDocument();
+});
