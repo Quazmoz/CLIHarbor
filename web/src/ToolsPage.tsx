@@ -7,6 +7,7 @@ import { PackAuthoringWizard } from './PackAuthoringWizard';
 import { ToolIcon } from './ToolIcon';
 
 // CLIHarbor already searches this user-owned Windows directory at startup.
+const TERRAFORM_WINDOWS_USER_HOME = '%USERPROFILE%';
 const TERRAFORM_WINDOWS_USER_BIN = '%USERPROFILE%\\bin';
 
 interface ToolsPageProps {
@@ -29,7 +30,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
   const [terraformPathCopy, setTerraformPathCopy] = useState<'copied' | 'failed' | null>(null);
   const copyTerraformPath = async () => {
     try {
-      await navigator.clipboard.writeText(TERRAFORM_WINDOWS_USER_BIN);
+      await navigator.clipboard.writeText(TERRAFORM_WINDOWS_USER_HOME);
       setTerraformPathCopy('copied');
     } catch {
       setTerraformPathCopy('failed');
@@ -82,7 +83,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                     <span className={'tool-status ' + (view.ready ? 'tool-status--ready' : 'tool-status--attention')}>{view.statusText}</span>
                   </div>
                   <p>{view.summary}</p>
-                  <p className="tool-next-step"><strong>Next:</strong> {catalog && tool.packId === 'terraform-cli' && tool.status === 'missing' && !tool.install
+                  <p className="tool-next-step"><strong>Next:</strong> {tool.packId === 'terraform-cli' && tool.status === 'missing' && !tool.install
                     ? 'Follow the no-admin Windows setup below; editing PATH is optional.'
                     : view.nextStep}</p>
                   {tool.status === 'ready' && (
@@ -114,7 +115,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                       </div>
                     </div>
                   )}
-                  {catalog && tool.packId === 'terraform-cli' && tool.status === 'missing' && tool.install === undefined && (
+                  {tool.packId === 'terraform-cli' && tool.status === 'missing' && tool.install === undefined && (
                     <div className="tool-install-controls" aria-label="Set up Terraform for your Windows account">
                       <p><strong>Windows: no administrator or PATH changes needed.</strong> CLIHarbor checks your user-owned <code>bin</code> folder automatically when it starts.</p>
                       <ol className="terraform-setup-steps">
@@ -124,19 +125,20 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                           <span>Get the Windows ZIP for your computer, using an organization-approved version{tool.versionConstraint ? ` (${tool.versionConstraint})` : ''}.</span>
                         </li>
                         <li>
-                          <span>Open File Explorer. Enter <code>%USERPROFILE%</code> in the address bar, then create a folder named <code>bin</code> if it does not exist.</span>
-                        </li>
-                        <li>
-                          <span>Extract the ZIP and put <code>terraform.exe</code> directly inside that <code>bin</code> folder (not inside another subfolder).</span>
+                          <span>Open File Explorer and go to your existing Windows user folder. Create a folder named <code>bin</code> there if needed.</span>
                           <div className="tool-install-actions">
-                            <code>{TERRAFORM_WINDOWS_USER_BIN}</code>
-                            <button type="button" className="secondary-button" onClick={() => { void copyTerraformPath(); }}>Copy folder path</button>
+                            <code>{TERRAFORM_WINDOWS_USER_HOME}</code>
+                            <button type="button" className="secondary-button" onClick={() => { void copyTerraformPath(); }}>Copy user folder</button>
                           </div>
                           <small role="status" aria-live="polite">{terraformPathCopy === 'copied'
-                            ? 'Copied. Paste into the File Explorer address bar.'
+                            ? 'Copied. Paste into the File Explorer address bar, then create the bin folder.'
                             : terraformPathCopy === 'failed'
-                              ? 'Clipboard unavailable. You can select and copy the folder path shown above.'
+                              ? 'Clipboard unavailable. You can select and copy the user folder shown above.'
                               : ''}</small>
+                        </li>
+                        <li>
+                          <span>Extract the ZIP and put <code>terraform.exe</code> directly inside <code>bin</code>, not in a nested folder. The finished file location should be:</span>
+                          <code>{TERRAFORM_WINDOWS_USER_BIN}\\terraform.exe</code>
                         </li>
                         <li>
                           <span>Close CLIHarbor and launch it again from a new terminal so it can detect and check Terraform. Refreshing this page alone is not enough.</span>
@@ -155,6 +157,15 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                       </details>
                       <small>Manual official download only. In-app automatic Terraform installation is disabled until the executable's hash and size are independently qualified. CLIHarbor still verifies the discovered executable and version before enabling tasks.</small>
                     </div>
+                  )}
+                  {tool.packId === 'terraform-cli' && tool.status === 'incompatible' && (
+                    <div className="tool-install-controls" role="status">
+                      <p><strong>Terraform was found, but its version is not supported.</strong> {tool.version ? 'Detected: ' + tool.version + '. ' : ''}Required: {tool.versionConstraint ?? 'a version supported by your reviewed pack'}.</p>
+                      <p>CLIHarbor checks existing PATH matches before its user-bin fallback. Placing another copy in <code>{TERRAFORM_WINDOWS_USER_BIN}</code> will not replace an already detected PATH executable. Ask your administrator to update the approved installation or start CLIHarbor with an approved backend <code>--tool-path</code> override.</p>
+                    </div>
+                  )}
+                  {tool.packId === 'terraform-cli' && tool.status === 'invalid-override' && (
+                    <p role="status">A configured backend <code>--tool-path</code> override takes precedence over automatic discovery. Correct or remove that override, then relaunch CLIHarbor. The browser cannot change it.</p>
                   )}
                   {catalog && tool.packId !== 'terraform-cli' && tool.status === 'missing' && tool.install === undefined && (
                     <p>{tool.toolId === 'docker'
