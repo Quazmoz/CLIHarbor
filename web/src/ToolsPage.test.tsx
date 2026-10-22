@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { expect, test, vi } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import { ToolsPage } from './ToolsPage';
+
+afterEach(() => vi.unstubAllGlobals());
 
 function renderMissingTerraform(onInstall = vi.fn()) {
   render(<ToolsPage catalog tasks={[]} tools={[{
