@@ -108,6 +108,14 @@ func (p *Platform) FormatCheck(ctx context.Context, projectID string) (server.Te
 			report.Files = append(report.Files, item)
 			continue
 		}
+		// Once the project byte budget is exhausted, never read more files;
+		// the report remains complete but their checks fail closed.
+		if total >= maxConfigTotalBytes {
+			item.Status = "inspection-failed"
+			item.Reason = "Configuration inspection exceeds the project byte limit."
+			report.Files = append(report.Files, item)
+			continue
+		}
 		path := filepath.Join(root.path, entry.Name())
 		data, problem := readConfiguration(dir, path, entry.Name())
 		if problem != "" {
