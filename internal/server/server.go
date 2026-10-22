@@ -50,6 +50,7 @@ type Config struct {
 	CredentialInteractiveLogin CredentialInteractiveLoginService
 	CredentialConfiguration    CredentialConfigurationService
 	ToolInstaller              ToolInstallService
+	ToolRefresher              ToolRefreshService
 	SecretAudit                SecretAuditService
 	Platforms                  PlatformService
 	Terraform                  TerraformStateService
@@ -80,6 +81,7 @@ type Server struct {
 	credentialInteractiveLogin CredentialInteractiveLoginService
 	credentialConfiguration    CredentialConfigurationService
 	toolInstaller              ToolInstallService
+	toolRefresher              ToolRefreshService
 	secretAudit                SecretAuditService
 	platforms                  PlatformService
 	terraform                  TerraformStateService
@@ -151,6 +153,7 @@ func New(config Config) (*Server, error) {
 		credentialInteractiveLogin: config.CredentialInteractiveLogin,
 		credentialConfiguration:    config.CredentialConfiguration,
 		toolInstaller:              config.ToolInstaller,
+		toolRefresher:              config.ToolRefresher,
 		secretAudit:                config.SecretAudit,
 		platforms:                  config.Platforms,
 		terraform:                  config.Terraform,
@@ -179,6 +182,9 @@ func New(config Config) (*Server, error) {
 	}
 	if s.toolInstaller != nil {
 		mux.Handle("/api/v1/tools/install", s.requireSession(http.HandlerFunc(s.handleToolInstall)))
+	}
+	if s.toolRefresher != nil {
+		mux.Handle("/api/v1/tools/refresh", s.requireSession(http.HandlerFunc(s.handleToolRefresh)))
 	}
 	if s.credentialLogin != nil {
 		mux.Handle("/api/v1/auth/login", s.requireSession(http.HandlerFunc(s.handleCredentialLogin)))

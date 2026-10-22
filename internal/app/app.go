@@ -123,6 +123,7 @@ func Run(ctx context.Context, options Options) error {
 		CredentialInteractiveLogin: credentialLogin,
 		CredentialConfiguration:    credentialLogin,
 		ToolInstaller:              toolInstaller,
+		ToolRefresher:              toolInstaller,
 		SecretAudit:                conjurPlatform.Audit,
 		Platforms:                  dedicated,
 		Terraform:                  terraformPlatform,

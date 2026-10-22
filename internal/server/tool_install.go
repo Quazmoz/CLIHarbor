@@ -146,3 +146,38 @@ func writeToolInstallError(w http.ResponseWriter, err error) {
 		writeAPIError(w, http.StatusInternalServerError, apperror.CodeInternalError)
 	}
 }
+
+// ToolRefreshResult is a sanitized backend decision. Only a new ready state
+// updates the tool catalog; non-ready probe results are advisory.
+type ToolRefreshResult struct {
+	Status  string `json:"status"`
+	Ready   bool   `json:"ready"`
+	Message string `json:"message"`
+}
+
+type ToolRefreshService interface {
+	RefreshTool(context.Context, ToolInstallRequest) (ToolRefreshResult, error)
+}
+
+func (s *Server) handleToolRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeMethodNotAllowed(w)
+		return
+	}
+	request, err := decodeToolInstallRequest(w, r)
+	// A check never accepts a browser-supplied installation directory.
+	if err != nil || request.InstallRoot != "" {
+		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
+		return
+	}
+	result, err := s.toolRefresher.RefreshTool(r.Context(), request)
+	if err != nil {
+		if r.Context().Err() != nil {
+			return
+		}
+		writeToolInstallError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}

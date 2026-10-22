@@ -106,3 +106,57 @@ func TestToolInstallAPIRejectsControlCharactersInInstallRoot(t *testing.T) {
 		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusBadRequest)
 	}
 }
+
+type fakeToolRefreshService struct {
+	seen ToolInstallRequest
+}
+
+func (f *fakeToolRefreshService) RefreshTool(_ context.Context, request ToolInstallRequest) (ToolRefreshResult, error) {
+	f.seen = request
+	return ToolRefreshResult{Status: "missing", Ready: false, Message: "No tasks enabled."}, nil
+}
+
+func TestRefreshEndpointEnforcesCSRFToolIdentityAndNoExecutableAuthority(t *testing.T) {
+	service := &fakeToolRefreshService{}
+	s := newTestServer(t, Config{ToolRefresher: service})
+	client := sessionClient(t)
+	bootstrap(t, client, s)
+	send := func(body, csrf string) int {
+		t.Helper()
+		request, err := http.NewRequest(http.MethodPost, s.BaseURL()+"/api/v1/tools/refresh", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Origin", s.BaseURL())
+		if csrf != "" {
+			request.Header.Set(csrfHeaderName, csrf)
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		return response.StatusCode
+	}
+	valid := "{\"packId\":\"fixture\",\"toolId\":\"fixture\"}"
+	if code := send(valid, ""); code == http.StatusOK {
+		t.Fatal("CSRF-less refresh accepted")
+	}
+	token := fetchStatus(t, client, s).CSRFToken
+	for _, body := range []string{
+		"{\"packId\":\"fixture\",\"toolId\":\"fixture\",\"path\":\"C:\\\\evil.exe\"}",
+		"{\"packId\":\"fixture\",\"toolId\":\"fixture\",\"installRoot\":\"C:\\\\Tools\"}",
+		"{\"packId\":\"fixture\",\"toolId\":\"fixture\",\"toolId\":\"other\"}",
+	} {
+		if code := send(body, token); code != http.StatusBadRequest {
+			t.Fatalf("untrusted request %s accepted (%d)", body, code)
+		}
+	}
+	if code := send(valid, token); code != http.StatusOK {
+		t.Fatalf("valid refresh status = %d", code)
+	}
+	if service.seen.PackID != "fixture" || service.seen.ToolID != "fixture" {
+		t.Fatalf("unexpected tool request: %#v", service.seen)
+	}
+}

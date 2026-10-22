@@ -290,3 +290,53 @@ func TestManagedInstallNeverReplacesUnavailableOrExplicitToolState(t *testing.T)
 		})
 	}
 }
+
+func TestMissingToolRefreshActivatesOnlyAuthoritativeDiscovery(t *testing.T) {
+	fixture := executionFixtureConfigForTest(t)
+	runtimeState, err := prepareRuntime(t.Context(), fixture.options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing := missingInstallSnapshot(runtimeState.Registry)
+	manager, err := runs.NewManager(t.Context(), runtimeState.Registry, missing, runs.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = manager.Shutdown(context.Background()) })
+	catalog := newTaskCatalog(runtimeState.Registry, missing)
+	installer := newManagedToolInstaller(runtimeState.Registry, missing, &fakeManagedProvisioner{}, nil)
+	installer.activate = func(snapshot discovery.Snapshot, candidate discovery.ToolState) error {
+		if err := manager.ActivateTool(candidate); err != nil {
+			return err
+		}
+		catalog.refresh(runtimeState.Registry, snapshot)
+		return nil
+	}
+	t.Setenv("PATH", filepath.Dir(fixture.executable))
+	request := server.ToolInstallRequest{PackID: fixture.ref.PackID, ToolID: fixture.ref.ToolID}
+	for i := 0; i < 2; i++ {
+		result, err := installer.RefreshTool(t.Context(), request)
+		if err != nil || !result.Ready || result.Status != string(discovery.StatusReady) {
+			t.Fatalf("refresh %d = %#v, %v", i, result, err)
+		}
+	}
+	if len(catalog.ListTasks()) == 0 {
+		t.Fatal("verified executable did not publish reviewed tasks")
+	}
+	if _, err := manager.Preview(runs.Request{PackID: fixture.ref.PackID, CommandID: "wait"}); err != nil {
+		t.Fatalf("newly ready tool cannot be planned: %v", err)
+	}
+	for _, status := range []discovery.Status{discovery.StatusIncompatible, discovery.StatusInvalidOverride, discovery.StatusAmbiguous} {
+		states := missing.Tools()
+		states[0].Status = status
+		protected := newManagedToolInstaller(runtimeState.Registry, discovery.NewSnapshot(states), &fakeManagedProvisioner{}, nil)
+		protected.activate = func(discovery.Snapshot, discovery.ToolState) error {
+			t.Fatal("protected tool replaced")
+			return nil
+		}
+		result, err := protected.RefreshTool(t.Context(), request)
+		if err != nil || result.Ready || result.Status != string(status) {
+			t.Fatalf("protected %s = %#v, %v", status, result, err)
+		}
+	}
+}
