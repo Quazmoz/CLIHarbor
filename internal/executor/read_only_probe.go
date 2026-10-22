@@ -20,6 +20,7 @@ const (
 	defaultReadOnlyProbeBytes   = 64 << 10
 	maxReadOnlyProbeBytes       = 64 << 10
 	readOnlyProbeWaitDelay      = 2 * time.Second
+	maxReadOnlyProbeInputBytes  = 256 << 10
 )
 
 // ReadOnlyProbeConfig bounds operator-invoked evidence probes. Callers must
@@ -27,6 +28,8 @@ const (
 type ReadOnlyProbeConfig struct {
 	Timeout        time.Duration
 	MaxOutputBytes int
+	// Input is bounded caller-authorized data; nil retains the no-stdin behavior.
+	Input          []byte
 }
 
 // ReadOnlyProbeResult preserves process evidence without interpreting command
@@ -69,6 +72,9 @@ func RunReadOnlyProbe(ctx context.Context, executablePath string, args []string,
 	if timeout > maxReadOnlyProbeTimeout {
 		return ReadOnlyProbeResult{}, fmt.Errorf("probe timeout exceeds %s", maxReadOnlyProbeTimeout)
 	}
+	if len(config.Input) > maxReadOnlyProbeInputBytes {
+		return ReadOnlyProbeResult{}, fmt.Errorf("probe input exceeds limit")
+	}
 	maxBytes := config.MaxOutputBytes
 	if maxBytes <= 0 {
 		maxBytes = defaultReadOnlyProbeBytes
@@ -94,7 +100,9 @@ func RunReadOnlyProbe(ctx context.Context, executablePath string, args []string,
 
 	cmd := exec.CommandContext(probeCtx, executablePath, args...)
 	cmd.Dir = workdir
-	cmd.Stdin = nil
+	if config.Input != nil {
+		cmd.Stdin = bytes.NewReader(config.Input)
+	}
 	cmd.Env = processenv.NeutralHome(workdir)
 	cmd.WaitDelay = readOnlyProbeWaitDelay
 	cmd.Cancel = func() error { return controller.cancel(cmd) }

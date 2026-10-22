@@ -75,6 +75,9 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return fmt.Errorf("configure Terraform project approval: %w", err)
 	}
+	if state, ok := runtimeState.Discovery.Find(discovery.ToolRef{PackID: "terraform-cli", ToolID: "terraform"}); ok {
+		terraformPlatform.ActivateTool(state)
+	}
 	dedicated := platforms.NewSet(runtimeState.Discovery, conjurPlatform, idira.New(), terraformPlatform)
 	runManager, err := runs.NewManager(ctx, runtimeState.Registry, runtimeState.Discovery, runs.Config{
 		ResolveExecutionContext: dedicated.ResolveExecutionContext,

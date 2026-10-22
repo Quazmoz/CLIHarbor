@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"sync"
 	"strings"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
@@ -38,7 +39,12 @@ type approvedRoot struct {
 	path string
 	info os.FileInfo
 }
-type Platform struct{ roots []approvedRoot }
+type Platform struct {
+	roots []approvedRoot
+	mu sync.RWMutex
+	tool discovery.ToolState
+	formatSlot chan struct{}
+}
 
 // Paths can be approved only by the local process operator at startup, never
 // by a loopback browser request. Relative, UNC and symlinked roots fail closed.
@@ -46,7 +52,7 @@ func New(paths []string) (*Platform, error) {
 	if len(paths) > maxProjects {
 		return nil, errors.New("too many Terraform project approvals")
 	}
-	p := &Platform{roots: make([]approvedRoot, 0, len(paths))}
+	p := &Platform{roots: make([]approvedRoot, 0, len(paths)), formatSlot: make(chan struct{}, 1)}
 	seen := map[string]bool{}
 	for _, path := range paths {
 		if path == "" || !filepath.IsAbs(path) || strings.ContainsRune(path, 0) {
@@ -84,11 +90,16 @@ func New(paths []string) (*Platform, error) {
 func (p *Platform) Descriptor() server.Platform {
 	return server.Platform{
 		ID: "terraform", Name: "HashiCorp Terraform", PackID: "terraform-cli", ToolID: "terraform",
-		Summary:  "Approved local-state resource inventory. State detachment and remote backends are disabled until independently qualified.",
+		Summary:  "Approved local configuration formatting checks and state-address inventory. Remote operations and state mutations remain disabled.",
 		Features: []server.PlatformFeature{{ID: "tasks", Name: "Offline CLI help"}},
 	}
 }
-func (p *Platform) ActivateTool(discovery.ToolState) {}
+func (p *Platform) ActivateTool(state discovery.ToolState) {
+	if state.PackID != "terraform-cli" || state.ToolID != "terraform" { return }
+	p.mu.Lock()
+	p.tool = state
+	p.mu.Unlock()
+}
 func (p *Platform) TaskAvailable(packID, commandID string) bool {
 	if packID != "terraform-cli" {
 		return false
@@ -162,8 +173,16 @@ func (p *Platform) Projects() ([]server.TerraformProject, error) {
 		if err != nil {
 			return nil, err
 		}
+		configs, err := configurationEntries(root)
+		if err != nil { return nil, err }
+		eligible := 0
+		for _, entry := range configs {
+			if entry.Type()&os.ModeSymlink != 0 || entry.IsDir() { continue }
+			info, statErr := entry.Info()
+			if statErr == nil && info.Mode().IsRegular() && info.Size() <= maxConfigBytes { eligible++ }
+		}
 		result = append(result, server.TerraformProject{
-			ID: id, Name: filepath.Base(root.path), States: stateFiles,
+			ID: id, Name: filepath.Base(root.path), States: stateFiles, ConfigurationFiles: eligible,
 		})
 	}
 	return result, nil
