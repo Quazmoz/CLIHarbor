@@ -70,7 +70,7 @@ test('incompatible Terraform warns that user-bin cannot supersede a PATH match',
   renderTerraform('incompatible');
   expect(screen.getByText(/Terraform was found, but its version is not supported/)).toBeInTheDocument();
   expect(screen.getByText(/Detected: 1.4.0/)).toBeInTheDocument();
-  expect(screen.getByText(/checks existing PATH matches before its user-bin fallback/)).toBeInTheDocument();
+  expect(screen.getByText(/prefers approved explicit or managed installations, then PATH matches/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Copy user folder' })).not.toBeInTheDocument();
 });
 
