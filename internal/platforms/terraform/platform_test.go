@@ -164,8 +164,14 @@ func TestConfigurationInventoryIsBoundedAndIgnoresVariableValues(t *testing.T) {
 	if len(projects) != 1 || projects[0].ConfigurationFiles != 1 { t.Fatalf("eligible config count = %#v", projects) }
 	entries, err := configurationEntries(p.roots[0])
 	if err != nil { t.Fatal(err) }
+	if len(entries) != projects[0].ConfigurationFiles {
+		t.Fatalf("formatter inventory has %d entries; project advertises %d", len(entries), projects[0].ConfigurationFiles)
+	}
 	for _, entry := range entries {
-		if entry.Name() == "secrets.tfvars" { t.Fatal("tfvars entered formatter inventory") }
+		if entry.Name() == "secrets.tfvars" || entry.Name() == "oversized.tf" ||
+			entry.Name() == "link.tf" {
+			t.Fatalf("ineligible configuration %q entered formatter inventory", entry.Name())
+		}
 	}
 	dir, err := os.OpenRoot(root)
 	if err != nil { t.Fatal(err) }
@@ -272,4 +278,52 @@ func TestApprovedRootHandleRefusesReplacement(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "outside.tf"), []byte("locals {}"), 0600); err != nil { t.Fatal(err) }
 	if _, err := openApprovedRoot(p.roots[0]); err == nil { t.Fatal("replaced root admitted") }
 	if _, err := p.Projects(); err == nil { t.Fatal("replacement project was exposed") }
+}
+
+func TestIneligibleFilesDoNotConsumeFormattingLimit(t *testing.T) {
+	root := resolvedTempDir(t)
+	for i := range maxConfigFiles {
+		name := filepath.Join(root, fmt.Sprintf("good-%03d.tf", i))
+		if err := os.WriteFile(name, []byte("locals {}\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := range 3 {
+		name := filepath.Join(root, fmt.Sprintf("oversized-%03d.tf", i))
+		if err := os.WriteFile(name, bytes.Repeat([]byte("x"), maxConfigBytes+1), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "terraform.tfstate"), []byte(`{"version":4,"resources":[]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := New([]string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projects, err := p.Projects()
+	if err != nil || len(projects) != 1 || projects[0].ConfigurationFiles != maxConfigFiles {
+		t.Fatalf("incorrect eligible configuration count: %#v, %v", projects, err)
+	}
+	entries, err := configurationEntries(p.roots[0])
+	if err != nil || len(entries) != maxConfigFiles {
+		t.Fatalf("format inventory should accept %d eligible files, got %d, %v", maxConfigFiles, len(entries), err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "oversized") {
+			t.Fatalf("oversized file %q entered the formatter", entry.Name())
+		}
+	}
+	// Adding one more valid file now crosses the limit; ineligible files
+	// never mask an actual overflow or interfere with state inventory.
+	if err := os.WriteFile(filepath.Join(root, "overflow.tf"), []byte("locals {}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := configurationEntries(p.roots[0]); err == nil {
+		t.Fatal("65 eligible configuration files should be rejected")
+	}
+	projects, err = p.Projects()
+	if err != nil || len(projects[0].States) != 1 || projects[0].ConfigurationFiles != maxConfigFiles+1 {
+		t.Fatalf("state inventory lost when formatter limit exceeded: %#v, %v", projects, err)
+	}
 }

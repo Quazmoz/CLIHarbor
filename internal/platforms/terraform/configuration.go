@@ -27,8 +27,21 @@ func configurationEntries(root approvedRoot) ([]os.DirEntry, error) {
 	if err != nil { return nil, errors.New("cannot enumerate bounded approved Terraform configuration") }
 	files := make([]os.DirEntry, 0)
 	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name(), ".tf") { continue }
-		if len(files) == maxConfigFiles { return nil, errors.New("approved Terraform directory exceeds configuration file limit") }
+		if !strings.HasSuffix(entry.Name(), ".tf") || entry.IsDir() ||
+			entry.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || !info.Mode().IsRegular() || info.Size() < 0 ||
+			info.Size() > maxConfigBytes {
+			continue
+		}
+		// Match the exact eligibility predicate in Projects, including the
+		// file limit. readConfiguration revalidates these properties after
+		// obtaining the pinned root handle, so filesystem races fail closed.
+		if len(files) == maxConfigFiles {
+			return nil, errors.New("approved Terraform directory exceeds configuration file limit")
+		}
 		files = append(files, entry)
 	}
 	return files, nil
