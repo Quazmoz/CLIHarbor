@@ -1,16 +1,10 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
-import { OverviewPage } from './OverviewPage';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { installFakeBackend } from './test/fakeBackend';
+import { newestFirst, OverviewPage } from './OverviewPage';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import type { TaskPreferences } from './taskPreferences';
-
-function response(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 const tasks: Task[] = [
   {
@@ -66,14 +60,15 @@ const preferences: TaskPreferences = {
   recent: [{ packId: 'conjur', commandId: 'whoami' }],
 };
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
-
 describe('OverviewPage', () => {
+  // OverviewPage always loads retained runs on mount.
+  beforeEach(() => {
+    installFakeBackend({ 'GET /api/v1/runs': { body: { runs: [] } } });
+  });
+
   test('shows setup guidance only before setup or prior use', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(200, { runs: [] }))));
-    const props = { status, tasks: [], tools: [], preferences: { favorites: [], recent: [] }, onNavigate: vi.fn(), onOpenTask: vi.fn() };
+    installFakeBackend({ 'GET /api/v1/runs': { body: { runs: [] } } });
+    const props = { tasks: [], tools: [], preferences: { favorites: [], recent: [] }, onNavigate: vi.fn(), onOpenTask: vi.fn() };
     const view = render(<OverviewPage {...props} />);
     expect(await screen.findByRole('list', { name: 'Getting started' })).toBeInTheDocument();
     fireEvent.click(within(document.querySelector<HTMLElement>('.overview-hero')!).getByRole('button', { name: 'Add a CLI' }));
@@ -85,9 +80,9 @@ describe('OverviewPage', () => {
   });
 
   test('does not repeat onboarding after a retained run, even if setup is now unavailable', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(200, { runs: [
+    installFakeBackend({ 'GET /api/v1/runs': { body: { runs: [
       { runId: 'r1', packId: 'docker', commandId: 'containers', toolId: 'docker', status: 'exited', exitCode: 1 },
-    ] }))));
+    ] } } });
     render(<OverviewPage tasks={[]} tools={[]} preferences={{ favorites: [], recent: [] }} onNavigate={vi.fn()} onOpenTask={vi.fn()} />);
     expect(await screen.findByText('Failed · exit 1')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Getting started' })).not.toBeInTheDocument();
@@ -175,10 +170,10 @@ describe('OverviewPage', () => {
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
   });
   test('shows recent executions newest first with individual outcomes', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response(200, { runs: [
+    installFakeBackend({ 'GET /api/v1/runs': { body: { runs: [
       { runId: 'r1', packId: 'docker', commandId: 'containers', toolId: 'docker', status: 'exited', exitCode: 0, startedAt: '2026-10-14T09:00:00Z', endedAt: '2026-10-14T09:00:02Z' },
       { runId: 'r2', packId: 'conjur', commandId: 'whoami', toolId: 'conjur', status: 'exited', exitCode: 1, startedAt: '2026-10-14T10:00:00Z', endedAt: '2026-10-14T10:00:01Z' },
-    ] }))));
+    ] } } });
     const navigate = vi.fn();
     render(<OverviewPage tasks={tasks} tools={readyTools} preferences={preferences} onNavigate={navigate} onOpenTask={vi.fn()} />);
 
@@ -190,5 +185,21 @@ describe('OverviewPage', () => {
     ]);
     fireEvent.click(items[0]);
     expect(navigate).toHaveBeenCalledWith('runs');
+  });
+});
+
+describe('newestFirst', () => {
+  test('orders by instant, not by RFC 3339 string, and sinks unparseable times', () => {
+    // Go's RFC3339Nano trims trailing zeros, so a whole second ("…:00Z")
+    // sorts lexically AFTER a later fractional instant ("…:00.5Z").
+    const ordered = newestFirst([
+      { id: 'whole', startedAt: '2026-10-14T10:00:00Z' },
+      { id: 'later-fraction', startedAt: '2026-10-14T10:00:00.5Z' },
+      { id: 'missing' },
+      { id: 'offset-latest', startedAt: '2026-10-14T12:30:00+02:00' },
+      { id: 'garbage', startedAt: 'not a time' },
+    ]);
+    expect(ordered.map((run) => run.id).slice(0, 3)).toEqual(['offset-latest', 'later-fraction', 'whole']);
+    expect(ordered.slice(3).map((run) => run.id).sort()).toEqual(['garbage', 'missing']);
   });
 });

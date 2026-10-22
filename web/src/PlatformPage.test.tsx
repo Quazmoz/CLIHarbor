@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { installFakeBackend } from './test/fakeBackend';
 import { PlatformPage } from './PlatformPage';
 import type { Task } from './api/tasks';
 import type { Platform } from './api/platforms';
@@ -111,6 +112,16 @@ test('Conjur workflows only show backend-advertised tasks owned by this platform
   fireEvent.click(within(toolbox).getByRole('button', { name: 'List policies' }));
   expect(onOpenTask).toHaveBeenNthCalledWith(1, 'cyberark-conjur-v9/role-members');
   expect(onOpenTask).toHaveBeenNthCalledWith(2, 'cyberark-conjur-v9/list-policies');
+});
+
+// The Conjur workspace polls the secret-audit snapshot on mount; declare it so
+// the fail-loud backend accepts it. Tests that stub fetch themselves replace this.
+beforeEach(() => {
+  installFakeBackend({
+    'GET /api/v1/conjur/secret-audit': {
+      body: { available: false, state: 'idle', total: 0, processed: 0, inspected: 0, findings: [], failures: [] },
+    },
+  });
 });
 
 afterEach(() => vi.unstubAllGlobals());

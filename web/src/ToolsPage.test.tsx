@@ -21,7 +21,7 @@ test('Terraform offers a no-PATH current-user setup instead of unqualified autom
   expect(link).toHaveAttribute('href', 'https://developer.hashicorp.com/terraform/install');
   expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   expect(screen.getByText(/no administrator or PATH changes needed/)).toBeInTheDocument();
-  expect(screen.getByText(/>=1.5.0 <2.0.0/)).toBeInTheDocument();
+  expect(screen.getByText(/organization-approved version \(>=1\.5\.0 <2\.0\.0\)/)).toBeInTheDocument();
   expect(screen.getByText('%USERPROFILE%')).toBeInTheDocument();
   expect(screen.getByText('%USERPROFILE%\\bin\\terraform.exe')).toBeInTheDocument();
   expect(screen.getByText(/not in a nested folder/)).toBeInTheDocument();

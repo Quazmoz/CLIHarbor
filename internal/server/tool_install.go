@@ -171,7 +171,10 @@ func (s *Server) handleToolRefresh(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
 		return
 	}
-	result, err := s.toolRefresher.RefreshTool(r.Context(), request)
+	result, err := s.toolRefresher.RefreshTool(r.Context(), ToolInstallRequest{
+		PackID: request.PackID,
+		ToolID: request.ToolID,
+	})
 	if err != nil {
 		if r.Context().Err() != nil {
 			return

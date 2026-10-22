@@ -1,3 +1,4 @@
+import { fetchWithDeadline, READ_TIMEOUTS } from './http';
 import { clientError, errorFromResponse } from './errors';
 
 export interface RuntimeStatus {
@@ -31,12 +32,12 @@ function parseRuntimeStatus(value: unknown): RuntimeStatus {
 }
 
 export async function fetchRuntimeStatus(signal?: AbortSignal): Promise<RuntimeStatus> {
-  const response = await fetch('/api/v1/status', {
+  const response = await fetchWithDeadline('/api/v1/status', {
     method: 'GET',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
     signal,
-  });
+  }, READ_TIMEOUTS.fast);
 
   if (!response.ok) {
     throw await errorFromResponse(response);

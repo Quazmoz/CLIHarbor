@@ -127,7 +127,7 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
         <span><strong>Projects</strong> {projects.length} approved</span>
         <span><strong>Mode</strong> Read-only configuration + local state</span>
         {!ready && (
-          <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>
+          <button type="button" className="secondary-button" onClick={() => onOpenDiagnostics()}>
             {tool?.status === 'missing' ? 'Set up Terraform (no admin required)' : 'Open Terraform diagnostics'}
           </button>
         )}
@@ -302,7 +302,7 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
                 {id === 'version' ? 'Version' : id === 'workflow-reference' ? 'Workflow help' : 'Command help'}
               </button>
             ))}
-            {onOpenRuns && <button type="button" className="secondary-button" onClick={onOpenRuns}>CLIHarbor run history</button>}
+            {onOpenRuns && <button type="button" className="secondary-button" onClick={() => onOpenRuns()}>CLIHarbor run history</button>}
           </div>
         </section>
       )}

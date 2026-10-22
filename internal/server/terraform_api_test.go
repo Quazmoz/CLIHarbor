@@ -64,30 +64,46 @@ func TestTerraformFormatAPIRefusesPathsAndMethods(t *testing.T) {
 	} {
 		w := httptest.NewRecorder()
 		s.handleTerraformFormatCheck(w, httptest.NewRequest(http.MethodPost, path, nil))
-		if w.Code != http.StatusBadRequest { t.Fatalf("%s => %d", path, w.Code) }
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("%s => %d", path, w.Code)
+		}
 	}
 	w := httptest.NewRecorder()
 	s.handleTerraformFormatCheck(w, httptest.NewRequest(http.MethodGet, "/api/v1/terraform/format-check?project=project-1", nil))
-	if w.Code != http.StatusMethodNotAllowed { t.Fatalf("GET format check => %d", w.Code) }
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("GET format check => %d", w.Code)
+	}
 	w = httptest.NewRecorder()
 	s.handleTerraformFormatCheck(w, httptest.NewRequest(http.MethodPost, "/api/v1/terraform/format-check?project=project-1", nil))
-	if w.Code != http.StatusOK { t.Fatalf("approved format check => %d", w.Code) }
+	if w.Code != http.StatusOK {
+		t.Fatalf("approved format check => %d", w.Code)
+	}
 }
 
 func TestTerraformFormattingRequiresLoopbackSessionAndCSRF(t *testing.T) {
 	s := newTestServer(t, Config{Terraform: fakeTerraformInventory{}})
 	client := sessionClient(t)
 	unauth, err := client.Post(s.BaseURL()+"/api/v1/terraform/format-check?project=project-1", "", nil)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	unauth.Body.Close()
-	if unauth.StatusCode != http.StatusForbidden { t.Fatalf("missing origin/CSRF status = %d", unauth.StatusCode) }
+	if unauth.StatusCode != http.StatusForbidden {
+		t.Fatalf("missing origin/CSRF status = %d", unauth.StatusCode)
+	}
 	bootstrap(t, client, s)
 	req, err := http.NewRequest(http.MethodPost, s.BaseURL()+"/api/v1/terraform/format-check?project=project-1", nil)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	req.Header.Set("Origin", s.BaseURL())
 	req.Header.Set(csrfHeaderName, s.csrfToken)
 	response, err := client.Do(req)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	response.Body.Close()
-	if response.StatusCode != http.StatusOK { t.Fatalf("authenticated format check = %d", response.StatusCode) }
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("authenticated format check = %d", response.StatusCode)
+	}
 }

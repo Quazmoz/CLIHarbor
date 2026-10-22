@@ -29,7 +29,7 @@ type ReadOnlyProbeConfig struct {
 	Timeout        time.Duration
 	MaxOutputBytes int
 	// Input is bounded caller-authorized data; nil retains the no-stdin behavior.
-	Input          []byte
+	Input []byte
 }
 
 // ReadOnlyProbeResult preserves process evidence without interpreting command

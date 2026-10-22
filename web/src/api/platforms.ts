@@ -1,3 +1,4 @@
+import { fetchWithDeadline, READ_TIMEOUTS } from './http';
 import { clientError, errorFromResponse } from './errors';
 
 // Closed set shared with internal/platforms/*: the backend names features,
@@ -48,12 +49,12 @@ function parsePlatform(value: unknown): Platform {
 }
 
 export async function fetchPlatforms(signal?: AbortSignal): Promise<Platform[]> {
-  const response = await fetch('/api/v1/platforms', {
+  const response = await fetchWithDeadline('/api/v1/platforms', {
     method: 'GET',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
     signal,
-  });
+  }, READ_TIMEOUTS.fast);
   if (!response.ok) throw await errorFromResponse(response);
   const payload: unknown = await response.json();
   if (!isRecord(payload) || !Array.isArray(payload.platforms)) throw clientError('invalid_response');

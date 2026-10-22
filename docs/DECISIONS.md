@@ -933,3 +933,19 @@ Add four vendor-verified, page-bounded read-only inventory commands (variables, 
 **Not changed.** Credential, configuration, and session-check endpoints; CSRF/session boundaries; the password never entering argv/history/storage; pack authority; and the server's SPA route allowlist.
 
 **Verification:** `AuthenticationPage.test.tsx` (settings disclosure, first-run settings auto-open, self-hosted/SaaS choice, sign-in after snapshot refresh), `AppFeatures.test.tsx` (top-bar entry, legacy sign-in URL), `OverviewPage.test.tsx` (no duplicate cards), and the browser E2E sign-in stage.
+
+## ADR-039 — Recover handler panics; bound idempotent browser reads
+
+**Date:** 2026-10-22
+**Status:** Accepted
+
+**Context:** A panic in any HTTP handler reached net/http's per-connection recovery. The browser saw a reset connection, shown as "could not reach the local runtime", and an SSE client went into its reconnect budget. net/http also logs the panic value, and handlers here touch vendor output and credential-adjacent request data. In the browser, no API read had a deadline. A read whose handler blocked (a wedged probe, a stalled filesystem) left the UI loading indefinitely, because the server's `WriteTimeout` only fails the eventual write.
+
+**Decision.** (1) `recoverPanics` wraps the mux inside `securityHeaders`, so recovered responses keep CSP and no-store. If nothing has been written yet, a panic becomes the standard `internal_error` detail (JSON under `/api/`, plain text elsewhere). Once a response has started, it re-panics `http.ErrAbortHandler` to abort honestly instead of appending a second status. `http.ErrAbortHandler` raised by a handler passes through untouched. The log records only the panic's Go type, method, a bounded control-stripped path and the stack, never the value. The wrapper implements `Unwrap` and `Flush`, so `http.ResponseController` deadlines and SSE flushing keep working. (2) Idempotent reads go through `fetchWithDeadline`: 15 s for in-memory reads (status, tasks, runs, run detail, audit, platforms) and 60 s for reads that may probe (tools, Terraform inventory). Expiry raises the retryable client error `request_timeout`. A caller abort keeps its `AbortError`, so unmount and supersede paths stay silent. Mutations (run start, sign-in, configuration, install, format check, secret audit) and `GET /api/v1/auth/configure` are deliberately unbounded client-side, because they can run for minutes and abandoning them would misreport work the backend is still doing.
+
+**Alternatives considered:** a global client timeout on every request (rejected: abandons long mutations); logging `%v` of the panic for debuggability (rejected: secret-bearing values; the stack already locates the fault); per-handler `defer recover()` (rejected: easy to miss on new routes).
+
+**Security implications:** No new endpoints, authority or data paths. The panic log is narrower than net/http's default. The timeouts change only what the browser waits for, not what the backend runs.
+
+**Verification:** `internal/server/recover_test.go`, `web/src/api/http.test.ts`; full `go test -race -shuffle=on ./...` and the Vitest suite on Linux. Native Windows acceptance has not been run for this change.
+

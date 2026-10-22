@@ -1,3 +1,4 @@
+import { fetchWithDeadline, READ_TIMEOUTS } from './http';
 import { clientError, errorFromResponse } from './errors';
 
 export type ToolStatus =
@@ -189,12 +190,12 @@ function parseTool(value: unknown): ToolDiagnostic {
 }
 
 export async function fetchTools(signal?: AbortSignal): Promise<ToolDiagnostic[]> {
-  const response = await fetch('/api/v1/tools', {
+  const response = await fetchWithDeadline('/api/v1/tools', {
     method: 'GET',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
     signal,
-  });
+  }, READ_TIMEOUTS.probe);
   if (!response.ok) {
     throw await errorFromResponse(response);
   }

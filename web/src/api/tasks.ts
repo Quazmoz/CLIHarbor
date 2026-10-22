@@ -1,3 +1,4 @@
+import { fetchWithDeadline, READ_TIMEOUTS } from './http';
 import { clientError, errorFromResponse } from './errors';
 
 export type TaskInputType = 'string' | 'integer' | 'boolean' | 'enum' | 'multiselect' | 'secret';
@@ -186,12 +187,12 @@ function parseTask(value: unknown): Task {
 }
 
 export async function fetchTasks(signal?: AbortSignal): Promise<Task[]> {
-  const response = await fetch('/api/v1/tasks', {
+  const response = await fetchWithDeadline('/api/v1/tasks', {
     method: 'GET',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
     signal,
-  });
+  }, READ_TIMEOUTS.fast);
   if (!response.ok) {
     throw await errorFromResponse(response);
   }

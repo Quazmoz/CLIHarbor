@@ -138,7 +138,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                         </li>
                         <li>
                           <span>Extract the ZIP and put <code>terraform.exe</code> directly inside <code>bin</code>, not in a nested folder. The finished file location should be:</span>
-                          <code>{TERRAFORM_WINDOWS_USER_BIN}\\terraform.exe</code>
+                          <code>{`${TERRAFORM_WINDOWS_USER_BIN}\\terraform.exe`}</code>
                         </li>
                         <li>
                           <span>Close CLIHarbor and launch it again from a new terminal so it can detect and check Terraform. Refreshing this page alone is not enough.</span>
