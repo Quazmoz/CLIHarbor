@@ -121,7 +121,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                         <li>
                           <a className="secondary-button terraform-download-link" href="https://developer.hashicorp.com/terraform/install"
                             target="_blank" rel="noopener noreferrer">Download Terraform from HashiCorp</a>
-                          <span>Get the Windows ZIP for your computer (an organization-approved version in the supported range).</span>
+                          <span>Get the Windows ZIP for your computer, using an organization-approved version{tool.versionConstraint ? ` (${tool.versionConstraint})` : ''}.</span>
                         </li>
                         <li>
                           <span>Open File Explorer. Enter <code>%USERPROFILE%</code> in the address bar, then create a folder named <code>bin</code> if it does not exist.</span>
