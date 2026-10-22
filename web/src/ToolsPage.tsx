@@ -161,7 +161,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                   {tool.packId === 'terraform-cli' && tool.status === 'incompatible' && (
                     <div className="tool-install-controls" role="status">
                       <p><strong>Terraform was found, but its version is not supported.</strong> {tool.version ? 'Detected: ' + tool.version + '. ' : ''}Required: {tool.versionConstraint ?? 'a version supported by your reviewed pack'}.</p>
-                      <p>CLIHarbor checks existing PATH matches before its user-bin fallback. Placing another copy in <code>{TERRAFORM_WINDOWS_USER_BIN}</code> will not replace an already detected PATH executable. Ask your administrator to update the approved installation or start CLIHarbor with an approved backend <code>--tool-path</code> override.</p>
+                      <p>CLIHarbor prefers approved explicit or managed installations, then PATH matches, before its user-bin fallback. Placing another copy in <code>{TERRAFORM_WINDOWS_USER_BIN}</code> will not replace an already detected PATH executable. Ask your administrator to update the approved installation or start CLIHarbor with an approved backend <code>--tool-path</code> override.</p>
                     </div>
                   )}
                   {tool.packId === 'terraform-cli' && tool.status === 'invalid-override' && (
