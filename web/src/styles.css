@@ -3704,3 +3704,12 @@ a.terraform-download-link {
 }
 a.terraform-download-link:hover { filter: brightness(1.15); }
 a.terraform-download-link:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* Terraform configuration-health: purposeful, readable operator telemetry. */
+.terraform-health { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .65rem; }
+.terraform-health > div { display: grid; align-content: start; gap: .4rem; padding: .85rem; border: 1px solid var(--line, #565c69); border-radius: var(--radius-sm); min-width: 0; }
+.terraform-health strong { font-size: .8rem; font-weight: 600; }
+.terraform-health span { font-weight: 650; overflow-wrap: anywhere; }
+.terraform-format-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.terraform-format-actions button { min-height: 2.75rem; }
+.terraform-format-actions span { font-size: .9rem; }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { TerraformWorkspace } from './TerraformWorkspace';
 import type { Platform } from '../../api/platforms';
@@ -18,8 +18,8 @@ afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 test('project selection changes invalidate downstream selections and removal remains disabled', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: true, json: async () => url.includes('/projects') ? { projects: [
-      { id: 'project-1', name: 'local', states: [{ id: 'state-one', name: 'terraform.tfstate' }] },
-      { id: 'project-2', name: 'other', states: [{ id: 'state-two', name: 'other.tfstate' }] },
+      { id: 'project-1', name: 'local', configurationFiles: 1, states: [{ id: 'state-one', name: 'terraform.tfstate' }] },
+      { id: 'project-2', name: 'other', configurationFiles: 0, states: [{ id: 'state-two', name: 'other.tfstate' }] },
     ] } : { resources: [{ address: 'aws_instance.demo[0]', type: 'aws_instance', category: 'managed', module: '' }] },
   })));
   render(<TerraformWorkspace {...props} />);
@@ -42,4 +42,42 @@ test('empty authorized project list gives setup guidance without a mutation acti
   render(<TerraformWorkspace {...props} />);
   expect(await screen.findByText(/No approved projects/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Preview removal/ })).not.toBeInTheDocument();
+});
+
+test('selected project formatting is explicit, filtered, and never shows source', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => ({
+    ok: true, json: async () => url.includes('/format-check')
+      ? { projectId: 'project-1', terraformVersion: '1.16.0', checkedAt: '2026-10-22T13:00:00Z', files: [
+        { name: 'good.tf', status: 'formatted' },
+        { name: 'bad.tf', status: 'needs-formatting' },
+        { name: 'locked.tf', status: 'inspection-failed', reason: 'Inspection failed.' },
+      ] }
+      : { projects: [{ id: 'project-1', name: 'local', configurationFiles: 3, states: [] }] },
+    ...(!url.includes('/format-check') ? {} : { postedWithCSRF: options?.headers }),
+  })));
+  render(<TerraformWorkspace {...props} csrfToken="test-token" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
+  fireEvent.change(await screen.findByLabelText('Approved project'), { target: { value: 'project-1' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Check formatting' }));
+  await screen.findByText('Needs formatting');
+  expect(screen.getByText('Inspection failed')).toBeInTheDocument();
+  expect(screen.queryByText('SECRET-MUST-NOT-LEAK')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Filter formatting results'), { target: { value: 'failed' } });
+  expect(screen.getByText('locked.tf')).toBeInTheDocument();
+  expect(screen.queryByText('bad.tf')).not.toBeInTheDocument();
+  await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+    '/api/v1/terraform/format-check?project=project-1',
+    expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'X-CLIHarbor-CSRF': 'test-token' }) }),
+  ));
+});
+
+test('formatting cannot run without an authenticated CSRF token', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({
+    projects: [{ id: 'project-1', name: 'local', configurationFiles: 1, states: [] }],
+  }) })));
+  render(<TerraformWorkspace {...props} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
+  fireEvent.change(await screen.findByLabelText('Approved project'), { target: { value: 'project-1' } });
+  expect(screen.getByRole('button', { name: 'Check formatting' })).toBeDisabled();
+  expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
 });
