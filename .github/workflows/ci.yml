@@ -155,8 +155,8 @@ jobs:
             throw "zero-config doctor returned unexpected exit code $doctorExit"
           }
           $doctorText = $doctorOutput -join "`n"
-          if ($doctorText -notmatch 'Configured packs: 8') {
-            throw "zero-config doctor did not load exactly eight embedded first-party packs"
+          if ($doctorText -notmatch 'Configured packs: 9') {
+            throw "zero-config doctor did not load exactly nine embedded first-party packs"
           }
           if ($doctorText -notmatch 'cyberark-conjur-v9/conjur:') {
             throw "zero-config doctor did not expose the embedded Conjur tool state"
@@ -178,6 +178,9 @@ jobs:
           }
           if ($doctorText -notmatch 'helm-cli/helm:') {
             throw "zero-config doctor did not expose the embedded Helm CLI tool state"
+          }
+          if ($doctorText -notmatch 'terraform-cli/terraform:') {
+            throw "zero-config doctor did not expose the embedded Terraform tool state"
           }
           if ($doctorText -notmatch 'vault-cli/vault:') {
             throw "zero-config doctor did not expose the embedded Vault CLI tool state"
