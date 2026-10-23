@@ -252,7 +252,7 @@ func TestProductionEmbeddedBrowserE2E(t *testing.T) {
 		t.Fatalf("browser E2E script unavailable: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(t.Context(), 75*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Second) // hosted macOS runners are ~2x slower
 	defer cancel()
 	cmd := exec.CommandContext(ctx, node, script)
 	cmd.Env = append(os.Environ(), "CLIHARBOR_E2E_BOOTSTRAP_URL="+bootstrapURL)

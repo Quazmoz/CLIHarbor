@@ -70,7 +70,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
         env:
           CLIHARBOR_BROWSER_E2E: '1'
-        run: go test -timeout 90s -count=1 -run '^TestProductionEmbeddedBrowserE2E$' ./internal/app
+        run: go test -timeout 180s -count=1 -run '^TestProductionEmbeddedBrowserE2E$' ./internal/app
       - name: Final embedded Go build
         run: go run ./tools/task go-build
       - name: Build local testing CLI

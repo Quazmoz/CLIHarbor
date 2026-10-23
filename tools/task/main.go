@@ -283,7 +283,16 @@ func windowsEvalBuild(root string) error {
 // validateBuildDestination rejects redirected or special-file build targets before
 // an external build command can write outside the intended artifact directory.
 func validateBuildDestination(artifact string) error {
-	parent, err := os.Lstat(filepath.Dir(artifact))
+	dir := filepath.Dir(artifact)
+	parent, err := os.Lstat(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		// A fresh checkout has no bin/. Create it, then re-inspect so the
+		// symlink/real-directory check still applies to what now exists.
+		if mkErr := os.MkdirAll(dir, 0o755); mkErr != nil {
+			return fmt.Errorf("create build output directory: %w", mkErr)
+		}
+		parent, err = os.Lstat(dir)
+	}
 	if err != nil {
 		return fmt.Errorf("inspect build output directory: %w", err)
 	}

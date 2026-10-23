@@ -946,7 +946,9 @@ describe('AuthenticationPage', () => {
     resolveLaunch?.(new Response(null, { status: 204 }));
     expect(await screen.findByText('Official Conjur sign-in started.')).toBeInTheDocument();
     fireEvent.focus(window);
-    expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
+    // Generous bound: the focus-triggered session check is async and hosted
+    // Windows runners regularly exceed findBy's 1s default.
+    expect(await screen.findByRole('heading', { name: 'Authenticated' }, { timeout: 5000 })).toBeInTheDocument();
     expect(sessionChecks).toBe(1);
   });
 
