@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { TerraformStateRemoval } from './TerraformStateRemoval';
 import type { Platform, PlatformFeatureID } from '../../api/platforms';
 import type { Task } from '../../api/tasks';
 import type { ToolDiagnostic } from '../../api/tools';
@@ -43,6 +44,7 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
   const [type, setType] = useState('all');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState('');
+  const [reloadNumber, setReloadNumber] = useState(0);
   const [outputView, setOutputView] = useState<'table' | 'summary' | 'json'>('table');
   const [formatRequest, setFormatRequest] = useState<{ projectId: string; number: number } | null>(null);
   const [formatReport, setFormatReport] = useState<TerraformFormatReport | null>(null);
@@ -87,7 +89,7 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
       if (!controller.signal.aborted) setResourceError(failureMessage(error));
     }).finally(() => { if (!controller.signal.aborted) setLoadingResources(false); });
     return () => controller.abort();
-  }, [projectID, stateID, selectionKey]);
+  }, [projectID, stateID, selectionKey, reloadNumber]);
   const resources = loaded?.key === selectionKey ? loaded.resources : [];
   const categoryResources = category === 'all' ? resources : resources.filter((r) => r.category === category);
   const types = useMemo(() => [...new Set(categoryResources.map((r) => r.type))].sort(), [categoryResources]);
@@ -125,7 +127,7 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
       <div className="terraform-context">
         <span><strong>CLI</strong> {tool?.status ?? 'Unavailable'}{tool?.version ? ' · ' + tool.version : ''}</span>
         <span><strong>Projects</strong> {projects.length} approved</span>
-        <span><strong>Mode</strong> Read-only configuration + local state</span>
+        <span><strong>Mode</strong> Read-only configuration · guarded local state removal</span>
         {!ready && (
           <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>
             {tool?.status === 'missing' ? 'Set up Terraform (no admin required)' : 'Open Terraform diagnostics'}
@@ -178,7 +180,7 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
           {state && loadingResources && <p role="status">Reading local resource addresses…</p>}
           {state && resourceError && <p role="alert">{resourceError}</p>}
           {state && !loadingResources && !resourceError && loaded?.key === selectionKey && (
-            <p role="status">{resources.length} address{resources.length === 1 ? '' : 'es'} in the selected state snapshot. Read-only; Terraform CLI execution is not invoked.</p>
+            <p role="status">{resources.length} address{resources.length === 1 ? '' : 'es'} in the selected state snapshot. Listing is read-only; Terraform CLI execution is not invoked.</p>
           )}
         </section>
       )}
@@ -235,9 +237,12 @@ export function TerraformWorkspace({ platform, tasks, tool, csrfToken, onOpenRun
         </section>
       )}
       {tab === 'state' && <section className="terraform-section terraform-safety" aria-labelledby="terraform-state-safety">
-        <h3 id="terraform-state-safety">State detachment — unavailable</h3>
-        <p><code>terraform state rm</code> forgets bindings, not cloud resources. A later apply can recreate objects. A server-enforced dry run, snapshot identity, exclusive locking, verified backups and one-use approvals are required before enabling removal.</p>
-        <button type="button" disabled>Preview removal (not yet qualified)</button>
+        <h3 id="terraform-state-safety">Remove from state</h3>
+        {project && state ? (
+          <TerraformStateRemoval projectId={project.id} projectName={project.name} stateId={state.id} stateName={state.name}
+            address={selectedResource?.address ?? ''} ready={ready} csrfToken={csrfToken}
+            onStateChanged={() => { setSelected(''); setReloadNumber((value) => value + 1); }} />
+        ) : <p>Select an approved project and state file first.</p>}
       </section>}
       {tab === 'configuration' && (
         <section className="terraform-section" aria-labelledby="terraform-format-heading">

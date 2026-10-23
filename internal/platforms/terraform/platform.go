@@ -1,5 +1,6 @@
-// Package terraform provides a deliberately read-only local state inventory.
-// It is not a Terraform provider, CLI executor, or mutation approval authority.
+// Package terraform provides the dedicated Terraform platform: a read-only
+// local state inventory, offline formatting checks, and a guarded state
+// removal flow that delegates the mutation to the official Terraform CLI.
 package terraform
 
 import (
@@ -14,8 +15,9 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
-	"sync"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/planner"
@@ -40,10 +42,17 @@ type approvedRoot struct {
 	info os.FileInfo
 }
 type Platform struct {
-	roots []approvedRoot
-	mu sync.RWMutex
-	tool discovery.ToolState
+	roots      []approvedRoot
+	mu         sync.RWMutex
+	tool       discovery.ToolState
 	formatSlot chan struct{}
+
+	// State removal (see state_removal.go).
+	removalSlot chan struct{}
+	removalMu   sync.Mutex
+	previews    map[string]*removalPreview
+	audit       runs.AuditSink
+	now         func() time.Time
 }
 
 // Paths can be approved only by the local process operator at startup, never
@@ -52,7 +61,10 @@ func New(paths []string) (*Platform, error) {
 	if len(paths) > maxProjects {
 		return nil, errors.New("too many Terraform project approvals")
 	}
-	p := &Platform{roots: make([]approvedRoot, 0, len(paths)), formatSlot: make(chan struct{}, 1)}
+	p := &Platform{
+		roots: make([]approvedRoot, 0, len(paths)), formatSlot: make(chan struct{}, 1),
+		removalSlot: make(chan struct{}, 1), previews: map[string]*removalPreview{}, now: time.Now,
+	}
 	seen := map[string]bool{}
 	for _, path := range paths {
 		if path == "" || !filepath.IsAbs(path) || strings.ContainsRune(path, 0) {
@@ -90,12 +102,14 @@ func New(paths []string) (*Platform, error) {
 func (p *Platform) Descriptor() server.Platform {
 	return server.Platform{
 		ID: "terraform", Name: "HashiCorp Terraform", PackID: "terraform-cli", ToolID: "terraform",
-		Summary:  "Approved local configuration formatting checks and state-address inventory. Remote operations and state mutations remain disabled.",
+		Summary:  "Approved local configuration formatting checks, state-address inventory and guarded local state removal. Remote operations remain disabled.",
 		Features: []server.PlatformFeature{{ID: "tasks", Name: "Offline CLI help"}},
 	}
 }
 func (p *Platform) ActivateTool(state discovery.ToolState) {
-	if state.PackID != "terraform-cli" || state.ToolID != "terraform" { return }
+	if state.PackID != "terraform-cli" || state.ToolID != "terraform" {
+		return
+	}
 	p.mu.Lock()
 	p.tool = state
 	p.mu.Unlock()
@@ -112,7 +126,7 @@ func (p *Platform) TaskAvailable(packID, commandID string) bool {
 	}
 }
 func (p *Platform) ResolveExecutionContext(planner.Plan) (runs.ExecutionContext, error) {
-	return runs.ExecutionContext{}, errors.New("Terraform state mutations are not authorized")
+	return runs.ExecutionContext{}, errors.New("Terraform pack tasks cannot mutate state; state removal uses the guarded preview/execute API")
 }
 
 func (p *Platform) root(id string) (approvedRoot, error) {
@@ -173,13 +187,19 @@ func (p *Platform) Projects() ([]server.TerraformProject, error) {
 		// Project/state discovery must remain usable even when a project
 		// exceeds the stricter 64-file formatter limit.
 		configs, err := boundedDirectoryEntries(root)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		eligible := 0
 		for _, entry := range configs {
 			if !strings.HasSuffix(entry.Name(), ".tf") ||
-				entry.Type()&os.ModeSymlink != 0 || entry.IsDir() { continue }
+				entry.Type()&os.ModeSymlink != 0 || entry.IsDir() {
+				continue
+			}
 			info, statErr := entry.Info()
-			if statErr == nil && info.Mode().IsRegular() && info.Size() >= 0 && info.Size() <= maxConfigBytes { eligible++ }
+			if statErr == nil && info.Mode().IsRegular() && info.Size() >= 0 && info.Size() <= maxConfigBytes {
+				eligible++
+			}
 		}
 		result = append(result, server.TerraformProject{
 			ID: id, Name: filepath.Base(root.path), States: stateFiles, ConfigurationFiles: eligible,
@@ -202,23 +222,9 @@ type stateSnapshot struct {
 }
 
 func (p *Platform) Resources(projectID, selectedStateID string) ([]server.TerraformResource, error) {
-	root, err := p.root(projectID)
+	root, name, err := p.selectState(projectID, selectedStateID)
 	if err != nil {
 		return nil, err
-	}
-	available, err := states(root)
-	if err != nil {
-		return nil, err
-	}
-	var name string
-	for _, state := range available {
-		if state.ID == selectedStateID {
-			name = state.Name
-			break
-		}
-	}
-	if name == "" {
-		return nil, errors.New("unknown approved local state file")
 	}
 	// Pin a verified startup-approved directory handle. A concurrent path
 	// replacement cannot redirect state reads outside this root.
@@ -227,36 +233,91 @@ func (p *Platform) Resources(projectID, selectedStateID string) ([]server.Terraf
 		return nil, err
 	}
 	defer dir.Close()
+	payload, _, err := readStateFile(dir, name)
+	if err != nil {
+		return nil, err
+	}
+	inventory, err := parseInventory(payload)
+	if err != nil {
+		return nil, err
+	}
+	return inventory.resources, nil
+}
+
+// selectState resolves an opaque project/state pair to its verified root and
+// direct-child file name. Browser input never names a path.
+func (p *Platform) selectState(projectID, selectedStateID string) (approvedRoot, string, error) {
+	root, err := p.root(projectID)
+	if err != nil {
+		return approvedRoot{}, "", err
+	}
+	available, err := states(root)
+	if err != nil {
+		return approvedRoot{}, "", err
+	}
+	for _, state := range available {
+		if state.ID == selectedStateID {
+			return root, state.Name, nil
+		}
+	}
+	return approvedRoot{}, "", errors.New("unknown approved local state file")
+}
+
+// readStateFile takes one bounded, identity-stable snapshot through the pinned
+// root. It returns the bytes and the file identity they were read from.
+func readStateFile(dir *os.Root, name string) ([]byte, os.FileInfo, error) {
 	before, err := dir.Lstat(name)
 	if err != nil || !before.Mode().IsRegular() || before.Size() < 0 || before.Size() > maxStateBytes {
-		return nil, errors.New("state must be a bounded regular file")
+		return nil, nil, errors.New("state must be a bounded regular file")
 	}
 	file, err := dir.Open(name)
 	if err != nil {
-		return nil, errors.New("state file cannot be opened inside approved root")
+		return nil, nil, errors.New("state file cannot be opened inside approved root")
 	}
 	defer file.Close()
 	opened, err := file.Stat()
 	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
-		return nil, errors.New("state file changed before inspection")
+		return nil, nil, errors.New("state file changed before inspection")
 	}
 	payload, err := io.ReadAll(io.LimitReader(file, maxStateBytes+1))
 	if err != nil || len(payload) > maxStateBytes {
-		return nil, errors.New("state read failed or oversized")
+		return nil, nil, errors.New("state read failed or oversized")
 	}
 	after, err := dir.Lstat(name)
 	openedAfter, openedErr := file.Stat()
-	if err != nil || openedErr != nil || !os.SameFile(before, after) || !os.SameFile(before, openedAfter) ||
-		before.Size() != after.Size() || before.Size() != openedAfter.Size() ||
-		!before.ModTime().Equal(after.ModTime()) || !before.ModTime().Equal(openedAfter.ModTime()) {
-		return nil, errors.New("state changed while inspecting")
+	if err != nil || openedErr != nil || !sameSnapshotIdentity(before, after) || !sameSnapshotIdentity(before, openedAfter) {
+		return nil, nil, errors.New("state changed while inspecting")
 	}
+	return payload, before, nil
+}
+
+func sameSnapshotIdentity(a, b os.FileInfo) bool {
+	return a != nil && b != nil && os.SameFile(a, b) && a.Size() == b.Size() && a.ModTime().Equal(b.ModTime())
+}
+
+type stateInventory struct {
+	serial    int64
+	lineage   string
+	resources []server.TerraformResource
+	addresses map[string]bool
+}
+
+type stateHeader struct {
+	Serial  *int64 `json:"serial"`
+	Lineage string `json:"lineage"`
+}
+
+func parseInventory(payload []byte) (stateInventory, error) {
 	var snapshot stateSnapshot
 	if err := json.Unmarshal(payload, &snapshot); err != nil || snapshot.Version != 4 {
-		return nil, errors.New("unsupported or invalid local state snapshot")
+		return stateInventory{}, errors.New("unsupported or invalid local state snapshot")
+	}
+	var header stateHeader
+	if err := json.Unmarshal(payload, &header); err != nil {
+		return stateInventory{}, errors.New("unsupported or invalid local state snapshot")
 	}
 	if len(snapshot.Resources) > maxResources {
-		return nil, errors.New("state resource inventory too large")
+		return stateInventory{}, errors.New("state resource inventory too large")
 	}
 	result := make([]server.TerraformResource, 0)
 	unique := make(map[string]bool)
@@ -264,7 +325,7 @@ func (p *Platform) Resources(projectID, selectedStateID string) ([]server.Terraf
 		if !identifier.MatchString(r.Type) || !identifier.MatchString(r.Name) ||
 			(r.Module != "" && !moduleAddress.MatchString(r.Module)) ||
 			(r.Mode != "managed" && r.Mode != "data") {
-			return nil, errors.New("unsupported Terraform state resource address")
+			return stateInventory{}, errors.New("unsupported Terraform state resource address")
 		}
 		category := r.Mode
 		base := r.Type + "." + r.Name
@@ -279,29 +340,29 @@ func (p *Platform) Resources(projectID, selectedStateID string) ([]server.Terraf
 			if len(instance.IndexKey) > 0 && string(instance.IndexKey) != "null" {
 				var key any
 				if err := json.Unmarshal(instance.IndexKey, &key); err != nil {
-					return nil, errors.New("malformed resource instance key")
+					return stateInventory{}, errors.New("malformed resource instance key")
 				}
 				switch value := key.(type) {
 				case string:
 					if len(value) > 128 {
-						return nil, errors.New("resource instance key too long")
+						return stateInventory{}, errors.New("resource instance key too long")
 					}
 					encoded, _ := json.Marshal(value)
 					address += "[" + string(encoded) + "]"
 				case float64:
 					if value < 0 || value >= 1e12 || value != float64(int64(value)) {
-						return nil, errors.New("invalid instance index")
+						return stateInventory{}, errors.New("invalid instance index")
 					}
 					address += "[" + strconv.FormatInt(int64(value), 10) + "]"
 				default:
-					return nil, errors.New("unsupported resource instance key")
+					return stateInventory{}, errors.New("unsupported resource instance key")
 				}
 			}
 			if len(address) > 512 || unique[address] {
-				return nil, errors.New("ambiguous resource address")
+				return stateInventory{}, errors.New("ambiguous resource address")
 			}
 			if len(result) >= maxResources {
-				return nil, errors.New("state resource inventory too large")
+				return stateInventory{}, errors.New("state resource inventory too large")
 			}
 			unique[address] = true
 			result = append(result, server.TerraformResource{
@@ -310,7 +371,11 @@ func (p *Platform) Resources(projectID, selectedStateID string) ([]server.Terraf
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Address < result[j].Address })
-	return result, nil
+	inventory := stateInventory{lineage: header.Lineage, resources: result, addresses: unique, serial: -1}
+	if header.Serial != nil {
+		inventory.serial = *header.Serial
+	}
+	return inventory, nil
 }
 
 // openApprovedRoot pins the directory authorized at startup. Go's os.Root
@@ -333,13 +398,21 @@ func openApprovedRoot(root approvedRoot) (*os.Root, error) {
 // and never reopens its path outside the verified root.
 func boundedDirectoryEntries(root approvedRoot) ([]os.DirEntry, error) {
 	dir, err := openApprovedRoot(root)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer dir.Close()
 	file, err := dir.Open(".")
-	if err != nil { return nil, errors.New("cannot enumerate approved Terraform root") }
+	if err != nil {
+		return nil, errors.New("cannot enumerate approved Terraform root")
+	}
 	defer file.Close()
 	files, err := file.ReadDir(4097)
-	if err != nil && !errors.Is(err, io.EOF) { return nil, err }
-	if len(files) > 4096 { return nil, errors.New("project directory too large") }
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	if len(files) > 4096 {
+		return nil, errors.New("project directory too large")
+	}
 	return files, nil
 }

@@ -3720,3 +3720,16 @@ a.terraform-download-link:focus-visible { outline: 3px solid var(--focus); outli
 .terraform-format-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
 .terraform-format-actions button { min-height: 2.75rem; }
 .terraform-format-actions span { font-size: .9rem; }
+
+/* Terraform state removal */
+.terraform-removal-context { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .5rem; margin: 0; }
+.terraform-removal-context div { display: grid; gap: .15rem; }
+.terraform-removal-context dt { font-weight: 600; }
+.terraform-removal-context dd { margin: 0; overflow-wrap: anywhere; }
+.terraform-removal-preview { display: grid; gap: .5rem; padding: .75rem 1rem; border: 1px solid var(--danger-border); background: var(--danger-surface); border-radius: 8px; }
+.terraform-removal-preview ul { margin: 0; padding-inline-start: 1.25rem; }
+.terraform-removal-preview label { display: grid; gap: .25rem; }
+.terraform-removal-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.terraform-removal-result code { overflow-wrap: anywhere; margin-inline-end: .35rem; }
+.danger-button { background: var(--danger); border-color: var(--danger); color: #1a0b0c; font-weight: 600; }
+.danger-button:disabled { opacity: .5; cursor: not-allowed; }

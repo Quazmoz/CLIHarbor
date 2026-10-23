@@ -205,6 +205,10 @@ func New(config Config) (*Server, error) {
 		mux.Handle("/api/v1/terraform/projects", s.requireSession(http.HandlerFunc(s.handleTerraformProjects)))
 		mux.Handle("/api/v1/terraform/resources", s.requireSession(http.HandlerFunc(s.handleTerraformResources)))
 		mux.Handle("/api/v1/terraform/format-check", s.requireSession(http.HandlerFunc(s.handleTerraformFormatCheck)))
+		if _, ok := s.terraform.(TerraformStateRemovalService); ok {
+			mux.Handle("/api/v1/terraform/state-removal/preview", s.requireSession(http.HandlerFunc(s.handleTerraformStateRemovalPreview)))
+			mux.Handle("/api/v1/terraform/state-removal/execute", s.requireSession(http.HandlerFunc(s.handleTerraformStateRemovalExecute)))
+		}
 	}
 	mux.Handle("/api/", s.requireSession(http.HandlerFunc(s.handleAPINotFound)))
 	mux.Handle("/", s.requireSession(config.Frontend))

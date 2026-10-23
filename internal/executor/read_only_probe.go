@@ -29,7 +29,11 @@ type ReadOnlyProbeConfig struct {
 	Timeout        time.Duration
 	MaxOutputBytes int
 	// Input is bounded caller-authorized data; nil retains the no-stdin behavior.
-	Input          []byte
+	Input []byte
+	// ExtraEnv adds backend-owned constant variables (for example
+	// CHECKPOINT_DISABLE=1) to the neutral environment. It must never carry
+	// browser input or secrets; names are restricted to [A-Z_][A-Z0-9_]*.
+	ExtraEnv []string
 }
 
 // ReadOnlyProbeResult preserves process evidence without interpreting command
@@ -76,6 +80,11 @@ func RunReadOnlyProbe(ctx context.Context, executablePath string, args []string,
 	if len(config.Input) > maxReadOnlyProbeInputBytes {
 		return ReadOnlyProbeResult{}, fmt.Errorf("probe input exceeds limit")
 	}
+	for _, entry := range config.ExtraEnv {
+		if !validExtraEnv(entry) {
+			return ReadOnlyProbeResult{}, fmt.Errorf("probe environment entry is invalid")
+		}
+	}
 	maxBytes := config.MaxOutputBytes
 	if maxBytes <= 0 {
 		maxBytes = defaultReadOnlyProbeBytes
@@ -104,7 +113,7 @@ func RunReadOnlyProbe(ctx context.Context, executablePath string, args []string,
 	if config.Input != nil {
 		cmd.Stdin = bytes.NewReader(config.Input)
 	}
-	cmd.Env = processenv.NeutralHome(workdir)
+	cmd.Env = append(processenv.NeutralHome(workdir), config.ExtraEnv...)
 	cmd.WaitDelay = readOnlyProbeWaitDelay
 	cmd.Cancel = func() error { return controller.cancel(cmd) }
 	if err := controller.configure(cmd); err != nil {
@@ -178,3 +187,16 @@ func (b *probeBuffer) Write(p []byte) (int, error) {
 }
 
 func (b *probeBuffer) Bytes() []byte { return b.buf.Bytes() }
+
+func validExtraEnv(entry string) bool {
+	name, value, found := strings.Cut(entry, "=")
+	if !found || name == "" || len(entry) > 256 || strings.ContainsRune(value, 0) {
+		return false
+	}
+	for i, r := range name {
+		if !(r == '_' || (r >= 'A' && r <= 'Z') || (i > 0 && r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
+}

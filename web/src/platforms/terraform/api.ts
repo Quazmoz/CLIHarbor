@@ -75,3 +75,74 @@ export async function fetchTerraformFormatCheck(project: string, csrfToken: stri
   if (new Set(files.map((file) => file.name)).size !== files.length) throw clientError('invalid_response');
   return { projectId: project, terraformVersion: payload.terraformVersion, checkedAt: payload.checkedAt, files };
 }
+
+export interface TerraformStateRemovalPreview {
+  previewId: string; projectId: string; stateId: string; stateName: string;
+  addresses: string[]; serial: number; terraformVersion: string; expiresAt: string;
+}
+export interface TerraformStateRemovalResult {
+  outcome: 'removed' | 'unverified'; projectId: string; stateId: string; stateName: string;
+  removed: string[]; serial: number; backup: string; terraformBackup?: string; problem?: string; completedAt: string;
+}
+
+function validFileName(value: unknown): value is string {
+  return validText(value, 255) && !value.includes('/') && !value.includes('\\');
+}
+function validAddressList(value: unknown, min: number): value is string[] {
+  return Array.isArray(value) && value.length >= min && value.length <= 50 &&
+    value.every((address) => validText(address)) && new Set(value).size === value.length;
+}
+function validSerial(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+async function postJSON(path: string, body: unknown, csrfToken: string, signal?: AbortSignal): Promise<unknown> {
+  const response = await fetch(path, {
+    method: 'POST', credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CLIHarbor-CSRF': csrfToken },
+    body: JSON.stringify(body), signal,
+  });
+  if (!response.ok) throw await errorFromResponse(response);
+  return response.json();
+}
+
+/** Runs Terraform's dry-run on the backend and returns a one-use preview. Never changes state. */
+export async function previewTerraformStateRemoval(project: string, state: string, addresses: string[], csrfToken: string,
+  signal?: AbortSignal): Promise<TerraformStateRemovalPreview> {
+  if (!validID(project) || !validID(state) || !validAddressList(addresses, 1) || !csrfToken) throw clientError('invalid_response');
+  const payload = await postJSON('/api/v1/terraform/state-removal/preview', { project, state, addresses }, csrfToken, signal);
+  if (!record(payload) || typeof payload.previewId !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(payload.previewId) ||
+    payload.projectId !== project || payload.stateId !== state || !validFileName(payload.stateName) ||
+    !validAddressList(payload.addresses, 1) || !validSerial(payload.serial) || !validText(payload.terraformVersion, 80) ||
+    typeof payload.expiresAt !== 'string' || !Number.isFinite(Date.parse(payload.expiresAt))) throw clientError('invalid_response');
+  // The backend must preview exactly what was asked, nothing more.
+  if ([...payload.addresses].sort().join('\n') !== [...addresses].sort().join('\n')) throw clientError('invalid_response');
+  return {
+    previewId: payload.previewId, projectId: project, stateId: state, stateName: payload.stateName,
+    addresses: payload.addresses, serial: payload.serial, terraformVersion: payload.terraformVersion, expiresAt: payload.expiresAt,
+  };
+}
+
+/**
+ * Consumes a preview once. Deliberately takes no AbortSignal: leaving the page
+ * must not look like a cancelled mutation, and the backend finishes regardless.
+ */
+export async function executeTerraformStateRemoval(preview: TerraformStateRemovalPreview, confirm: string,
+  csrfToken: string): Promise<TerraformStateRemovalResult> {
+  if (!csrfToken || !validText(confirm, 255)) throw clientError('invalid_response');
+  const payload = await postJSON('/api/v1/terraform/state-removal/execute', { previewId: preview.previewId, confirm }, csrfToken);
+  if (!record(payload) || (payload.outcome !== 'removed' && payload.outcome !== 'unverified') ||
+    payload.projectId !== preview.projectId || payload.stateId !== preview.stateId || payload.stateName !== preview.stateName ||
+    !validAddressList(payload.removed, 0) || !validSerial(payload.serial) || !validFileName(payload.backup) ||
+    (payload.terraformBackup !== undefined && !validFileName(payload.terraformBackup)) ||
+    (payload.problem !== undefined && !validText(payload.problem, 512)) ||
+    typeof payload.completedAt !== 'string' || !Number.isFinite(Date.parse(payload.completedAt))) throw clientError('invalid_response');
+  if (payload.outcome === 'removed' && [...payload.removed].sort().join('\n') !== [...preview.addresses].sort().join('\n')) {
+    throw clientError('invalid_response');
+  }
+  return {
+    outcome: payload.outcome, projectId: preview.projectId, stateId: preview.stateId, stateName: preview.stateName,
+    removed: payload.removed, serial: payload.serial, backup: payload.backup,
+    ...(payload.terraformBackup ? { terraformBackup: payload.terraformBackup } : {}),
+    ...(payload.problem ? { problem: payload.problem } : {}), completedAt: payload.completedAt,
+  };
+}

@@ -44,6 +44,10 @@ These tests use only synthetic state: they do **not** establish Windows reparse-
 
 
 
+### Terraform state removal checkpoint (ADR-040)
+
+`state_removal_test.go` uses the package's own test binary as a fake `terraform` (dispatched in `TestMain` on `state rm` argv; the mode is read from a file beside the state, because the platform passes no environment). It covers the full refusal/outcome matrix in ADR-040. `TestStateRemovalWithInstalledTerraform` runs the real CLI end to end and **skips when Terraform is not installed**. Set `CLIHARBOR_TEST_TERRAFORM=/abs/path/terraform` to force it. A passing fake matrix alone is not evidence of real-CLI compatibility. The generic `local-state-forget` pack tasks must still yield `unknown_command`.
+
 ### Stage 9 additional-real-CLI checkpoint
 
 The built-in Docker, kubectl, and GitHub CLI packs are covered without requiring Docker Engine, a Kubernetes cluster, or GitHub credentials in public CI. Tests verify default-pack loading, exact production-planner argv from each checked-in `packtest.json`, zero-error/zero-warning static lint coverage, and that additional tools cannot enter Conjur's automatic provisioning path. GitHub's 43 contract cases cover fixed metadata projections, explicit targets, bounded lists, enum choices, boolean switches, and hostile/unknown input refusal. Windows evaluation CI also requires zero-config `doctor` to expose all embedded tool states. Real runtime acceptance remains an approved-environment check.

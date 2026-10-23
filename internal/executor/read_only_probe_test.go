@@ -132,10 +132,18 @@ func TestReadOnlyProbeHelperProcess(t *testing.T) {
 		}
 	case "stdin":
 		input, err := io.ReadAll(io.LimitReader(os.Stdin, 1024))
-		if err != nil { os.Exit(93) }
+		if err != nil {
+			os.Exit(93)
+		}
 		fmt.Fprintf(os.Stdout, "stdin-bytes=%d", len(input))
+		os.Exit(0) // avoid the PASS trailer in asserted stdout
 	case "invalid-utf8":
 		_, _ = os.Stdout.Write([]byte{0xff, 'x'})
+	case "extra-env":
+		fmt.Fprintf(os.Stdout, "checkpoint=%s", os.Getenv("CHECKPOINT_DISABLE"))
+		// Exit explicitly: falling through would append the test framework's
+		// PASS trailer to the exact stdout this mode asserts.
+		os.Exit(0)
 	default:
 		os.Exit(92)
 	}
@@ -150,5 +158,17 @@ func TestReadOnlyProbeSupportsBoundedExplicitInput(t *testing.T) {
 	}
 	if _, err := runProbeHelper(t, "stdin", ReadOnlyProbeConfig{Input: bytes.Repeat([]byte("x"), maxReadOnlyProbeInputBytes+1)}); err == nil {
 		t.Fatal("oversized stdin accepted")
+	}
+}
+
+func TestReadOnlyProbeExtraEnvIsValidatedAndDelivered(t *testing.T) {
+	result, err := runProbeHelper(t, "extra-env", ReadOnlyProbeConfig{Timeout: 2 * time.Second, ExtraEnv: []string{"CHECKPOINT_DISABLE=1"}})
+	if err != nil || string(result.Stdout) != "checkpoint=1" {
+		t.Fatalf("result=%q err=%v", result.Stdout, err)
+	}
+	for _, entry := range []string{"", "NOVALUE", "=x", "lower=1", "1ST=x", "A-B=1", "A=\x00", "A=" + strings.Repeat("x", 300)} {
+		if _, err := runProbeHelper(t, "extra-env", ReadOnlyProbeConfig{ExtraEnv: []string{entry}}); err == nil {
+			t.Fatalf("invalid env entry %q accepted", entry)
+		}
 	}
 }
