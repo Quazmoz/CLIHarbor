@@ -15,7 +15,7 @@ const props = {
 };
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
-test('project selection changes invalidate downstream selections and removal remains disabled', async () => {
+test('project selection changes invalidate downstream selections, including the removal target', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: true, json: async () => url.includes('/projects') ? { projects: [
       { id: 'project-1', name: 'local', configurationFiles: 1, states: [{ id: 'state-one', name: 'terraform.tfstate' }] },
@@ -35,7 +35,8 @@ test('project selection changes invalidate downstream selections and removal rem
   expect(screen.queryByText('Exact address:')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Local state file')).toHaveValue('');
   fireEvent.click(screen.getByRole('button', { name: 'State management' }));
-  expect(screen.getByRole('button', { name: /Preview removal/ })).toBeDisabled();
+  expect(screen.getByText('Select an approved project and state file first.')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Preview removal/ })).not.toBeInTheDocument();
 });
 test('empty authorized project list gives setup guidance without a mutation action', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ projects: [] }) })));

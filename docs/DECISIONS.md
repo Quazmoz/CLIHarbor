@@ -949,3 +949,18 @@ Add four vendor-verified, page-bounded read-only inventory commands (variables, 
 
 **Verification:** `internal/server/recover_test.go`, `web/src/api/http.test.ts`; full `go test -race -shuffle=on ./...` and the Vitest suite on Linux. Native Windows acceptance has not been run for this change.
 
+## ADR-040: Guarded local Terraform state removal through the official CLI
+
+**Date:** 2026-10-23
+**Status:** Accepted. Lifts the "no state detachment" hold in TERRAFORM_INTEGRATION.md for local `.tfstate` files only.
+
+**Context:** Operators need to make Terraform forget resources (`terraform state rm`) after importing them elsewhere, refactoring modules, or removing orphaned bindings. The v0.3.0 pack tasks were withdrawn because their dry run was advisory, and identity, locking, backup and replay protection were unenforced. The integration doc listed the bar for re-enabling removal: an authenticated one-use preview tied to file identity and snapshot, the exact instance set, time-limited approval, an exclusive lock, and verified backup evidence, with no automatic replay.
+
+**Decision.** Implement removal as a dedicated platform operation (`/api/v1/terraform/state-removal/{preview,execute}`), not a pack task, and delegate the mutation to the official CLI (invariant 1). The preview runs a mandatory `-dry-run` and mints a 5-minute, one-use, hashed token bound to the snapshot SHA-256, file identity, lineage/serial, the exact sorted address set and executable identity. Execute consumes it first, requires a typed state-file-name confirmation and a byte-identical snapshot, and writes an audit approval (fail closed). It writes and verifies a CLIHarbor backup before Terraform starts, runs with `-lock=true -lock-timeout=0s` in a neutral directory with an explicit `-state`, and post-verifies the result and Terraform's backup. Ambiguous results are reported as `unverified`, with backup names, and never retried.
+
+**Alternatives considered:** editing state JSON in Go (rejected: reimplements Terraform's serialization and violates invariant 1); re-enabling the generic pack tasks with an approval (rejected: no snapshot binding, no backup or post-check, and pack argv cannot express an approved file path); running in the project directory (rejected: the backend block, `.terraform/` and environment could redirect the mutation to a remote backend); restoring automatically on a failed post-check (rejected: a second unverified write over evidence).
+
+**Security implications:** This adds the first browser-initiated state mutation. Authority stays with the startup-approved roots, the session/Origin/CSRF boundary, inventory membership and the token, and the browser never supplies paths or flags. Backups contain the full state, including any secrets in it, beside the original with mode 0600. Residual risk: a non-Terraform writer that does not bump the serial within the final check-to-lock window. The byte-identical CLIHarbor backup bounds the damage.
+
+**Verification:** `internal/platforms/terraform/state_removal_test.go` covers a fake-CLI matrix: one-use, expiry, wrong confirmation, stale snapshot, non-inventory and flag-like addresses, dry-run mismatch, held lock, overreach, concurrent writer, failure after write, audit failure, missing tool, single-flight and preview bounds. It also runs the full flow against real Terraform when it is installed (`CLIHARBOR_TEST_TERRAFORM`), with a project `backend "s3"` block proving no redirection. Also `internal/server/terraform_state_removal_test.go` and `web/src/platforms/terraform/TerraformStateRemoval.test.tsx`. Verified with Terraform 1.9.8 on Linux arm64. **Native Windows (file locking, reparse points, path casing) has not been run, so this stays on hold for beta.**
+

@@ -1,14 +1,14 @@
-# Terraform integration — approved local configuration checks and state inventory
+# Terraform integration: approved local configuration checks, state inventory and guarded state removal
 
 ## Status
 
-**Read-only configuration formatting and state inventory (dev source); not a qualified Windows release.**
+**Read-only configuration formatting, state inventory and guarded local state removal (dev source). Not a qualified Windows release.**
 CLIHarbor provides a dedicated Terraform workspace, while preserving existing Conjur,
 Idira, Docker, Kubernetes, GitHub, AWS, Helm and Vault packs.
 
 The existing Terraform installation can be discovered and version-qualified
 (`>=1.5.0 <2.0.0`). Five offline help/version tasks remain. The version task uses plain-text output; JSON remains in the version-discovery probe, because Terraform's version JSON includes additional undeclared fields not supported by CLIHarbor's strict structured-card parser.
-State inventory does not spawn Terraform. Configuration formatting invokes only the version-qualified, identity-checked Terraform executable using bounded stdin in an isolated temporary working directory.
+State inventory does not spawn Terraform. State removal invokes the official `terraform state rm` (see *State removal* below). Configuration formatting invokes only the version-qualified, identity-checked Terraform executable using bounded stdin in an isolated temporary working directory.
 
 ## Quickstart
 
@@ -21,7 +21,8 @@ State inventory does not spawn Terraform. Configuration formatting invokes only 
 4. Open **Built-in CLIs → HashiCorp Terraform → Configuration**. Select an approved project and choose **Check formatting**. The operation checks only eligible direct-child `.tf` files and never modifies them. Check the file-by-file formatted, needs-formatting, unsupported or inspection-failed statuses. A ready official Terraform CLI and active browser session are required.
 5. In **Projects**, choose an approved project and one direct-child `.tfstate` file. Symlinks, nested paths, UNC paths and remote backend connections are unavailable.
 6. Open **Resources**. Filter the managed/data category and resource type, search exact addresses, or switch between Table, JSON addresses and Safe summary.
-7. Select exactly one resource address for inspection. Selecting or switching values never invokes Terraform. The **State management** tab explains consequences, but the **Preview removal** button is deliberately disabled and there is no removal action.
+7. Select exactly one resource address for inspection. Selecting or switching values never invokes Terraform.
+8. To make Terraform forget that resource, open **State management** and choose **Preview removal**. CLIHarbor runs `terraform state rm -dry-run` and shows exactly what would be removed. Type the state file name to confirm, then choose **Forget from state**. The result names the verified backup written beside the state file. Real infrastructure is not destroyed.
 
 ## What is read
 
@@ -81,31 +82,38 @@ real Terraform synthetic-fixture integration, and native Windows reparse
 and process acceptance pass. A dev source commit alone does not update the
 embedded production frontend.
 
-## State detach, backups and recovery
+## State removal (`terraform state rm`), backups and recovery
 
-The old v0.3.0 generic `local-state-resources`, `local-state-forget-preview`
-and `local-state-forget` tasks were removed in v0.4.0 and remain disabled in v0.4.1. The former dry-run was
-an independent, advisory command, not an enforced snapshot-bound prerequisite.
+The old v0.3.0 generic `local-state-forget*` pack tasks stay removed: pack tasks still cannot mutate state, and `ResolveExecutionContext` refuses them. Removal is a dedicated platform operation with a backend-enforced two-step contract (ADR-040).
 
-**There is currently no state detachment and no CLIHarbor-created backup.**
-Do not assume that Terraform locking, backup creation or recovery has run.
-Future state-removal execution requires an authenticated, one-use preview tied
-to trusted file handle/identity, state snapshot, exact resource instance set,
-time-limited approval, exclusive lock and verified backup evidence.
-A lost response after a mutation must be reconciled before retrying; no
-automatic replay may be allowed.
+**Preview** (`POST /api/v1/terraform/state-removal/preview`, session + Origin + CSRF):
 
-Even with a future qualified `terraform state rm`, forgetting state
-does **not** destroy cloud infrastructure, and a future apply can recreate
-resources still present in configuration. Preserve existing state/backups
-outside CLIHarbor according to your organization's policy.
+- The body takes opaque project/state IDs and 1 to 50 exact resource-instance addresses. Each address must be in a fresh bounded snapshot of the approved direct-child `.tfstate`, read through the pinned `os.Root` handle. Leading-dash, control or bidi-break characters, duplicates, unknown fields and query strings are refused.
+- CLIHarbor runs `terraform state rm -dry-run -lock=true -lock-timeout=0s -state=<approved file> -- <addresses>` with the version-qualified, identity-checked executable. It runs in a neutral temporary directory with a minimal environment (`CHECKPOINT_DISABLE=1`, `TF_IN_AUTOMATION=1`, `TF_INPUT=0`), so the project's backend block, `TF_CLI_ARGS*` and `TF_DATA_DIR` cannot redirect or extend the command.
+- The dry run must exit 0 and list exactly the requested addresses (`Would remove …`). The snapshot must be byte-identical afterwards.
+- The response is a one-use preview ID (256-bit random, stored hashed). It is bound to the project, state file identity (same file, size, mtime), SHA-256, lineage, serial, address set and executable path plus content hash. It expires after 5 minutes. At most 8 previews are pending; the oldest is evicted.
+
+**Execute** (`POST /api/v1/terraform/state-removal/execute`):
+
+1. The preview is consumed first, so it can never be replayed, even if a later step refuses. The `confirm` field must equal the previewed state file name.
+2. The state must still be byte-identical to the preview, and the executable must be unchanged. Otherwise the request is refused as stale and nothing is written.
+3. An `approved` mutation-audit entry (`terraform-cli/state-rm`, risk `destructive`) is written before anything else. If the audit journal is unavailable, the operation is refused.
+4. CLIHarbor writes `<state>.cliharbor-<UTC>-<rand>.backup` with exclusive create, fsyncs it, re-reads it and verifies its SHA-256 against the preview.
+5. `terraform state rm -backup=<state>.terraform-<UTC>-<rand>.backup -lock=true -lock-timeout=0s -state=… -- <addresses>` runs. A held lock fails immediately instead of waiting.
+6. Post-check. The new state must have the same lineage, a higher serial, and exactly the previous address set minus the previewed addresses. Terraform's own backup must describe the previewed snapshot (same lineage, serial and address set); Terraform re-serializes it, so bytes are not compared. A `completed` audit entry records the exit status.
+
+Outcomes: `removed` (verified); a refusal with nothing changed (lock held, Terraform error with the state provably byte-identical, stale preview); or `unverified`. `unverified` means the state changed but the post-check failed. The response names both backups and tells the operator not to retry. There is no automatic retry or restore. A lost response is reconciled by reloading the inventory, since the preview is already consumed.
+
+**Recovery:** with no other Terraform process running, copy the CLIHarbor backup over the state file. It is byte-identical to the state you previewed. Backups end in `.backup`, so they are never listed as selectable state files. CLIHarbor does not prune them.
+
+**Limits:** one state operation runs at a time per runtime, with a 10-second Terraform timeout per command and 64 KiB of output per stream. Raw Terraform output is never returned to the browser. Forgetting state does **not** destroy infrastructure, and a later `apply` will recreate resources still in configuration. Local `.tfstate` files only: remote backends and workspaces are still unsupported. Only a non-Terraform writer that rewrites the file *without* changing its serial, in the window between CLIHarbor's last identity check and Terraform's lock, would escape the post-check. CLIHarbor's byte-identical backup still allows recovery in that case.
 
 ## Unsupported
 
 Remote backends, HCP Terraform, workspace switching, provider downloads,
 `init`, mutating `fmt`, `validate`, `plan`, `apply`, `destroy`, state attributes,
-output values, mutating tasks, automatic backup and mutation history are all
-unavailable in this milestone. The tabs reserve navigation space but do not
+output values, and mutating pack tasks are unavailable in this milestone. Local
+state removal is the only state mutation, and only through the guarded flow above. The tabs reserve navigation space but do not
 claim those operations execute.
 
 ## Qualification
