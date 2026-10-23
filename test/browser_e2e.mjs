@@ -594,14 +594,17 @@ async function main() {
       'const select = document.querySelector(".task-category-filter select");' +
       'const next = Array.from(select.options).find((option) => option.value && option.value !== select.value);' +
       'if (!next) return null;' +
-      'window.__cliharborDropdownBefore = select;' +
+      'window.__cliharborTaskBefore = document.querySelector(".task-context-header h4")?.textContent ?? "";' +
       'Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(select, next.value);' +
       'select.dispatchEvent(new Event("change", { bubbles: true })); return next.value;' +
     '})()');
     assert.ok(nextFilter, 'fixture must expose a second tool to exercise selection');
     await waitJS(page, 'native select remains wired to task filtering',
-      'document.querySelector(".task-category-filter select") !== window.__cliharborDropdownBefore && ' +
-        'document.querySelector(".task-category-filter select")?.value === ' + JSON.stringify(nextFilter));
+      // React owns the filter: the controlled value sticks and App's change
+      // handler moves the active task to the newly filtered tool. (Element
+      // identity is not a contract; React may legitimately reuse the node.)
+      'document.querySelector(".task-category-filter select")?.value === ' + JSON.stringify(nextFilter) + ' && ' +
+        '(document.querySelector(".task-context-header h4")?.textContent ?? "") !== window.__cliharborTaskBefore');
     assert.equal(await page.evaluate('document.querySelector(".run-panel h2")?.textContent === "Succeeded"'), false,
       'changing a task filter must never execute a task');
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });

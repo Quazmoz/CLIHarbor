@@ -22,7 +22,7 @@ For Idira/CyberArk work, verify command syntax against the exact upstream/deploy
 
 ## Toolchains
 
-- Go 1.27.1 (see `.go-version`)
+- Go 1.27.3 (see `.go-version`)
 - Node 24.21.0 (see `.node-version`)
 - npm lockfile at `web/package-lock.json`
 

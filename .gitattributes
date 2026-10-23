@@ -13,3 +13,7 @@
 .go-version text eol=lf
 .gitignore text eol=lf
 .gitattributes text eol=lf
+*.svg text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.sh text eol=lf

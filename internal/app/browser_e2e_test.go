@@ -177,6 +177,9 @@ commands:
 
 	ref := discovery.ToolRef{PackID: conjur.PackID, ToolID: conjur.ToolID}
 	fixture.options.PackFiles = append(fixture.options.PackFiles, packPath)
+	// The embedded Conjur pack does not target Linux, so this fixture shadows
+	// the reserved ID. Only in-package tests can opt into that.
+	fixture.options.allowReservedPackFixturesForTest = true
 	fixture.options.ToolOverrides[ref] = conjurPath
 
 	t.Setenv("CONJURRC", conjurrcPath)

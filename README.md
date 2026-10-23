@@ -515,7 +515,7 @@ For the full managed-device procedure, see [Work-Laptop Evaluation](docs/WORK_LA
 
 Pinned toolchain:
 
-- Go **1.27.1** from [`.go-version`](.go-version)
+- Go **1.27.3** from [`.go-version`](.go-version)
 - Node **24.21.0** from [`.node-version`](.node-version)
 - npm **>=11.6.0 <12**
 

@@ -37,6 +37,11 @@ type Options struct {
 	TerraformProjects  []string // Operator-approved local roots; browser cannot add roots.
 	AuditPath          string   // Tests or explicitly reviewed deployments may override local audit storage.
 	ToolProvisioner    toolbootstrap.Provisioner
+
+	// allowReservedPackFixturesForTest lets in-package tests load a local pack
+	// under a reserved first-party ID (for example a Linux Conjur fixture for
+	// the browser E2E). It is unexported, so no production caller can set it.
+	allowReservedPackFixturesForTest bool
 }
 
 // Run starts the local runtime, resolves configured pack/tool state, opens the

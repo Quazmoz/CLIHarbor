@@ -215,7 +215,7 @@ Run history is in memory only and is gone after CLIHarbor stops.
 
 Pinned toolchain:
 
-- Go **1.27.1**
+- Go **1.27.3**
 - Node **24.21.0**
 - npm **>=11.6.0 <12**
 
