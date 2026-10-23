@@ -174,7 +174,7 @@ func (p *Platform) FormatCheck(ctx context.Context, projectID string) (server.Te
 		// formatted stdin can contain configuration secrets or source excerpts.
 		result, probeErr := executor.RunReadOnlyProbe(ctx, tool.Path,
 			[]string{"fmt", "-check", "-write=false", "-no-color", "-"}, executor.ReadOnlyProbeConfig{
-				Timeout: 5 * time.Second, MaxOutputBytes: 1024, Input: data,
+				Timeout: 5 * time.Second, MaxOutputBytes: 1024, Input: data, ExtraEnv: terraformEnvVars,
 			})
 		if probeErr != nil || result.TimedOut || result.Cancelled || result.Truncated ||
 			!tool.ExecutableIdentity.Matches(tool.Path) {
