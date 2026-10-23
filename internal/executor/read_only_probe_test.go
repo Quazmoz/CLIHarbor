@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 	"time"
-)
 
-const probeHelperMarker = "--cliharbor-readonly-probe-helper"
+	"github.com/Quazmoz/CLIHarbor/internal/testsupport/helperproc"
+)
 
 func TestReadOnlyProbePreservesStreamsAndExitCode(t *testing.T) {
 	result, err := runProbeHelper(t, "success", ReadOnlyProbeConfig{Timeout: 2 * time.Second, MaxOutputBytes: 8 << 10})
@@ -85,60 +85,57 @@ func TestReadOnlyProbePreservesInvalidUTF8ForCallerSanitization(t *testing.T) {
 
 func runProbeHelper(t *testing.T, mode string, config ReadOnlyProbeConfig) (ReadOnlyProbeResult, error) {
 	t.Helper()
-	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return RunReadOnlyProbe(context.Background(), executable, []string{
-		"-test.run=^TestReadOnlyProbeHelperProcess$", "--", probeHelperMarker, mode,
-	}, config)
+	executable, argv := helperproc.Command(t, "TestReadOnlyProbeHelperProcess", mode)
+	return RunReadOnlyProbe(context.Background(), executable, argv, config)
 }
 
+// TestReadOnlyProbeHelperProcess is the fake CLI. Every mode exits explicitly
+// through helperproc, so exact stdout assertions never see a "PASS" trailer.
 func TestReadOnlyProbeHelperProcess(t *testing.T) {
-	index := -1
-	for i, arg := range os.Args {
-		if arg == probeHelperMarker {
-			index = i
-			break
-		}
-	}
-	if index < 0 {
-		return
-	}
-	if index+1 >= len(os.Args) {
-		os.Exit(91)
-	}
-	switch os.Args[index+1] {
-	case "success":
-		fmt.Fprint(os.Stdout, "probe-stdout\n")
-		fmt.Fprint(os.Stderr, "probe-stderr\n")
-	case "nonzero":
-		fmt.Fprint(os.Stdout, "before-exit\n")
-		os.Exit(7)
-	case "large":
-		fmt.Fprint(os.Stdout, strings.Repeat("x", 4096))
-	case "timeout":
-		time.Sleep(2 * time.Second)
-	case "environment":
-		if value := os.Getenv("CLIHARBOR_TEST_SECRET"); value != "" {
-			fmt.Fprintln(os.Stdout, value)
-		} else {
-			fmt.Fprintln(os.Stdout, "secret-absent")
-		}
-		if home, homeErr := os.UserHomeDir(); homeErr != nil || home == "" {
-			fmt.Fprint(os.Stdout, "home-missing")
-		} else {
-			fmt.Fprint(os.Stdout, "home-present")
-		}
-	case "stdin":
-		input, err := io.ReadAll(io.LimitReader(os.Stdin, 1024))
-		if err != nil { os.Exit(93) }
-		fmt.Fprintf(os.Stdout, "stdin-bytes=%d", len(input))
-	case "invalid-utf8":
-		_, _ = os.Stdout.Write([]byte{0xff, 'x'})
-	default:
-		os.Exit(92)
-	}
+	helperproc.Dispatch(t, map[string]helperproc.Mode{
+		"success": func([]string) int {
+			fmt.Fprint(os.Stdout, "probe-stdout\n")
+			fmt.Fprint(os.Stderr, "probe-stderr\n")
+			return 0
+		},
+		"nonzero": func([]string) int {
+			fmt.Fprint(os.Stdout, "before-exit\n")
+			return 7
+		},
+		"large": func([]string) int {
+			fmt.Fprint(os.Stdout, strings.Repeat("x", 4096))
+			return 0
+		},
+		"timeout": func([]string) int {
+			time.Sleep(2 * time.Second)
+			return 0
+		},
+		"environment": func([]string) int {
+			if value := os.Getenv("CLIHARBOR_TEST_SECRET"); value != "" {
+				fmt.Fprintln(os.Stdout, value)
+			} else {
+				fmt.Fprintln(os.Stdout, "secret-absent")
+			}
+			if home, homeErr := os.UserHomeDir(); homeErr != nil || home == "" {
+				fmt.Fprint(os.Stdout, "home-missing")
+			} else {
+				fmt.Fprint(os.Stdout, "home-present")
+			}
+			return 0
+		},
+		"stdin": func([]string) int {
+			input, err := io.ReadAll(io.LimitReader(os.Stdin, 1024))
+			if err != nil {
+				return 93
+			}
+			fmt.Fprintf(os.Stdout, "stdin-bytes=%d", len(input))
+			return 0
+		},
+		"invalid-utf8": func([]string) int {
+			_, _ = os.Stdout.Write([]byte{0xff, 'x'})
+			return 0
+		},
+	})
 }
 
 func TestReadOnlyProbeSupportsBoundedExplicitInput(t *testing.T) {

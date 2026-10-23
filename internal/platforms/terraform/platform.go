@@ -14,8 +14,8 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
-	"sync"
 	"strings"
+	"sync"
 
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/planner"
@@ -40,9 +40,9 @@ type approvedRoot struct {
 	info os.FileInfo
 }
 type Platform struct {
-	roots []approvedRoot
-	mu sync.RWMutex
-	tool discovery.ToolState
+	roots      []approvedRoot
+	mu         sync.RWMutex
+	tool       discovery.ToolState
 	formatSlot chan struct{}
 }
 
@@ -95,7 +95,9 @@ func (p *Platform) Descriptor() server.Platform {
 	}
 }
 func (p *Platform) ActivateTool(state discovery.ToolState) {
-	if state.PackID != "terraform-cli" || state.ToolID != "terraform" { return }
+	if state.PackID != "terraform-cli" || state.ToolID != "terraform" {
+		return
+	}
 	p.mu.Lock()
 	p.tool = state
 	p.mu.Unlock()
@@ -173,13 +175,19 @@ func (p *Platform) Projects() ([]server.TerraformProject, error) {
 		// Project/state discovery must remain usable even when a project
 		// exceeds the stricter 64-file formatter limit.
 		configs, err := boundedDirectoryEntries(root)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		eligible := 0
 		for _, entry := range configs {
 			if !strings.HasSuffix(entry.Name(), ".tf") ||
-				entry.Type()&os.ModeSymlink != 0 || entry.IsDir() { continue }
+				entry.Type()&os.ModeSymlink != 0 || entry.IsDir() {
+				continue
+			}
 			info, statErr := entry.Info()
-			if statErr == nil && info.Mode().IsRegular() && info.Size() >= 0 && info.Size() <= maxConfigBytes { eligible++ }
+			if statErr == nil && info.Mode().IsRegular() && info.Size() >= 0 && info.Size() <= maxConfigBytes {
+				eligible++
+			}
 		}
 		result = append(result, server.TerraformProject{
 			ID: id, Name: filepath.Base(root.path), States: stateFiles, ConfigurationFiles: eligible,
@@ -333,13 +341,21 @@ func openApprovedRoot(root approvedRoot) (*os.Root, error) {
 // and never reopens its path outside the verified root.
 func boundedDirectoryEntries(root approvedRoot) ([]os.DirEntry, error) {
 	dir, err := openApprovedRoot(root)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer dir.Close()
 	file, err := dir.Open(".")
-	if err != nil { return nil, errors.New("cannot enumerate approved Terraform root") }
+	if err != nil {
+		return nil, errors.New("cannot enumerate approved Terraform root")
+	}
 	defer file.Close()
 	files, err := file.ReadDir(4097)
-	if err != nil && !errors.Is(err, io.EOF) { return nil, err }
-	if len(files) > 4096 { return nil, errors.New("project directory too large") }
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	if len(files) > 4096 {
+		return nil, errors.New("project directory too large")
+	}
 	return files, nil
 }

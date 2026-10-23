@@ -17,10 +17,10 @@ type TerraformStateService interface {
 }
 
 type TerraformProject struct {
-	ID     string           `json:"id"`
-	Name   string           `json:"name"`
-	States []TerraformState `json:"states"`
-	ConfigurationFiles int `json:"configurationFiles"`
+	ID                 string           `json:"id"`
+	Name               string           `json:"name"`
+	States             []TerraformState `json:"states"`
+	ConfigurationFiles int              `json:"configurationFiles"`
 }
 type TerraformState struct {
 	ID   string `json:"id"`
@@ -34,15 +34,15 @@ type TerraformResource struct {
 }
 
 type TerraformFormatFile struct {
-	Name string `json:"name"`
+	Name   string `json:"name"`
 	Status string `json:"status"`
 	Reason string `json:"reason,omitempty"`
 }
 type TerraformFormatReport struct {
-	ProjectID string `json:"projectId"`
-	TerraformVersion string `json:"terraformVersion"`
-	CheckedAt string `json:"checkedAt"`
-	Files []TerraformFormatFile `json:"files"`
+	ProjectID        string                `json:"projectId"`
+	TerraformVersion string                `json:"terraformVersion"`
+	CheckedAt        string                `json:"checkedAt"`
+	Files            []TerraformFormatFile `json:"files"`
 }
 
 var terraformSelector = regexp.MustCompile("^[a-z0-9-]{1,80}$")

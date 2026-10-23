@@ -12,5 +12,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     restoreMocks: true,
+    // One jsdom per worker VM instead of one per file: same per-file module
+    // isolation, but environment setup dropped from ~75% of wall time and the
+    // suite from ~110-250s to ~21s on a 2-core runner.
+    pool: 'vmThreads',
   },
 });

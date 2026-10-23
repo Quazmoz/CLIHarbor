@@ -38,7 +38,7 @@ export type ServerErrorCode =
   | 'event_capacity'
   | 'internal_error';
 
-export type ClientErrorCode = 'network_unavailable' | 'invalid_response' | 'stream_disconnected';
+export type ClientErrorCode = 'network_unavailable' | 'invalid_response' | 'stream_disconnected' | 'request_timeout';
 export type AppErrorCode = ServerErrorCode | ClientErrorCode;
 
 export interface AppErrorDetail {
@@ -108,6 +108,13 @@ const clientDetails: Record<ClientErrorCode, AppErrorDetail> = {
     message: 'CLIHarbor returned an invalid or unsupported local response.',
     remediation: 'Relaunch CLIHarbor before retrying this operation.',
     retryable: false,
+  },
+  request_timeout: {
+    code: 'request_timeout',
+    category: 'lifecycle',
+    message: 'The local CLIHarbor runtime did not answer in time.',
+    remediation: 'A tool check or vendor CLI may be stuck. Retry, and run cliharbor doctor if it keeps happening.',
+    retryable: true,
   },
   stream_disconnected: {
     code: 'stream_disconnected',

@@ -1,3 +1,4 @@
+import { fetchWithDeadline, READ_TIMEOUTS } from './http';
 import type { TaskImpactScope, TaskRisk } from './tasks';
 import {
   clientError,
@@ -584,12 +585,12 @@ export async function cancelRun(csrfToken: string, runId: string): Promise<RunSn
 }
 
 export async function fetchRuns(signal?: AbortSignal): Promise<RunSummary[]> {
-  const response = await fetch('/api/v1/runs', {
+  const response = await fetchWithDeadline('/api/v1/runs', {
     method: 'GET',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
     signal,
-  });
+  }, READ_TIMEOUTS.fast);
   if (!response.ok) {
     throw await errorFromResponse(response);
   }
@@ -604,12 +605,12 @@ export async function fetchRuns(signal?: AbortSignal): Promise<RunSummary[]> {
 }
 
 export async function fetchRun(runId: string, signal?: AbortSignal): Promise<RunSnapshot> {
-  const response = await fetch(`/api/v1/runs/${encodeURIComponent(runId)}`, {
+  const response = await fetchWithDeadline(`/api/v1/runs/${encodeURIComponent(runId)}`, {
     method: 'GET',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
     signal,
-  });
+  }, READ_TIMEOUTS.fast);
   if (!response.ok) {
     throw await errorFromResponse(response);
   }

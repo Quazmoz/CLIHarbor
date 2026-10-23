@@ -1,3 +1,4 @@
+import { fetchWithDeadline, READ_TIMEOUTS } from './http';
 export interface MutationAuditEntry {
  sequence: number;
  previousHash: string;
@@ -42,7 +43,7 @@ function readEntry(raw: unknown): MutationAuditEntry {
  return raw as unknown as MutationAuditEntry;
 }
 export async function fetchAuditTrail(): Promise<MutationAuditEntry[]> {
- const response = await fetch('/api/v1/audit', { credentials:'same-origin', headers:{Accept:'application/json'} });
+ const response = await fetchWithDeadline('/api/v1/audit', { credentials:'same-origin', headers:{Accept:'application/json'} }, READ_TIMEOUTS.fast);
  if (!response.ok) throw new Error('Could not load mutation audit trail');
  const payload: unknown = await response.json();
  if (!isRecord(payload) || Object.keys(payload).some((key) => key !== 'entries') || !Array.isArray(payload.entries) || payload.entries.length > 100) {

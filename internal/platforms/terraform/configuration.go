@@ -14,17 +14,19 @@ import (
 )
 
 const (
-	maxConfigFiles = 64
-	maxConfigBytes = 256 << 10
+	maxConfigFiles      = 64
+	maxConfigBytes      = 256 << 10
 	maxConfigTotalBytes = 2 << 20
-	maxFormatDuration = 25 * time.Second
+	maxFormatDuration   = 25 * time.Second
 )
 
 // Only direct-child .tf files enter this inventory. terraform fmt also accepts
 // tfvars; never pass them here because they commonly contain secret values.
 func configurationEntries(root approvedRoot) ([]os.DirEntry, error) {
 	entries, err := boundedDirectoryEntries(root)
-	if err != nil { return nil, errors.New("cannot enumerate bounded approved Terraform configuration") }
+	if err != nil {
+		return nil, errors.New("cannot enumerate bounded approved Terraform configuration")
+	}
 	files := make([]os.DirEntry, 0)
 	for _, entry := range entries {
 		if !strings.HasSuffix(entry.Name(), ".tf") || entry.IsDir() ||
@@ -52,16 +54,28 @@ func configurationEntries(root approvedRoot) ([]os.DirEntry, error) {
 // between path checks. The checks also reject in-root redirection/replacement.
 func readConfiguration(root *os.Root, name string) ([]byte, string) {
 	before, err := root.Lstat(name)
-	if err != nil { return nil, "inspection-failed" }
-	if !before.Mode().IsRegular() { return nil, "unsupported" }
-	if before.Size() < 0 || before.Size() > maxConfigBytes { return nil, "unsupported" }
+	if err != nil {
+		return nil, "inspection-failed"
+	}
+	if !before.Mode().IsRegular() {
+		return nil, "unsupported"
+	}
+	if before.Size() < 0 || before.Size() > maxConfigBytes {
+		return nil, "unsupported"
+	}
 	file, err := root.Open(name)
-	if err != nil { return nil, "inspection-failed" }
+	if err != nil {
+		return nil, "inspection-failed"
+	}
 	defer file.Close()
 	opened, err := file.Stat()
-	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(before, opened) { return nil, "inspection-failed" }
+	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
+		return nil, "inspection-failed"
+	}
 	data, err := io.ReadAll(io.LimitReader(file, maxConfigBytes+1))
-	if err != nil || len(data) > maxConfigBytes { return nil, "inspection-failed" }
+	if err != nil || len(data) > maxConfigBytes {
+		return nil, "inspection-failed"
+	}
 	after, err := root.Lstat(name)
 	openedAfter, openedErr := file.Stat()
 	if err != nil || openedErr != nil || !os.SameFile(before, after) || !os.SameFile(before, openedAfter) ||
@@ -77,7 +91,9 @@ func readConfiguration(root *os.Root, name string) ([]byte, string) {
 // Browser inputs can only select an opaque startup-approved project ID.
 func (p *Platform) FormatCheck(ctx context.Context, projectID string) (server.TerraformFormatReport, error) {
 	var empty server.TerraformFormatReport
-	if ctx == nil { return empty, errors.New("format check needs a request context") }
+	if ctx == nil {
+		return empty, errors.New("format check needs a request context")
+	}
 	select {
 	case p.formatSlot <- struct{}{}:
 		defer func() { <-p.formatSlot }()
@@ -86,21 +102,29 @@ func (p *Platform) FormatCheck(ctx context.Context, projectID string) (server.Te
 	}
 
 	root, err := p.root(projectID)
-	if err != nil { return empty, err }
+	if err != nil {
+		return empty, err
+	}
 	entries, err := configurationEntries(root)
-	if err != nil { return empty, err }
+	if err != nil {
+		return empty, err
+	}
 	p.mu.RLock()
 	tool := p.tool
 	p.mu.RUnlock()
 	if tool.Status != discovery.StatusReady || !tool.ExecutableIdentity.Valid() || tool.Path == "" {
 		return empty, errors.New("approved Terraform executable is unavailable")
 	}
-	if !tool.ExecutableIdentity.Matches(tool.Path) { return empty, errors.New("approved Terraform executable changed") }
+	if !tool.ExecutableIdentity.Matches(tool.Path) {
+		return empty, errors.New("approved Terraform executable changed")
+	}
 
 	// OpenRoot is traversal-resistant in the pinned Go toolchain (>=1.24).
 	// Reject a root replaced after startup before inspecting any file content.
 	dir, err := openApprovedRoot(root)
-	if err != nil { return empty, err }
+	if err != nil {
+		return empty, err
+	}
 	defer dir.Close()
 
 	ctx, cancel := context.WithTimeout(ctx, maxFormatDuration)

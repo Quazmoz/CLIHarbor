@@ -1,3 +1,4 @@
+import { fetchWithDeadline, READ_TIMEOUTS } from '../../api/http';
 import { clientError, errorFromResponse } from '../../api/errors';
 
 export interface TerraformState { id: string; name: string }
@@ -20,7 +21,7 @@ function validText(value: unknown, max = 512): value is string {
     !/\p{Cc}/u.test(value);
 }
 async function read<T>(path: string, key: string, parse: (value: unknown) => T, signal: AbortSignal): Promise<T[]> {
-  const response = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal });
+  const response = await fetchWithDeadline(path, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal }, READ_TIMEOUTS.probe);
   if (!response.ok) throw await errorFromResponse(response);
   const payload: unknown = await response.json();
   if (!record(payload) || !Array.isArray(payload[key])) throw clientError('invalid_response');

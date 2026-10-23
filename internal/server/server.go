@@ -210,7 +210,7 @@ func New(config Config) (*Server, error) {
 	mux.Handle("/", s.requireSession(config.Frontend))
 
 	s.httpServer = &http.Server{
-		Handler:           s.securityHeaders(s.validateRequestBoundary(mux)),
+		Handler:           s.securityHeaders(s.recoverPanics(s.validateRequestBoundary(mux))),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,

@@ -57,6 +57,21 @@ function Glyph({ d }: { d: string }) {
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 }
 
+function startedAtMillis(value?: string): number {
+  const millis = value === undefined ? Number.NaN : Date.parse(value);
+  return Number.isFinite(millis) ? millis : Number.NEGATIVE_INFINITY;
+}
+
+// Sort by instant, not by string: RFC 3339 strings with different offsets or
+// fractional-second precision do not order lexically. Unparseable or missing
+// timestamps sink to the end instead of jumping to the top.
+export function newestFirst<T extends { startedAt?: string }>(runs: readonly T[]): T[] {
+  return [...runs].sort((a, b) => {
+    const delta = startedAtMillis(b.startedAt) - startedAtMillis(a.startedAt);
+    return Number.isNaN(delta) ? 0 : delta;
+  });
+}
+
 function formatShortTime(value?: string): string {
   const date = value === undefined ? undefined : new Date(value);
   if (date === undefined || !Number.isFinite(date.getTime())) return 'Not started';
@@ -82,7 +97,7 @@ export function OverviewPage({
     fetchRuns(controller.signal).then(setRuns, () => { if (!controller.signal.aborted) setRunsFailed(true); });
     return () => controller.abort();
   }, []);
-  const recentRuns = useMemo(() => [...(runs ?? [])].sort((a, b) => (b.startedAt ?? '').localeCompare(a.startedAt ?? '')).slice(0, 5), [runs]);
+  const recentRuns = useMemo(() => newestFirst(runs ?? []).slice(0, 5), [runs]);
   const succeeded = runs?.filter((run) => runOutcomeTone(run.status, run.exitCode) === 'succeeded').length ?? 0;
 
   let recommendedTitle = 'Choose a safe task';
