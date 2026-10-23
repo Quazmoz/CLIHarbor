@@ -176,6 +176,7 @@ func verifyWebSync(root string) error {
 		return fmt.Errorf("inspect embedded frontend synchronization: %w: %s", err, detail)
 	}
 	if drift := strings.TrimSpace(string(output)); drift != "" {
+		printWebSourceManifest(root)
 		return fmt.Errorf(
 			"embedded frontend is not synchronized with web source; run go run ./tools/task web-build and commit internal/webui/static:\n%s",
 			drift,

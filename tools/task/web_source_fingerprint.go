@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -17,6 +18,14 @@ const webSourceFingerprintFile = "web-source.sha256"
 // install/build/test outputs. Sorting and length-prefixing make the digest
 // independent of filesystem traversal order and unambiguous across paths.
 func webSourceFingerprint(root string) (string, error) {
+	return webSourceFingerprintWithManifest(root, false)
+}
+
+func webSourceFingerprintWithManifest(root string, verbose bool) (string, error) {
+	var manifest []string
+	if verbose {
+		manifest = make([]string, 0, 128)
+	}
 	webRoot := filepath.Join(root, "web")
 	paths := make([]string, 0, 64)
 	err := filepath.WalkDir(webRoot, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -60,11 +69,30 @@ func webSourceFingerprint(root string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("read frontend source %s: %w", rel, err)
 		}
+		// Hash text as committed (LF). Git may materialize CRLF on Windows for
+		// paths without an eol attribute; that must not change the digest.
+		data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
 		name := filepath.ToSlash(rel)
 		_, _ = fmt.Fprintf(hash, "%d:%s:%d:", len(name), name, len(data))
 		_, _ = hash.Write(data)
+		if manifest != nil {
+			sum := sha256.Sum256(data)
+			manifest = append(manifest, fmt.Sprintf("%s %d %x", name, len(data), sum[:6]))
+		}
+	}
+	if manifest != nil {
+		fmt.Fprintln(os.Stderr, "task: web source fingerprint manifest (name, normalized bytes, sha256 prefix):")
+		for _, line := range manifest {
+			fmt.Fprintln(os.Stderr, "  "+line)
+		}
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+// printWebSourceManifest re-walks web/ and prints each hashed input so a
+// cross-OS fingerprint drift can be diagnosed from CI logs alone.
+func printWebSourceManifest(root string) {
+	_, _ = webSourceFingerprintWithManifest(root, true)
 }
 
 func writeWebSourceFingerprint(root, destination string) error {
