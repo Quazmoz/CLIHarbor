@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Task } from '../../api/tasks';
 import { createRun, previewRun, type RunPreview } from '../../api/runs';
 import { normalizeConjurSaaSAPIURL } from './ConjurBackendConnection';
+import { WorkingStatus } from '../../WorkingStatus';
 import {
   GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, ROLE_KINDS, RoleOptions,
   approvalsFresh, completedRun, matchingPlans, safeMessage as sharedSafeMessage, splitRole, successful,
@@ -98,7 +99,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   const [value, setValue] = useState('');
   const [plan, setPlan] = useState<Plan | null>(null);
   const [approved, setApproved] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<'review' | 'create' | null>(null);
+  const busy = operation !== null;
   const [stage, setStage] = useState('');
   const [error, setError] = useState('');
   const [failedCheckRunId, setFailedCheckRunId] = useState('');
@@ -151,7 +153,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     event.preventDefault();
     if (busyRef.current || !allowed || !inputReady || !fullID || !account) return;
     busyRef.current = true;
-    setBusy(true);
+    setOperation('review');
+    setStage('Checking whether the variable already exists…');
     setError('');
     setFailedCheckRunId('');
     setOutcome('');
@@ -159,13 +162,16 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       if (await exists(csrfToken, fullID, account)) {
         throw new Error('Conjur reports this variable already exists. Use Update value instead of creating it.');
       }
+      setStage('Preparing the variable creation approval…');
       const create = await previewRun(csrfToken, {
         packId: PACK, commandId: owner ? 'secret-create-owned' : 'secret-create',
         values: createValues(branch, variable, owner),
       });
+      setStage('Preparing the initial value approval…');
       const set = await previewRun(csrfToken, {
         packId: PACK, commandId: 'secret-set-value', values: { 'variable-id': fullID, value },
       });
+      if (grantee) setStage('Preparing the access grant approval…');
       const permit = grantee ? await previewRun(csrfToken, {
         packId: PACK, commandId: 'secret-permit', values: permitValues({ branch, variable, grantee, privileges }),
       }) : undefined;
@@ -183,7 +189,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       }
     } finally {
       busyRef.current = false;
-      if (alive.current) setBusy(false);
+      if (alive.current) { setOperation(null); setStage(''); }
     }
   }
 
@@ -199,7 +205,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       return;
     }
     busyRef.current = true;
-    setBusy(true);
+    setOperation('create');
     setError('');
     setFailedCheckRunId('');
     setOutcome('');
@@ -264,7 +270,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       }
     } finally {
       // The only remaining reference to the secret is this short-lived async call stack.
-      if (alive.current) { setBusy(false); setStage(''); }
+      if (alive.current) { setOperation(null); setStage(''); }
       busyRef.current = false;
     }
   }
@@ -272,13 +278,14 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   return (
     <section className="conjur-create-secret" aria-label="Create Conjur secret">
       <button type="button" className="conjur-action conjur-action--primary" disabled={!allowed || busy}
+        aria-busy={busy}
         aria-expanded={open} onClick={() => {
           if (busy) return;
           if (!open && !inventory) void loadInventory();
           setOpen(!open);
         }}>
         <span className="conjur-action-text">
-          <strong>Create secret</strong>
+          <strong>{operation === 'create' ? 'Creating secret…' : operation === 'review' ? 'Reviewing secret…' : 'Create secret'}</strong>
           <span>{allowed
             ? 'Choose where the variable lives, who owns it and who can access it, then enter its initial value, using approved Conjur commands.'
             : 'Unavailable until Conjur and the approved commands are ready.'}</span>
@@ -345,7 +352,9 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
               onChange={(event) => changed(() => setValue(event.target.value))} />
           </label>
           <p>The value is sent over the protected local API and then to the vendor CLI on stdin. It is never displayed in the preview or stored in run history.</p>
-          <button type="submit" disabled={!allowed || !inputReady || busy}>Review creation and value</button>
+          <button type="submit" disabled={!allowed || !inputReady || busy} aria-busy={busy}>
+            {operation === 'review' ? 'Reviewing creation…' : operation === 'create' ? 'Creating secret…' : 'Review creation and value'}
+          </button>
           {reviewed && plan && (
             <section className="mutation-approval" aria-label="Create secret approval">
               <h4>Review {plan.permit ? 'all three' : 'both'} Conjur changes</h4>
@@ -370,7 +379,9 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
               </button>
             </section>
           )}
-          <p role="status" aria-live="polite">{busy ? stage || 'Checking Conjur and preparing the approvals…' : outcome}</p>
+          <WorkingStatus active={busy} title={operation === 'review' ? 'Reviewing secret creation…' : 'Creating secret…'}
+            detail={stage + ' Keep this page open; no need to submit again.'} />
+          <p role="status" aria-live="polite">{outcome}</p>
           {error && <p role="alert">{error}</p>}
           {error && failedCheckRunId && (
             <div className="conjur-create-check-failure">

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { Task } from '../../api/tasks';
 import { createRun, previewRun, type RunPreview } from '../../api/runs';
 import { validConjurID } from './ConjurAccessExplorer';
+import { WorkingStatus } from '../../WorkingStatus';
 import {
   GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, RoleOptions,
   approvalsFresh, completedRun, matchingPlans, runRead, safeMessage, successful,
@@ -74,7 +75,8 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   const [privileges, setPrivileges] = useState(PRIVILEGES[0]);
   const [change, setChange] = useState<Change | null>(null);
   const [approved, setApproved] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState('');
+  const busy = stage !== '';
   const [error, setError] = useState('');
   const [outcome, setOutcome] = useState('');
   const busyRef = useRef(false);
@@ -93,10 +95,10 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   const variableValid = Boolean(account) && validConjurID(account + ':variable:' + variable, account);
   const pending = change !== null && change.contextKey === contextKey && change.variable === shown ? change : null;
 
-  async function work(step: () => Promise<void>) {
+  async function work(message: string, step: () => Promise<void>) {
     if (busyRef.current) return;
     busyRef.current = true;
-    setBusy(true);
+    setStage(message);
     setError('');
     try {
       await step();
@@ -104,7 +106,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
       if (alive.current) setError(safeMessage(caught));
     } finally {
       busyRef.current = false;
-      if (alive.current) setBusy(false);
+      if (alive.current) setStage('');
     }
   }
 
@@ -115,16 +117,17 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
 
   function show(event: FormEvent) {
     event.preventDefault();
-    if (!allowed || !variableValid) return;
+    if (busyRef.current || !allowed || !variableValid) return;
     setAccess(null);
     setChange(null);
     setOutcome('');
-    void work(() => readAccess(variable));
+    void work('Reading current permissions…', () => readAccess(variable));
   }
 
   // Grant in the variable's policy, revoke in the granting policy.
   // Policy YAML requires a branch-relative variable; role IDs may be absolute.
   function review(commandId: Change['commandId'], label: string, branch: string, role: string, privilege: string) {
+    if (busyRef.current) return;
     const relativeVariable = policyRelativeVariableID(shown, branch);
     if (relativeVariable === null) {
       setError('This variable is outside the granting policy branch. Use the reviewed task workflow to resolve it.');
@@ -137,7 +140,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
     setApproved(false);
     setChange(null);
     setOutcome('');
-    void work(async () => {
+    void work('Preparing the permission change approval…', async () => {
       const preview = await previewRun(csrfToken, { packId: PACK, commandId, values });
       if (!matchingPlans([preview], account, endpoint) || preview.impact?.target !== relativeVariable || !preview.stdin) {
         throw new Error('Conjur did not return a matching approved plan.');
@@ -147,7 +150,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   }
 
   function apply() {
-    if (!pending || !approved) return;
+    if (busyRef.current || !pending || !approved) return;
     if (!approvalsFresh([pending.preview])) {
       setError('The reviewed approval is too close to expiry. Review the change again.');
       setChange(null);
@@ -155,7 +158,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
     }
     setApproved(false);
     setChange(null);
-    void work(async () => {
+    void work('Applying the permission change…', async () => {
       const result = await completedRun(await createRun(csrfToken, {
         packId: PACK, commandId: pending.commandId, values: pending.values,
         approval: { id: pending.preview.approval!.id },
@@ -164,6 +167,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
         throw new Error('Conjur did not confirm the permission change. Check Runs before trying again.');
       }
       try {
+        if (alive.current) setStage('Verifying current permissions…');
         await readAccess(pending.variable);
       } catch {
         // Don't leave the pre-change table on screen as if it were current.
@@ -180,6 +184,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   return (
     <section className="conjur-create-secret" aria-label="Manage Conjur secret permissions">
       <button type="button" className="conjur-action conjur-action--primary" disabled={!allowed || busy}
+        aria-busy={busy}
         aria-expanded={open} onClick={() => {
           if (busy) return;
           if (!open && !inventory) void loadInventory();
@@ -205,7 +210,9 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
             <datalist id={listID}>
               {inventory?.variable?.map((id) => <option key={id} value={id} />)}
             </datalist>
-            <button type="submit" disabled={!variableValid || busy}>Show current permissions</button>
+            <button type="submit" disabled={!variableValid || busy} aria-busy={busy}>
+              {busy ? 'Working…' : 'Show current permissions'}
+            </button>
           </form>
 
           {access && (
@@ -283,7 +290,8 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
               <button type="button" onClick={apply} disabled={!approved || busy}>Apply permission change</button>
             </section>
           )}
-          <p role="status" aria-live="polite">{busy ? 'Working with Conjur…' : outcome}</p>
+          <WorkingStatus active={busy} title={stage} />
+          <p role="status" aria-live="polite">{outcome}</p>
           {error && <p role="alert">{error}</p>}
         </div>
       )}

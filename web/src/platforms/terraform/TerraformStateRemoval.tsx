@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { normalizeError, type AppErrorDetail } from '../../api/errors';
+import { WorkingStatus } from '../../WorkingStatus';
 import {
   executeTerraformStateRemoval, previewTerraformStateRemoval,
   type TerraformStateRemovalPreview, type TerraformStateRemovalResult,
@@ -117,8 +118,8 @@ export function TerraformStateRemoval({ projectId, projectName, stateId, stateNa
         <div><dt>Resource</dt><dd>{address ? <code>{address}</code> : 'Select one exact resource on the Resources tab.'}</dd></div>
       </dl>
       {!ready && <p role="note">A ready, version-qualified Terraform CLI is required.</p>}
-      <button type="button" className="secondary-button" disabled={!canPreview} onClick={startPreview}>
-        {busy === 'preview' ? 'Running dry run…' : 'Preview removal'}
+      <button type="button" className="secondary-button" disabled={!canPreview} onClick={startPreview} aria-busy={busy !== null}>
+        {busy === 'preview' ? 'Running dry run…' : busy === 'execute' ? 'Removing from state…' : 'Preview removal'}
       </button>
 
       {preview && (
@@ -143,7 +144,8 @@ export function TerraformStateRemoval({ projectId, projectName, stateId, stateNa
         </section>
       )}
 
-      {busy === 'execute' && <p role="status">Removing from state. Keep CLIHarbor running…</p>}
+      <WorkingStatus active={busy !== null} title={busy === 'preview' ? 'Checking state removal…' : 'Removing from state…'}
+        detail={busy === 'preview' ? 'Terraform is running the dry run. No state change has been requested.' : 'Keep CLIHarbor running while removal and backup verification finish. Do not submit again.'} />
       {failure && <p role="alert">{failure}</p>}
       {result?.outcome === 'removed' && (
         <div role="status" className="terraform-removal-result">

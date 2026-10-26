@@ -62,6 +62,50 @@ beforeEach(() => {
 });
 afterEach(() => { vi.resetAllMocks(); });
 
+test('shows each pending creation step, blocks repeat submissions, and clears progress after failure', async () => {
+  let finishCheck!: (value: RunSnapshot) => void;
+  let finishCreate!: (value: RunSnapshot) => void;
+  let finishValue!: (value: RunSnapshot) => void;
+  const checking = new Promise<RunSnapshot>((resolve) => { finishCheck = resolve; });
+  const creating = new Promise<RunSnapshot>((resolve) => { finishCreate = resolve; });
+  const storing = new Promise<RunSnapshot>((resolve) => { finishValue = resolve; });
+  let firstCheck = true;
+  vi.mocked(createRun).mockImplementation(async (_, request) => {
+    if (request.commandId === 'resource-exists' && firstCheck) { firstCheck = false; return checking; }
+    if (request.commandId === 'secret-create') return creating;
+    if (request.commandId === 'secret-set-value') return storing;
+    return snapshot(request.commandId);
+  });
+  const region = setup();
+  const form = within(region).getByLabelText('Initial secret value').closest('form')!;
+  fireEvent.submit(form);
+  fireEvent.submit(form);
+  const status = region.querySelector('.working-status')!;
+  expect(status).toHaveTextContent('Reviewing secret creation…');
+  expect(status).toHaveTextContent('Checking whether the variable already exists…');
+  expect(status.querySelector('.work-spinner')).toBeInTheDocument();
+  expect(within(region).getByRole('button', { name: 'Reviewing creation…' })).toBeDisabled();
+  expect(within(region).getByRole('button', { name: 'Reviewing creation…' })).toHaveAttribute('aria-busy', 'true');
+  expect(createRun).toHaveBeenCalledTimes(1);
+  expect(previewRun).not.toHaveBeenCalled();
+  await act(async () => finishCheck(snapshot('resource-exists')));
+  fireEvent.click(await within(region).findByRole('checkbox', { name: /I approve both/ }));
+  fireEvent.click(within(region).getByRole('button', { name: 'Create secret and store value' }));
+  await waitFor(() => expect(status).toHaveTextContent('Creating the variable'));
+  expect(within(region).getByLabelText('Initial secret value')).toHaveValue('');
+  expect(status).not.toHaveTextContent('never-store-me');
+  expect(region.querySelector('button[type="submit"]')).toBeDisabled();
+  fireEvent.submit(form);
+  expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.commandId))
+    .toEqual(['resource-exists', 'resource-exists', 'secret-create']);
+  await act(async () => finishCreate(snapshot('secret-create')));
+  expect(status).toHaveTextContent('Storing the initial secret value');
+  await act(async () => finishValue(snapshot('secret-set-value', false)));
+  expect(within(region).getByRole('alert')).toHaveTextContent('Partial completion');
+  expect(status).toBeEmptyDOMElement();
+  expect(region.querySelector('[aria-busy="true"]')).not.toBeInTheDocument();
+});
+
 test('defaults to the data branch on SaaS and refuses root before any approval', async () => {
   render(<ConjurCreateSecret tasks={tasks} csrfToken="test-csrf" account="conjur"
     endpoint="https://tenant.secretsmgr.cyberark.cloud/api" contextKey="current" />);

@@ -1,32 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { TerraformStateRemoval } from './TerraformStateRemoval';
+import { installFakeBackend } from '../../test/fakeBackend';
 
 const TEST_CSRF_TOKEN = 'test-csrf-token';
 
-type Route = { status?: number; body: unknown } | (() => Promise<never>);
-interface RecordedCall { key: string; body: unknown; headers: Headers }
-
-/**
- * Minimal fail-loud fetch stub: any request to an undeclared route fails the
- * test instead of silently resolving.
- */
-function installFakeBackend(routes: Record<string, Route>) {
-  const calls: RecordedCall[] = [];
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    const key = (init?.method ?? 'GET') + ' ' + new URL(url, 'http://localhost').pathname;
-    const route = routes[key];
-    if (!route) throw new Error('Undeclared API route in test: ' + key);
-    calls.push({ key, body: init?.body ? JSON.parse(String(init.body)) : undefined, headers: new Headers(init?.headers) });
-    if (typeof route === 'function') return route();
-    return new Response(JSON.stringify(route.body), { status: route.status ?? 200, headers: { 'Content-Type': 'application/json' } });
-  }));
-  return {
-    bodies: (key: string) => calls.filter((call) => call.key === key).map((call) => call.body),
-    calls: (key: string) => calls.filter((call) => call.key === key),
-  };
-}
 afterEach(() => { vi.unstubAllGlobals(); });
 
 const PREVIEW_ID = 'p'.repeat(43);
@@ -52,6 +30,37 @@ function renderRemoval(overrides: Partial<Parameters<typeof TerraformStateRemova
 }
 
 describe('TerraformStateRemoval', () => {
+  test('shows dry-run and removal progress until completion and blocks repeat clicks', async () => {
+    let finishPreview!: (value: { body: typeof preview }) => void;
+    let finishExecute!: (value: { body: typeof removed }) => void;
+    const previewing = new Promise<{ body: typeof preview }>((resolve) => { finishPreview = resolve; });
+    const executing = new Promise<{ body: typeof removed }>((resolve) => { finishExecute = resolve; });
+    const backend = installFakeBackend({
+      'POST /api/v1/terraform/state-removal/preview': () => previewing,
+      'POST /api/v1/terraform/state-removal/execute': () => executing,
+    });
+    const { container } = renderRemoval();
+    fireEvent.click(screen.getByRole('button', { name: 'Preview removal' }));
+    const dryRun = screen.getByRole('button', { name: 'Running dry run…' });
+    expect(dryRun).toBeDisabled();
+    expect(dryRun).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Checking state removal…')).toBeInTheDocument();
+    fireEvent.click(dryRun);
+    expect(backend.calls('POST /api/v1/terraform/state-removal/preview')).toHaveLength(1);
+    await act(async () => finishPreview({ body: preview }));
+    fireEvent.change(screen.getByRole('textbox', { name: /to confirm/ }), { target: { value: 'terraform.tfstate' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Forget from state' }));
+    const removing = screen.getByRole('button', { name: 'Removing from state…' });
+    expect(removing).toBeDisabled();
+    expect(removing).toHaveAttribute('aria-busy', 'true');
+    expect(container.querySelector('.working-status .work-spinner')).toBeInTheDocument();
+    fireEvent.click(removing);
+    expect(backend.calls('POST /api/v1/terraform/state-removal/execute')).toHaveLength(1);
+    await act(async () => finishExecute({ body: removed }));
+    expect(container.querySelector('.working-status')).toBeEmptyDOMElement();
+    expect(screen.getByRole('button', { name: 'Preview removal' })).toBeEnabled();
+  });
+
   test('previews, requires typed confirmation, executes once and reports verified backups', async () => {
     const backend = installFakeBackend({
       'POST /api/v1/terraform/state-removal/preview': { body: preview },

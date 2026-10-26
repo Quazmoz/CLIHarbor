@@ -50,6 +50,45 @@ beforeEach(() => {
 });
 afterEach(() => { vi.resetAllMocks(); });
 
+test('keeps permission work visible and disabled through mutation and refresh, without duplicate requests', async () => {
+  let finishChange!: (value: RunSnapshot) => void;
+  let finishRead!: (value: RunSnapshot) => void;
+  let finishRefresh!: (value: RunSnapshot) => void;
+  const changing = new Promise<RunSnapshot>((resolve) => { finishChange = resolve; });
+  const reading = new Promise<RunSnapshot>((resolve) => { finishRead = resolve; });
+  const refreshing = new Promise<RunSnapshot>((resolve) => { finishRefresh = resolve; });
+  render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
+  const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
+  fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
+  await waitFor(() => expect(region.querySelector('datalist option')).toHaveAttribute('value', 'apps/db/password'));
+  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }), { target: { value: 'apps/db/password' } });
+  vi.mocked(createRun).mockImplementationOnce(() => reading);
+  const form = within(region).getByRole('button', { name: 'Show current permissions' }).closest('form')!;
+  fireEvent.submit(form);
+  fireEvent.submit(form);
+  const status = region.querySelector('.working-status')!;
+  expect(status).toHaveTextContent('Reading current permissions…');
+  expect(within(region).getByRole('button', { name: 'Working…' })).toHaveAttribute('aria-busy', 'true');
+  expect(vi.mocked(createRun).mock.calls.filter(([, request]) => request.commandId === 'resource-show')).toHaveLength(1);
+  await act(async () => finishRead(run('resource-show', resource)));
+  fireEvent.click(within(region).getByRole('button', { name: 'Revoke execute from apps/web' }));
+  fireEvent.click(await within(region).findByRole('checkbox', { name: /I approve this change/ }));
+  vi.mocked(createRun).mockImplementationOnce(() => changing);
+  fireEvent.click(within(region).getByRole('button', { name: 'Apply permission change' }));
+  expect(status).toHaveTextContent('Applying the permission change…');
+  expect(within(region).getByRole('button', { name: 'Working…' })).toBeDisabled();
+  fireEvent.submit(form);
+  expect(vi.mocked(createRun).mock.calls.filter(([, request]) => request.commandId === 'secret-deny')).toHaveLength(1);
+  vi.mocked(createRun).mockImplementationOnce(() => refreshing);
+  await act(async () => finishChange(run('secret-deny')));
+  expect(status).toHaveTextContent('Verifying current permissions…');
+  expect(within(region).getByRole('button', { name: 'Working…' })).toBeDisabled();
+  await act(async () => finishRefresh(run('resource-show', resource)));
+  expect(await within(region).findByText(/applied\. Current permissions were reloaded/)).toBeInTheDocument();
+  expect(status).toBeEmptyDOMElement();
+  expect(within(region).getByRole('button', { name: 'Show current permissions' })).toBeEnabled();
+});
+
 test('shows current grants, revokes from the granting branch and grants from dropdowns', async () => {
   render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
   const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });

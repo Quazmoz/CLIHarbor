@@ -19,6 +19,7 @@ import {
 } from './api/runs';
 import { AuthenticationPage, authenticationContextKey, type AuthenticationCheck, type AuthenticationChecks } from './AuthenticationPage';
 import { CliSessionStatus } from './CliSessionStatus';
+import { WorkingStatus } from './WorkingStatus';
 import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
 import { SecretAuditPage } from './platforms/conjur/SecretAuditPage';
 import { ConjurAccessExplorer } from './platforms/conjur/ConjurAccessExplorer';
@@ -977,7 +978,7 @@ export function App() {
     request: CreateRunRequest,
     failureTarget: 'task' | 'run',
   ) => {
-    if (state.kind !== 'ready' || startingRef.current || activeRunID !== null) {
+    if (state.kind !== 'ready' || previewing || startingRef.current || activeRunID !== null) {
       return;
     }
     startingRef.current = true;
@@ -1882,6 +1883,7 @@ export function App() {
                           <button
                             type="button"
                             className="validate-button"
+                            aria-busy={previewing}
                             disabled={previewing || starting || activeRunID !== null}
                             onClick={() => void previewSelectedTask()}
                           >
@@ -1896,10 +1898,13 @@ export function App() {
                           <button
                             type="submit"
                             className="run-button"
-                            disabled={starting || activeRunID !== null || (mutationTask && !mutationApprovalReady)}
+                            aria-busy={starting || activeRunID !== null}
+                            disabled={previewing || starting || activeRunID !== null || (mutationTask && !mutationApprovalReady)}
                           >
                             {starting
                               ? 'Starting…'
+                              : activeRunID !== null
+                                ? 'Running…'
                               : mutationTask
                                 ? selectedTask.risk === 'destructive'
                                   ? 'Approve destructive change and run'
@@ -1911,6 +1916,9 @@ export function App() {
                     )}
                   </form>
                 )}
+                <WorkingStatus active={previewing || starting || activeRunID !== null}
+                  title={previewing ? 'Validating command…' : starting ? 'Starting command…' : cancelRequested ? 'Stopping command…' : 'Command running…'}
+                  detail={activeRunID !== null ? 'Follow progress in Output or Execution History. This command is already running.' : undefined} />
                 {taskFailure && !taskHasFieldFailure && (
                   <div ref={taskErrorRef} tabIndex={-1}>
                     <FailureNotice

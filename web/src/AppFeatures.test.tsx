@@ -433,11 +433,15 @@ describe('command preview and retry workflows', () => {
     fireEvent.submit(form);
     fireEvent.submit(form);
     expect(query).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Starting…' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Starting command…')).toBeInTheDocument();
+    expect(document.querySelector('.working-status .work-spinner')).toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([input]) => requestPath(input) === '/api/v1/runs')).toHaveLength(1);
     await act(async () => resolveRun(response(202, {
       runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', packId: 'fixture', commandId: 'inspect', toolId: 'fixture', status: 'exited', exitCode: 0,
     })));
     expect(query).not.toBeDisabled();
+    expect(document.querySelector('.working-status')).toBeEmptyDOMElement();
   });
 
   test('updates page title and moves focus to main on navigation and browser back', async () => {
@@ -520,6 +524,12 @@ describe('command preview and retry workflows', () => {
     const query = await screen.findByRole('textbox', { name: 'Query' });
     fireEvent.change(query, { target: { value: 'old value' } });
     fireEvent.click(screen.getByRole('button', { name: 'Validate' }));
+
+    expect(screen.getByRole('button', { name: 'Checking…' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Validating command…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run command' })).toBeDisabled();
+    fireEvent.submit(query.closest('form')!);
+    expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs')).toBe(false);
 
     await waitFor(() =>
       expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs/preview')).toBe(true),

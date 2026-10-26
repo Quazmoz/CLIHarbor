@@ -1140,6 +1140,24 @@ async function main() {
     await page.waitEvent('Network.responseReceived',
       (params) => params.requestId === initialStreamRequest.requestId && params.response?.status === 200);
 
+    stage('visible command work and disabled repeat action');
+    assert.equal(await page.evaluate('document.querySelector(".run-button").disabled && document.querySelector(".run-button").getAttribute("aria-busy") === "true"'), true);
+    assert.equal(await page.evaluate('document.querySelector(".working-status").textContent.includes("Command running") && document.querySelector(".working-status .work-spinner") !== null'), true);
+    assert.equal(await page.evaluate('getComputedStyle(document.querySelector(".run-button"), "::before").clipPath'), 'none', 'busy spinner must replace the existing play icon');
+    assert.equal(await page.evaluate('getComputedStyle(document.querySelector(".run-button"), "::before").backgroundColor'), 'rgba(0, 0, 0, 0)');
+    await page.evaluate('document.querySelector(".run-button").click()');
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      await page.evaluate('document.querySelector(".working-status").scrollIntoView({ block: "end" })');
+      assert.equal(await page.evaluate('(() => { const rect = document.querySelector(".working-status").getBoundingClientRect(); return rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight && document.documentElement.scrollWidth <= innerWidth; })()'), true, 'working status must remain visible and fit at ' + width + 'px');
+      await capture('working-' + width);
+    }
+    await page.call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    assert.equal(await page.evaluate('getComputedStyle(document.querySelector(".work-spinner")).animationName'), 'none');
+    assert.equal(await page.evaluate('getComputedStyle(document.querySelector(".run-button"), "::before").animationName'), 'none');
+    await page.call('Emulation.setEmulatedMedia', { features: [] });
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+
     const reconciliationRequest = page.waitEvent('Network.requestWillBeSent',
       (params) => params.request?.url === baseURL + '/api/v1/runs/' + waitRunID && params.request?.method === 'GET',
       5000);
@@ -1170,6 +1188,7 @@ async function main() {
 
     await clickButton(page, 'Cancel run');
     await waitJS(page, 'explicit run cancellation', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "Cancelled"', 8000);
+    assert.equal(await page.evaluate('document.querySelector(".working-status").textContent === "" && document.querySelector(".run-button").getAttribute("aria-busy") === "false"'), true, 'busy feedback must clear when the command ends');
     const cancelled = await fetchJSON(page, '/api/v1/runs/' + waitRunID);
     assert.equal(cancelled.status, 200);
     assert.equal(cancelled.body.status, 'cancelled');
