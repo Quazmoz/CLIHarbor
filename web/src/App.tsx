@@ -17,7 +17,8 @@ import {
   type RunSnapshot,
   type StructuredErrorCode,
 } from './api/runs';
-import { AuthenticationPage } from './AuthenticationPage';
+import { AuthenticationPage, authenticationContextKey, type AuthenticationCheck, type AuthenticationChecks } from './AuthenticationPage';
+import { CliSessionStatus } from './CliSessionStatus';
 import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
 import { SecretAuditPage } from './platforms/conjur/SecretAuditPage';
 import { ConjurAccessExplorer } from './platforms/conjur/ConjurAccessExplorer';
@@ -613,6 +614,13 @@ function routeFromPath(pathname: string): AppRoute {
 }
 
 export function App() {
+  const [authenticationChecks, setAuthenticationChecks] = useState<AuthenticationChecks>({});
+  const recordAuthenticationCheck = useCallback((tool: ToolDiagnostic, check: AuthenticationCheck) => {
+    setAuthenticationChecks((current) => ({
+      ...current,
+      [tool.packId + '/' + tool.toolId]: { context: authenticationContextKey(tool), check },
+    }));
+  }, []);
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
   const [runtimeAttempt, setRuntimeAttempt] = useState(0);
   const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
@@ -703,6 +711,7 @@ export function App() {
   }, [selectedTaskKey, state, taskToolFilter]);
 
   const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[], tools: ToolDiagnostic[]) => {
+    setAuthenticationChecks({});
     setState({ kind: 'ready', status, tasks, tools });
     setTaskSwitcherOpen(false);
     setTaskToolFilter('');
@@ -740,6 +749,7 @@ export function App() {
   }, []);
 
   const loadFailure = useCallback((error: unknown) => {
+    setAuthenticationChecks({});
     setState({ kind: 'error', failure: normalizeError(error).detail });
   }, []);
 
@@ -1410,6 +1420,13 @@ export function App() {
             {navIcon('M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3')}
             Sign in
           </a>
+          {state.kind === 'ready' && (
+            <CliSessionStatus tools={state.tools} checks={authenticationChecks} onOpenSignIn={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              navigate('authentication');
+            }} />
+          )}
         </div>
       </header>
 
@@ -1482,6 +1499,8 @@ export function App() {
             onOpenDiagnostics={() => navigate('diagnostics')}
             onToolsChanged={refreshTools}
             signInFor={signInFor}
+            checks={authenticationChecks}
+            onCheckChange={recordAuthenticationCheck}
           />
         )}
 

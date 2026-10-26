@@ -23,7 +23,7 @@ function FailureAlert({ failure }: { failure: AppErrorDetail | null }) {
   );
 }
 
-function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession, openSettings, settingsOpen }: SignInContext) {
+function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession, invalidateSession, openSettings, settingsOpen }: SignInContext) {
   const checking = checkKind === 'checking';
   const [identity, setIdentity] = useState('');
   const [secret, setSecret] = useState('');
@@ -45,6 +45,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
     const trimmedIdentity = identity.trim();
     if (trimmedIdentity.length === 0 || secret.length === 0) return;
 
+    invalidateSession?.();
     setSubmitting(true);
     setFailure(null);
     try {
@@ -66,6 +67,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
 
   const launchVendorLogin = async () => {
     if (tool.credentialLogin?.method !== 'conjur-vendor-login' || !ready || submitting || checking) return;
+    invalidateSession?.();
     setSubmitting(true);
     setFailure(null);
     setVendorLoginOpened(false);

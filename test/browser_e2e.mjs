@@ -746,6 +746,31 @@ async function main() {
     assert.equal(credentialState.passwordValue, '', 'password input must be cleared after the login attempt');
     assert.equal(credentialState.connectionInputs, 0, 'successful setup must not leave connection inputs active');
 
+    stage('top-right CLI session status across navigation and narrow layouts');
+    await waitJS(page, 'verified sign-in indicator', 'document.querySelector(".cli-sessions summary")?.textContent.includes("1 signed in")');
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
+    await waitJS(page, 'verified session retained on Tasks', 'location.pathname === "/tasks" && document.querySelector(".cli-sessions summary")?.textContent.includes("1 signed in")');
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      await page.evaluate('document.querySelector(".cli-sessions summary").click()');
+      await waitJS(page, 'session disclosure open', 'document.querySelector(".cli-sessions").open');
+      const sessionPanel = await page.evaluate('(() => {' +
+        'const panel = document.querySelector(".cli-sessions-panel"); const bounds = panel.getBoundingClientRect();' +
+        'return { fits: bounds.left >= 0 && bounds.right <= window.innerWidth && document.documentElement.scrollWidth <= window.innerWidth,' +
+        'hasCLI: panel.innerText.includes("conjur"), hasStatus: panel.innerText.includes("Signed in"), hasTime: panel.querySelector("time") !== null };' +
+      '})()');
+      assert.deepEqual(sessionPanel, { fits: true, hasCLI: true, hasStatus: true, hasTime: true }, 'session panel must identify verified CLIs and fit at ' + width + 'px');
+      await capture('cli-sessions-' + width);
+      await page.evaluate('document.querySelector(".cli-sessions summary").focus()');
+      await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      assert.equal(await page.evaluate('!document.querySelector(".cli-sessions").open && document.activeElement === document.querySelector(".cli-sessions summary")'), true);
+    }
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    await page.evaluate('document.querySelector(".cli-sessions summary").click()');
+    await page.evaluate('document.querySelector(".cli-sessions-panel > a").click()');
+    await waitJS(page, 'manage sign-ins retains verified evidence', 'location.pathname === "/authentication" && document.body.innerText.includes("Authenticated") && document.activeElement?.id === "main-content"');
+
     stage('direct run history route');
     await navigate(page, baseURL + '/runs');
     await waitJS(page, 'runs route',

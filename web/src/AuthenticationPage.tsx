@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react';
 import { normalizeError, type AppErrorDetail } from './api/errors';
 import type { RuntimeStatus } from './api/status';
 import type { Task } from './api/tasks';
@@ -31,6 +31,20 @@ export type AuthenticationCheck =
   | { kind: 'required'; checkedAt: string }
   | { kind: 'cancelled'; checkedAt: string }
   | { kind: 'failed'; checkedAt: string; failure: AppErrorDetail | AuthCheckFailure };
+
+export type AuthenticationChecks = Record<string, { context: string; check: AuthenticationCheck }>;
+
+export function authenticationContextKey(tool: ToolDiagnostic): string {
+  return JSON.stringify([
+    tool.packId, tool.toolId, tool.packVersion, tool.status, tool.version,
+    tool.requiresVendorSession, tool.sessionCheck, tool.credentialLogin,
+  ]);
+}
+
+export function authenticationCheckFor(tool: ToolDiagnostic, checks: AuthenticationChecks): AuthenticationCheck | undefined {
+  const saved = checks[tool.packId + '/' + tool.toolId];
+  return saved?.context === authenticationContextKey(tool) ? saved.check : undefined;
+}
 
 interface AuthCheckFailure {
   message: string;
@@ -76,6 +90,8 @@ interface AuthenticationPageProps {
   onToolsChanged?: () => void;
   /** Dedicated sign-in provider for a tool, when a built-in platform owns it. */
   signInFor?: (tool: ToolDiagnostic) => ToolSignIn | undefined;
+  checks?: AuthenticationChecks;
+  onCheckChange?: (tool: ToolDiagnostic, check: AuthenticationCheck) => void;
 }
 
 interface VendorSessionCardProps {
@@ -86,6 +102,8 @@ interface VendorSessionCardProps {
   onOpenDiagnostics: () => void;
   onToolsChanged?: () => void;
   signIn?: ToolSignIn;
+  initialCheck?: AuthenticationCheck;
+  onCheckChange?: AuthenticationPageProps['onCheckChange'];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -197,8 +215,18 @@ function VendorSessionCard({
   onOpenDiagnostics,
   onToolsChanged,
   signIn,
+  initialCheck,
+  onCheckChange,
 }: VendorSessionCardProps) {
-  const [check, setCheck] = useState<AuthenticationCheck>({ kind: 'unchecked' });
+  const [check, setLocalCheck] = useState<AuthenticationCheck>(() =>
+    initialCheck !== undefined && initialCheck.kind !== 'checking' ? initialCheck : { kind: 'unchecked' },
+  );
+  const checkingRef = useRef(false);
+  const setCheck = (next: AuthenticationCheck) => {
+    checkingRef.current = next.kind === 'checking';
+    setLocalCheck(next);
+    onCheckChange?.(tool, next);
+  };
   const [settingsOpen, setSettingsOpen] = useState(() => signIn?.needsSetup?.(tool) === true);
   const attemptRef = useRef(0);
   const activeRunRef = useRef<string | null>(null);
@@ -231,12 +259,17 @@ function VendorSessionCard({
   // IDs are [a-z0-9-], so '__' keeps pack a-b/tool c and pack a/tool b-c apart.
   const headingID = 'vendor-session-' + tool.packId + '__' + tool.toolId;
 
+  const clearAbandonedCheck = useEffectEvent(() => {
+    if (checkingRef.current) onCheckChange?.(tool, { kind: 'unchecked' });
+  });
   useEffect(
     () => () => {
       attemptRef.current += 1;
       closeStreamRef.current?.();
       closeStreamRef.current = null;
       activeRunRef.current = null;
+      // Abandoned checks cannot leave a permanent "Checking" badge in the shell.
+      clearAbandonedCheck();
     },
     [],
   );
@@ -351,7 +384,7 @@ function VendorSessionCard({
   };
 
   const startCheck = async () => {
-    if (!canCheck || check.kind === 'checking' || sessionTask === undefined) {
+    if (!canCheck || checkingRef.current || sessionTask === undefined) {
       return;
     }
 
@@ -622,6 +655,8 @@ export function AuthenticationPage({
   onOpenDiagnostics,
   onToolsChanged,
   signInFor,
+  checks,
+  onCheckChange,
 }: AuthenticationPageProps) {
   const vendorSessionTools = useMemo(
     () => tools.filter((tool) => tool.requiresVendorSession === true),
@@ -645,23 +680,7 @@ export function AuthenticationPage({
         ) : (
           vendorSessionTools.map((tool) => (
             <VendorSessionCard
-              key={
-                tool.packId +
-                '/' +
-                tool.toolId +
-                '/' +
-                tool.packVersion +
-                '/' +
-                tool.status +
-                '/' +
-                (tool.version ?? 'unknown-version') +
-                '/' +
-                (tool.credentialLogin?.method ?? 'external-login') +
-                '/' +
-                (tool.credentialLogin?.method === 'conjur-password' && tool.credentialLogin.setupRequired ? 'setup' : 'configured') +
-                '/' +
-                (tool.sessionCheck?.commandId ?? 'no-check')
-              }
+              key={authenticationContextKey(tool)}
               status={status}
               tasks={tasks}
               tool={tool}
@@ -669,6 +688,8 @@ export function AuthenticationPage({
               onOpenDiagnostics={onOpenDiagnostics}
               onToolsChanged={onToolsChanged}
               signIn={signInFor?.(tool)}
+              initialCheck={checks === undefined ? undefined : authenticationCheckFor(tool, checks)}
+              onCheckChange={onCheckChange}
             />
           ))
         )}

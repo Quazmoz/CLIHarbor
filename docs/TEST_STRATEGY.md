@@ -315,6 +315,8 @@ Current tests already cover local pack path redaction, secret-output metadata co
 
 ## 11. Authentication tests
 
+`CliSessionStatus.test.tsx` covers verified-only top-bar counts, pack/tool scoping, navigation retention, unchanged-tool refresh during a pending check, abandoned/late completion, connection invalidation, context changes, distinct unknown/failure states, inert metadata, and Escape/focus behavior. The production browser suite verifies the real Conjur login-to-header flow, cross-route retention, the management link, and disclosure geometry at 1366 and 320 px.
+
 Once auth orchestration exists, use a fixture CLI for signed-out/login/signed-in, cancellation, non-zero login failure, expiry, logout, status unavailable, and MFA-style interactive behavior without CLIHarbor capturing credentials. Verify actual vendor flow separately.
 
 Windows terminal tests exercise the actual native console host with a credential-free test executable and assert real stdin/stdout/stderr console handles, fixed login execution, paths containing spaces/Unicode, modified executable refusal, malformed handoff refusal, and immediate non-zero hidden-login detection. These tests must run on Windows; cross-compilation alone does not qualify them. Browser/component acceptance covers grouped sidebar links, Sign in navigation/focus, mobile Menu behavior, tool-category filtering of search/favorites/recent tasks, form reset across categories, and responsive page overflow.

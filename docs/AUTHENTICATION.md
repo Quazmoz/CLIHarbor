@@ -99,6 +99,8 @@ The page never renders raw vendor stderr as UI guidance. It retains bounded outp
 
 A failed or unknown check does not change authorization. Frontend state is presentation only; backend pack, risk, tool, and execution policy remain authoritative.
 
+The top-right **CLI sessions** disclosure beside **Sign in** shows each vendor-session CLI and a count of verified sign-ins. It reuses only the results of these existing checks; opening it never runs a command. Results remain in browser memory across workspace navigation, include the last-check time, and reset on reload/runtime reload or a changed tool/pack/check capability. Changing the vendor connection invalidates its prior result. Leaving an in-progress check clears the shell's pending indicator and ignores late completion. Unchecked, unavailable, cancelled, failed, and reviewed signed-out results remain distinct. External CLI account/session changes require a fresh check on **Manage sign-ins & check sessions**; the indicator is last-observed evidence, never continuous authentication or authorization.
+
 Direct refresh/navigation is supported for `/authentication`, `/tasks`, and `/diagnostics` through an explicit server-side application-route allowlist. Unknown paths still fail closed.
 
 ## Reviewed Conjur password bridge
