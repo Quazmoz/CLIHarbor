@@ -1,674 +1,334 @@
 # CLIHarbor
 
-A local browser UI for safely exposing curated workflows from official command-line tools on Windows and macOS.
+**A local browser workspace for your command-line tools.** Find an approved task, fill in its parameters, review the exact command, and inspect the result—without memorizing flags.
 
-**Status:** active hardening. The generic runtime, trusted-pack model, additive multi-pack loading, pack scaffold/validation/lint/contract-test tooling, bounded read-only execution, browser UI, Phase 0 evidence flow, privacy-preserving diagnostics, Windows evaluation qualification, and the first real CyberArk/Idira Conjur 9.x integration (read-only inventory, approved changes and an opt-in value scanner) are implemented.
+CLIHarbor runs on Windows and macOS. It wraps official CLIs through reviewed, versioned YAML packs, with dedicated workspaces for CyberArk Conjur, Idira PAM, and Terraform. One Go executable carries the browser UI and built-in packs; vendor configuration and durable credentials remain owned by the vendor CLI or OS keystore.
 
-> **Source/binary qualification:** The latest React source is not guaranteed to be present in a previously downloaded Windows evaluation executable. [Release blocker #59](https://github.com/Quazmoz/CLIHarbor/issues/59) tracks regeneration of `internal/webui/static/`, pinned-toolchain verification, and target-host validation after recent Conjur sign-in changes. Do not treat an older artifact as an acceptance test of those changes or publish it as the latest build. The GitHub Actions pipeline is manual-only and must not be dispatched without specific authorization.
->
-> **Stale-bundle guard:** The task runner embeds `web-source.sha256` in the generated frontend and compares it against current `web/` inputs, even when Git reports a clean checkout. It passes on `main`, and a pinned-toolchain `web-build` reproduces the committed bundle byte-for-byte. The fingerprint does **not** prove npm/Vite built the assets: use `go run ./tools/task web-build`, verify the generated bundle and run all quality gates before using it for evaluation.
+![CyberArk Conjur workspace showing CLI readiness, unverified session status, and secret-management workflows with approval requirements](docs/images/conjur-workspace.png)
 
-## Development branch workflow
+*The Conjur workspace on macOS, before backend configuration or sign-in. Screenshots show the development build; available tasks depend on the tools installed on your computer.*
 
-- **`dev` (everyday work):** branch or commit routine features and fixes here, not on `main`.
-- **`beta` (validation):** receive tested changes from `dev` for integrated and Windows acceptance testing.
-- **`main` (stable baseline):** receive only expressly promoted, qualified `beta` candidates or validated emergency hotfixes. The current branch name is not proof of production qualification.
+**Status: active development and hardening.** Reviewed reads, approved Conjur changes, and guarded local Terraform state removal are implemented in source. Native Windows and real-tenant acceptance remain release gates. A successful source build or an older downloaded executable does not qualify the current UI. See [release qualification](docs/ROADMAP.md) and [blocker #59](https://github.com/Quazmoz/CLIHarbor/issues/59).
 
-Use `git switch dev` before starting development; explicitly select `dev` as the target of new pull requests even if GitHub's site still defaults to `main`. A qualified release requires the existing frontend/Go/security/Windows gates. GitHub Actions are manual-only and may not be dispatched without specific authorization. See [AGENTS.md](AGENTS.md) for the authoritative development/promotion policy.
+[Quickstart](#quickstart) · [First task](#run-your-first-task) · [Conjur setup](#conjur-quickstart) · [Supported CLIs](#supported-clis) · [Troubleshooting](#troubleshooting) · [Development](#developer-quickstart)
 
-CLIHarbor has **no cloud backend**, does **not** execute arbitrary shell strings, and does **not** store vendor credentials.
+## Quickstart
 
-## Built-in Terraform workspace (read-only first milestone)
+Choose the path that matches your computer:
 
-HashiCorp Terraform is discoverable in **Add a CLI**. On Windows, use **Download Terraform from HashiCorp**, obtain an organization-approved ZIP, copy `%USERPROFILE%` into File Explorer to open your existing user directory, create a `bin` folder there, and place the extracted `terraform.exe` directly inside (`%USERPROFILE%\bin\terraform.exe`). **No admin account, PATH change, or `--tool-path` flag is required** for this directory: it is one of CLIHarbor's existing current-user discovery locations. Fully relaunch CLIHarbor from a new terminal (refreshing the browser is not enough), then check Terraform readiness. For approved installations elsewhere, the Add a CLI card offers optional User Path and explicit backend `--tool-path` instructions. Auto-install remains disabled pending independent executable hash/size qualification. Approved Terraform versions `>=1.5.0 <2.0.0` provide a plain-text version task and fixed offline CLI help (including an enum-backed workflow-help dropdown; it runs only `-help`).
+| You have… | Start here | Requirements |
+| --- | --- | --- |
+| A Mac and a source checkout | [Build and launch on macOS](#macos-build-and-launch) | Git, pinned Go/Node/npm, a browser |
+| A managed Windows laptop | [Run a Windows evaluation bundle](#windows-run-an-evaluation-bundle) | An approved, qualified Windows x64 bundle and a browser; no developer tools |
+| A Windows development machine | [Developer quickstart](#developer-quickstart) | Git, pinned Go/Node/npm, PowerShell, a browser |
 
-For local state browsing, start CLIHarbor with the operator-approved project root:
+You can open the workspace before installing or signing in to any vendor CLI. A missing optional tool does not prevent ready tools from working. Dependency downloads need network access; service-backed tasks also need the vendor's normal connection and permissions.
 
-```powershell
-.\cliharbor.exe serve --terraform-project "C:\Users\you\infra\my-project"
-```
+### macOS: build and launch
 
-Open **Built-in CLIs → HashiCorp Terraform → Projects** and choose the approved directory and a local direct-child `.tfstate` file. The dedicated **Resources** view lists resource addresses, types, modules and managed/data classification from a bounded local state-v4 snapshot. Use the search box and resource/type/category selectors; **State management** describes the deliberately disabled detach workflow. No state attributes, outputs or secrets are returned to the browser. An existing Terraform binary is qualified separately; local browsing does not execute Terraform or contact a backend. Project roots cannot be approved from browser inputs.
+Use Go **1.27.3**, Node **24.21.0**, and npm **>=11.6.0 <12**, as specified in [`.go-version`](.go-version), [`.node-version`](.node-version), and [`web/package.json`](web/package.json). Use your approved toolchain installation method.
 
-**Important safety hold:** The previous generic `local-state-resources`, `local-state-forget-preview` and `local-state-forget` tasks are removed from execution authority in pack v0.4.1. The former dry-run was advisory, not bound to a filesystem snapshot; its approval was unsafe against stale/changed state. CLIHarbor **cannot currently preview or remove state bindings**. It has not verified Terraform backups/locking on Windows, and does not execute `init`, `plan`, `apply`, `destroy`, `fmt` or `validate`. A future `terraform state rm` would forget tracking rather than delete infrastructure; a later apply could recreate it.
-
-See [Terraform integration and quickstart](docs/TERRAFORM_INTEGRATION.md) and [CLI catalog](docs/CLI_CATALOG.md).
-
-## Idira PAM read-only candidate
-
-An **Idira PAM** built-in platform is available using the trusted `idsec`
-v0.13.x pack, vendor-owned session checks, and backend-allowlisted,
-50-item-maximum Safe and account metadata inspection. Its initial UI reuses
-the already-embedded generic task forms and run explorer; no separate PAM
-tabs or login wizard are enabled. CLIHarbor never retrieves passwords or
-tokens. The integration is **not yet release-qualified or tenant-accepted**.
-It discovers existing, approved `idsec` installations but does not automatically
-install or sign in to the vendor CLI.
-
-See [Idira PAM integration and work-laptop acceptance](docs/IDIRA_PAM.md).
-The existing Conjur integration remains independent and unchanged.
-
-## Browser-managed CLI installation
-
-CLIHarbor can install a CLI from the local browser UI **only when the loaded trusted pack declares an immutable portable artifact contract** for the current OS/architecture.
-
-The browser supplies the pack/tool identity and may optionally choose an absolute install base directory inside the current user's home directory. Download URL, SHA-256, expected size, archive member, executable filename, approved redirect hosts, and version remain backend/pack controlled. CLIHarbor never turns this into a generic package manager: it does not execute MSI/PKG installers, package-manager commands, shell scripts, registry edits, services, or machine-wide PATH changes.
-
-When a missing tool has a supported install contract, open **Add a CLI** and use the offered **Install <tool>** action. Leave **Install base directory** blank for CLIHarbor's default current-user cache, or enter an absolute directory under your user home. CLIHarbor downloads and byte-verifies the declared artifact, persists only the selected managed base directory, and immediately publishes the qualified tool and its tasks. On the next startup it re-verifies the managed copy without network access before selecting it as a backend-only tool override.
-
-This path is designed for locked-down work laptops where user-context portable executables are permitted. It does not bypass application control or organizational policy. If the device blocks the artifact or the pack has no reviewed artifact for that platform, CLIHarbor fails closed and leaves the normal explicit `--tool-path` / vendor installation path available.
-
-## Output inspection and copying
-
-Completed runs provide a **Formatted** view for validated structured fields or bounded JSON stdout, with searchable individual values and copy buttons for resource IDs. Switch to **Raw** at any time to inspect the original stdout and stderr independently. No output is sent to an external service or treated as an executable command. An inline CLIHarbor favicon is embedded in the Windows/macOS local UI.
-
-## Two product areas
-
-CLIHarbor separates the **generic CLI workspace** from **dedicated CLI platforms**:
-
-- **CLI workspace:** **Overview**, **Tasks**, **Runs**, **Add a CLI**, **Diagnostics**, a top-bar **Sign in** page for every installed CLI (with per-CLI backend settings), and the tool categories generated from reviewed packs. Additional CLIs can be loaded through explicit trusted packs (`--pack-file` / `--pack-dir`). **Add a CLI** provides both the reviewed install catalog and a guided, browser-only **Create a custom CLI pack** flow. The wizard downloads a discovery-only YAML scaffold but does not validate, trust, run, or activate it; approved pack loading still requires explicit operator action.
-- **Dedicated CLIs:** a separate sidebar section with a platform picker and platform-specific home and workflows. **CyberArk Conjur** is the first built-in integration, with guided sign-in, grouped approved inventory/access/mutation tools and an inventory-first regex pattern explorer at `/dedicated/conjur` and `/dedicated/conjur/security-audit`; its sign-in form and API backend settings appear on the universal Sign in page. Its approved commands still use the shared `/tasks` runner rather than duplicating execution authority.
-
-Future purpose-built integrations belong in the dedicated platform registry, not as vendor branches in the generic planner/executor. The separate sections are additive: when no dedicated platform is loaded, the generic workspace remains functional.
-
-> **Fastest path:** download the qualified Windows artifact, run preflight, then run the CLIHarbor EXE with no pack arguments. The trusted Conjur pack is embedded, and if Conjur is genuinely missing CLIHarbor can install the exact reviewed CyberArk CLI into the current user's cache without administrator credentials. See [QUICKSTART.md](QUICKSTART.md).
-
-## macOS startup
-
-From a checkout with the pinned Go and Node/npm toolchains:
+From Terminal:
 
 ```bash
-go run ./tools/task build  # Rebuild, validate, and embed the frontend before compiling CLIHarbor
-./bin/cliharbor
+git clone --branch dev https://github.com/Quazmoz/CLIHarbor.git
+cd CLIHarbor
+
+go version
+node --version
+npm --version
+
+bash tools/dev-restart.sh
 ```
 
-Conjur, Docker, kubectl, GitHub CLI, Helm, AWS CLI, and HashiCorp Vault packs load automatically. Open **Add a CLI** to install Conjur, kubectl, GitHub CLI, or Helm (Windows) on supported platforms and immediately access their tasks. Existing vendor installations are discovered at startup. See [Windows and macOS setup](docs/CROSS_PLATFORM.md) and the [supported CLI catalog](docs/CLI_CATALOG.md).
+Already have the checkout? Start from its root and run the version checks and restart helper. The helper installs the locked frontend dependencies, runs typecheck/lint/tests, rebuilds and embeds the frontend, compiles the native executable, and opens the local browser UI. It works on the first launch as well as after edits. If your default Go differs but Go's toolchain selection is available, use `GOTOOLCHAIN=go1.27.3 bash tools/dev-restart.sh`.
 
-## One-download Windows startup
+**Success looks like:** the terminal reports `Fresh CLIHarbor started`, a new browser tab opens on `http://127.0.0.1:<ephemeral-port>`, and **Overview** offers **Open tasks** or setup guidance. Use the newly opened tab: each launch gets a new port and local browser session.
 
-For the normal managed-Windows user path:
+The helper uses `--no-auto-setup`; it does not download a vendor CLI automatically. On macOS, open **Add a CLI** to install Conjur, kubectl, or GitHub CLI where a reviewed artifact is offered. Installation is a separate, explicit action and does not sign you in.
 
-1. Open the repository's [CI workflow](https://github.com/Quazmoz/CLIHarbor/actions/workflows/ci.yml).
-2. Choose a **successful, explicitly authorized manually dispatched `main` workflow run** (workflows do not run automatically).
-3. Download `cliharbor-windows-x64-evaluation-<commit-sha>` from **Artifacts**.
-4. Extract it to a user-writable directory.
-5. Open Command Prompt normally — **not** as administrator.
-6. Run preflight:
+To stop the helper-owned instance:
 
-```bat
-bin\cliharbor-windows-x64-evaluation.exe evaluation preflight --bundle "."
+```bash
+bash tools/dev-restart.sh --stop
 ```
 
-Continue only when it ends with:
+For platform limits and an approved executable outside discovery locations, see [Windows and macOS setup](docs/CROSS_PLATFORM.md).
 
-```text
-READY FOR PHASE 0 INVENTORY
-```
+### Windows: run an evaluation bundle
 
-Then start CLIHarbor:
+This path needs no administrator account, Go, Node/npm, Git, or PowerShell.
 
-```bat
-bin\cliharbor-windows-x64-evaluation.exe
-```
+1. Open the repository's [manual CI workflow](https://github.com/Quazmoz/CLIHarbor/actions/workflows/ci.yml). Use an existing successful, explicitly authorized `main` run for the exact commit approved for evaluation. Download `cliharbor-windows-x64-evaluation-<commit-sha>` from **Artifacts** and record the SHA. If no qualified artifact is available, evaluation must wait for qualification; do not substitute a development EXE.
+2. Extract the complete ZIP into a user-writable folder, such as `%USERPROFILE%\Downloads\CLIHarbor-Eval`. Keep the extracted bundle unchanged:
 
-No separate Conjur pack download and no `--pack-file` are required for the normal path.
+   ```text
+   EVALUATION_SHA256SUMS
+   bin/
+     cliharbor-windows-x64-evaluation.exe
+   packs/phase0/
+     idira-cyberark-inventory.yaml
+   ```
 
-The **Authentication** page provides guided Conjur sign-in without turning CLIHarbor into a credential store. Standard/LDAP password configurations use the narrow loopback credential bridge: on a new computer the UI first gathers only the HTTPS Conjur server/account/mode, delegates fixed reviewed `conjur init self-hosted` setup to the exact discovered CLI, and exposes the password field only after setup succeeds. OIDC, JWT, and Idira SaaS/cloud configurations use **Start official Conjur sign-in**, which launches the same identity-verified Conjur executable with fixed argv `["login"]`. OIDC/JWT run without an unnecessary console window; OIDC retains the vendor browser/callback flow. SaaS/cloud keeps a separate vendor-owned terminal when interactive challenges may require operator input. CLIHarbor does not capture that terminal/browser interaction or receive the resulting credentials. Certificate, IAM, Azure, GCP, and unknown modes remain outside the guided launcher and fail closed to the organization's approved vendor process.
+3. Open a normal **Command Prompt**, change to that folder, and run preflight:
 
-### Discovery order
+   ```bat
+   cd /d "%USERPROFILE%\Downloads\CLIHarbor-Eval"
+   bin\cliharbor-windows-x64-evaluation.exe evaluation preflight --bundle "."
+   ```
 
-CLIHarbor discovery is deterministic and intentionally tiered:
+   Continue only when the final status is `READY FOR PHASE 0 INVENTORY`. Preflight checks the bundle and local runtime; it does not install a CLI or authenticate to a vendor.
+4. Start the workspace:
 
-1. explicit backend `--tool-path` override;
-2. exact verified CLIHarbor-managed copy in the default user cache;
-3. exact verified CLIHarbor-managed copy in the persisted custom user-home location;
-4. for the embedded first-party Conjur pack on Windows amd64 only, the exact-byte-verified legacy bootstrap cache;
-5. exact pack-declared executable names on absolute `PATH` entries;
-6. only when `PATH` has no match, common user-level CLI locations such as `~/go/bin`, `~/.local/bin`, `~/bin`, Windows WinGet links, and Scoop shims.
+   ```bat
+   bin\cliharbor-windows-x64-evaluation.exe
+   ```
 
-Fallback locations never override a valid `PATH` match and are not recursively scanned. Multiple candidates within the active discovery tier still fail closed as ambiguous.
+The browser opens automatically. Built-in packs are embedded; no separate Conjur pack download or `--pack-file` is needed. When Conjur is genuinely missing, normal Windows x64 startup may download and verify the pinned official Conjur 9.3.1 executable into the current user's cache. It does not replace ambiguous, incompatible, or explicitly selected installations.
 
-### What automatic setup does
-
-On default `serve`, CLIHarbor:
-
-1. loads its embedded reviewed Conjur 9.x pack;
-2. discovers existing `conjur.exe` candidates;
-3. uses an already installed compatible candidate when discovery is unambiguous;
-4. only if Conjur is genuinely **missing**, downloads the pinned official CyberArk Conjur CLI v9.3.1 Windows x64 executable;
-5. verifies the exact expected size and SHA-256 before activation and again afterward;
-6. stores the fallback only under the current user's CLIHarbor cache;
-7. reruns normal version/discovery/identity qualification before any task becomes executable.
-
-Pinned fallback:
-
-```text
-CyberArk conjur-cli-go v9.3.1
-asset: conjur_windows_amd64.exe
-size: 21,950,000 bytes
-SHA-256: da2b31ca00b8faaefb8e1fe891563b5cc07c39460e776fb42e7f89b05d3ee4f6
-```
-
-CLIHarbor does **not** use a mutable `latest` download.
-
-### No admin credentials
-
-Automatic setup does not:
-
-- write `Program Files`;
-- modify machine `PATH`;
-- install a Windows service, driver, scheduled task, browser extension, or certificate;
-- write machine-wide registry/configuration;
-- request elevation intentionally;
-- disable SmartScreen, Defender, EDR, AppLocker, WDAC, firewall, proxy, or browser policy.
-
-If policy blocks CLIHarbor or the vendor binary, use the organization's approved signing/allowlisting/software-distribution path. Do not bypass the control.
-
-### Enterprise opt-out
-
-Disable dependency download while retaining the embedded pack:
+If application-managed downloads are prohibited, start with:
 
 ```bat
 bin\cliharbor-windows-x64-evaluation.exe serve --no-auto-setup
 ```
 
-Pin an approved existing Conjur binary without changing machine `PATH`:
+Keep the terminal running while using a manually launched instance; press **Ctrl+C** there to stop it. Application-control blocks require the organization's approved signing/allowlisting process. See [QUICKSTART.md](QUICKSTART.md) for the complete evaluation procedure and [work-laptop acceptance](docs/WORK_LAPTOP_EVALUATION.md).
 
-```bat
-bin\cliharbor-windows-x64-evaluation.exe serve --tool-path "cyberark-conjur-v9/conjur=C:\path\to\approved\conjur.exe"
-```
+GitHub Actions workflows are **manual-only**. These instructions do not authorize a dispatch; running Actions requires specific user authorization.
 
-An explicit override is authoritative; CLIHarbor will not silently replace it.
+## Run your first task
 
-## What CLIHarbor is
+Start with a local version task to verify the workspace without a vendor account or service connection:
 
-```text
-Browser UI
-    ↓
-authenticated loopback API
-    ↓
-trusted embedded/explicit pack
-    ↓
-validated deterministic planner
-    ↓
-exact executable + argv[]
-    ↓
-official installed or exact verified managed CLI
-```
+1. Open **Add a CLI** and check that your chosen tool is **Ready**. If needed, use an offered **Install** action or the approved manual setup guide, then **Check installation**. You do not need every listed CLI.
+2. Open **Command Builder**. Use **Find task** in the top bar, **Command+K** on macOS / **Ctrl+K** on Windows, or the task catalog to select **GitHub CLI version**. If GitHub CLI is unavailable, **Terraform CLI version** or **AWS CLI version** provides another local check when that tool is installed.
+3. Choose **Validate**. The command preview should show the runtime-validated invocation—for example, `gh --version`—and the preflight panel should report that no vendor sign-in is required.
+4. Choose **Run command**. Wait for **Succeeded**; expand **Run technical details** to inspect the run ID and exit code. A successful version check exits with `0`.
+5. Read **Command output → Raw**. Stdout and stderr are separate. **Formatted** becomes available for supported structured output. Open **Execution History** to revisit the retained run.
 
-**Conjur secret management (CRUD):** Open **Built-in CLIs → CyberArk Conjur**.
-The **Secrets** tab provides **Create secret**, **Browse variables**,
-**Update value**, and **Delete variable**. Create collects the policy branch,
-relative variable ID, initial secret value and optional owner/access grant in
-one form, previews each reviewed Conjur mutation for explicit approval, then
-the browser runs them in order: declare the variable, set its value only after
-confirmed success, and grant access last. These are not atomic writes: a
-failed later step is reported as partial completion, and the variable may
-exist without the desired value or grant. Browse intentionally returns
-metadata only, not stored secret values; destructive delete retains typed
-confirmation. Live Conjur acceptance testing is still required. See
-[Conjur integration](docs/CONJUR_INTEGRATION.md).
+![Command Builder after a real GitHub CLI version run, showing the validated gh --version preview, execution preflight, successful status, and separate stdout and stderr](docs/images/command-builder.png)
 
-**Conjur Access & Permissions Explorer:** Open **Built-in CLIs → CyberArk Conjur → Access & permissions**. Search visible inventory by kind and text using bounded server-side pages, inspect individual resources and roles, follow Conjur-permitted roles and direct/expanded role relationships, copy full IDs, and export only whitelisted metadata. The explorer checks CLI and vendor identity/context before and after each read, and discards incomplete or stale results. Role relationships are not proof of effective access; the vendor's native authorization still applies. See [Conjur integration](docs/CONJUR_INTEGRATION.md#access--permissions-explorer).
+*This example runs the installed official `gh` executable locally. It does not access GitHub accounts or credentials. Tool versions and counts in the screenshot are examples, not prerequisites.*
 
-**Conjur template gallery:** In the migration workbench, filter ready-made
-starters for application secrets, database variables, service or developer
-permissions, environment-scoped variables, rotation access, and LDAP group/user
-mapping. Policy starters clear environment-specific identifiers and use only
-reviewed variable/grant shapes. LDAP starters open the existing approved forms;
-no template auto-executes or handles secret values.
+Read-task output and history are bounded and kept in memory; restarting CLIHarbor clears them. Approved mutations have a separate persistent metadata-only [audit journal](docs/MUTATION_AUDIT.md). Neither opening a task nor selecting a search result executes a command.
 
-**Conjur migration workbench:** Open **Built-in CLIs → CyberArk Conjur → Tools → Migration playbooks & policy templates** for guided inventory, LDAP/role comparison, destination preparation and cutover verification. Generate review-only variable/grant policy YAML without secret values, or open the existing approval-gated Conjur tasks with safe prefilled fields. These shortcuts do not execute a migration, transfer secrets, or skip the backend approval process.
+## Conjur quickstart
 
-**Conjur pattern explorer:** Open **Built-in CLIs → CyberArk Conjur → Audit → Regex pattern explorer**. The default **Variable IDs · regex** mode uses metadata-only Conjur inventory searches, with credential-name, production, service-account and legacy-path presets plus custom Go/RE2 expressions. It never reads secret values. Select **Secret values · regex** only when an authorized value scan is necessary; it requires explicit acknowledgement and returns only variable IDs and match reasons, never values. The Conjur home also has read-only, paginated shortcuts for variables, policies, hosts and groups and links to reviewed access/change tasks. All commands still go through the shared task confirmation path.
+1. In **Add a CLI**, confirm that **Conjur — CyberArk / Idira Secrets Manager CLI 9.x** is ready. Existing approved installations are preferred; supported missing-tool installs are available for Windows x64 and macOS Intel/Apple Silicon. The reviewed compatibility range is `>=9.3.1-0 <10.0.0-0`.
+2. Open the top-bar **Sign in** page. Use the Conjur card's **settings** control to inspect or configure the backend when offered. Installing the executable, configuring its connection, and authenticating are separate steps.
+3. For eligible HTTPS self-hosted standard/LDAP configurations, complete connection setup first, then use **Sign in and verify**. CLIHarbor passes the password transiently to the reviewed vendor authentication adapter; it never puts it in task arguments, history, or its own persistent storage.
+4. For OIDC/JWT/SaaS on **macOS**, complete the official `conjur login` flow in your terminal, then return to **Check session**. On **Windows**, use **Start official Conjur sign-in** when offered and complete the vendor-owned browser/terminal flow. Other modes follow your organization's approved vendor process.
+5. Continue only after the reviewed session check succeeds. Open **Built-in CLIs → CyberArk Conjur** and start with **Tools** inventory tasks or the **Access** explorer. A ready executable alone is not proof of authentication.
 
-The vendor CLI remains the operational authority. The browser never chooses an executable file, executable path used for task execution, subcommand, flag name, shell string, raw argv, dependency URL, or expected hash. For pack-declared portable installs only, the browser may choose a constrained base directory beneath the current user's home; CLIHarbor still derives the final executable path and verifies the exact reviewed bytes.
+The **Secrets** tab provides guided creation, variable-ID browsing, write-only value updates, and typed-confirmation deletion. Changes require backend-bound approval; multi-step creation can partially complete and is not an atomic transaction. The **Audit** tab's regex explorer searches variable IDs by default; value scanning is an explicit opt-in and never returns secret values. The **Tools** tab includes migration playbooks and review-only policy templates.
 
-## Current capabilities
+See [Conjur integration](docs/CONJUR_INTEGRATION.md), [authentication boundaries](docs/AUTHENTICATION.md), and [mutation audit and recovery](docs/MUTATION_AUDIT.md). Real-tenant acceptance remains required before release use.
 
-| Area | Implemented |
+## Configure the Conjur API backend (SaaS)
+
+Open **Sign in → Conjur settings → Conjur API connection**. Use your organization's Secrets Manager **API service URL**, shaped like `https://<tenant>.secretsmgr.cyberark.cloud`, rather than its separate Identity website.
+
+When supported, CLIHarbor delegates setup to the verified official CLI with reviewed `conjur init saas` arguments and reads the saved vendor configuration back. Replacing an eligible existing SaaS endpoint requires **Change API endpoint** and explicit acknowledgement. After any change, sign in again and run **Check session**. If saving fails or its outcome is unclear, use **Retry reading CLI configuration** before another attempt.
+
+Existing unsupported modes remain vendor-configured. CLIHarbor does not disable TLS checks, edit credentials, or save an unrelated browser-only endpoint. See [SaaS connection behavior](docs/AUTHENTICATION.md#actual-conjur-api-connection-setup--saas).
+
+## Supported CLIs
+
+The built-in catalog currently includes nine CLIs. Only compatible, identity-verified tools contribute executable tasks. See the [CLI catalog](docs/CLI_CATALOG.md) for pinned downloads, platform coverage, and installation contracts.
+
+| CLI | Available workflows | Setup |
+| --- | --- | --- |
+| CyberArk Conjur | Identity, resource/role inventory, access exploration, approved variable/permission changes, regex explorer | Existing installation or reviewed Windows/macOS download; vendor sign-in |
+| Idira PAM (`idsec`) | Bounded, read-only Safe/account metadata and session checks; candidate pending Windows/tenant acceptance | Approved existing v0.13.x installation; vendor-owned setup/login |
+| Docker | Context, narrow inventory, disk usage, one-shot resource statistics | Approved CLI and accessible engine |
+| Kubernetes kubectl | Context, metadata inventory, optional Metrics API snapshots | Existing installation or reviewed download; configured cluster access |
+| GitHub CLI | Bounded repository, issue, PR, workflow, and run metadata; local version | Existing installation or reviewed download; vendor session for service tasks |
+| AWS CLI v2 | Caller identity and selected S3/EC2/Lambda metadata; local version | Existing installation and normal profile/SSO session |
+| Helm | Release/history/repository metadata | Existing installation; reviewed download on Windows only |
+| HashiCorp Vault | Server status and mount/policy-name metadata | Existing installation and vendor configuration/session |
+| HashiCorp Terraform | Offline help/version, approved local configuration formatting checks, state-address inventory, guarded local state removal in dev | Approved existing CLI; startup-approved project roots; Windows qualification pending |
+
+![Add a CLI catalog on macOS, with supported-tool search, custom-pack authoring, ready tools, and a missing Idira PAM installation](docs/images/cli-catalog.png)
+
+*The catalog distinguishes installed tools from setup requirements. An Install action appears only for a missing tool with a reviewed artifact for the current platform.*
+
+Installations stay in the current user's scope. Download URLs, versions, hashes, archive members, and executable names come from trusted packs. An optional custom install base must remain under your user home. Successful supported installation qualifies the tool and publishes its tasks without restarting; sign-in remains separate.
+
+For Terraform, project directories must be approved at startup with `--terraform-project <absolute-directory>`. Browsing local state returns address metadata, not attributes or outputs. Guarded state removal delegates to the official CLI and forgets tracking; it does not destroy infrastructure, and a later apply can recreate declared resources. Remote backends, plan/apply/destroy, and provider-dependent validation are unavailable. Follow the [Terraform guide](docs/TERRAFORM_INTEGRATION.md) for the exact development and qualification boundaries.
+
+## Troubleshooting
+
+| Symptom | Next step |
 | --- | --- |
-| Local browser security | Ephemeral IPv4 loopback listener, one-time bootstrap, HttpOnly session, exact Host/Origin checks, CSRF protection, restrictive browser headers |
-| Trusted packs | Versioned YAML, embedded JSON Schema, semantic/security validation, additive built-in + explicit local sources, deterministic multi-pack registry, discovery-only `pack init`, trusted fixed-probe `pack capture-help`, non-authoritative `pack draft`, non-executing `pack validate`, static `pack compatibility`, deterministic `pack lint`, planner-backed `pack test`, and deterministic `pack generate-tests` fixture scaffolding |
-| First-party startup | Embedded reviewed Conjur, Docker, kubectl, GitHub CLI, AWS CLI, Helm, and HashiCorp Vault packs for zero-config `serve` and `doctor` |
-| Tool discovery | Windows-first executable discovery, backend-only absolute overrides, ambiguity detection, bounded semantic-version probes |
-| Managed dependency fallback | Pinned per-user Conjur v9.3.1 download with HTTPS/origin/size/SHA verification and enterprise opt-out |
-| Planning | Typed inputs, trusted literals/flags/switches/enum mappings, constrained positional values, deterministic argv |
-| Execution | Direct executable launch, no ordinary shell, executable identity revalidation, bounded timeout/output/cancellation |
-| Vendor sessions | Explicit `vendor-session` mode, reviewed zero-input session checks, a Conjur-only ephemeral password bridge, and a Windows vendor-owned Conjur login launcher for reviewed OIDC/JWT/SaaS modes; credentials stay out of task argv/run history/logs and durable session material remains vendor-owned |
-| Windows lifecycle | Suspended launch, Job Object assignment before resume, descendant containment and teardown |
-| Browser runs | Authenticated run APIs, planner-backed sanitized invocation preview, bounded SSE streaming/replay, reconnect reconciliation, cancellation, in-memory retry-with-inputs, bounded retention and metadata-only Recent Runs history |
-| Structured results | Strict bounded scalar JSON parsing, inert React rendering, client-side field filter/sort, explicit per-field copy, normalized JSON inspection, and raw-output fallback |
-| Phase 0 evidence | Sanitized inventory, fixed trusted evidence probes, bounded no-clobber JSON export, SHA-256 and strict inspection |
-| Diagnostics | Allowlisted non-secret support export; no command output, argv, paths, environment values, browser secrets or credentials |
-| Windows qualification | Exact toolchain, deterministic rebuild checks, `EVALUATION_SHA256SUMS`, self-test/evidence smoke and extracted-bundle preflight |
-| Conjur integration | Version-gated Conjur CLI 9.x identity, resource, relationship, and role workflows plus approval-gated secret variable create/delete, permission grant/revoke, and set-value, derived from official CyberArk source/release evidence |
+| Build or frontend checks fail | Fix the first reported `task:` failure. Do not launch an older executable. Verify the pinned toolchain versions. |
+| Browser does not open | If startup prints a one-time bootstrap URL, open it locally in your browser. Treat it as a credential and do not share it. The plain base URL alone does not establish a fresh session. |
+| Old tab is disconnected or shows an old UI | Use the new tab from the restart helper. React changes require a frontend rebuild; `go run ./cmd/cliharbor serve` alone does not rebuild React. |
+| No tasks for a CLI | Open **Add a CLI** or **Diagnostics**. Missing, unsupported, incompatible, and ambiguous tools remain unavailable. Other ready CLIs can still run. |
+| Installed a CLI, but it is still missing | Use **Check installation** where offered. A changed PATH may require stopping CLIHarbor and relaunching from a fresh terminal. A page refresh does not repeat discovery. |
+| Tool is ambiguous or outside discovery locations | Review local `doctor` output and restart with one approved absolute `--tool-path "pack-id/tool-id=/absolute/path"`. An invalid explicit override does not fall back. |
+| Tool is ready, but a service task fails | Open **Sign in** and use the reviewed session check where available. Verify vendor endpoint/context, network access, and permissions; installation does not prove a usable session. |
+| Windows preflight is blocked | Follow its remediation and stop evaluation. Keep the complete extracted bundle unchanged; write evidence outside it. |
+| Startup says the audit trail is locked | Stop the other CLIHarbor instance through its own terminal or the helper that owns it. Do not delete the lock. |
+| Audit journal fails verification | Preserve it and follow [incident handling](docs/MUTATION_AUDIT.md#incident-handling-journal-fails-verification). Do not delete or edit it to force startup. |
+| Application or vendor download is blocked by policy | Use the approved installation/signing/allowlisting path. Do not bypass device controls. |
 
-Still intentionally gated:
-
-- generic credential forms, embedded MFA/challenge handling, or CLIHarbor-owned token persistence beyond the reviewed Conjur adapters;
-- secret-returning workflows;
-- change/destructive browser execution beyond the reviewed, approval-gated Conjur tasks;
-- automatic execution of unreviewed generated commands;
-- generic arbitrary-package installation;
-- Windows code signing/publisher attestation.
-
-## Add another CLI without changing Go code
-
-CLIHarbor's core runtime is not Conjur-specific. A separate CLI can be added as another reviewed declarative pack and loaded in the same browser session as the embedded Conjur pack.
-
-To create a discovery-only scaffold without installing Go or Node on a managed workstation, open **Add a CLI → Create a custom CLI pack → Start authoring**. Enter the pack ID, display name, tool ID, executable basename (never an absolute path), and verified target operating systems. Review and download the YAML draft. The draft enables **no commands** and is not automatically loaded; an operator must review it, run the pack validator/linter and restart CLIHarbor with `--pack-file`. This is an offline authoring convenience, not a generic CLI importer.
-
-Alternatively, create the same discovery-only scaffold from the CLI:
+After a macOS source build, local checks are available with:
 
 ```bash
-go run ./cmd/cliharbor pack init \
-  --id acme-cli \
-  --name "Acme CLI" \
-  --tool acme \
-  --executable acme \
-  ./acme.yaml
+./bin/cliharbor version
+./bin/cliharbor self-test
+./bin/cliharbor doctor
+./bin/cliharbor help serve
 ```
 
-The scaffold intentionally contains **zero commands, zero help probes, and zero version probes**. CLIHarbor does not guess vendor syntax or silently turn discovered executables into browser actions.
+`self-test` exercises local runtime primitives without accessing vendor CLIs, credentials, or external endpoints. `doctor` reports discovery/version state without downloading dependencies; it can exit `1` for unavailable optional tools even when the browser workspace is usable. Its output can include filesystem paths—review before sharing.
 
-If authoritative vendor documentation establishes a safe fixed help invocation, add that argv explicitly under the tool's `helpProbes` metadata. CLIHarbor can then capture exactly that reviewed probe without accepting arbitrary argv:
+For an allowlisted support artifact, choose a **new** output filename:
 
 ```bash
-go run ./cmd/cliharbor pack capture-help \
-  --pack-file ./acme.yaml \
-  --tool acme-cli/acme \
-  --probe root \
-  --tool-path acme-cli/acme=/absolute/path/to/acme \
-  ./acme-root-help.txt
+./bin/cliharbor diagnostics export ./cliharbor-diagnostics.json
 ```
 
-The capture is sanitized, bounded, no-clobber authoring evidence only. It does not become trusted runtime input and does not add executable commands. You may feed it into the existing discovery-only draft helper:
-
-```bash
-go run ./cmd/cliharbor pack draft \
-  --id acme-cli-draft \
-  --name "Acme CLI Draft" \
-  --tool acme \
-  --executable acme \
-  --help-file ./acme-root-help.txt \
-  ./acme-draft.yaml
-```
-
-Candidate subcommand names and short safe descriptions produced by `pack draft` remain comments only until a human reviews and authors deterministic command contracts. Control-bearing or oversized descriptions are omitted rather than echoed into the draft.
-
-After adding only reviewed command definitions from authoritative documentation or captured evidence, validate the pack without executing the CLI:
-
-```bash
-go run ./cmd/cliharbor pack validate ./acme.yaml
-```
-
-Run deterministic authoring-quality/security linting over the already-valid pack:
-
-```bash
-go run ./cmd/cliharbor pack lint ./acme.yaml
-```
-
-Lint diagnostics have stable severity/code/source/object-path identities. Lint errors fail the command; warnings identify reviewable quality or coverage gaps without making valid future-gated pack metadata unusable. Lint never performs tool discovery, runs probes/tasks, reads authentication/session state, downloads dependencies, or uses an LLM. Ordinary shell metacharacters are not blanket-rejected merely for appearing inside trusted static argv because CLIHarbor executes the selected binary directly without a shell.
-
-Inspect the pack's declared compatibility metadata without touching the current machine or vendor CLI:
-
-```bash
-go run ./cmd/cliharbor pack compatibility ./acme.yaml
-```
-
-The compatibility matrix is deterministic static authoring output. It reports pack/tool, declared OS, version constraint, managed-install version, and exact managed artifact keys when present. It does not discover executables, run version/help probes or tasks, access vendor sessions, perform network I/O, or install anything. A platform row with no managed artifact does **not** imply CPU-architecture support; it only means the pack expects an existing reviewed vendor CLI for that declared platform.
-
-Generate a deterministic starter contract fixture from a validated pack without launching the declared CLI:
-
-```bash
-go run ./cmd/cliharbor pack generate-tests --output ./acme.packtest.json ./acme.yaml
-```
-
-Generation uses synthetic local discovery identity plus the production planner to emit exact `expectArgs` success cases and targeted planner-rejection cases for supported input boundaries. It is bounded, no-clobber, does not inspect vendor sessions, and fails closed when CLIHarbor cannot synthesize a safe deterministic input value. The generated fixture is a **reviewable source artifact**, not proof that the vendor command semantics are correct: compare the emitted argv with authoritative vendor documentation/source before accepting it as a contract.
-
-Then run the bounded JSON contract cases through the exact production planner without launching the declared CLI:
-
-```bash
-go run ./cmd/cliharbor pack test --cases ./acme.packtest.json ./acme.yaml
-```
-
-A contract case either asserts the exact expected argv vector or an expected planner rejection code/path. The test runner creates only synthetic local discovery identity, never executes the CLI, and never runs version/help probes. See `packs/example/packtest.json` for the checked-in example.
-
-When a fixture already exists, lint can correlate it explicitly without discovering nearby files:
-
-```bash
-go run ./cmd/cliharbor pack lint --cases ./acme.packtest.json ./acme.yaml
-```
-
-That adds coverage diagnostics for planner-runnable commands, consumed inputs, integer bounds, enum rejection, boolean-switch activation, constrained-positional leading-dash rejection, enum-map branches, and inconsistent fixture references. It still does not execute the planner or vendor CLI. In short: **validate** establishes structural/schema/semantic/security validity, **lint** reports deterministic static authoring-quality/security issues, and **test** verifies the production planner contract. None of the three proves the vendor CLI itself is correct.
-
-Then inspect discovery and run it alongside the built-in Conjur integration:
-
-```bash
-go run ./cmd/cliharbor doctor --pack-file ./acme.yaml
-go run ./cmd/cliharbor serve --pack-file ./acme.yaml
-```
-
-Explicit files and one explicit pack directory may be combined in the same process. For a custom-only runtime that omits all embedded first-party packs:
-
-```bash
-go run ./cmd/cliharbor doctor --no-default-packs --pack-file ./acme.yaml
-go run ./cmd/cliharbor serve --no-default-packs --pack-dir ./my-packs
-```
-
-Duplicate pack IDs fail closed. Adding a custom pack never grants Conjur's pinned download behavior to that tool; automatic dependency provisioning remains explicitly limited to the reviewed built-in Conjur contract.
-
-### Windows example: register an existing CLI with no elevation
-
-The complete [WHOAMI help-only example](examples/windows-whoami-help/pack.yaml) demonstrates a separately developed CLI integration without modifying the CLIHarbor source or first-party packs. It uses Windows' own `whoami.exe`, fixes the only allowed command to `whoami /?`, and collects **no user-provided arguments or credentials**. The help flag is documented by [Microsoft](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/whoami). The example is **not embedded or auto-loaded**.
-
-From a developer checkout with the repository's pinned Go toolchain:
-
-```powershell
-go run ./cmd/cliharbor pack validate ./examples/windows-whoami-help/pack.yaml
-go run ./cmd/cliharbor pack lint --cases ./examples/windows-whoami-help/packtest.json ./examples/windows-whoami-help/pack.yaml
-go run ./cmd/cliharbor pack test --cases ./examples/windows-whoami-help/packtest.json ./examples/windows-whoami-help/pack.yaml
-go run ./cmd/cliharbor doctor --no-default-packs --pack-file ./examples/windows-whoami-help/pack.yaml
-go run ./cmd/cliharbor serve --no-default-packs --no-auto-setup --pack-file ./examples/windows-whoami-help/pack.yaml
-```
-
-On a restricted Windows laptop, use the **same commands after replacing `go run ./cmd/cliharbor` with the path to a qualified, approved CLIHarbor EXE**. Transfer the example `pack.yaml` and `packtest.json` into a user-writable folder using an approved method; launch from that folder and replace the relative paths accordingly. No Go, Node/npm, Git, administrator login, registry editing, or PATH modification is required for the executable workflow. The `--no-default-packs` flag prevents built-in packs from loading, while `--no-auto-setup` ensures no vendor installation is attempted. This example itself never invokes discovery probes: `doctor` performs normal executable discovery, and `serve` exposes only the explicit help task. If discovery reports ambiguity, **review the correct signed/approved executable before** pinning it with `--tool-path windows-whoami-help/whoami=C:\Windows\System32\whoami.exe`; never use a guessed or unapproved path.
-
-The pack's validation and contract tests are non-executing. Launching `serve` intentionally trusts this local pack for the current process; review third-party pack bytes and declared arguments before opting in. CLIHarbor does not automatically persist that trust across future launches: supply the pack path again when restarting. Local application-control policy still applies.
-
-## Docker read-only integration
-
-CLIHarbor also ships a small embedded `docker-cli` pack. It adds read-only workflows for the active Docker context, Docker version information, containers, images, networks, volumes, summary disk usage, and a one-shot running-container resource snapshot. `Show active Docker context` makes the selected Docker target visible without exposing endpoint configuration. The output templates intentionally omit container command lines, labels, environment/config inspection, network endpoint detail, volume mount paths, and verbose disk-usage object detail.
-
-Docker is never downloaded or installed by CLIHarbor; normal executable discovery is used, and a missing Docker CLI simply leaves these tasks unavailable.
-
-See [Docker CLI Integration](docs/DOCKER_INTEGRATION.md).
-
-## kubectl read-only integration
-
-CLIHarbor also ships an embedded `kubectl-cli` pack for active-context visibility plus metadata-only namespace, node, pod, deployment, StatefulSet, DaemonSet, and Job inventory. It also exposes node and cross-namespace pod CPU/memory snapshots through `kubectl top` when Metrics Server is available. Fixed custom-column projections avoid raw Kubernetes object bodies, and cluster-backed tasks reuse kubectl-owned authentication through the existing `vendor-session` contract.
-
-CLIHarbor never downloads kubectl, changes kubeconfig/context, accepts Kubernetes credentials, or exposes Secrets, ConfigMaps, logs, exec/cp/attach, port-forward/proxy, impersonation, or mutation workflows.
-
-See [kubectl Integration](docs/KUBECTL_INTEGRATION.md).
-
-## GitHub CLI read-only integration
-
-The embedded `github-cli` pack adds bounded metadata views for repositories, pull requests, issues, workflow runs, and workflows through the official `gh` CLI (reviewed baseline 2.95.0). Tasks require an explicit owner or repository and use fixed JSON fields. Authentication remains with `gh`; CLIHarbor does not install it or expose tokens, content, logs, or mutations.
-
-Each executable has its own tool category, including in custom packs containing several tools. Missing optional CLIs leave ready tools usable.
-
-See [GitHub CLI integration](docs/GITHUB_INTEGRATION.md).
-
-## Real Conjur 9.x integration
-
-The source pack remains reviewable at:
-
-```text
-packs/conjur/conjur-v9.yaml
-```
-
-The same bytes are embedded into CLIHarbor for normal startup.
-
-Authoritative upstream baseline:
-
-```text
-repository: cyberark/conjur-cli-go
-release: v9.3.1
-commit: 7207d6a4a2005130978e10d03d7f6b55ab0216d6
-supported version constraint: >=9.3.1-0 <10.0.0-0
-```
-
-Implemented browser workflows:
-
-- `whoami`
-- list resources with approved filters, including members-of/permitted-role relationship queries
-- resource exists / show / permitted roles
-- role exists / show / members / memberships
-
-Secret retrieval, interactive login/password/MFA handling, API-key rotation, policy mutations, issuer mutations, host-factory mutations, and deployment-specific commands outside the reviewed cross-environment contract are excluded.
-
-See [Conjur CLI 9.x Integration](docs/CONJUR_INTEGRATION.md).
-
-### Authentication behavior
-
-Conjur read tasks use:
-
-```yaml
-requirements:
-  requiresAuth: true
-  authMode: vendor-session
-```
-
-Ordinary task execution supplies no password, token, API key, MFA response, or interactive credential stdin. Authentication is a separate reviewed boundary: the qualified Conjur integration may expose the dedicated GUI password bridge or, for reviewed OIDC/JWT/SaaS modes on Windows, launch the exact verified vendor CLI with fixed `login` argv in a separate terminal. Other modes continue to use the approved vendor-owned process.
-
-Installing the vendor executable and authenticating to the vendor are separate operations.
-
-The pack contract supports one validated zero-input, read-only, non-secret `sessionCheck` per tool, and the backend tool API exposes whether a tool has browser-runnable `vendor-session` work plus any reviewed check metadata. The browser Authentication page at `/authentication` consumes that metadata generically and runs only the pack-declared check through the trusted execution path. For the exact qualified Conjur adapter it may also show the reviewed connection/sign-in form; other vendor-session tools do not gain a generic credential form. Conjur declares its reviewed `whoami` check; kubectl intentionally declares no generic session check.
-
-The **Runs** page at `/runs` exposes bounded process-local history. Its list API is metadata-only; raw stdout/stderr and structured result data are fetched only when an operator opens one retained run. Restarting CLIHarbor clears the history.
-
-The **Tasks** page at `/tasks` supports compact catalog search, favorites, and bounded recently used task navigation. Browser persistence contains only versioned `packId`/`commandId` identities; it never stores task values, credentials, run output, argv, or executable paths. Persisted identities are untrusted and are reconciled against the current backend-authorized catalog before they can be selected.
+The export excludes command output, argv, paths, environment values, browser secrets, and credentials. It does not upload anything. On a Windows evaluation machine, use the packaged executable and write the file **outside** the immutable extracted bundle. See [diagnostic export](docs/SECURITY.md#7-logging-diagnostics-and-evidence).
 
 ## Security model
 
-Core invariants:
-
-- **Loopback only.** CLIHarbor is not a remote multi-user service.
-- **No browser execution authority.** Browser input identifies reviewed tasks plus typed values only.
-- **Packs are allowlists.** Schema validation does not create trust.
-- **No arbitrary shell.** Normal tasks/probes use exact executable + argv directly.
-- **Constrained positionals.** One validated scalar becomes exactly one argv element.
-- **Fail closed.** Ambiguous, incompatible, replaced or invalid tools do not execute.
-- **Auto-setup only for absence.** CLIHarbor does not replace ambiguous/incompatible/explicit corporate installations.
-- **Pinned downloads only.** The current managed fallback has a fixed version, URL, size, digest, platform, destination policy and opt-out.
-- **No credential store.** Vendor auth remains vendor-owned.
-- **Read-only/non-secret browser envelope.** Secret/change/destructive workflows remain blocked.
-- **Enterprise controls win.** Application-control/network policy is never bypassed.
-
-See [Security](docs/SECURITY.md), [Authentication](docs/AUTHENTICATION.md), [Architecture](docs/ARCHITECTURE.md), and [Pack specification](docs/PACK_SPEC.md).
-
-## Zero-config diagnostics
-
-The embedded first-party pack is also used by:
-
-```bat
-bin\cliharbor-windows-x64-evaluation.exe doctor
-```
-
-`doctor` does **not** auto-download Conjur. It reports the local discovery/version state so a locked-down operator can inspect the environment without causing dependency network activity.
-
-Explicit source/operator packs can be added to the default runtime:
-
-```bash
-go run ./cmd/cliharbor doctor --pack-file ./my-cli.yaml
-go run ./cmd/cliharbor serve --pack-file ./my-cli.yaml
-```
-
-Use `--no-default-packs` when intentionally testing only explicit packs. Custom packs do not inherit first-party automatic provisioning; the reviewed Conjur bootstrap remains scoped to the embedded Conjur pack/tool identity.
-
-## Phase 0 evaluation
-
-The external evaluation ZIP remains intentionally small and immutable:
+CLIHarbor's execution boundary is:
 
 ```text
-EVALUATION_SHA256SUMS
-bin/
-  cliharbor-windows-x64-evaluation.exe
-packs/
-  phase0/
-    idira-cyberark-inventory.yaml
+reviewed pack + verified executable + validated typed inputs
+    → exact executable path and argument vector
+    → bounded process execution → structured or raw results
 ```
 
-The real Conjur pack is inside the executable rather than copied into this extracted layout. Preflight therefore remains strict while the post-preflight product startup needs no second artifact.
+- **Local browser boundary:** an ephemeral IPv4 loopback listener, one-use bootstrap, HttpOnly session cookie, exact Host/Origin checks, CSRF protection, and restrictive browser headers.
+- **Explicit command authority:** packs allowlist executable names, commands, flags, and validation. Browser input never becomes arbitrary shell syntax or executable selection. Ambiguity or changed executable identity blocks execution.
+- **Vendor-owned authentication:** CLIHarbor does not persist vendor passwords, MFA responses, API keys, or tokens. Narrow reviewed sign-in and write-only secret-input flows keep secrets out of task argv and run history. Ordinary task execution reuses vendor sessions.
+- **Deliberate changes:** mutating workflows require reviewed context and backend approval. Destructive actions add explicit target confirmation. Mutation journaling fails closed; automatic undo is unavailable.
+- **Faithful evidence:** runs have stable IDs, tool versions, timestamps, status, and exit codes; stdout/stderr stay separate and are rendered as untrusted text. Parser failure preserves raw evidence.
 
-Optional discovery-only inventory:
+There is no cloud backend or telemetry by default. Wrapped CLIs still contact their configured services, and approved downloads still use the network. CLIHarbor is not a remote multi-user server, generic shell, or credential vault. See [Security](docs/SECURITY.md) and [Architecture](docs/ARCHITECTURE.md).
 
-```bat
-bin\cliharbor-windows-x64-evaluation.exe inventory --pack-file "packs\phase0\idira-cyberark-inventory.yaml"
+## Add another CLI without changing Go code
+
+Open **Add a CLI → Create a custom CLI pack → Start authoring** to download a discovery-only YAML draft. It contains no runnable commands, probes, installer, or authentication adapter and is not automatically trusted or loaded.
+
+Alternatively, after a native source build:
+
+```bash
+./bin/cliharbor pack init --id acme-cli --name "Acme CLI" --tool acme --executable acme ./acme.yaml
+./bin/cliharbor pack validate ./acme.yaml
+./bin/cliharbor pack lint ./acme.yaml
 ```
 
-For the full managed-device procedure, see [Work-Laptop Evaluation](docs/WORK_LAPTOP_EVALUATION.md).
+Add only independently reviewed command, input, output, and probe contracts. Validate and lint again, then inspect discovery and load the approved pack explicitly:
+
+```bash
+./bin/cliharbor doctor --pack-file ./acme.yaml
+./bin/cliharbor serve --no-auto-setup --pack-file ./acme.yaml
+```
+
+Stop any running instance before starting another. Custom packs are additive to the embedded set; `--no-default-packs` selects a custom-only runtime. Custom IDs must not impersonate built-in packs. Validation establishes validity, not trust or vendor correctness.
+
+The [pack specification](docs/PACK_SPEC.md#18-pack-authoring-commands) covers fixed help capture, non-executable drafts, static compatibility reporting, and planner-contract generation/testing. Captured help and generated tests never authorize a command automatically.
 
 ## Developer quickstart
 
-Pinned toolchain:
+Use the pinned toolchains listed in the macOS quickstart, clone **`dev`**, and work from the repository root. The frontend is embedded in the Go executable; use the restart helpers even for the first launch.
 
-- Go **1.27.3** from [`.go-version`](.go-version)
-- Node **24.21.0** from [`.node-version`](.node-version)
-- npm **>=11.6.0 <12**
+| Action | macOS / Linux | Windows PowerShell |
+| --- | --- | --- |
+| Validate, rebuild, and launch | `bash tools/dev-restart.sh` | `.\tools\dev-restart.ps1` |
+| Stop the helper-owned instance | `bash tools/dev-restart.sh --stop` | `.\tools\dev-restart.ps1 -Stop` |
+| Intentionally update from upstream, then restart | `bash tools/dev-restart.sh --pull` | `.\tools\dev-restart.ps1 -Pull` |
+
+Before adopting a helper, stop manually launched CLIHarbor/Vite processes through their own terminals. Use restart only when no vendor operation or sign-in is in flight. The helpers verify their own process ownership; they do not stop unrelated listeners or clear browser/vendor credentials. Invoke the Windows script as a file; if PowerShell shows `>>`, press **Ctrl+C** before retrying. Follow approved execution policy rather than weakening it.
+
+An optional fast-forward pull requires resolved local changes. Never reset/clean away work to restart. Builds may update `internal/webui/static/`; commit generated assets with frontend source changes. Startup logs under ignored `bin/` are private and may contain a bootstrap URL.
+
+### Verification commands
+
+Run the repository-owned local gate before committing:
 
 ```bash
-git clone https://github.com/Quazmoz/CLIHarbor.git
-cd CLIHarbor
-npm ci --prefix web
 go run ./tools/task check
-go run ./cmd/cliharbor --help
-go run ./cmd/cliharbor self-test
-go run ./cmd/cliharbor serve
 ```
 
-Use `go run ./cmd/cliharbor help <command>` (or `<command> --help`) for command-specific operator guidance; nested command help such as `help pack init` is also available.
+The gate includes frontend checks/build, embedded-source synchronization, Go module verification, and Go formatting/vet/tests. A regenerated embedded tree must be committed before the synchronization gate passes. A matching source fingerprint alone does not prove the JavaScript was rebuilt.
 
-### Reliable clean restart after code changes
+On macOS, a symlinked Terraform installation can make the real-state-removal integration test fail with `invalid argument`. Set `CLIHARBOR_TEST_TERRAFORM` to the approved **resolved executable file** (for example, the actual Homebrew Cellar path) when running the gate. The override selects the real CLI; it does not skip the integration test or relax identity checks.
 
-CLIHarbor serves **generated Vite assets embedded into the Go executable** by default. Simply re-running `go run ./cmd/cliharbor serve` does **not** rebuild React, and re-opening an old browser tab may connect to an old or stopped loopback instance. The local HTTP server already sends `Cache-Control: no-store`; the common stale-UI cause is an old executable or unsynchronized embedded assets, not a browser cache you need to delete.
-
-For ordinary development/testing, use the repo-owned helpers **from the repository root**. On Windows, the PowerShell helper runs `go run ./tools/task web-build` first (frontend dependency install, typecheck, lint, tests, Vite production build, embedded-asset replacement), **before stopping** any helper-owned process. Once frontend validation succeeds, it stops only its verified previous process and runs `go run ./tools/task go-build`, then starts the fresh executable on a new ephemeral loopback port. The bash helper still uses `go run ./tools/task build` for both phases. The helpers use `--no-auto-setup` to avoid an unexpected vendor dependency download during development. They do **not** dispatch GitHub Actions.
-
-**macOS / Linux (bash):**
+Additional focused gates:
 
 ```bash
-bash tools/dev-restart.sh --pull  # Optional: ff-only pull, then stop/build/start
-bash tools/dev-restart.sh         # After local edits: stop/build/start, no pull
-bash tools/dev-restart.sh --stop  # Stop only this helper's instance
+go test -race -timeout 2m ./...
+go run ./tools/task verify-web-sync
 ```
 
-**Windows PowerShell (development machine with approved Go/Node toolchains):**
+On macOS/Linux with Node 24 and Chrome/Chromium, the existing hermetic browser gate is:
 
-```powershell
-.\tools\dev-restart.ps1 -Pull     # Optional: ff-only pull, then stop/build/start
-.\tools\dev-restart.ps1           # After local edits: stop/build/start
-.\tools\dev-restart.ps1 -Stop     # Stop only this helper's instance
+```bash
+CLIHARBOR_BROWSER_E2E=1 go test -timeout 90s -count=1 -run '^TestProductionEmbeddedBrowserE2E$' ./internal/app
 ```
 
-**First migration from manual starts:** Stop previously launched `go run ./cmd/cliharbor serve`, `bin/cliharbor serve`, or Vite development terminals yourself (usually **Ctrl+C**). The helpers deliberately do not `pkill` arbitrary processes, stop unrelated listeners, purge browser profiles, or delete cached vendor credentials/Conjur sessions. On Windows, stopping a *helper-owned* process uses Windows process termination; only use it when no CLI task, Conjur login or approval-gated mutation is in flight.
-
-For Windows, invoke the **file** (for example `& .\tools\dev-restart.ps1 -Pull`) instead of pasting individual lines into PowerShell. If the prompt is `>>`, PowerShell is waiting for the rest of an incomplete command; press **Ctrl+C** before invoking the file. The `-Pull` form performs a fast-forward pull and then **re-invokes the updated file** without `-Pull`; it does not continue executing the pre-update script. Inline/script-block evaluation also works from the CLIHarbor repository root; if the script cannot identify that checkout, it fails with a location error rather than passing a null path to `Join-Path`. The helper accepts invocation from other working directories when launched as a file.
-
-Run the appropriate restart helper **even on the first launch**: with no helper-managed process or PID marker, it builds and starts CLIHarbor; with a stale marker for an exited process, it cleans up the marker and starts a fresh instance. `--stop` / `-Stop` is the only stop-only mode. The helpers do not control separately launched CLIHarbor or Vite processes.
-
-The helper's PID and private startup log live under ignored `bin/`. If a PID belongs to another process, it **refuses to kill it**. On Windows the frontend checks **and staged Go compilation both finish before** the helper stops its verified previous instance, so an ordinary build failure leaves that instance running. After a successful staged build, the helper retains a temporary previous-executable backup until the replacement confirms startup. If a replacement fails before startup and is no longer running, the helper restores the previous executable but **does not silently relaunch it**; if the replacement process might still be running, it leaves the backup for manual recovery. Review private `bin/` startup logs for any unconfirmed launch. Never run the helper during an active vendor command or interactive sign-in. For precise diagnostics, run `go run ./tools/task web-build` or `go run ./tools/task go-build` directly and capture the first `task:` error. If a restart reports a build/test failure, resolve it rather than running an old executable. Use the **new browser tab**; old tabs point to old per-process ports. If the browser does not open automatically, consult the private log for its one-time bootstrap URL and do not share that URL.
-
-**Important:** The local helper produces freshly built assets **in your working tree**. If `internal/webui/static/` changes, commit those generated assets along with source changes before merging/releasing. The helper is not a substitute for repository quality gates or real enterprise/Windows acceptance. Do not reset/clean away unsaved code to make `--pull` work; resolve local changes first. If corporate PowerShell execution policy blocks the helper, use the approved manual build/start procedure rather than changing security policy.
-
-Frontend development:
+For Vite live development, use two terminals:
 
 ```bash
 # Terminal 1
 go run ./tools/task web-dev
 
 # Terminal 2
-go run ./cmd/cliharbor serve --web-dev-url http://127.0.0.1:5173
+go run ./cmd/cliharbor serve --no-auto-setup --web-dev-url http://127.0.0.1:5173
 ```
 
-Production assets are generated from `web/` and embedded under `internal/webui/static`. Do not edit generated assets manually.
+Open the **Go runtime's** browser tab so bootstrap and API requests remain on the authenticated loopback origin. Production builds use `web/` as source and `internal/webui/static/` as generated output; never edit the latter manually. See [test strategy](docs/TEST_STRATEGY.md) for security, dependency, native Windows, and release qualification gates. Local builds and cross-compilation do not replace target-host acceptance.
 
-## Verification commands
+### Development branch workflow
 
-Repository-owned gate:
+- **`dev`:** routine implementation and PR base, even when GitHub displays `main` by default.
+- **`beta`:** reviewed integration and acceptance candidate; promote only after the applicable gates pass.
+- **`main`:** stable baseline, receiving expressly requested, qualified promotions from `beta` or validated urgent hotfixes.
 
-```bash
-go run ./tools/task check
-```
-
-Individual gates include:
-
-```bash
-go fmt ./...
-go vet ./...
-go test -timeout 2m ./...
-go test -race -timeout 2m ./...
-go run ./tools/task verify-web-sync
-go run ./tools/task go-build
-go run ./tools/task fixture-build
-go run ./tools/task windows-eval
-go run ./tools/task verify-windows-eval
-go run ./tools/task verify-windows-eval-repro
-```
-
-CI additionally runs frontend checks, module verification, dependency/vulnerability scans, production browser E2E, Windows/macOS/Linux quality jobs, race detection and Windows evaluation smoke/preflight qualification.
-
-## Privacy-preserving diagnostics
-
-```bash
-go run ./cmd/cliharbor diagnostics export ./cliharbor-diagnostics.json
-```
-
-Diagnostics are allowlisted metadata and exclude command stdout/stderr, argv, executable/candidate paths, environment values, pack source paths, browser secrets and credential data. CLIHarbor performs no automatic upload.
+A branch name is not evidence of a qualified binary. Do not automatically dispatch GitHub Actions or promote a development build. [AGENTS.md](AGENTS.md) defines the authoritative branch, validation, and manual Actions policy.
 
 ## Repository layout
 
 ```text
-cmd/cliharbor/             CLI entry point and operator commands
-internal/app/              lifecycle, default-pack and setup wiring
-internal/server/           loopback HTTP/session/origin/CSRF boundary
-internal/packs/            pack model, loader, schema and validation
-internal/discovery/        executable discovery, version probes and identity
-internal/toolbootstrap/    pinned reviewed current-user vendor bootstrap
-internal/planner/          typed input -> immutable execution plan
-internal/executor/         direct bounded process execution
-internal/processcontrol/   platform process-lifecycle ownership
-internal/runs/             bounded run state, events and replay
-internal/structured/       bounded structured-result parsing
-internal/evidence/         Phase 0 evidence export/import/integrity
-internal/diagnostics/      allowlisted support export
-internal/webui/            embedded production frontend assets
-web/                       React + TypeScript + Vite source
-packs/embed.go             first-party pack embedding
-packs/example/             synthetic fixtures
-packs/phase0/              discovery/evidence-only vendor pack
-packs/conjur/              reviewed Conjur pack source
-schemas/                   embedded pack JSON Schema
-tools/task/                build/verification/evaluation tasks
-docs/                      product, architecture, security and operations docs
+cmd/cliharbor/           CLI entry point and operator commands
+internal/app/            runtime lifecycle and platform wiring
+internal/server/         loopback HTTP, session, origin, and CSRF boundary
+internal/packs/          pack loading, schema, and validation
+internal/discovery/      executable discovery, version, and identity
+internal/planner/        typed inputs → exact execution plans
+internal/executor/       bounded direct process execution
+internal/runs/           run state, events, and replay
+internal/audittrail/     durable mutation metadata journal
+internal/platforms/      dedicated Conjur, Idira PAM, and Terraform behavior
+internal/toolbootstrap/  reviewed portable CLI installation
+internal/webui/static/   generated embedded frontend
+web/                    React + TypeScript + Vite source
+packs/                  reviewed built-ins and explicit test fixtures
+schemas/                embedded pack schema
+tools/                  build, verification, and restart helpers
+docs/                   product, security, integration, and operator guides
 ```
 
 ## Documentation
 
-| Document | Purpose |
+| Guide | Use it for |
 | --- | --- |
-| [Quickstart](QUICKSTART.md) | shortest one-download/non-admin startup path |
-| [Conjur integration](docs/CONJUR_INTEGRATION.md) | upstream provenance, managed fallback and command scope |
-| [Idira PAM integration](docs/IDIRA_PAM.md) | reviewed idsec scope, privacy guard and non-admin acceptance |
-| [PRD](docs/PRD.md) | product scope and acceptance |
-| [Architecture](docs/ARCHITECTURE.md) | component, setup and execution boundaries |
-| [Security](docs/SECURITY.md) | threat model, download controls and trust boundaries |
-| [Authentication](docs/AUTHENTICATION.md) | vendor-owned session model |
-| [Pack specification](docs/PACK_SPEC.md) | declarative pack safety contract |
-| [UX](docs/UX.md) | browser/operator model |
-| [Decisions](docs/DECISIONS.md) | architecture/security decisions |
-| [Test strategy](docs/TEST_STRATEGY.md) | verification contract |
-| [Roadmap](docs/ROADMAP.md) | product stages and next gates |
-| [Work-laptop evaluation](docs/WORK_LAPTOP_EVALUATION.md) | managed-Windows procedure |
-
-## Design position
-
-CLIHarbor is intentionally narrower than a terminal emulator, shell wrapper, remote execution service, credential manager, generic package manager, or automatic runtime CLI scraper.
-
-Its value comes from making **known, reviewed CLI workflows** easy to use while retaining a small inspectable authority boundary. A new automatic dependency is accepted only when its exact source/version/hash/platform/install policy is reviewed and the installed bytes still pass normal CLIHarbor discovery/version/identity checks.
-
-## Mutation audit trail and undo safety
-
-Reviewed change and destructive operations are now synchronously journaled to a private, append-only local audit file before execution. Open **Runs → Mutation audit trail** to see approvals, outcomes and targets after restart; this is separate from temporary raw run history. The journal never persists passwords, stdin, stdout/stderr or argv. Failed/unavailable audit storage blocks new mutations. **No automated undo is enabled** until inverse operations are independently qualified with remote pre-state and drift checks. A journal that fails verification blocks startup; `cliharbor audit verify` and the explicit `cliharbor audit quarantine --confirm` preserve the evidence unchanged for incident handling. See [Mutation audit and recovery](docs/MUTATION_AUDIT.md).
-
-## Configure the Conjur API backend (SaaS)
-
-In **Dedicated CLIs → CyberArk Conjur → Sign in**, open **Conjur API connection**. The page now reads the **effective configuration owned by the official Conjur CLI** (the actual API endpoint and account), rather than collecting an unrelated Identity-portal bookmark.
-
-For Idira Secrets Manager SaaS, enter your organization's **API service URL**, e.g. `https://companyname.secretsmgr.cyberark.cloud`, **not** `https://companyname.cyberark.cloud` (the separate Identity website). CLIHarbor validates a direct single-tenant HTTPS Secrets Manager hostname, delegates to the exact discovered vendor CLI with reviewed `conjur init saas --url <url>` arguments, and reads the resulting vendor configuration back. The CLI normalizes the saved endpoint to `/api`. The existing self-hosted account/password onboarding wizard remains available.
-
-When an existing eligible SaaS endpoint is configured, **Change API endpoint** requires explicit acknowledgement of replacing that configuration and sends the expected previous endpoint to the backend. The server rechecks the current authoritative SaaS configuration, refuses stale, unsupported, externally overridden, or read-only configurations, then invokes the vendor's `--force` overwrite *only* for an exact approved SaaS-to-SaaS change. It does not manually modify `.conjurrc`, adjust TLS trust, skip validation, or change OS/vendor-stored credentials. A different enterprise mode must still be configured through the official CLI.
-
-After changing the API endpoint, **sign in again and Check session** before running tasks. An earlier session against another tenant is not evidence for the new endpoint. The connection is stored by Conjur, not CLIHarbor browser local storage. This feature is limited to the reviewed SaaS setup/replacement and existing self-hosted first-run wizard; it is not a generic config editor.
+| [Windows evaluation quickstart](QUICKSTART.md) | Complete non-admin download, preflight, startup, and recovery procedure |
+| [Windows and macOS setup](docs/CROSS_PLATFORM.md) | Platform boundaries, native builds, discovery, and overrides |
+| [Supported CLI catalog](docs/CLI_CATALOG.md) | Install artifacts, platforms, and activation rules |
+| [Conjur integration](docs/CONJUR_INTEGRATION.md) | Upstream provenance, inventory, access, approvals, and migration tools |
+| [Idira PAM integration](docs/IDIRA_PAM.md) | Reviewed idsec scope and work-laptop acceptance |
+| [Terraform integration](docs/TERRAFORM_INTEGRATION.md) | Approved roots, configuration checks, guarded state removal, and recovery |
+| [Docker](docs/DOCKER_INTEGRATION.md), [kubectl](docs/KUBECTL_INTEGRATION.md), [GitHub CLI](docs/GITHUB_INTEGRATION.md) | Reviewed read-only command scope |
+| [Mutation audit and recovery](docs/MUTATION_AUDIT.md) | Persistent audit metadata, integrity failures, and recovery limits |
+| [Work-laptop evaluation](docs/WORK_LAPTOP_EVALUATION.md) | Managed Windows and real-vendor acceptance |
+| [PRD](docs/PRD.md), [UX](docs/UX.md), [Roadmap](docs/ROADMAP.md) | Product intent, operator experience, and qualification work |
+| [Architecture](docs/ARCHITECTURE.md), [Decisions](docs/DECISIONS.md) | Component boundaries and accepted ADRs |
+| [Security](docs/SECURITY.md), [Authentication](docs/AUTHENTICATION.md) | Threat model, credentials, and session ownership |
+| [Pack specification](docs/PACK_SPEC.md) | Declarative allowlists and authoring tools |
+| [Development plan](docs/DEVELOPMENT_PLAN.md), [Test strategy](docs/TEST_STRATEGY.md) | Implementation and verification contracts |
+| [Screenshot notes](docs/images/README.md) | Capture provenance and refresh guidance |
