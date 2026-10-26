@@ -92,6 +92,8 @@ interface AuthenticationPageProps {
   signInFor?: (tool: ToolDiagnostic) => ToolSignIn | undefined;
   checks?: AuthenticationChecks;
   onCheckChange?: (tool: ToolDiagnostic, check: AuthenticationCheck) => void;
+  quickCheck?: { toolKey: string; id: number } | null;
+  onQuickCheckHandled?: () => void;
 }
 
 interface VendorSessionCardProps {
@@ -104,6 +106,8 @@ interface VendorSessionCardProps {
   signIn?: ToolSignIn;
   initialCheck?: AuthenticationCheck;
   onCheckChange?: AuthenticationPageProps['onCheckChange'];
+  requestedCheck?: number;
+  onQuickCheckHandled?: () => void;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -217,11 +221,14 @@ function VendorSessionCard({
   signIn,
   initialCheck,
   onCheckChange,
+  requestedCheck,
+  onQuickCheckHandled,
 }: VendorSessionCardProps) {
   const [check, setLocalCheck] = useState<AuthenticationCheck>(() =>
     initialCheck !== undefined && initialCheck.kind !== 'checking' ? initialCheck : { kind: 'unchecked' },
   );
   const checkingRef = useRef(false);
+  const lastRequestedCheck = useRef<number | undefined>(undefined);
   const setCheck = (next: AuthenticationCheck) => {
     checkingRef.current = next.kind === 'checking';
     setLocalCheck(next);
@@ -449,6 +456,23 @@ function VendorSessionCard({
     }
   };
 
+  const checkOnRequest = useEffectEvent(() => {
+    onQuickCheckHandled?.();
+    document.getElementById(headingID)?.focus();
+    void startCheck();
+  });
+  useEffect(() => {
+    if (requestedCheck === undefined || requestedCheck === lastRequestedCheck.current) return;
+    let abandoned = false;
+    // StrictMode's first effect setup is discarded; never start two CLI runs.
+    queueMicrotask(() => {
+      if (abandoned) return;
+      lastRequestedCheck.current = requestedCheck;
+      checkOnRequest();
+    });
+    return () => { abandoned = true; };
+  }, [requestedCheck]);
+
   const cancelCheck = async () => {
     if (check.kind !== 'checking' || check.runId === undefined || activeRunRef.current !== check.runId) {
       return;
@@ -562,7 +586,7 @@ function VendorSessionCard({
       <div className="auth-card-header">
         <ToolIcon tool={tool} />
         <div className="auth-card-title">
-          <h3 id={headingID}>{label}</h3>
+          <h3 id={headingID} tabIndex={-1}>{label}</h3>
           <p>{tool.toolId}{tool.version ? ' ' + tool.version : ''} · <span>{toolView.statusText}</span></p>
         </div>
         <button type="button" className="icon-button auth-settings-toggle" aria-label={label + ' settings'}
@@ -657,6 +681,8 @@ export function AuthenticationPage({
   signInFor,
   checks,
   onCheckChange,
+  quickCheck,
+  onQuickCheckHandled,
 }: AuthenticationPageProps) {
   const vendorSessionTools = useMemo(
     () => tools.filter((tool) => tool.requiresVendorSession === true),
@@ -690,6 +716,8 @@ export function AuthenticationPage({
               signIn={signInFor?.(tool)}
               initialCheck={checks === undefined ? undefined : authenticationCheckFor(tool, checks)}
               onCheckChange={onCheckChange}
+              requestedCheck={quickCheck?.toolKey === tool.packId + '/' + tool.toolId ? quickCheck.id : undefined}
+              onQuickCheckHandled={onQuickCheckHandled}
             />
           ))
         )}

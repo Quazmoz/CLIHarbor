@@ -103,6 +103,8 @@ The top-right **CLI sessions** disclosure beside **Sign in** shows each vendor-s
 
 Direct refresh/navigation is supported for `/authentication`, `/tasks`, and `/diagnostics` through an explicit server-side application-route allowlist. Unknown paths still fail closed.
 
+Each checkable CLI also has **Check session** in the top-right dropdown. This explicit action opens and focuses its card on the universal page and runs the same declared check; it does not create a second execution implementation. Unavailable tools, missing approved check tasks, and tools without a safe check remain disabled. One-use UI requests are consumed once, including under React StrictMode, and normal later navigation does not trigger another check. Opening the menu alone never executes a command.
+
 ## Reviewed Conjur password bridge
 
 CLIHarbor now implements one explicit credential adapter for the qualified Conjur integration. It is **not** a generic secret input type and it is not pack-authored command authority.

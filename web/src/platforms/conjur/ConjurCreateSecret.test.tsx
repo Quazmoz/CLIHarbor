@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { ConjurCreateSecret, fullVariableID } from './ConjurCreateSecret';
+import { OperationActivityProvider } from '../../OperationActivity';
 import { createRun, fetchRun, previewRun, subscribeRunEvents } from '../../api/runs';
 import type { Task } from '../../api/tasks';
 import type { RunPreview, RunSnapshot } from '../../api/runs';
@@ -62,6 +63,31 @@ beforeEach(() => {
 });
 afterEach(() => { vi.resetAllMocks(); });
 
+test('a remounted form cannot repeat a pending creation and leaving stops dependent value storage', async () => {
+  let finish!: (value: RunSnapshot) => void;
+  const waiting = new Promise<RunSnapshot>((resolve) => { finish = resolve; });
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'secret-create' ? waiting : snapshot(request.commandId));
+  const form = <ConjurCreateSecret tasks={tasks} csrfToken="test-csrf" account="dev" endpoint="https://example.test" contextKey="current" />;
+  const view = render(<OperationActivityProvider>{form}</OperationActivityProvider>);
+  fireEvent.click(screen.getByRole('button', { name: /Create secret/ }));
+  fireEvent.change(screen.getByRole('textbox', { name: /Policy branch/ }), { target: { value: 'apps' } });
+  fireEvent.change(screen.getByRole('textbox', { name: /New variable ID/ }), { target: { value: 'db/password' } });
+  fireEvent.change(screen.getByLabelText('Initial secret value'), { target: { value: 'never-store-me' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Review creation and value' }));
+  fireEvent.click(await screen.findByRole('checkbox', { name: /I approve both/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create secret and store value' }));
+  await waitFor(() => expect(vi.mocked(createRun).mock.calls.some(([, request]) => request.commandId === 'secret-create')).toBe(true));
+  view.rerender(<OperationActivityProvider>{null}</OperationActivityProvider>);
+  view.rerender(<OperationActivityProvider>{form}</OperationActivityProvider>);
+  const locked = screen.getByRole('button', { name: /Creating secret/ });
+  expect(locked).toBeDisabled();
+  fireEvent.click(locked);
+  await act(async () => finish(snapshot('secret-create')));
+  expect(screen.getByRole('button', { name: /Create secret/ })).toBeEnabled();
+  expect(vi.mocked(createRun).mock.calls.filter(([, request]) => request.commandId === 'secret-create')).toHaveLength(1);
+  expect(vi.mocked(createRun).mock.calls.some(([, request]) => request.commandId === 'secret-set-value')).toBe(false);
+});
+
 test('shows each pending creation step, blocks repeat submissions, and clears progress after failure', async () => {
   let finishCheck!: (value: RunSnapshot) => void;
   let finishCreate!: (value: RunSnapshot) => void;
@@ -102,6 +128,11 @@ test('shows each pending creation step, blocks repeat submissions, and clears pr
   expect(status).toHaveTextContent('Storing the initial secret value');
   await act(async () => finishValue(snapshot('secret-set-value', false)));
   expect(within(region).getByRole('alert')).toHaveTextContent('Partial completion');
+  const result = within(region).getByRole('status', { name: 'Operation result' });
+  expect(result).toHaveTextContent('Variable creation: Confirmed');
+  expect(result).toHaveTextContent('Initial value storage: Unconfirmed');
+  expect(result).toHaveTextContent('do not repeat creation');
+  expect(result).not.toHaveTextContent('never-store-me');
   expect(status).toBeEmptyDOMElement();
   expect(region.querySelector('[aria-busy="true"]')).not.toBeInTheDocument();
 });
@@ -115,7 +146,7 @@ test('defaults to the data branch on SaaS and refuses root before any approval',
   expect(branch).toHaveValue('data');
   fireEvent.change(within(region).getByRole('textbox', { name: /New variable ID/ }), { target: { value: 'db/password' } });
   fireEvent.change(within(region).getByLabelText('Initial secret value'), { target: { value: 'v' } });
-  expect(within(region).getByText('data/db/password')).toBeInTheDocument();
+  expect(within(region).getByText('data/db/password', { selector: 'code' })).toBeInTheDocument();
   fireEvent.change(branch, { target: { value: 'root' } });
   expect(within(region).getByRole('alert')).toHaveTextContent(/root policy/);
   expect(within(region).getByRole('button', { name: 'Review creation and value' })).toBeDisabled();

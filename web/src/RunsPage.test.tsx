@@ -44,6 +44,26 @@ afterEach(() => {
 });
 
 describe('RunsPage', () => {
+  test('opens the same activity link again after selecting a different run', async () => {
+    const first = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const second = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const summaries = [first, second].map((runId, index) => ({
+      runId, commandId: index === 0 ? 'inspect' : 'older', packId: 'fixture', toolId: 'fixture', status: 'exited', exitCode: 0,
+    }));
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      return Promise.resolve(response(200, path === '/api/v1/runs' ? { runs: summaries } : {
+        ...summaries.find((run) => path.endsWith(run.runId)), events: [],
+      }));
+    }));
+    const view = render(<RunsPage tasks={tasks} requestedRun={{ runId: first }} />);
+    await waitFor(() => expect(document.querySelector('.run-history-id')).toHaveTextContent(first));
+    fireEvent.click(screen.getByRole('button', { name: /Older task/i }));
+    await waitFor(() => expect(document.querySelector('.run-history-id')).toHaveTextContent(second));
+    view.rerender(<RunsPage tasks={tasks} requestedRun={{ runId: first }} />);
+    await waitFor(() => expect(document.querySelector('.run-history-id')).toHaveTextContent(first));
+  });
+
   test('keeps completed evidence readable through refresh failure and does not poll it for another active run', async () => {
     const completedID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     let intervalCallback: (() => void) | undefined;

@@ -22,10 +22,12 @@ interface ToolsPageProps {
   onInstallRoot: (key: string, value: string) => void;
   onOpenTasks: (key: string) => void;
   onOpenAuthentication: () => void;
+  refreshingKey?: string | null;
+  onRefresh?: (tool: ToolDiagnostic) => void;
 }
 
 export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice, installRoots, tasksLocked,
-  onInstall, onInstallRoot, onOpenTasks, onOpenAuthentication }: ToolsPageProps) {
+  onInstall, onInstallRoot, onOpenTasks, onOpenAuthentication, refreshingKey = null, onRefresh }: ToolsPageProps) {
   const [query, setQuery] = useState('');
   const [terraformPathCopy, setTerraformPathCopy] = useState<'copied' | 'failed' | null>(null);
   const copyTerraformPath = async () => {
@@ -83,6 +85,13 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                     <span className={'tool-status ' + (view.ready ? 'tool-status--ready' : 'tool-status--attention')}>{view.statusText}</span>
                   </div>
                   <p>{view.summary}</p>
+                  {tool.status === 'missing' && onRefresh && <div className="tool-install-actions">
+                    <button type="button" className="secondary-button" disabled={tasksLocked || installingKey !== null || refreshingKey !== null}
+                      aria-busy={refreshingKey === key} onClick={() => onRefresh(tool)}>
+                      {refreshingKey === key ? 'Checking installation…' : 'Check installation of ' + tool.toolId}
+                    </button>
+                    <small>Checks existing approved locations. PATH changes may still require a fresh terminal and relaunch.</small>
+                  </div>}
                   <p className="tool-next-step"><strong>Next:</strong> {tool.packId === 'terraform-cli' && tool.status === 'missing' && !tool.install
                     ? 'Follow the no-admin Windows setup below; editing PATH is optional.'
                     : view.nextStep}</p>
@@ -108,7 +117,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                         </label>
                       )}
                       <div className="tool-install-actions">
-                        <button type="button" disabled={installingKey !== null} onClick={() => onInstall(tool)}>
+                        <button type="button" disabled={tasksLocked || installingKey !== null || refreshingKey !== null} onClick={() => onInstall(tool)}>
                           {installingKey === key ? 'Installing and verifying…' : 'Install ' + tool.packName}
                         </button>
                         <span>Verified current-user install · no admin credentials</span>
@@ -141,7 +150,7 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                           <code>{`${TERRAFORM_WINDOWS_USER_BIN}\\terraform.exe`}</code>
                         </li>
                         <li>
-                          <span>Close CLIHarbor and launch it again from a new terminal so it can detect and check Terraform. Refreshing this page alone is not enough.</span>
+                          <span>Use Check installation of terraform above to discover and verify this copy. If you changed PATH, close CLIHarbor and relaunch it from a new terminal. Refreshing this page alone does not repeat discovery.</span>
                         </li>
                       </ol>
                       <details className="technical-details">
@@ -169,8 +178,8 @@ export function ToolsPage({ tools, tasks, catalog = false, installingKey, notice
                   )}
                   {catalog && tool.packId !== 'terraform-cli' && tool.status === 'missing' && tool.install === undefined && (
                     <p>{tool.toolId === 'docker'
-                      ? 'Install Docker through your approved setup, including a working Docker engine, then restart CLIHarbor.'
-                      : 'A verified download is not available for this platform. Use your approved installer, then restart CLIHarbor.'}</p>
+                      ? 'Install Docker through your approved setup, including a working Docker engine, then check installation above. PATH changes may require a relaunch.'
+                      : 'A verified download is not available for this platform. Use your approved installer, then check installation above. PATH changes may require a relaunch.'}</p>
                   )}
                   {notice?.key === key && (
                     <div className={'tool-install-result' + (notice.failure ? ' tool-install-result--error' : '')} role={notice.failure ? 'alert' : 'status'}>

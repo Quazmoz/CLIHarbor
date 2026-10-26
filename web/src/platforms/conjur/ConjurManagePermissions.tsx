@@ -3,6 +3,8 @@ import type { Task } from '../../api/tasks';
 import { createRun, previewRun, type RunPreview } from '../../api/runs';
 import { validConjurID } from './ConjurAccessExplorer';
 import { WorkingStatus } from '../../WorkingStatus';
+import { ExecutionContext, OperationResult, type OperationOutcome } from '../../OperationResult';
+import { useMutationActivity, useMutationPending } from '../../OperationActivity';
 import {
   GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, RoleOptions,
   approvalsFresh, completedRun, matchingPlans, runRead, safeMessage, successful,
@@ -54,6 +56,7 @@ interface Props {
   account?: string;
   endpoint?: string;
   contextKey: string;
+  onOpenRuns?: () => void;
 }
 
 interface Change {
@@ -65,7 +68,8 @@ interface Change {
   preview: RunPreview;
 }
 
-export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, contextKey }: Props) {
+export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, contextKey, onOpenRuns }: Props) {
+  const beginMutation = useMutationActivity();
   const listID = useId();
   const [open, setOpen] = useState(false);
   const [variable, setVariable] = useState('');
@@ -76,9 +80,12 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   const [change, setChange] = useState<Change | null>(null);
   const [approved, setApproved] = useState(false);
   const [stage, setStage] = useState('');
-  const busy = stage !== '';
+  const pendingMutation = useMutationPending('conjur-permission-work-progress');
+  const busy = stage !== '' || pendingMutation;
   const [error, setError] = useState('');
   const [outcome, setOutcome] = useState('');
+  const [result, setResult] = useState<OperationOutcome | null>(null);
+  const [mutating, setMutating] = useState(false);
   const busyRef = useRef(false);
   const alive = useRef(true);
   useEffect(() => {
@@ -117,8 +124,9 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
 
   function show(event: FormEvent) {
     event.preventDefault();
-    if (busyRef.current || !allowed || !variableValid) return;
+    if (busyRef.current || pendingMutation || !allowed || !variableValid) return;
     setAccess(null);
+    setResult(null);
     setChange(null);
     setOutcome('');
     void work('Reading current permissions…', () => readAccess(variable));
@@ -127,7 +135,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   // Grant in the variable's policy, revoke in the granting policy.
   // Policy YAML requires a branch-relative variable; role IDs may be absolute.
   function review(commandId: Change['commandId'], label: string, branch: string, role: string, privilege: string) {
-    if (busyRef.current) return;
+    if (busyRef.current || pendingMutation) return;
     const relativeVariable = policyRelativeVariableID(shown, branch);
     if (relativeVariable === null) {
       setError('This variable is outside the granting policy branch. Use the reviewed task workflow to resolve it.');
@@ -140,6 +148,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
     setApproved(false);
     setChange(null);
     setOutcome('');
+    setResult(null);
     void work('Preparing the permission change approval…', async () => {
       const preview = await previewRun(csrfToken, { packId: PACK, commandId, values });
       if (!matchingPlans([preview], account, endpoint) || preview.impact?.target !== relativeVariable || !preview.stdin) {
@@ -150,7 +159,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   }
 
   function apply() {
-    if (busyRef.current || !pending || !approved) return;
+    if (busyRef.current || pendingMutation || !pending || !approved) return;
     if (!approvalsFresh([pending.preview])) {
       setError('The reviewed approval is too close to expiry. Review the change again.');
       setChange(null);
@@ -158,26 +167,49 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
     }
     setApproved(false);
     setChange(null);
+    setAccess(null);
+    setResult(null);
+    setMutating(true);
+    const finishActivity = beginMutation('Changing Conjur permissions…', 'conjur-permission-work-progress');
     void work('Applying the permission change…', async () => {
-      const result = await completedRun(await createRun(csrfToken, {
-        packId: PACK, commandId: pending.commandId, values: pending.values,
-        approval: { id: pending.preview.approval!.id },
-      }));
-      if (!successful(result, pending.commandId)) {
-        throw new Error('Conjur did not confirm the permission change. Check Runs before trying again.');
-      }
       try {
-        if (alive.current) setStage('Verifying current permissions…');
-        await readAccess(pending.variable);
-      } catch {
-        // Don't leave the pre-change table on screen as if it were current.
-        if (alive.current) {
-          setAccess(null);
-          setOutcome(pending.label + ' applied, but current permissions could not be reloaded. Check Runs, then show access again.');
+        const run = await completedRun(await createRun(csrfToken, {
+          packId: PACK, commandId: pending.commandId, values: pending.values,
+          approval: { id: pending.preview.approval!.id },
+        }));
+        if (!successful(run, pending.commandId)) {
+          throw new Error('Conjur did not confirm the permission change. Check Runs before trying again.');
         }
-        return;
+        if (!alive.current) return;
+        try {
+          if (alive.current) setStage('Verifying current permissions…');
+          await readAccess(pending.variable);
+        } catch {
+          // Don't leave the pre-change table on screen as if it were current.
+          if (alive.current) {
+            setAccess(null);
+            setOutcome(pending.label + ' applied, but current permissions could not be reloaded. Check Runs, then show access again.');
+            setResult({ title: 'Permission changed; verification incomplete', tone: 'warning', target: pending.variable,
+              steps: [{ label: 'Permission change', state: 'done' }, { label: 'Current access verification', state: 'unknown' }],
+              next: 'The change was confirmed. Inspect Execution History and show current permissions again; do not reapply it.' });
+          }
+          return;
+        }
+        if (alive.current) {
+          setOutcome(pending.label + ' applied. Current permissions were reloaded from Conjur.');
+          setResult({ title: 'Permissions updated', tone: 'success', target: pending.variable,
+            steps: [{ label: 'Permission change', state: 'done' }, { label: 'Current access verification', state: 'done' }],
+            next: 'Review the refreshed grants below or inspect the execution evidence.' });
+        }
+      } catch (caught) {
+        if (alive.current) setResult({ title: 'Permission change is unconfirmed', tone: 'warning', target: pending.variable,
+          steps: [{ label: 'Permission change', state: 'unknown' }, { label: 'Current access verification', state: 'not-started' }],
+          next: 'Inspect Execution History and read current permissions before deciding whether another change is needed.' });
+        throw caught;
+      } finally {
+        finishActivity();
+        if (alive.current) setMutating(false);
       }
-      if (alive.current) setOutcome(pending.label + ' applied. Current permissions were reloaded from Conjur.');
     });
   }
 
@@ -200,6 +232,8 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
       </button>
       {open && (
         <div className="conjur-create-form conjur-permissions-form">
+          <ExecutionContext fields={[{ label: 'Account', value: account ?? 'Unavailable' }, { label: 'Backend', value: endpoint ?? 'Unavailable' }]}
+            target={pending?.variable || shown || variable || 'Choose a secret variable ID'} />
           <InventoryStatus state={inventoryState} disabled={busy} onRetry={() => void loadInventory()} />
           <form onSubmit={show} autoComplete="off">
             <label>Secret variable ID
@@ -290,8 +324,12 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
               <button type="button" onClick={apply} disabled={!approved || busy}>Apply permission change</button>
             </section>
           )}
-          <WorkingStatus active={busy} title={stage} />
+          <WorkingStatus id="conjur-permission-work-progress" active={busy} title={stage || 'Changing Conjur permissions…'}
+            mutation={mutating || pendingMutation} track={!mutating && !pendingMutation} />
           <p role="status" aria-live="polite">{outcome}</p>
+          {result && <OperationResult result={result}>
+            {onOpenRuns && <button type="button" className="secondary-button" onClick={onOpenRuns}>Open Execution History</button>}
+          </OperationResult>}
           {error && <p role="alert">{error}</p>}
         </div>
       )}

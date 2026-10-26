@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { normalizeError, type AppErrorDetail } from '../../api/errors';
 import { WorkingStatus } from '../../WorkingStatus';
+import { useMutationActivity, useMutationPending } from '../../OperationActivity';
 import {
   executeTerraformStateRemoval, previewTerraformStateRemoval,
   type TerraformStateRemovalPreview, type TerraformStateRemovalResult,
@@ -41,6 +42,8 @@ function failureText(detail: AppErrorDetail): string {
 }
 
 export function TerraformStateRemoval({ projectId, projectName, stateId, stateName, address, ready, csrfToken, onStateChanged }: Props) {
+  const beginMutation = useMutationActivity();
+  const pendingMutation = useMutationPending('terraform-removal-work-progress');
   const [previewFor, setPreviewFor] = useState<{ key: string; preview: TerraformStateRemovalPreview } | null>(null);
   const [confirmFor, setConfirmFor] = useState<{ key: string; text: string }>({ key: '', text: '' });
   const [busy, setBusy] = useState<'preview' | 'execute' | null>(null);
@@ -69,7 +72,7 @@ export function TerraformStateRemoval({ projectId, projectName, stateId, stateNa
   const setFailure = (text: string) => setFailureFor(text ? { key: selectionKey, text } : null);
   useEffect(() => () => previewAbort.current?.abort(), [selectionKey]);
 
-  const canPreview = ready && !!csrfToken && !!address && busy === null;
+  const canPreview = ready && !!csrfToken && !!address && busy === null && !pendingMutation;
   const startPreview = () => {
     if (!canPreview || !csrfToken) return;
     const controller = new AbortController();
@@ -91,8 +94,9 @@ export function TerraformStateRemoval({ projectId, projectName, stateId, stateNa
 
   const confirmed = preview !== null && confirm === preview.stateName;
   const execute = () => {
-    if (!preview || !confirmed || !csrfToken || busy !== null) return;
+    if (!preview || !confirmed || !csrfToken || busy !== null || pendingMutation) return;
     const used = preview;
+    const finishActivity = beginMutation('Removing from Terraform state…', 'terraform-removal-work-progress');
     setBusy('execute');
     setFailure('');
     // The preview is one-use on the backend whatever happens next.
@@ -104,6 +108,7 @@ export function TerraformStateRemoval({ projectId, projectName, stateId, stateNa
     }).catch((error: unknown) => {
       setFailureFor({ key, text: failureText(normalizeError(error).detail) });
     }).finally(() => {
+      finishActivity();
       setBusy(null);
       setConfirmFor({ key: '', text: '' });
     });
@@ -112,14 +117,14 @@ export function TerraformStateRemoval({ projectId, projectName, stateId, stateNa
   return (
     <div className="terraform-state-removal">
       <p><code>terraform state rm</code> makes Terraform <strong>forget</strong> resources. The real infrastructure is <strong>not</strong> destroyed. If the resource is still in your configuration, a later <code>apply</code> will try to create it again.</p>
-      <dl className="terraform-removal-context">
+      <dl className="terraform-removal-context operation-context" aria-label="Execution context">
         <div><dt>Project</dt><dd>{projectName}</dd></div>
         <div><dt>State file</dt><dd><code>{stateName}</code></dd></div>
         <div><dt>Resource</dt><dd>{address ? <code>{address}</code> : 'Select one exact resource on the Resources tab.'}</dd></div>
       </dl>
       {!ready && <p role="note">A ready, version-qualified Terraform CLI is required.</p>}
-      <button type="button" className="secondary-button" disabled={!canPreview} onClick={startPreview} aria-busy={busy !== null}>
-        {busy === 'preview' ? 'Running dry run…' : busy === 'execute' ? 'Removing from state…' : 'Preview removal'}
+      <button type="button" className="secondary-button" disabled={!canPreview} onClick={startPreview} aria-busy={busy !== null || pendingMutation}>
+        {busy === 'preview' ? 'Running dry run…' : busy === 'execute' || pendingMutation ? 'Removing from state…' : 'Preview removal'}
       </button>
 
       {preview && (
@@ -144,17 +149,21 @@ export function TerraformStateRemoval({ projectId, projectName, stateId, stateNa
         </section>
       )}
 
-      <WorkingStatus active={busy !== null} title={busy === 'preview' ? 'Checking state removal…' : 'Removing from state…'}
+      <WorkingStatus active={busy !== null || pendingMutation} title={busy === 'preview' ? 'Checking state removal…' : 'Removing from state…'}
+        id="terraform-removal-work-progress"
+        mutation={busy === 'execute' || pendingMutation} track={busy !== 'execute' && !pendingMutation}
         detail={busy === 'preview' ? 'Terraform is running the dry run. No state change has been requested.' : 'Keep CLIHarbor running while removal and backup verification finish. Do not submit again.'} />
       {failure && <p role="alert">{failure}</p>}
       {result?.outcome === 'removed' && (
-        <div role="status" className="terraform-removal-result">
+        <div role="status" className="terraform-removal-result operation-result operation-result--success">
+          <h4>State removal verified</h4>
           <p><strong>Removed from state:</strong> {result.removed.map((item) => <code key={item}>{item}</code>)}. New serial {result.serial}.</p>
           <p>Backup of the previous state: <code>{result.backup}</code>{result.terraformBackup ? <> (Terraform also wrote <code>{result.terraformBackup}</code>)</> : null}. To undo, restore the backup over <code>{result.stateName}</code> while no other Terraform process is running.</p>
         </div>
       )}
       {result?.outcome === 'unverified' && (
-        <div role="alert" className="terraform-removal-result">
+        <div role="alert" className="terraform-removal-result operation-result operation-result--warning">
+          <h4>State removal needs review</h4>
           <p><strong>Result not verified.</strong> {result.problem}</p>
           <p>Do not retry. Compare <code>{result.stateName}</code> with the backup <code>{result.backup}</code>{result.terraformBackup ? <> and Terraform&apos;s backup <code>{result.terraformBackup}</code></> : null} before running anything else against this state.</p>
         </div>

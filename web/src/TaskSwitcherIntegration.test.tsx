@@ -22,9 +22,9 @@ const approvedTasks = [
 
 function mockRuntime(tasks: unknown[] = approvedTasks) {
   const requested: string[] = [];
-  vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+  vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = requestPath(input);
-    requested.push(path);
+    requested.push((init?.method ?? 'GET') + ' ' + path);
     if (path === '/api/v1/status') return Promise.resolve(response(200, { name: 'CLIHarbor', version: 'test', session: 'active', csrfToken: 'test-csrf' }));
     if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks }));
     if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: [] }));
@@ -75,7 +75,7 @@ test('Ctrl+K opens search across CLIs and selects an existing task without execu
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Find a task' })).not.toBeInTheDocument());
   expect(window.location.pathname).toBe('/tasks');
   expect(screen.getByRole('heading', { name: 'List variables', level: 4 })).toBeInTheDocument();
-  expect(requests.some((path) => path === '/api/v1/runs' || path === '/api/v1/runs/preview')).toBe(false);
+  expect(requests.some((path) => path === 'POST /api/v1/runs' || path === 'POST /api/v1/runs/preview')).toBe(false);
   fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true });
   expect(await screen.findByRole('dialog', { name: 'Find a task' })).toBeInTheDocument();
 });

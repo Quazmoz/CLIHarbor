@@ -3,6 +3,8 @@ import type { Task } from '../../api/tasks';
 import { createRun, previewRun, type RunPreview } from '../../api/runs';
 import { normalizeConjurSaaSAPIURL } from './ConjurBackendConnection';
 import { WorkingStatus } from '../../WorkingStatus';
+import { ExecutionContext, OperationResult, type OperationOutcome } from '../../OperationResult';
+import { useMutationActivity, useMutationPending } from '../../OperationActivity';
 import {
   GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, ROLE_KINDS, RoleOptions,
   approvalsFresh, completedRun, matchingPlans, safeMessage as sharedSafeMessage, splitRole, successful,
@@ -20,6 +22,8 @@ interface Props {
   endpoint?: string;
   contextKey: string;
   onOpenRuns?: () => void;
+  onInspectTarget?: (id: string) => void;
+  onManageAccess?: () => void;
 }
 
 interface Plan {
@@ -89,7 +93,8 @@ function safeMessage(error: unknown): string {
   return error instanceof ExistenceCheckFailure ? error.message : sharedSafeMessage(error);
 }
 
-export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contextKey, onOpenRuns }: Props) {
+export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contextKey, onOpenRuns, onInspectTarget, onManageAccess }: Props) {
+  const beginMutation = useMutationActivity();
   // SaaS tenants cannot load policy into root; their secrets live under data.
   // The parent remounts this form when the endpoint changes.
   const saas = Boolean(endpoint && normalizeConjurSaaSAPIURL(endpoint));
@@ -100,11 +105,13 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   const [plan, setPlan] = useState<Plan | null>(null);
   const [approved, setApproved] = useState(false);
   const [operation, setOperation] = useState<'review' | 'create' | null>(null);
-  const busy = operation !== null;
+  const pendingMutation = useMutationPending('conjur-secret-work-progress');
+  const busy = operation !== null || pendingMutation;
   const [stage, setStage] = useState('');
   const [error, setError] = useState('');
   const [failedCheckRunId, setFailedCheckRunId] = useState('');
   const [outcome, setOutcome] = useState('');
+  const [result, setResult] = useState<OperationOutcome | null>(null);
   const [owner, setOwner] = useState('');
   const [grantee, setGrantee] = useState('');
   const [privileges, setPrivileges] = useState(PRIVILEGES[0]);
@@ -141,6 +148,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     plan.grantee === grantee && plan.privileges === privileges;
 
   function changed(update: () => void) {
+    setResult(null);
     update();
     setPlan(null);
     setApproved(false);
@@ -151,9 +159,10 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
 
   async function review(event: FormEvent) {
     event.preventDefault();
-    if (busyRef.current || !allowed || !inputReady || !fullID || !account) return;
+    if (busyRef.current || pendingMutation || !allowed || !inputReady || !fullID || !account) return;
     busyRef.current = true;
     setOperation('review');
+    setResult(null);
     setStage('Checking whether the variable already exists…');
     setError('');
     setFailedCheckRunId('');
@@ -194,7 +203,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   }
 
   async function apply() {
-    if (busyRef.current || !allowed || !approved || !reviewed || !plan || !account || !inputReady) return;
+    if (busyRef.current || pendingMutation || !allowed || !approved || !reviewed || !plan || !account || !inputReady) return;
     // Later independent approvals must remain valid while the first run completes.
     // Refuse stale reviews before mutating anything; preserve input for a fresh review.
     // An optional grant that still lapses later is reported as recoverable partial completion.
@@ -206,6 +215,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     }
     busyRef.current = true;
     setOperation('create');
+    const finishActivity = beginMutation('Creating Conjur secret…', 'conjur-secret-work-progress');
+    setResult(null);
     setError('');
     setFailedCheckRunId('');
     setOutcome('');
@@ -216,6 +227,15 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     setPlan(null);
     let declared = false;
     let stored = false;
+    let createAttempted = false;
+    let valueAttempted = false;
+    let grantAttempted = false;
+    let granted = false;
+    const steps = (): OperationOutcome['steps'] => [
+      { label: 'Variable creation', state: declared ? 'done' : createAttempted ? 'unknown' : 'not-started' },
+      { label: 'Initial value storage', state: stored ? 'done' : valueAttempted ? 'unknown' : 'not-started' },
+      ...(plan.permit ? [{ label: 'Access grant', state: granted ? 'done' as const : grantAttempted ? 'unknown' as const : 'not-started' as const }] : []),
+    ];
     const createCommand = plan.owner ? 'secret-create-owned' : 'secret-create';
     try {
       setStage('Checking the target again');
@@ -224,6 +244,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       }
       if (!alive.current) return;
       setStage('Creating the variable');
+      createAttempted = true;
       const create = await completedRun(await createRun(csrfToken, {
         packId: PACK, commandId: createCommand,
         values: createValues(plan.branch, plan.variable, plan.owner),
@@ -235,6 +256,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       declared = true;
       if (!alive.current) return; // Never start a second mutation after navigation.
       setStage('Storing the initial secret value');
+      valueAttempted = true;
       const setRun = await completedRun(await createRun(csrfToken, {
         packId: PACK, commandId: 'secret-set-value',
         values: { 'variable-id': plan.fullID, value: secret },
@@ -247,6 +269,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       if (plan.permit) {
         if (!alive.current) return;
         setStage('Granting access');
+        grantAttempted = true;
         const permitted = await completedRun(await createRun(csrfToken, {
           packId: PACK, commandId: 'secret-permit', values: permitValues(plan),
           approval: { id: plan.permit.approval!.id },
@@ -254,13 +277,21 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
         if (!successful(permitted, 'secret-permit')) {
           throw new Error('Conjur did not confirm the access grant.');
         }
+        granted = true;
       }
       if (alive.current) {
+        setResult({ title: 'Secret created', tone: 'success', target: plan.fullID, steps: steps(),
+          next: 'Inspect the variable or manage its access. Stored secret values are never displayed.' });
         setOutcome(plan.permit ? 'Variable created, initial value stored and access granted.'
           : 'Variable created and initial value stored. Assign permissions separately if required.');
       }
     } catch (caught) {
       if (alive.current) {
+        setResult({ title: createAttempted ? 'Creation outcome needs review' : 'Creation stopped before changes', tone: 'warning', target: plan.fullID, steps: steps(),
+          next: stored ? 'Do not recreate the secret. Inspect Execution History, then review the access grant separately.'
+            : declared ? 'The variable exists. Inspect Execution History before deciding whether to update its value; do not repeat creation.'
+            : createAttempted ? 'Creation is unconfirmed. Inspect Execution History and check whether the variable exists before doing anything else.'
+            : 'No mutation was requested. Resolve the read-only check failure before a fresh review.' });
         setError(stored
           ? 'Partial completion: the variable and its value are stored, but the access grant is unconfirmed. ' +
             safeMessage(caught) + ' Check Runs, then use Grant permission instead of recreating the secret.'
@@ -270,6 +301,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       }
     } finally {
       // The only remaining reference to the secret is this short-lived async call stack.
+      finishActivity();
       if (alive.current) { setOperation(null); setStage(''); }
       busyRef.current = false;
     }
@@ -285,7 +317,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
           setOpen(!open);
         }}>
         <span className="conjur-action-text">
-          <strong>{operation === 'create' ? 'Creating secret…' : operation === 'review' ? 'Reviewing secret…' : 'Create secret'}</strong>
+          <strong>{operation === 'create' || pendingMutation ? 'Creating secret…' : operation === 'review' ? 'Reviewing secret…' : 'Create secret'}</strong>
           <span>{allowed
             ? 'Choose where the variable lives, who owns it and who can access it, then enter its initial value, using approved Conjur commands.'
             : 'Unavailable until Conjur and the approved commands are ready.'}</span>
@@ -294,6 +326,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
       </button>
       {open && (
         <form className="conjur-create-form" onSubmit={(event) => void review(event)} autoComplete="off">
+          <ExecutionContext fields={[{ label: 'Account', value: account ?? 'Unavailable' }, { label: 'Backend', value: endpoint ?? 'Unavailable' }]}
+            target={fullID ?? 'Choose a valid variable ID'} />
           <p>Provide the destination and secret value once. No change runs until you review and approve every operation; review checks existence using an approved read-only command. This is not an atomic Conjur transaction.</p>
           <InventoryStatus state={inventoryState} disabled={busy} onRetry={() => void loadInventory()} />
           {inventory ? (
@@ -380,8 +414,16 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
             </section>
           )}
           <WorkingStatus active={busy} title={operation === 'review' ? 'Reviewing secret creation…' : 'Creating secret…'}
+            id="conjur-secret-work-progress"
+            mutation={operation === 'create'}
+            track={operation === 'review'}
             detail={stage + ' Keep this page open; no need to submit again.'} />
           <p role="status" aria-live="polite">{outcome}</p>
+          {result && <OperationResult result={result}>
+            {onOpenRuns && <button type="button" className="secondary-button" onClick={onOpenRuns}>Open Execution History</button>}
+            {onInspectTarget && result.target && <button type="button" className="secondary-button" onClick={() => onInspectTarget(result.target!)}>Inspect variable</button>}
+            {onManageAccess && <button type="button" className="secondary-button" onClick={onManageAccess}>Manage access</button>}
+          </OperationResult>}
           {error && <p role="alert">{error}</p>}
           {error && failedCheckRunId && (
             <div className="conjur-create-check-failure">

@@ -11,7 +11,7 @@ function renderTerraform(status: ToolStatus = 'missing', catalog = true, onInsta
     toolId: 'terraform', status, version: status === 'incompatible' ? '1.4.0' : undefined,
     versionConstraint: '>=1.5.0 <2.0.0',
   }]} installingKey={null} installRoots={{}} notice={null} tasksLocked={false}
-    onInstall={onInstall} onInstallRoot={vi.fn()} onOpenTasks={vi.fn()} onOpenAuthentication={vi.fn()} />);
+    onInstall={onInstall} onRefresh={vi.fn()} onInstallRoot={vi.fn()} onOpenTasks={vi.fn()} onOpenAuthentication={vi.fn()} />);
   return onInstall;
 }
 
@@ -25,7 +25,8 @@ test('Terraform offers a no-PATH current-user setup instead of unqualified autom
   expect(screen.getByText('%USERPROFILE%')).toBeInTheDocument();
   expect(screen.getByText('%USERPROFILE%\\bin\\terraform.exe')).toBeInTheDocument();
   expect(screen.getByText(/not in a nested folder/)).toBeInTheDocument();
-  expect(screen.getByText(/Refreshing this page alone is not enough/)).toBeInTheDocument();
+  expect(screen.getByText(/Refreshing this page alone does not repeat discovery/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Check installation of terraform' })).toBeEnabled();
   expect(screen.getByText(/In-app automatic Terraform installation is disabled/)).toBeInTheDocument();
   expect(onInstall).not.toHaveBeenCalled();
   expect(screen.queryByRole('button', { name: /^Install HashiCorp Terraform/ })).not.toBeInTheDocument();

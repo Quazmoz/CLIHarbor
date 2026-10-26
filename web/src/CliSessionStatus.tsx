@@ -2,11 +2,14 @@ import type { MouseEvent } from 'react';
 import type { ToolDiagnostic } from './api/tools';
 import { authenticationCheckFor, type AuthenticationChecks } from './AuthenticationPage';
 import { ToolIcon } from './ToolIcon';
+import type { Task } from './api/tasks';
 
-export function CliSessionStatus({ tools, checks, onOpenSignIn }: {
+export function CliSessionStatus({ tools, checks, onOpenSignIn, tasks = [], onCheckSession }: {
   tools: ToolDiagnostic[];
   checks: AuthenticationChecks;
   onOpenSignIn: (event: MouseEvent<HTMLAnchorElement>) => void;
+  tasks?: Task[];
+  onCheckSession?: (tool: ToolDiagnostic) => void;
 }) {
   const sessions = tools.filter((tool) => tool.requiresVendorSession === true).map((tool) => {
     const check = authenticationCheckFor(tool, checks);
@@ -56,6 +59,12 @@ export function CliSessionStatus({ tools, checks, onOpenSignIn }: {
                 <span className={'cli-session-label' + (signedIn ? ' cli-session-label--signed-in' : '')}>
                   <span aria-hidden="true">{symbol} </span>{label}
                 </span>
+                {onCheckSession && <button type="button" className="secondary-button cli-session-check"
+                  aria-label={'Check session for ' + (tool.packName || tool.packId) + ' / ' + tool.toolId}
+                  aria-busy={check?.kind === 'checking'} disabled={check?.kind === 'checking' || tool.status !== 'ready' ||
+                    !tasks.some((task) => task.packId === tool.packId && task.toolId === tool.toolId &&
+                      task.commandId === tool.sessionCheck?.commandId && task.risk === 'read' && task.requiresAuth && task.inputs.length === 0)}
+                  onClick={() => onCheckSession(tool)}>{check?.kind === 'checking' ? 'Checking…' : 'Check session'}</button>}
               </li>
             ))}
           </ul>

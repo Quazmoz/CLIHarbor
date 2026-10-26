@@ -76,7 +76,7 @@ test('abandoning a pending check clears Checking and ignores its late completion
   backend.on({ 'POST /api/v1/runs': () => new Promise((resolve) => { finish = resolve; }) });
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: 'Check session' }));
-  expect(sessions().getByText('Checking…')).toBeVisible();
+  expect(sessions().getByText('Checking…', { selector: '.cli-session-label' })).toBeVisible();
   fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
   await act(async () => finish({ status: 202, body: run }));
   expect(screen.queryByText('1 signed in')).not.toBeInTheDocument();

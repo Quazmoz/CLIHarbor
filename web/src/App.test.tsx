@@ -2,6 +2,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
 
+function isRunPost([input, init]: readonly [RequestInfo | URL, RequestInit?]): boolean {
+  return requestPath(input) === '/api/v1/runs' && init?.method === 'POST';
+}
+
 function response(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -142,7 +146,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Command Builder' })).toBeInTheDocument();
     expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5); // Includes metadata-only activity read.
   });
 
   test('shows a recoverable session-expired state for unauthenticated requests', async () => {
@@ -208,7 +212,7 @@ describe('App', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Command Builder' })).toBeInTheDocument());
     // status (failed), status, tasks, tools, dedicated platforms
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6); // Includes metadata-only activity read.
   });
 
   test('renders sanitized unavailable-tool diagnostics without executable authority', async () => {
@@ -781,7 +785,7 @@ describe('App', () => {
 
     await waitFor(() => expect(query).toHaveAttribute('aria-invalid', 'true'));
     expect(query).toHaveFocus();
-    expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs')).toBe(false);
+    expect(fetchMock.mock.calls.some(isRunPost)).toBe(false);
   });
 
   test('renders hostile-looking typed error text inertly', async () => {
@@ -1402,8 +1406,8 @@ describe('App routing', () => {
     expect(runButton).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Review destructive change' }));
-    expect(await screen.findByText('engineering')).toBeInTheDocument();
-    expect(screen.getByText('https://conjur.example.test')).toBeInTheDocument();
+    expect(await screen.findByText('engineering', { selector: '.operation-context dd' })).toBeInTheDocument();
+    expect(screen.getByText('https://conjur.example.test', { selector: '.operation-context dd' })).toBeInTheDocument();
     expect(screen.getByText('DELETE MULTIPLE: prod-issuer')).toBeInTheDocument();
     expect(runButton).toBeDisabled();
 

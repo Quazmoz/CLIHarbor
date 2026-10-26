@@ -161,7 +161,10 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
           {csrfToken ? (
             <ConjurCreateSecret key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
               tasks={platformTasks} csrfToken={csrfToken} account={ready ? target?.account : undefined}
-              endpoint={ready ? target?.applianceUrl : undefined} onOpenRuns={onOpenRuns}
+              endpoint={ready ? target?.applianceUrl : undefined} onOpenRuns={onOpenRuns} onManageAccess={() => setTab('access')}
+              onInspectTarget={taskFor('resource-exists', 'read') ? (id) => onOpenTask(platform.packId + '/resource-exists', {
+                'resource-id': target?.account + ':variable:' + id,
+              }) : undefined}
               contextKey={discoveryKey + '/' + (target?.applianceUrl ?? '') + '/' + (target?.account ?? '')} />
           ) : <Action title="Create secret" detail="Requires a verified browser session." available={false} onOpen={() => {}} />}
           {taskAction('list-variables', 'read', 'Browse variables', 'Find visible variable IDs without exposing their stored values.')}
@@ -186,7 +189,7 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
             <ConjurManagePermissions key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
               tasks={platformTasks} csrfToken={csrfToken} account={ready ? target?.account : undefined}
               endpoint={ready ? target?.applianceUrl : undefined}
-              contextKey={discoveryKey + '/' + (target?.applianceUrl ?? '') + '/' + (target?.account ?? '')} />
+              contextKey={discoveryKey + '/' + (target?.applianceUrl ?? '') + '/' + (target?.account ?? '')} onOpenRuns={onOpenRuns} />
           )}
           {taskAction('secret-permit', 'change', 'Grant permission', 'Allow a host, group, layer, or user to read, execute, or update a secret variable.')}
           {taskAction('secret-deny', 'change', 'Revoke permission', 'Remove privileges granted by the same policy branch. Verify the original granting branch first.')}

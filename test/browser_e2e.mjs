@@ -470,7 +470,7 @@ async function setTextInput(page, label, value) {
 
 async function clickButton(page, text) {
   const expression = '(() => {' +
-    'const button = Array.from(document.querySelectorAll("button")).find((element) => element.textContent?.trim() === ' + JSON.stringify(text) + ');' +
+    'const button = Array.from(document.querySelectorAll("button")).find((element) => element.getClientRects().length > 0 && element.textContent?.trim() === ' + JSON.stringify(text) + ');' +
     'if (!button || button.disabled) return false;' +
     'button.click();' +
     'return true;' +
@@ -747,29 +747,37 @@ async function main() {
     assert.equal(credentialState.connectionInputs, 0, 'successful setup must not leave connection inputs active');
 
     stage('top-right CLI session status across navigation and narrow layouts');
-    await waitJS(page, 'verified sign-in indicator', 'document.querySelector(".cli-sessions summary")?.textContent.includes("1 signed in")');
+    await waitJS(page, 'verified sign-in indicator', 'document.querySelector(".cli-sessions:not(.operation-activity) summary")?.textContent.includes("1 signed in")');
     await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
-    await waitJS(page, 'verified session retained on Tasks', 'location.pathname === "/tasks" && document.querySelector(".cli-sessions summary")?.textContent.includes("1 signed in")');
+    await waitJS(page, 'verified session retained on Tasks', 'location.pathname === "/tasks" && document.querySelector(".cli-sessions:not(.operation-activity) summary")?.textContent.includes("1 signed in")');
     for (const width of [1366, 320]) {
       await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
-      await page.evaluate('document.querySelector(".cli-sessions summary").click()');
-      await waitJS(page, 'session disclosure open', 'document.querySelector(".cli-sessions").open');
+      await page.evaluate('document.querySelector(".cli-sessions:not(.operation-activity) summary").click()');
+      await waitJS(page, 'session disclosure open', 'document.querySelector(".cli-sessions:not(.operation-activity)").open');
       const sessionPanel = await page.evaluate('(() => {' +
-        'const panel = document.querySelector(".cli-sessions-panel"); const bounds = panel.getBoundingClientRect();' +
+        'const panel = document.querySelector(".cli-sessions:not(.operation-activity) .cli-sessions-panel"); const bounds = panel.getBoundingClientRect();' +
         'return { fits: bounds.left >= 0 && bounds.right <= window.innerWidth && document.documentElement.scrollWidth <= window.innerWidth,' +
         'hasCLI: panel.innerText.includes("conjur"), hasStatus: panel.innerText.includes("Signed in"), hasTime: panel.querySelector("time") !== null };' +
       '})()');
       assert.deepEqual(sessionPanel, { fits: true, hasCLI: true, hasStatus: true, hasTime: true }, 'session panel must identify verified CLIs and fit at ' + width + 'px');
       await capture('cli-sessions-' + width);
-      await page.evaluate('document.querySelector(".cli-sessions summary").focus()');
+      await page.evaluate('document.querySelector(".cli-sessions:not(.operation-activity) summary").focus()');
       await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
       await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-      assert.equal(await page.evaluate('!document.querySelector(".cli-sessions").open && document.activeElement === document.querySelector(".cli-sessions summary")'), true);
+      assert.equal(await page.evaluate('!document.querySelector(".cli-sessions:not(.operation-activity)").open && document.activeElement === document.querySelector(".cli-sessions:not(.operation-activity) summary")'), true);
     }
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
-    await page.evaluate('document.querySelector(".cli-sessions summary").click()');
-    await page.evaluate('document.querySelector(".cli-sessions-panel > a").click()');
+    await page.evaluate('document.querySelector(".cli-sessions:not(.operation-activity) summary").click()');
+    await page.evaluate('document.querySelector(".cli-sessions:not(.operation-activity) .cli-sessions-panel > a").click()');
     await waitJS(page, 'manage sign-ins retains verified evidence', 'location.pathname === "/authentication" && document.body.innerText.includes("Authenticated") && document.activeElement?.id === "main-content"');
+
+    stage('one-click session check from the top bar');
+    const quickSessionRequest = page.waitEvent('Network.requestWillBeSent', isConjurSessionCheckRequest);
+    await page.evaluate('document.querySelector(".cli-sessions:not(.operation-activity) summary").click()');
+    await page.evaluate('document.querySelector(".cli-session-check").click()');
+    const quickSession = await quickSessionRequest;
+    assert.deepEqual(JSON.parse(quickSession.request.postData), { packId: 'cyberark-conjur-v9', commandId: 'whoami', values: {} });
+    await waitJS(page, 'quick session re-verified', 'document.body.innerText.includes("Authenticated") && document.querySelector(".cli-sessions:not(.operation-activity) summary").textContent.includes("1 signed in")');
 
     stage('direct run history route');
     await navigate(page, baseURL + '/runs');
@@ -1157,6 +1165,25 @@ async function main() {
     assert.equal(await page.evaluate('getComputedStyle(document.querySelector(".run-button"), "::before").animationName'), 'none');
     await page.call('Emulation.setEmulatedMedia', { features: [] });
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+
+    stage('global activity remains available across routes');
+    await page.call('Page.bringToFront');
+    await waitJS(page, 'global running activity', 'document.querySelector(".operation-activity summary").textContent.includes("running")');
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim().startsWith("Diagnostics")).click()');
+    await waitJS(page, 'running activity on Diagnostics', 'location.pathname === "/diagnostics" && document.querySelector(".operation-activity summary").textContent.includes("running")');
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      await page.evaluate('document.querySelector(".operation-activity summary").click()');
+      assert.equal(await page.evaluate('(() => { const rect = document.querySelector(".operation-activity .cli-sessions-panel").getBoundingClientRect(); return rect.left >= 0 && rect.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth; })()'), true, 'activity menu must fit at ' + width + 'px');
+      await capture('global-activity-' + width);
+      await page.evaluate('document.querySelector(".operation-activity summary").click()');
+    }
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    await page.evaluate('document.querySelector(".operation-activity summary").click()');
+    await page.evaluate('Array.from(document.querySelectorAll(".operation-activity a")).find((link) => link.getAttribute("href").endsWith(' + JSON.stringify(waitRunID) + ')).click()');
+    await waitJS(page, 'activity opens exact retained run', 'location.pathname === "/runs" && document.querySelector(".run-history-id")?.textContent.trim() === ' + JSON.stringify(waitRunID));
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
+    await waitJS(page, 'return to running command without replay', 'location.pathname === "/tasks" && document.querySelector(".run-panel h2")?.textContent.trim() === "Running"');
 
     const reconciliationRequest = page.waitEvent('Network.requestWillBeSent',
       (params) => params.request?.url === baseURL + '/api/v1/runs/' + waitRunID && params.request?.method === 'GET',

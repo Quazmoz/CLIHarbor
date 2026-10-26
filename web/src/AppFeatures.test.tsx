@@ -51,6 +51,10 @@ function baseRuntimeResponse(path: string): Response | undefined {
   return undefined;
 }
 
+function isRunPost([input, init]: readonly [RequestInfo | URL, RequestInit?]): boolean {
+  return requestPath(input) === '/api/v1/runs' && init?.method === 'POST';
+}
+
 beforeEach(() => {
   window.history.replaceState({}, '', '/tasks');
 });
@@ -90,7 +94,7 @@ describe('Conjur migration inventory presets', () => {
     expect(window.location.pathname).toBe('/tasks');
     expect(screen.getByRole('combobox', { name: 'Resource kind' })).toHaveValue('variable');
     expect(screen.getByRole('combobox', { name: 'Page size' })).toHaveValue('25');
-    expect(fetchMock.mock.calls.every(([input]) => requestPath(input) !== '/api/v1/runs')).toBe(true);
+    expect(fetchMock.mock.calls.some(isRunPost)).toBe(false);
   });
 });
 
@@ -348,10 +352,11 @@ describe('command preview and retry workflows', () => {
     let resolveCancel: (response: Response) => void = () => undefined;
     const pendingCancel = new Promise<Response>((resolve) => { resolveCancel = resolve; });
     let starts = 0;
-    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = requestPath(input);
       const base = baseRuntimeResponse(path);
       if (base) return Promise.resolve(base);
+      if (path === '/api/v1/runs' && init?.method !== 'POST') return Promise.resolve(response(200, { runs: [] }));
       if (path.endsWith('/cancel')) return pendingCancel;
       starts += 1;
       return Promise.resolve(response(202, {
@@ -436,7 +441,7 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByRole('button', { name: 'Starting…' })).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByText('Starting command…')).toBeInTheDocument();
     expect(document.querySelector('.working-status .work-spinner')).toBeInTheDocument();
-    expect(fetchMock.mock.calls.filter(([input]) => requestPath(input) === '/api/v1/runs')).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(isRunPost)).toHaveLength(1);
     await act(async () => resolveRun(response(202, {
       runId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', packId: 'fixture', commandId: 'inspect', toolId: 'fixture', status: 'exited', exitCode: 0,
     })));
@@ -529,7 +534,7 @@ describe('command preview and retry workflows', () => {
     expect(screen.getByText('Validating command…')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Run command' })).toBeDisabled();
     fireEvent.submit(query.closest('form')!);
-    expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs')).toBe(false);
+    expect(fetchMock.mock.calls.some(isRunPost)).toBe(false);
 
     await waitFor(() =>
       expect(fetchMock.mock.calls.some(([input]) => requestPath(input) === '/api/v1/runs/preview')).toBe(true),
@@ -667,6 +672,7 @@ describe('managed CLI installation workflow', () => {
     expect(fetchMock.mock.calls.filter(([input]) => requestPath(input) === '/api/v1/tools/install')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Install Fixture CLI' })).not.toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Task categories' })).not.toBeInTheDocument();
+    await waitFor(() => expect(openTasks).toBeEnabled());
     fireEvent.click(openTasks);
     expect(window.location.pathname).toBe('/tasks');
     expect(screen.getByRole('heading', { name: 'Inspect newly installed CLI' })).toBeInTheDocument();

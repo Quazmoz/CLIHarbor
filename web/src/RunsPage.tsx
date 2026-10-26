@@ -16,6 +16,7 @@ import { MutationAuditTrail } from './MutationAuditTrail';
 interface RunsPageProps {
   tasks: Task[];
   onOpenTasks?: () => void;
+  requestedRun?: { runId: string };
 }
 
 const ACTIVE_RUN_REFRESH_MS = 2000;
@@ -85,13 +86,18 @@ function FailureNotice({ failure }: { failure: AppErrorDetail }) {
   );
 }
 
-export function RunsPage({ tasks, onOpenTasks }: RunsPageProps) {
+export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
   const [summaries, setSummaries] = useState<RunSummary[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listFailure, setListFailure] = useState<AppErrorDetail | null>(null);
   const [listRefresh, setListRefresh] = useState(0);
-  const [selectedRunID, setSelectedRunID] = useState<string | null>(null);
+  const [selectedRunID, setSelectedRunID] = useState<string | null>(requestedRun?.runId ?? null);
+  const [seenRequest, setSeenRequest] = useState(requestedRun);
+  if (seenRequest !== requestedRun) {
+    setSeenRequest(requestedRun);
+    if (requestedRun) setSelectedRunID(requestedRun.runId);
+  }
   const [detail, setDetail] = useState<RunSnapshot | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailFailure, setDetailFailure] = useState<AppErrorDetail | null>(null);

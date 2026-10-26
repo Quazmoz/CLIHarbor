@@ -253,3 +253,18 @@ export async function installTool(
     message: payload.message,
   };
 }
+
+export async function refreshTool(csrfToken: string, packId: string, toolId: string): Promise<{ status: ToolStatus; ready: boolean; message: string }> {
+  const response = await fetch('/api/v1/tools/refresh', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CLIHarbor-CSRF': csrfToken },
+    body: JSON.stringify({ packId, toolId }),
+  });
+  if (!response.ok) throw await errorFromResponse(response);
+  const payload: unknown = await response.json();
+  if (!isRecord(payload) || !isToolStatus(payload.status) || typeof payload.ready !== 'boolean' ||
+      payload.ready !== (payload.status === 'ready') || typeof payload.message !== 'string' ||
+      payload.message.length === 0 || payload.message.length > 512 || hasControlCharacters(payload.message) ||
+      Object.keys(payload).some((key) => !['status', 'ready', 'message'].includes(key))) throw clientError('invalid_response');
+  return { status: payload.status, ready: payload.ready, message: payload.message };
+}

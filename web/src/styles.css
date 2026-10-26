@@ -3697,6 +3697,29 @@ button[aria-busy="true"]:disabled { opacity: 1; cursor: progress; }
 .working-status > div { min-width: 0; }
 .working-status strong { font-size: 0.9rem; }
 .working-status p { margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--text-muted); }
+.operation-context {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 0.65rem;
+  margin: 0.85rem 0; padding: 0.85rem; border: 1px solid var(--info-border); border-radius: var(--radius-sm);
+  background: var(--surface-inset); overflow-wrap: anywhere;
+}
+.operation-context div { min-width: 0; }
+.operation-context dt { color: var(--text-muted); font-size: 0.75rem; }
+.operation-context dd { margin: 0.25rem 0 0; color: var(--text-strong); font-size: 0.85rem; }
+.operation-result { margin: 1rem 0; padding: 1rem; border: 1px solid var(--positive-border); border-left-width: 4px; border-radius: var(--radius-md); background: var(--positive-surface); overflow-wrap: anywhere; }
+.operation-result--warning { border-color: var(--warning-border); background: var(--warning-surface); }
+.operation-result h4 { margin: 0 0 0.65rem; color: var(--positive-text); }
+.operation-result--warning h4 { color: var(--warning-text); }
+.operation-result ul { list-style: none; padding: 0; }
+.operation-result li { margin: 0.4rem 0; }
+.cli-sessions-panel li { flex-wrap: wrap; }
+.cli-sessions-panel .cli-session-tool { flex-basis: 7rem; }
+.cli-session-check { margin-left: auto; font-size: 0.75rem; }
+.operation-activity .cli-sessions-panel { max-height: max(8rem, calc(100dvh - 14rem)); overflow-y: auto; }
+.operation-activity li > button { white-space: normal; text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .operation-activity { margin-left: 0; }
+  .operation-activity .cli-sessions-panel { left: 0; right: auto; }
+}
 @keyframes conjur-inventory-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .conjur-inventory-spinner, .work-spinner, button[aria-busy="true"]::before { animation: none; }

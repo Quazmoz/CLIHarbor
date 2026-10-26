@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { clientError, normalizeError, invalidInputError, type AppErrorDetail } from './api/errors';
 import { fetchRuntimeStatus, type RuntimeStatus } from './api/status';
 import { fetchTasks, type Task, type TaskInput } from './api/tasks';
-import { fetchTools, installTool, type ToolDiagnostic } from './api/tools';
+import { fetchTools, installTool, refreshTool, type ToolDiagnostic } from './api/tools';
 import {
   cancelRun,
   createRun,
@@ -20,6 +20,8 @@ import {
 import { AuthenticationPage, authenticationContextKey, type AuthenticationCheck, type AuthenticationChecks } from './AuthenticationPage';
 import { CliSessionStatus } from './CliSessionStatus';
 import { WorkingStatus } from './WorkingStatus';
+import { OperationActivity, OperationActivityProvider, useOperationActivity, useWorkingActivity } from './OperationActivity';
+import { ExecutionContext, OperationResult } from './OperationResult';
 import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
 import { SecretAuditPage } from './platforms/conjur/SecretAuditPage';
 import { ConjurAccessExplorer } from './platforms/conjur/ConjurAccessExplorer';
@@ -58,6 +60,8 @@ interface RetryRun {
 }
 
 interface RunView {
+  context?: RunPreview['context'];
+  target?: string;
   snapshot: RunSnapshot;
   streamState: StreamState;
   streamFailure?: AppErrorDetail;
@@ -615,6 +619,20 @@ function routeFromPath(pathname: string): AppRoute {
 }
 
 export function App() {
+  return <OperationActivityProvider><WorkspaceApp /></OperationActivityProvider>;
+}
+
+function WorkspaceApp() {
+  const { confirmNavigation, local } = useOperationActivity();
+  const lastPathRef = useRef(window.location.pathname + window.location.search);
+  const [requestedRun, setRequestedRun] = useState<{ runId: string } | undefined>(() => {
+    const id = new URLSearchParams(window.location.search).get('run');
+    return id && /^[0-9a-f]{32}$/.test(id) ? { runId: id } : undefined;
+  });
+  const [quickCheck, setQuickCheck] = useState<{ toolKey: string; id: number } | null>(null);
+  const quickCheckSequence = useRef(0);
+  const clearQuickCheck = useCallback(() => setQuickCheck(null), []);
+  const [refreshingToolKey, setRefreshingToolKey] = useState<string | null>(null);
   const [authenticationChecks, setAuthenticationChecks] = useState<AuthenticationChecks>({});
   const recordAuthenticationCheck = useCallback((tool: ToolDiagnostic, check: AuthenticationCheck) => {
     setAuthenticationChecks((current) => ({
@@ -644,6 +662,8 @@ export function App() {
   const [cancelRequested, setCancelRequested] = useState(false);
   const [streamAttempt, setStreamAttempt] = useState(0);
   const [installingToolKey, setInstallingToolKey] = useState<string | null>(null);
+  useWorkingActivity(refreshingToolKey !== null || installingToolKey !== null,
+    refreshingToolKey !== null ? 'Checking CLI installation…' : 'Installing and verifying CLI…', false, '/tools');
   const [toolInstallNotice, setToolInstallNotice] = useState<{ key: string; message: string; failure?: AppErrorDetail } | null>(null);
   const [toolInstallRoots, setToolInstallRoots] = useState<Record<string, string>>({});
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -755,7 +775,7 @@ export function App() {
   }, []);
 
   const installManagedCLI = async (tool: ToolDiagnostic) => {
-    if (state.kind !== 'ready' || tool.status !== 'missing' || tool.install === undefined || installingToolRef.current) {
+    if (state.kind !== 'ready' || tool.status !== 'missing' || tool.install === undefined || installingToolRef.current || Object.keys(local).length > 0) {
       return;
     }
     const key = tool.packId + '/' + tool.toolId;
@@ -791,6 +811,31 @@ export function App() {
     }
   };
 
+  const refreshMissingCLI = async (tool: ToolDiagnostic) => {
+    if (state.kind !== 'ready' || tool.status !== 'missing' || installingToolRef.current || Object.keys(local).length > 0) return;
+    const key = tool.packId + '/' + tool.toolId;
+    installingToolRef.current = true;
+    setRefreshingToolKey(key);
+    setToolInstallNotice(null);
+    try {
+      const result = await refreshTool(state.status.csrfToken, tool.packId, tool.toolId);
+      setToolInstallNotice({ key, message: result.message });
+      if (result.ready) {
+        const [tasks, tools, nextPlatforms] = await Promise.all([fetchTasks(), fetchTools(), fetchPlatforms()]);
+        toolsRequestRef.current += 1;
+        setState((current) => current.kind === 'ready' ? { ...current, tasks, tools } : current);
+        setPlatforms(nextPlatforms);
+        if (state.tasks.length === 0 && tasks[0]) selectTaskByKey(tasks[0].packId + '/' + tasks[0].commandId, tasks);
+      }
+    } catch (error) {
+      const failure = normalizeError(error).detail;
+      setToolInstallNotice({ key, message: failure.message + ' Reload Diagnostics to reconcile tool readiness before retrying.', failure });
+    } finally {
+      installingToolRef.current = false;
+      setRefreshingToolKey(null);
+    }
+  };
+
   const retryStatus = () => {
     setTaskSwitcherOpen(false);
     setState({ kind: 'loading' });
@@ -817,6 +862,11 @@ export function App() {
 
   useEffect(() => {
     const handlePopState = () => {
+      if (!confirmNavigation(window.location.pathname, new URL(lastPathRef.current, window.location.origin).pathname)) {
+        window.history.pushState({}, '', lastPathRef.current);
+        return;
+      }
+      lastPathRef.current = window.location.pathname + window.location.search;
       setNavigationOpen(false);
       setRoute(routeFromPath(window.location.pathname));
       const pathPlatform = platformIDFromPath(window.location.pathname);
@@ -824,7 +874,7 @@ export function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [confirmNavigation]);
 
   useEffect(() => {
     const linkedPlatform = platforms.find((platform) => platform.id === platformIDFromPath(window.location.pathname));
@@ -993,6 +1043,8 @@ export function App() {
       displayedRunIDRef.current = snapshot.runId;
       setOutputTab('output');
       setRun({
+        context: commandPreview?.packId === task.packId && commandPreview.commandId === task.commandId ? commandPreview.context : undefined,
+        target: commandPreview?.packId === task.packId && commandPreview.commandId === task.commandId ? commandPreview.impact?.target : undefined,
         snapshot,
         streamState: snapshot.status === 'running' ? 'connecting' : 'idle',
         retained: true,
@@ -1233,6 +1285,9 @@ export function App() {
         )
       : undefined;
   const runSnapshot = run?.snapshot;
+  useWorkingActivity(starting || activeRunID !== null,
+    starting ? 'Starting command…' : cancelRequested ? 'Stopping command…' : 'Command running…',
+    starting ? selectedTask?.risk !== 'read' : runTask?.risk !== 'read', '/tasks', 'command-work-progress');
   const [decodeOutput] = useState(createRunOutputDecoder);
   const output = useMemo(
     () => (runSnapshot === undefined ? { stdout: '', stderr: '' } : decodeOutput(runSnapshot)),
@@ -1260,13 +1315,16 @@ export function App() {
 
   const navigate = useCallback((nextRoute: AppRoute, platformID: string = activePlatformID) => {
     const nextPath = pathForRoute(nextRoute, platformID);
+    if (!confirmNavigation(nextPath)) return false;
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, '', nextPath);
     }
     setRoute(nextRoute);
     setNavigationOpen(false);
+    lastPathRef.current = nextPath;
     mainRef.current?.focus({ preventScroll: true });
-  }, [activePlatformID]);
+    return true;
+  }, [activePlatformID, confirmNavigation]);
 
   const changeTaskCategory = (toolKey: string) => {
     if (starting || activeRunID !== null || state.kind !== 'ready' || toolKey === taskToolFilter) return;
@@ -1397,6 +1455,18 @@ export function App() {
           }}>Other CLIs</a>
         </nav>
         <div className="topbar-context">
+          {state.kind === 'ready' && <OperationActivity tasks={state.tasks} onOpen={(path, runId, anchor) => {
+            if (!navigate(routeFromPath(path), platformIDFromPath(path) || activePlatformID)) return;
+            if (runId) setRequestedRun({ runId });
+            else requestAnimationFrame(() => {
+              const notice = anchor ? document.getElementById(anchor) : document.querySelector<HTMLElement>('.working-status:not(:empty)');
+              const panel = notice?.closest('[role="tabpanel"][hidden]');
+              const tabID = panel?.getAttribute('aria-labelledby');
+              if (tabID) document.getElementById(tabID)?.click();
+              notice?.scrollIntoView?.({ block: 'center' });
+              notice?.focus();
+            });
+          }} />}
           {state.kind !== 'ready' && (
             <span className={'status-pill status-pill--' + (state.kind === 'loading' ? 'pending' : 'error')}>
               {state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}
@@ -1422,7 +1492,11 @@ export function App() {
             Sign in
           </a>
           {state.kind === 'ready' && (
-            <CliSessionStatus tools={state.tools} checks={authenticationChecks} onOpenSignIn={(event) => {
+            <CliSessionStatus tools={state.tools} tasks={state.tasks} checks={authenticationChecks} onCheckSession={(tool) => {
+              if (!navigate('authentication')) return;
+              quickCheckSequence.current += 1;
+              setQuickCheck({ toolKey: tool.packId + '/' + tool.toolId, id: quickCheckSequence.current });
+            }} onOpenSignIn={(event) => {
               if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               event.preventDefault();
               navigate('authentication');
@@ -1502,10 +1576,12 @@ export function App() {
             signInFor={signInFor}
             checks={authenticationChecks}
             onCheckChange={recordAuthenticationCheck}
+            quickCheck={quickCheck}
+            onQuickCheckHandled={clearQuickCheck}
           />
         )}
 
-        {state.kind === 'ready' && route === 'runs' && <RunsPage tasks={state.tasks} onOpenTasks={() => navigate('tasks')} />}
+        {state.kind === 'ready' && route === 'runs' && <RunsPage tasks={state.tasks} requestedRun={requestedRun} onOpenTasks={() => navigate('tasks')} />}
 
         {state.kind === 'ready' && route === 'access-explorer' && activePlatform?.id === 'conjur' && (
           <ConjurAccessExplorer
@@ -1608,7 +1684,8 @@ export function App() {
             </section>
             <ToolsPage tools={state.tools} tasks={state.tasks} catalog={route === 'tools'}
               installingKey={installingToolKey} notice={toolInstallNotice} installRoots={toolInstallRoots}
-              tasksLocked={starting || activeRunID !== null}
+              refreshingKey={refreshingToolKey} onRefresh={(tool) => void refreshMissingCLI(tool)}
+              tasksLocked={starting || activeRunID !== null || Object.keys(local).length > 0}
               onInstall={(tool) => void installManagedCLI(tool)}
               onInstallRoot={(key, value) => setToolInstallRoots((current) => ({ ...current, [key]: value }))}
               onOpenTasks={(key) => { changeTaskCategory(key); navigate('tasks'); }}
@@ -1850,6 +1927,8 @@ export function App() {
                           )}
                         </section>
 
+                        {mutationTask && <ExecutionContext fields={commandPreview?.context?.fields ?? (activeRunID ? run?.context?.fields : undefined) ?? [{ label: 'Environment', value: 'Review the change to verify the backend context.' }]}
+                          target={commandPreview?.impact?.target ?? (activeRunID ? run?.target : undefined)} />}
                         <div className="task-actions">
                           <button
                             type="button"
@@ -1917,14 +1996,19 @@ export function App() {
                   </form>
                 )}
                 <WorkingStatus active={previewing || starting || activeRunID !== null}
+                  id="command-work-progress"
+                  track={!starting && activeRunID === null}
+                  mutation={starting ? selectedTask?.risk !== 'read' : activeRunID !== null && runTask?.risk !== 'read'}
                   title={previewing ? 'Validating command…' : starting ? 'Starting command…' : cancelRequested ? 'Stopping command…' : 'Command running…'}
                   detail={activeRunID !== null ? 'Follow progress in Output or Execution History. This command is already running.' : undefined} />
                 {taskFailure && !taskHasFieldFailure && (
                   <div ref={taskErrorRef} tabIndex={-1}>
                     <FailureNotice
-                      title={taskFailure.category === 'validation' ? 'Task inputs need attention' : 'Task could not start'}
+                      title={taskFailure.category === 'validation' ? 'Task inputs need attention' : mutationTask ? 'Change request needs review' : 'Task could not start'}
                       failure={taskFailure}
                     />
+                    {mutationTask && taskFailure.category !== 'validation' && <p>A failed response alone does not prove that nothing changed. Inspect Execution History and the target before requesting another approval.</p>}
+                    {mutationTask && <button type="button" className="secondary-button" onClick={() => navigate('runs')}>Inspect Execution History</button>}
                   </div>
                 )}
               </article>
@@ -1962,6 +2046,15 @@ export function App() {
                 </div>
                 {run !== null && (
                   <>
+                    {run.context && <ExecutionContext fields={run.context.fields} target={run.target} />}
+                    {run.retained && run.snapshot.status !== 'running' && <OperationResult result={{
+                      title: run.snapshot.status === 'exited' && run.snapshot.exitCode === 0 ? 'Command completed successfully' : 'Command outcome needs review',
+                      tone: run.snapshot.status === 'exited' && run.snapshot.exitCode === 0 ? 'success' : 'warning',
+                      steps: [{ label: runTask?.name ?? run.snapshot.commandId, state: run.snapshot.status === 'exited' && run.snapshot.exitCode === 0 ? 'done' : 'unknown' }],
+                      next: runTask?.risk !== 'read' && !(run.snapshot.status === 'exited' && run.snapshot.exitCode === 0)
+                        ? 'A change may have occurred. Inspect execution evidence and the target before deciding whether another change is needed.'
+                        : 'Review the output and execution evidence before your next command.',
+                    }}><button type="button" className="secondary-button" onClick={() => { if (navigate('runs')) setRequestedRun({ runId: run.snapshot.runId }); }}>Open Execution History</button></OperationResult>}
                     <p className="run-task-name">{state.tasks.find((task) => task.packId + '/' + task.commandId === run.retry.taskKey)?.name ?? run.snapshot.commandId}</p>
                     {run.snapshot.startedAt !== undefined && (
                       <RunTiming startedAt={run.snapshot.startedAt} endedAt={run.snapshot.status === 'running' ? undefined : run.snapshot.endedAt} />

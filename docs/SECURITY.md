@@ -480,6 +480,8 @@ A successful CI run proves the repository-controlled contract under CI environme
 
 ## Browser task-preference persistence
 
+Operation activity, step outcomes, reviewed execution context, and quick-session request state remain transient browser memory. Activity reads the existing metadata-only run endpoint and carries fixed workflow labels, destinations and opaque run IDs, never command inputs, stdin, stdout/stderr, credentials or executable paths. Navigation warnings are UX safeguards; backend approvals, executable identity and vendor authorization remain authoritative. An interrupted response is not proof that a mutation did not occur, and no recovery card automatically retries a mutation. Missing-tool refresh sends only approved pack/tool identity under the existing CSRF boundary; it cannot choose an executable or replace an already selected tool.
+
 Task discovery introduces one deliberately narrow browser-local persistence surface:
 
 - storage key: `cliharbor.task-preferences.v1`;
