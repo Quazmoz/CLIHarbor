@@ -630,6 +630,46 @@ describe('App', () => {
     ).toBe(false);
   });
 
+  test.each([
+    { stdout: '[]', message: 'Command completed successfully. No values to display.' },
+    { stdout: '', message: 'Command completed successfully. No stdout or stderr was returned.' },
+    { stdout: '{"id":"fixture-id"}', message: 'No values match. Try a different search or switch to Raw.' },
+  ])('distinguishes empty results and filter misses in Tasks and History: $stdout', async ({ stdout, message }) => {
+    const runId = 'e'.repeat(32);
+    const task = { packId: 'fixture', packName: 'Fixture', commandId: 'inspect', toolId: 'fixture',
+      name: 'Inspect empty fixture', risk: 'read', inputs: [] };
+    const summary = { runId, packId: task.packId, commandId: task.commandId, toolId: task.toolId, status: 'exited', exitCode: 0 };
+    const snapshot = { ...summary, events: stdout === '' ? [] : [
+      { sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-27T10:00:00Z', dataBase64: btoa(stdout) },
+    ] };
+    const backend = installFakeBackend({
+      ...bootRoutes({ tasks: [task], runs: [summary] }),
+      '/api/v1/platforms': { body: { platforms: [] } },
+      'POST /api/v1/runs': { status: 202, body: snapshot },
+      ['/api/v1/runs/' + runId]: { body: snapshot },
+      '/api/v1/audit': { body: { entries: [] } },
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Run command' }));
+    await screen.findByRole('heading', { name: 'Succeeded' });
+    for (const surface of ['tasks', 'history']) {
+      if (surface === 'history') {
+        fireEvent.click(screen.getByRole('link', { name: 'Execution History' }));
+        fireEvent.click(await screen.findByRole('button', { name: /Inspect empty fixture/ }));
+      }
+      if (stdout.includes('fixture-id')) {
+        await screen.findByText('fixture-id');
+        fireEvent.change(screen.getByRole('searchbox', { name: 'Find an ID or value' }), { target: { value: 'no-match' } });
+      }
+      expect(await screen.findByText(message)).toHaveAttribute('role', 'status');
+      fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
+      if (stdout !== '') expect(screen.getByText(stdout)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'stdout' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'stderr' })).toBeInTheDocument();
+    }
+    expect(backend.calls('POST /api/v1/runs')).toHaveLength(1);
+  });
+
   test('shows parser failure status while preserving raw output evidence', async () => {
     vi.stubGlobal('EventSource', FakeEventSource);
     const runID = 'dddddddddddddddddddddddddddddddd';

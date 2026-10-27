@@ -16,5 +16,7 @@ export default defineConfig({
     // isolation, but environment setup dropped from ~75% of wall time and the
     // suite from ~110-250s to ~21s on a 2-core runner.
     pool: 'vmThreads',
+    // Bound jsdom contention on developer laptops with many reported cores.
+    maxWorkers: 2,
   },
 });

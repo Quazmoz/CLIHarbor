@@ -99,7 +99,10 @@ export function OutputExplorer({ stdout, stderr, status, exitCode, structured, r
                 <span>{rows.length} of {parsed?.rows.length ?? 0} values</span>
               </div>
               {parsed?.truncated && <p role="status" className="output-limit-note">Large or deeply nested result: preview is limited. Use Raw for the complete retained output.</p>}
-              {rows.length === 0 ? <p role="status">No values match. Try a different search or switch to Raw.</p> : (
+              {rows.length === 0 ? <p role="status">{parsed?.rows.length === 0
+                ? parsed.truncated ? 'No values fit within the preview limits. Switch to Raw to inspect the result.'
+                  : 'Command completed successfully. No values to display.'
+                : 'No values match. Try a different search or switch to Raw.'}</p> : (
                 <ul className="output-value-list">
                   {rows.map((row, index) => (
                     <li key={row.path + '-' + index}>
@@ -115,7 +118,12 @@ export function OutputExplorer({ stdout, stderr, status, exitCode, structured, r
           )}
           {stderr !== '' && <p className="output-stderr-notice">Stderr is available in the Raw view.</p>}
         </>
-      ) : rawOutput}
+      ) : (
+        <>
+          {succeeded && stdout === '' && stderr === '' && <p role="status">Command completed successfully. No stdout or stderr was returned.</p>}
+          {rawOutput}
+        </>
+      )}
     </section>
   );
 }

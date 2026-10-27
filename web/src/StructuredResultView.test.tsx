@@ -39,6 +39,20 @@ afterEach(() => {
 });
 
 describe('StructuredResultView', () => {
+  test('distinguishes absent fields from a filter miss', () => {
+    const { rerender } = render(<StructuredResultView fields={[]} />);
+    const search = screen.getByRole('searchbox', { name: 'Filter fields' });
+    expect(screen.getByText('No structured fields to display.')).toHaveAttribute('role', 'status');
+    fireEvent.change(search, { target: { value: 'no-match' } });
+    expect(screen.queryByText(/match this filter/)).not.toBeInTheDocument();
+    rerender(<StructuredResultView fields={fields} />);
+    expect(screen.getByText('No structured fields match this filter.')).toBeInTheDocument();
+    expect(screen.queryByText('No structured fields to display.')).not.toBeInTheDocument();
+    fireEvent.change(search, { target: { value: '' } });
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByText(/match this filter/)).not.toBeInTheDocument();
+  });
+
   test('filters and sorts validated fields while keeping hostile values inert', () => {
     const { container } = render(<StructuredResultView fields={fields} />);
 

@@ -1095,6 +1095,36 @@ async function main() {
     assert.equal(failedSnapshot.body.events.filter((event) => event.type === 'run.started').length, 1);
     await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
 
+    stage('formatted filter misses preserve successful evidence in tasks and history');
+    await chooseTask(page, 'cyberark-conjur-v9/whoami');
+    await clickButton(page, 'Run command');
+    await waitJS(page, 'successful JSON values', 'document.querySelector(".output-value-list")?.textContent.includes("alice")');
+    const filteredRunID = await page.evaluate('document.querySelector(".run-meta dd")?.textContent?.trim()');
+    for (const surface of ['tasks', 'history']) {
+      if (surface === 'history') {
+        await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Execution History").click()');
+        await waitJS(page, 'history containing filtered run', 'document.querySelector(".run-history-entry")?.textContent.includes("Who am I")');
+        await page.evaluate('document.querySelector(".run-history-entry").click(); true');
+        await waitJS(page, 'selected JSON history evidence', 'document.querySelector(".run-history-id")?.textContent === ' + JSON.stringify(filteredRunID) +
+          ' && document.querySelector(".output-value-list")?.textContent.includes("alice")');
+      }
+      await page.evaluate(`(() => {
+        const input = document.getElementById('output-value-search');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'no-matching-value');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`);
+      await waitJS(page, 'local filter miss', 'document.querySelector(".output-explorer")?.textContent.includes("No values match. Try a different search or switch to Raw.")');
+      await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
+      assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
+      await clickButton(page, 'Raw');
+      assert.equal(await page.evaluate('document.querySelector(".output-grid")?.textContent.includes("alice")'), true);
+      await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    }
+    const filteredSnapshot = await fetchJSON(page, '/api/v1/runs/' + filteredRunID);
+    assert.equal(filteredSnapshot.body.exitCode, 0);
+    assert.equal(filteredSnapshot.body.events.filter((event) => event.type === 'run.started').length, 1);
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
+
     stage('lost run-start acknowledgement recovers through history without replay');
     await chooseTask(page, 'integration/inspect');
     await setTextInput(page, 'Query', 'lost-acknowledgement-fixture');

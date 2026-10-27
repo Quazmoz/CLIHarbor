@@ -99,7 +99,7 @@ export function StructuredResultView({ fields }: StructuredResultViewProps) {
 
       {visibleFields.length === 0 ? (
         <p className="structured-result-empty" role="status">
-          No structured fields match this filter.
+          {fields.length === 0 ? 'No structured fields to display.' : 'No structured fields match this filter.'}
         </p>
       ) : (
         <dl className="structured-grid">

@@ -694,7 +694,7 @@ describe('managed CLI installation workflow', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Install Fixture CLI' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Tool installation could not be verified.');
-    expect(screen.getByRole('button', { name: 'Install Fixture CLI' })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Install Fixture CLI' })).toBeEnabled());
     expect(screen.queryByRole('navigation', { name: 'Task categories' })).not.toBeInTheDocument();
   });
 
