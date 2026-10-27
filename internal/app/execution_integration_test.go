@@ -253,6 +253,8 @@ func TestExecutionFixtureProcess(t *testing.T) {
 		if err != nil {
 			os.Exit(92)
 		}
+		fmt.Fprint(os.Stdout, `{"ok":false}`)
+		fmt.Fprint(os.Stderr, "fixture failure: inspect the target before retrying")
 		os.Exit(code)
 	case "wait":
 		fmt.Fprintln(os.Stdout, "ready")

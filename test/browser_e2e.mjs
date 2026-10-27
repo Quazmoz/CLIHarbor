@@ -1055,6 +1055,46 @@ async function main() {
     assert.equal(impossibleCursor.status, 400);
     assert.match(impossibleCursor.text, /invalid_cursor/);
 
+    stage('failed JSON output preserves immediate diagnostics in tasks and history');
+    await chooseTask(page, 'integration/fail');
+    await setTextInput(page, 'Exit code', '7');
+    const failedCreateRequest = page.waitEvent('Network.requestWillBeSent',
+      (params) => isRunCreateRequest(params, 'fail'));
+    await clickButton(page, 'Run command');
+    await failedCreateRequest;
+    await waitJS(page, 'failed command diagnostics',
+      'document.querySelector(".run-panel h2")?.textContent?.trim() === "Failed · exit 7" && ' +
+      'document.querySelector(".output-grid")?.textContent.includes("fixture failure: inspect the target before retrying")');
+    const failedRunID = await page.evaluate('document.querySelector(".run-meta dd")?.textContent?.trim()');
+    const rawFailure = `(() => ({
+      output: Array.from(document.querySelectorAll('.output-explorer pre')).map((pre) => pre.textContent),
+      formattedDisabled: Array.from(document.querySelectorAll('.output-view-switch button')).find((button) => button.textContent === 'Formatted')?.disabled,
+      rawSelected: Array.from(document.querySelectorAll('.output-view-switch button')).find((button) => button.textContent === 'Raw')?.getAttribute('aria-pressed'),
+      fits: document.documentElement.scrollWidth <= innerWidth,
+    }))()`;
+    const expectedFailure = {
+      output: ['{"ok":false}', 'fixture failure: inspect the target before retrying'],
+      formattedDisabled: true, rawSelected: 'true', fits: true,
+    };
+    assert.deepEqual(await page.evaluate(rawFailure), expectedFailure);
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Execution History").click()');
+    await waitJS(page, 'history containing failed run',
+      'document.querySelector(".run-history-entry")?.textContent.includes("Return fixture exit code")');
+    await page.evaluate('document.querySelector(".run-history-entry").click(); true');
+    await waitJS(page, 'failed history diagnostics',
+      'document.querySelector(".run-history-id")?.textContent === ' + JSON.stringify(failedRunID) +
+      ' && document.querySelector(".output-grid")?.textContent.includes("fixture failure: inspect the target before retrying")');
+    assert.deepEqual(await page.evaluate(rawFailure), expectedFailure);
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
+    assert.deepEqual(await page.evaluate(rawFailure), expectedFailure);
+    await page.evaluate('document.querySelector(".output-explorer").scrollIntoView({ block: "start" }); true');
+    await capture('failed-run-mobile');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    const failedSnapshot = await fetchJSON(page, '/api/v1/runs/' + failedRunID);
+    assert.equal(failedSnapshot.body.exitCode, 7);
+    assert.equal(failedSnapshot.body.events.filter((event) => event.type === 'run.started').length, 1);
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
+
     stage('lost run-start acknowledgement recovers through history without replay');
     await chooseTask(page, 'integration/inspect');
     await setTextInput(page, 'Query', 'lost-acknowledgement-fixture');

@@ -2146,7 +2146,7 @@ function WorkspaceApp() {
                     )}
                     <OutputExplorer key={run.snapshot.runId}
                       stdout={output.stdout} stderr={output.stderr}
-                      live={run.snapshot.status === 'running'} structured={run.snapshot.structured}
+                      status={run.snapshot.status} exitCode={run.snapshot.exitCode} structured={run.snapshot.structured}
                       rawOutput={<div className="output-grid">
                         <OutputStream name="stdout" text={output.stdout} live={run.snapshot.status === 'running'} />
                         <OutputStream name="stderr" text={output.stderr} live={run.snapshot.status === 'running'} />

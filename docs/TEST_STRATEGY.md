@@ -313,6 +313,8 @@ HTTP boundary tests cover Host/session/Origin/CSRF enforcement for run mutations
 
 Process output now reaches the UI as Base64-decoded text. Component coverage includes HTML/script-like output remaining inert. Expand the corpus with `javascript:` text, ANSI escapes, extremely long strings, malformed encodings, and future structured fields containing markup. Output must remain inert data and parsing failure must preserve raw non-secret evidence.
 
+`OutputExplorer.test.tsx` requires authoritative successful completion before formatting and prevents generic JSON parsing from overriding invalid/unavailable backend structured results. Command Builder acceptance asserts raw evidence is visible immediately after parser rejection. History acceptance covers non-zero exit, cancellation, timeout, execution failure and rejected duplicate keys with inert stderr and no mutation requests. The production Chrome suite executes a real failing JSON-output fixture, checks immediate separate stdout/stderr in Tasks and History at desktop and 320 px widths, and verifies one process start and exit code 7.
+
 ## 10. Redaction tests
 
 Prove secrets are absent—not merely hidden—from future input diagnostics, invocation previews, logs, errors, run metadata, stdout/stderr persistence, structured output, and diagnostic bundles.

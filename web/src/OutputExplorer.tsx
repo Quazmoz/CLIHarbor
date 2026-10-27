@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import type { StructuredResult } from './api/runs';
+import type { RunStatus, StructuredResult } from './api/runs';
 import { StructuredResultView } from './StructuredResultView';
 
 type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
@@ -42,21 +42,29 @@ function rowsFromJSON(stdout: string): ParsedOutput | null {
 interface OutputExplorerProps {
   stdout: string;
   stderr: string;
+  status: RunStatus;
+  exitCode?: number;
   structured?: StructuredResult;
-  live?: boolean;
   rawOutput: ReactNode;
 }
 
 /** A presentation-only view of already-authorized process output, never a parser used for execution. */
-export function OutputExplorer({ stdout, stderr, structured, live = false, rawOutput }: OutputExplorerProps) {
-  const parsed = useMemo(() => live ? null : rowsFromJSON(stdout), [live, stdout]);
-  const validated = structured?.status === 'available' && structured.fields !== undefined;
+export function OutputExplorer({ stdout, stderr, status, exitCode, structured, rawOutput }: OutputExplorerProps) {
+  const succeeded = status === 'exited' && exitCode === 0;
+  // A generic preview must not override the run outcome or the reviewed parser's rejection.
+  const parsed = useMemo(() => succeeded && structured === undefined ? rowsFromJSON(stdout) : null, [succeeded, structured, stdout]);
+  const validated = succeeded && structured?.status === 'available' && structured.fields !== undefined;
   const hasFormatted = validated || parsed !== null;
   const [mode, setMode] = useState<'formatted' | 'raw'>('formatted');
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');
   const rows = parsed?.rows.filter((row) => (row.path + ' ' + row.value).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) ?? [];
   const shownMode = hasFormatted && mode === 'formatted' ? 'formatted' : 'raw';
+  const description = hasFormatted ? 'Inspect values or switch to the exact stdout and stderr.'
+    : status === 'running' ? 'Live stdout and stderr. Formatting waits for successful completion.'
+    : !succeeded ? 'Successful completion was not confirmed. Showing original stdout and stderr.'
+    : structured !== undefined ? 'Structured formatting is unavailable. Showing original stdout and stderr.'
+    : 'Original command output. Formatted view is available when structured JSON is returned.';
 
   const copy = async (row: OutputRow) => {
     try {
@@ -73,7 +81,7 @@ export function OutputExplorer({ stdout, stderr, structured, live = false, rawOu
       <div className="output-explorer-header">
         <div>
           <h3>Command output</h3>
-          <p>{hasFormatted ? 'Inspect values or switch to the exact stdout and stderr.' : 'Original command output. Formatted view is available when structured JSON is returned.'}</p>
+          <p>{description}</p>
         </div>
         <div className="output-view-switch" role="group" aria-label="Output view">
           <button type="button" aria-pressed={shownMode === 'formatted'} disabled={!hasFormatted} onClick={() => setMode('formatted')}>Formatted</button>

@@ -45,6 +45,33 @@ afterEach(() => {
 });
 
 describe('RunsPage', () => {
+  test.each([
+    { status: 'exited', exitCode: 7 },
+    { status: 'cancelled' },
+    { status: 'timed-out' },
+    { status: 'failed' },
+    { status: 'exited', exitCode: 0, structured: { status: 'invalid', renderer: 'cards', error: 'duplicate_key' } },
+  ])('shows raw diagnostics immediately for unsuccessful or rejected results: %j', async (outcome) => {
+    const runId = 'c'.repeat(32);
+    const summary = { runId, packId: 'fixture', commandId: 'inspect', toolId: 'fixture', status: outcome.status, exitCode: outcome.exitCode };
+    const stdout = '{"id":"first","id":"second"}';
+    const stderr = '<img src=x onerror=alert(1)> inspect the target before retrying';
+    const backend = installFakeBackend({
+      '/api/v1/runs': { body: { runs: [summary] } },
+      ['/api/v1/runs/' + runId]: { body: { ...summary, ...outcome, events: [
+        { sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-27T10:00:00Z', dataBase64: btoa(stdout) },
+        { sequence: 2, type: 'stderr.chunk', timestamp: '2026-10-27T10:00:00Z', dataBase64: btoa(stderr) },
+      ] } },
+    });
+    render(<RunsPage tasks={tasks} requestedRun={{ runId }} />);
+    expect(await screen.findByText(stderr)).toBeInTheDocument();
+    expect(screen.getByText(stdout)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Formatted' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Raw' })).toHaveAttribute('aria-pressed', 'true');
+    expect(document.querySelector('img')).toBeNull();
+    expect(backend.requests.every((request) => request.method === 'GET')).toBe(true);
+  });
+
   test('clears previous evidence immediately when an activity link selects another run', async () => {
     const first = 'a'.repeat(32);
     const second = 'b'.repeat(32);

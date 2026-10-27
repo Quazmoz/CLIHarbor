@@ -376,7 +376,7 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
                   )}
                   <OutputExplorer key={detail.runId}
                     stdout={output.stdout} stderr={output.stderr}
-                    structured={detail.structured} live={detail.status === 'running'}
+                    structured={detail.structured} status={detail.status} exitCode={detail.exitCode}
                     rawOutput={<div className="output-grid">
                       <section aria-labelledby="history-stdout-heading">
                         <h3 id="history-stdout-heading">stdout</h3>

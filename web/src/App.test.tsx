@@ -703,7 +703,8 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Structured result' })).toBeInTheDocument();
     expect(screen.getByText(/structured rendering could not validate this output/i)).toBeInTheDocument();
     expect(screen.getByText('wrong_type')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
+    expect(screen.getByRole('button', { name: 'Formatted' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Raw' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('{"name":42}')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Succeeded' })).toBeInTheDocument();
   });
