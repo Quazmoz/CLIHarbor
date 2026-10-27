@@ -71,14 +71,17 @@ Toolchains: Go 1.27.3, Node 24.21.0, npm 11.19.0; native macOS arm64.
 - `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go test -exec=/usr/bin/true ./...`:
   packages compile. The replacement executor deliberately does **not** run
   Windows tests. This is compile coverage only.
-- Final repository `go run ./tools/task check` and `verify-web-sync` must run
-  after the regenerated embedded assets are committed; their Git drift gate
-  intentionally rejects uncommitted generation. The follow-up evidence commit
-  records those final results.
+- `go run ./tools/task check` on `eba1871`: passes all frontend checks,
+  production regeneration and embedded-source synchronization, module
+  verification, formatting, vet and Go tests. The real Terraform integration
+  ran successfully. No generated file changed during this final gate.
+- `go run ./tools/task verify-web-sync`: passes after the final production
+  rebuild. The source commit's tree is clean; this follow-up changes only this
+  validation record. `4115f41` remains an ancestor of the source commit.
 - `trail build` refreshed the graph. `trail check --base dev` reports two
   deliberate conflicts with the superseded Terraform workaround; the commit
   message explains why the harness fix is correct and preserves identity
-  safeguards. Trail caps its diff at 400 KiB, so the generated JavaScript makes
+  safeguards. Trail caps its diff at 400 KB, so the generated JavaScript makes
   this an incomplete automated learning scan, supplemented by source review.
 
 ## Limits and release holds
@@ -94,6 +97,11 @@ No known npm or reachable Go advisory remains from the scans above. Unknown
 future advisories and vendor-specific behavior still require review. An accepted
 run whose evidence was evicted or lost on restart remains an unknown outcome;
 no idempotency or transactional rollback guarantee was added.
+
+Nonfatal build notices remain: Vite reports a 523.97 kB minified JavaScript
+chunk, and npm reports an unapproved optional `fsevents` install script. No
+script approval, dependency expansion or chunk-limit suppression was added;
+the complete local gate passes with those notices visible.
 
 Trail replacement `l-484cf882` deliberately supersedes `l-a7d6d064`'s manual
 Terraform test workaround. The old learning remains as history. Recovery,
