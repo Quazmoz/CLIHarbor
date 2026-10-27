@@ -94,14 +94,19 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
   const [listRefresh, setListRefresh] = useState(0);
   const [selectedRunID, setSelectedRunID] = useState<string | null>(requestedRun?.runId ?? null);
   const [seenRequest, setSeenRequest] = useState(requestedRun);
-  if (seenRequest !== requestedRun) {
-    setSeenRequest(requestedRun);
-    if (requestedRun) setSelectedRunID(requestedRun.runId);
-  }
   const [detail, setDetail] = useState<RunSnapshot | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(requestedRun !== undefined);
   const [detailFailure, setDetailFailure] = useState<AppErrorDetail | null>(null);
   const [detailRefresh, setDetailRefresh] = useState(0);
+  if (seenRequest !== requestedRun) {
+    setSeenRequest(requestedRun);
+    if (requestedRun && requestedRun.runId !== selectedRunID) {
+      setSelectedRunID(requestedRun.runId);
+      setDetail(null);
+      setDetailFailure(null);
+      setDetailLoading(true);
+    }
+  }
   const listRequestRef = useRef<AbortController | null>(null);
   const detailRequestRef = useRef<AbortController | null>(null);
 

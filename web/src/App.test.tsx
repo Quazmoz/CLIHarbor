@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
+import { bootRoutes, installFakeBackend, type RouteReply } from './test/fakeBackend';
 
 function isRunPost([input, init]: readonly [RequestInfo | URL, RequestInit?]): boolean {
   return requestPath(input) === '/api/v1/runs' && init?.method === 'POST';
@@ -175,44 +176,57 @@ describe('App', () => {
 
   test('retries transient status failures and then loads task metadata', async () => {
     let statusCalls = 0;
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const path = requestPath(input);
-      if (path === '/api/v1/status') {
-        statusCalls += 1;
-        if (statusCalls === 1) {
-          return Promise.resolve(
-          response(503, {
-            error: {
-              code: 'stream_unavailable',
-              category: 'stream',
-              message: 'Live run updates are temporarily unavailable.',
-              remediation: 'Refresh the run status and retry live updates if the run is still active.',
-              retryable: true,
-            },
-          }),
-        );
-        }
-        return Promise.resolve(
-          response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf' }),
-        );
-      }
-      if (path === '/api/v1/tools') {
-        return Promise.resolve(response(200, { tools: [] }));
-      }
-      if (path === '/api/v1/tasks') {
-        return Promise.resolve(response(200, { tasks: [] }));
-      }
-      return Promise.resolve(response(404, { error: 'not_found' }));
+    let finishTasks!: (reply: RouteReply) => void;
+    const tasks = new Promise<RouteReply>((resolve) => { finishTasks = resolve; });
+    const backend = installFakeBackend({
+      ...bootRoutes(),
+      '/api/v1/platforms': { body: { platforms: [] } },
+      '/api/v1/status': () => ++statusCalls === 1 ? {
+        status: 503,
+        body: { error: {
+          code: 'stream_unavailable', category: 'stream',
+          message: 'Live run updates are temporarily unavailable.', retryable: true,
+        } },
+      } : { body: { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf' } },
+      '/api/v1/tasks': () => tasks,
     });
-    vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry status check' }));
+    const retry = await screen.findByRole('button', { name: 'Retry status check' });
+    expect(backend.calls('/api/v1/tasks')).toHaveLength(0);
+    fireEvent.click(retry);
+    await waitFor(() => expect(backend.calls('/api/v1/tasks')).toHaveLength(1));
+    expect(backend.calls('/api/v1/status')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Run command' })).not.toBeInTheDocument();
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Command Builder' })).toBeInTheDocument());
-    // status (failed), status, tasks, tools, dedicated platforms
-    expect(fetchMock).toHaveBeenCalledTimes(6); // Includes metadata-only activity read.
+    await act(async () => finishTasks({ body: { tasks: [{
+      packId: 'fixture', packName: 'Fixture', toolId: 'fixture', commandId: 'inspect',
+      name: 'Inspect after retry', risk: 'read', inputs: [],
+    }] } }));
+    expect(await screen.findByRole('heading', { name: 'Inspect after retry' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run command' })).toBeEnabled();
+    expect(backend.calls('/api/v1/tools')).toHaveLength(1);
+  });
+
+  test('keeps a lost start acknowledgement unconfirmed and directs recovery to history without resubmitting', async () => {
+    const backend = installFakeBackend({
+      ...bootRoutes({ tasks: [{ packId: 'fixture', packName: 'Fixture', toolId: 'fixture', commandId: 'inspect',
+        name: 'Inspect fixture', risk: 'read', inputs: [] }] }),
+      '/api/v1/platforms': { body: { platforms: [] } },
+      'POST /api/v1/runs': () => { throw new TypeError('connection lost after acceptance'); },
+      '/api/v1/audit': { body: { entries: [] } },
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Run command' }));
+    expect(await screen.findByText('The command start outcome is unknown.')).toBeInTheDocument();
+    expect(screen.getByText(/Check Execution History and the target/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /^Activity log/ }));
+    expect(screen.getByText(/Run start unconfirmed:/)).toBeInTheDocument();
+    expect(screen.queryByText(/Run could not start:/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Execution History' }));
+    expect(await screen.findByText('No retained runs yet.')).toBeInTheDocument();
+    expect(backend.calls('POST /api/v1/runs')).toHaveLength(1);
   });
 
   test('renders sanitized unavailable-tool diagnostics without executable authority', async () => {

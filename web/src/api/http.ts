@@ -25,8 +25,8 @@ export const READ_TIMEOUTS = {
  * - Deadline expiry becomes AppError('request_timeout'), which components
  *   render as a retryable error instead of silently discarding it.
  *
- * The deadline covers the response headers; JSON bodies from the runtime are
- * small and bounded server-side.
+ * Buffer the bounded runtime response under the same deadline. Headers alone
+ * are not completion: a suspended runtime may stop midway through its body.
  */
 export async function fetchWithDeadline(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
@@ -45,7 +45,9 @@ export async function fetchWithDeadline(input: string, init: RequestInit, timeou
   }, timeoutMs);
 
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    const body = response.body === null ? null : await response.arrayBuffer();
+    return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
   } catch (error) {
     if (timedOut && !callerSignal?.aborted) {
       throw clientError('request_timeout');

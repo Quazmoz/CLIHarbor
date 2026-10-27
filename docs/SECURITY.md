@@ -13,7 +13,7 @@ The current runtime intentionally supports only a narrow browser execution envel
 - version compatibility when declared;
 - typed validated input;
 - deterministic exact argv construction;
-- `read` risk only;
+- reads plus explicitly approval-gated `change`/`destructive` plans under SI-11;
 - non-secret output only;
 - generic unauthenticated tasks, or explicit `vendor-session` authenticated tasks;
 - bounded direct process execution.
@@ -271,7 +271,7 @@ The current browser executor rejects secret-bearing plans. Future secret workflo
 
 ### T6 — Secret leakage through argv or retained browser state
 
-There is no pack-level secret input primitive. Credential login is a separate fixed API path, never planner/executor input. Conjur passwords are never placed in process-list-visible argv, invocation preview, run history, retry state or CLIHarbor persistence. The browser clears password state after each attempt.
+The pack-level write-only `secret` primitive is restricted to approved mutation stdin under SI-11. Credential login is a separate fixed API path, never planner/executor input. Conjur passwords are never placed in process-list-visible argv, invocation preview, run history, retry state or CLIHarbor persistence. The browser clears password state after each attempt.
 
 ### T7 — PATH hijacking / ambiguity
 
@@ -304,9 +304,7 @@ The pack-authoring `capture-help` command reuses this same boundary: it requires
 
 ### T10 — Destructive command confusion
 
-The current planner/executor reject every risk class except `read`.
-
-Before `change`/`destructive` execution is enabled, backend confirmation must be bound to exact command, target and context. Frontend confirmation alone is insufficient.
+The run manager admits `change`/`destructive` execution only with a short-lived, single-use backend approval bound to the exact plan, target, executable, stdin and execution context (SI-11), plus a writable mutation journal. Frontend confirmation alone is insufficient.
 
 ### T11 — Authentication confused deputy
 
@@ -537,3 +535,5 @@ Default `id-regex` matching only reads the authenticated variable inventory and 
 Only startup-approved `--terraform-project` absolute local roots enter the Terraform inventory service. The authenticated loopback browser passes opaque project/state identifiers, never paths or raw Terraform argv. Direct-child regular local `.tfstate` files are capped at 8 MiB; resource inventory is capped at 5,000 addresses. Unsupported state schema, symlinks and changed/missing root or state identities fail closed. The API returns metadata-only resource addresses; address labels themselves can be sensitive. No Terraform subprocess, provider, network, backend mutation or state attribute output is involved.
 
 The previous generic `terraform state rm` task is removed from the trusted pack. The prior separate `-dry-run` task did **not** atomically authorize the subsequent mutation; generic CLIHarbor approvals must not be treated as an atomic local-state preview and filesystem identity guarantee. Re-enable only after a separate reviewed backend state machine enforces state identity, exact selected instances, TTL/one-use preview, locking, bounded cancellation and verifiable backup/reconciliation. Native Windows file-identity and reparse-path hardening remain acceptance gates, not assumed properties of the read-only parser.
+
+ADR-040 implements that separate backend state machine for startup-approved local state files. It runs the official CLI, verifies a pre-execution backup and the resulting state and Terraform backup, and reports ambiguous outcomes as `unverified` without automatic replay or restore. It does not enable the generic task or remote backend mutation. Backups contain full state and may contain secrets; they remain beside the original with private permissions where supported. Native Windows acceptance is still outstanding.

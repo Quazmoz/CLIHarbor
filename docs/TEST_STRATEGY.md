@@ -22,6 +22,12 @@ Use local Go, TypeScript, frontend synchronization, regression, and browser chec
 
 **Reliability regressions.** `internal/server/recover_test.go` covers handler-panic recovery: a sanitized `internal_error` with no panic value in the body or log, a connection abort once a response has started, `http.ErrAbortHandler` passthrough, and `http.ResponseController` (deadline and flush) through the wrapper for SSE. `web/src/api/http.test.ts` covers bounded reads: a stalled read becomes a retryable `request_timeout`, a caller abort stays an `AbortError`, timers are cleared, and network errors are not relabelled.
 
+The read deadline includes complete success and error bodies, not just headers. Body-consumption fakes explicitly wait for abort; other API fakes use real `Response` objects. `App.test.tsx` holds task metadata pending after a status retry and asserts the loaded task and usable Run action rather than counting unrelated Activity reads. Run-start API tests distinguish an unknown acknowledgement from a confirmed rejection and assert one POST. The embedded Chrome suite loses a real fixture run's acknowledgement after acceptance, then recovers its single-execution evidence through History. `RunsPage.test.tsx` holds a newly linked run pending and proves previous output disappears immediately, while repeated links to the same run preserve evidence.
+
+`bash tools/test-dev-restart-paths.sh` uses disposable fixture directories and fake Go/Git executables to prove that a failed build leaves the instance marker untouched and that `--pull` runs the updated helper. It never starts or stops an application. The real restart helper must also complete a native build/start/restart/stop acceptance run.
+
+`TestStateRemovalWithInstalledTerraform` resolves both PATH and explicit selections before identity capture, matching ordinary discovery. `TestStateRemovalHarnessResolvesExecutableSymlink` separately proves Unix symlink resolution without relaxing production symlink rejection. The real integration uses disposable local state, with a project backend block that must not redirect execution. Native Windows paths/locking/reparse behavior still needs acceptance.
+
 **Race detector.** `go test -race` needs cgo. On a machine without a C toolchain it fails before running anything (`-race requires cgo`), which is easy to misread as a pass in truncated logs. Install a C compiler and set `CGO_ENABLED=1` for local race runs.
 
 ### Development restart path regressions

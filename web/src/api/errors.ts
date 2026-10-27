@@ -38,7 +38,7 @@ export type ServerErrorCode =
   | 'event_capacity'
   | 'internal_error';
 
-export type ClientErrorCode = 'network_unavailable' | 'invalid_response' | 'stream_disconnected' | 'request_timeout';
+export type ClientErrorCode = 'network_unavailable' | 'invalid_response' | 'stream_disconnected' | 'request_timeout' | 'run_start_unknown';
 export type AppErrorCode = ServerErrorCode | ClientErrorCode;
 
 export interface AppErrorDetail {
@@ -95,6 +95,13 @@ function isServerErrorCode(value: string): value is ServerErrorCode {
 }
 
 const clientDetails: Record<ClientErrorCode, AppErrorDetail> = {
+  run_start_unknown: {
+    code: 'run_start_unknown',
+    category: 'execution',
+    message: 'The command start outcome is unknown.',
+    remediation: 'Check Execution History and the target before trying again. The CLI may already have run; do not repeat a change without reconciling its outcome.',
+    retryable: false,
+  },
   network_unavailable: {
     code: 'network_unavailable',
     category: 'lifecycle',

@@ -65,22 +65,27 @@ stop_owned() {
 
 if [[ "$mode" == '--pull' ]]; then
   git pull --ff-only
+  # This shell parsed the old helper before pulling; run the updated safeguards.
+  exec bash "$root/tools/dev-restart.sh"
 fi
 if [[ "$mode" != '--stop' && ! -e "$pid_file" && ! -L "$pid_file" ]]; then
   echo 'No helper-owned CLIHarbor instance recorded; building and starting a fresh instance.'
 fi
-stop_owned
 if [[ "$mode" == '--stop' ]]; then
+  stop_owned
   echo 'Helper-owned CLIHarbor stopped (if one was running).'
   exit 0
 fi
 
 # Builds and tests Vite assets, replaces stale embedded files, then builds
-# exactly the executable this helper will launch. No old web/dist is reused.
+# exactly the executable this helper will launch before stopping the current
+# instance. Unix permits replacing a running executable; a failed build must
+# leave that instance available. No old web/dist is reused.
 [[ ! -L "$exe" ]] || { echo 'Refusing symlinked CLIHarbor executable.' >&2; exit 1; }
 go run ./tools/task build
 [[ -x "$exe" ]] || { echo 'CLIHarbor build did not create an executable.' >&2; exit 1; }
 [[ ! -L "$log_file" && ! -L "$pid_file" ]] || { echo 'Unsafe development log or PID path.' >&2; exit 1; }
+stop_owned
 : > "$log_file"
 nohup "$exe" serve --no-auto-setup > "$log_file" 2>&1 < /dev/null &
 owned_pid=$!

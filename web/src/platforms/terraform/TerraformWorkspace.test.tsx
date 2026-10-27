@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { TerraformWorkspace } from './TerraformWorkspace';
 import type { Platform } from '../../api/platforms';
+import { jsonResponse } from '../../test/fakeBackend';
 
 const platform: Platform = {
   id: 'terraform', name: 'HashiCorp Terraform', summary: 'Local state',
@@ -16,12 +17,12 @@ const props = {
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 test('project selection changes invalidate downstream selections, including the removal target', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
-    ok: true, json: async () => url.includes('/projects') ? { projects: [
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => jsonResponse(200,
+    url.includes('/projects') ? { projects: [
       { id: 'project-1', name: 'local', configurationFiles: 1, states: [{ id: 'state-one', name: 'terraform.tfstate' }] },
       { id: 'project-2', name: 'other', configurationFiles: 0, states: [{ id: 'state-two', name: 'other.tfstate' }] },
     ] } : { resources: [{ address: 'aws_instance.demo[0]', type: 'aws_instance', category: 'managed', module: '' }] },
-  })));
+  )));
   render(<TerraformWorkspace {...props} />);
   const project = await screen.findByLabelText('Approved project');
   fireEvent.change(project, { target: { value: 'project-1' } });
@@ -39,22 +40,22 @@ test('project selection changes invalidate downstream selections, including the 
   expect(screen.queryByRole('button', { name: /Preview removal/ })).not.toBeInTheDocument();
 });
 test('empty authorized project list gives setup guidance without a mutation action', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ projects: [] }) })));
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { projects: [] })));
   render(<TerraformWorkspace {...props} />);
   expect(await screen.findByText(/No approved projects/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Preview removal/ })).not.toBeInTheDocument();
 });
 
 test('selected project formatting is explicit, filtered, and never shows source', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
-    ok: true, json: async () => url.includes('/format-check')
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => jsonResponse(200,
+    url.includes('/format-check')
       ? { projectId: 'project-1', terraformVersion: '1.16.0', checkedAt: '2026-10-22T13:00:00Z', files: [
         { name: 'good.tf', status: 'formatted' },
         { name: 'bad.tf', status: 'needs-formatting' },
         { name: 'locked.tf', status: 'inspection-failed', reason: 'Inspection failed.' },
       ] }
       : { projects: [{ id: 'project-1', name: 'local', configurationFiles: 3, states: [] }] },
-  })));
+  )));
   render(<TerraformWorkspace {...props} csrfToken="test-token" />);
   fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
   fireEvent.change(await screen.findByLabelText('Approved project'), { target: { value: 'project-1' } });
@@ -72,9 +73,9 @@ test('selected project formatting is explicit, filtered, and never shows source'
 });
 
 test('formatting cannot run without an authenticated CSRF token', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, {
     projects: [{ id: 'project-1', name: 'local', configurationFiles: 1, states: [] }],
-  }) })));
+  })));
   render(<TerraformWorkspace {...props} />);
   fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
   fireEvent.change(await screen.findByLabelText('Approved project'), { target: { value: 'project-1' } });
@@ -83,13 +84,13 @@ test('formatting cannot run without an authenticated CSRF token', async () => {
 });
 
 test('late formatting response from a previous project cannot contaminate the new selection', async () => {
-  let finishOld: ((response: { ok: boolean; json: () => Promise<unknown> }) => void) | undefined;
+  let finishOld: ((response: Response) => void) | undefined;
   vi.stubGlobal('fetch', vi.fn((url: string) => url.includes('/format-check')
     ? new Promise((resolve) => { finishOld = resolve; })
-    : Promise.resolve({ ok: true, json: async () => ({ projects: [
+    : Promise.resolve(jsonResponse(200, { projects: [
       { id: 'project-1', name: 'first', configurationFiles: 1, states: [] },
       { id: 'project-2', name: 'second', configurationFiles: 1, states: [] },
-    ] }) }),
+    ] })),
   ));
   render(<TerraformWorkspace {...props} csrfToken="test-token" />);
   fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
@@ -98,21 +99,21 @@ test('late formatting response from a previous project cannot contaminate the ne
   fireEvent.click(screen.getByRole('button', { name: 'Check formatting' }));
   await waitFor(() => expect(finishOld).toBeDefined());
   fireEvent.change(selector, { target: { value: 'project-2' } });
-  finishOld?.({ ok: true, json: async () => ({
+  finishOld?.(jsonResponse(200, {
     projectId: 'project-1', terraformVersion: '1.16.0', checkedAt: '2026-10-22T13:00:00Z',
     files: [{ name: 'stale.tf', status: 'needs-formatting' }],
-  }) });
+  }));
   await waitFor(() => expect(screen.getByText('No completed formatting check for this project.')).toBeInTheDocument());
   expect(screen.queryByText('stale.tf')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Check formatting' })).toBeEnabled();
 });
 
 test('oversized project disables format checks without hiding project selection', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, {
     projects: [{ id: 'project-1', name: 'large', configurationFiles: 65, states: [
       { id: 'state-a', name: 'terraform.tfstate' },
     ] }],
-  }) })));
+  })));
   render(<TerraformWorkspace {...props} csrfToken="test-token" />);
   fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
   fireEvent.change(await screen.findByLabelText('Approved project'), { target: { value: 'project-1' } });
@@ -123,7 +124,7 @@ test('oversized project disables format checks without hiding project selection'
 });
 
 test('missing Terraform opens the guided setup instead of bypassing it with a direct download', () => {
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ projects: [] }) })));
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { projects: [] })));
   render(<TerraformWorkspace {...props} platform={{ ...platform, ready: false }}
     tool={{ ...props.tool, status: 'missing' }} />);
   fireEvent.click(screen.getByRole('button', { name: 'Set up Terraform (no admin required)' }));
@@ -132,7 +133,7 @@ test('missing Terraform opens the guided setup instead of bypassing it with a di
 });
 
 test('incompatible Terraform opens diagnostics without suggesting a missing-install workflow', () => {
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ projects: [] }) })));
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { projects: [] })));
   render(<TerraformWorkspace {...props} platform={{ ...platform, ready: false }}
     tool={{ ...props.tool, status: 'incompatible' }} />);
   fireEvent.click(screen.getByRole('button', { name: 'Open Terraform diagnostics' }));

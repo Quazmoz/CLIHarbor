@@ -445,8 +445,14 @@ async function waitJS(page, label, expression, timeoutMs = 10000) {
 }
 
 async function chooseTask(page, value) {
-  const expression = '(() => {' +
+  await page.evaluate('(() => {' +
     'const catalog = document.querySelector(".task-discovery"); if (catalog && !catalog.open) catalog.querySelector("summary").click();' +
+    '})()');
+  // The disclosure's toggle handler mounts its catalog on a React update.
+  // Wait for the selectable task rather than reading the old DOM immediately.
+  await waitJS(page, 'task catalog ready for selection',
+    'Array.from(document.querySelectorAll("button[data-task-action=select]")).some((element) => element.dataset.taskKey === ' + JSON.stringify(value) + ' && !element.disabled)');
+  const expression = '(() => {' +
     'const button = Array.from(document.querySelectorAll("button[data-task-action=select]")).find((element) => element.dataset.taskKey === ' + JSON.stringify(value) + ');' +
     'if (!button || button.disabled) return false;' +
     'button.click();' +
@@ -1048,6 +1054,41 @@ async function main() {
     '})()');
     assert.equal(impossibleCursor.status, 400);
     assert.match(impossibleCursor.text, /invalid_cursor/);
+
+    stage('lost run-start acknowledgement recovers through history without replay');
+    await chooseTask(page, 'integration/inspect');
+    await setTextInput(page, 'Query', 'lost-acknowledgement-fixture');
+    await page.evaluate(`(() => {
+      const originalFetch = window.fetch;
+      window.__cliharborFetchBeforeLostStart = originalFetch;
+      window.__cliharborLostStarts = 0;
+      window.fetch = async (...args) => {
+        const response = await originalFetch(...args);
+        if (String(args[0]) === '/api/v1/runs' && args[1]?.method === 'POST') {
+          window.__cliharborLostStarts++;
+          window.__cliharborLostRunID = (await response.clone().json()).runId;
+          throw new TypeError('simulated lost acknowledgement after real acceptance');
+        }
+        return response;
+      };
+    })()`);
+    await clickButton(page, 'Run command');
+    await waitJS(page, 'unknown outcome guidance',
+      'document.body.innerText.includes("The command start outcome is unknown.") && document.body.innerText.includes("Check Execution History and the target")');
+    const lostRunID = await page.evaluate('window.__cliharborLostRunID');
+    assert.match(lostRunID, /^[0-9a-f]{32}$/);
+    assert.equal(await page.evaluate('window.__cliharborLostStarts'), 1, 'lost acknowledgement must never trigger automatic replay');
+    await page.evaluate('window.fetch = window.__cliharborFetchBeforeLostStart; true');
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Execution History").click()');
+    await waitJS(page, 'history after lost acknowledgement', 'document.querySelectorAll(".run-history-entry").length > 0');
+    await page.evaluate('document.querySelector(".run-history-entry").click(); true');
+    await waitJS(page, 'authoritative history evidence for accepted run',
+      'document.querySelector(".run-history-id")?.textContent === ' + JSON.stringify(lostRunID) +
+      ' && document.querySelector(".run-history-detail-panel")?.textContent.includes("lost-acknowledgement-fixture")');
+    const recoveredStart = await fetchJSON(page, '/api/v1/runs/' + lostRunID);
+    assert.equal(recoveredStart.body.status, 'exited');
+    assert.equal(recoveredStart.body.events.filter((event) => event.type === 'run.started').length, 1);
+    assert.equal(await page.evaluate('window.__cliharborLostStarts'), 1);
 
     stage('browser native sse reconnect cursor');
     const reconnectProbeURL = baseURL + eventPath(firstRunID);

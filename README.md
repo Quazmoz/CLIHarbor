@@ -43,6 +43,8 @@ bash tools/dev-restart.sh
 
 Already have the checkout? Start from its root and run the version checks and restart helper. The helper installs the locked frontend dependencies, runs typecheck/lint/tests, rebuilds and embeds the frontend, compiles the native executable, and opens the local browser UI. It works on the first launch as well as after edits. If your default Go differs but Go's toolchain selection is available, use `GOTOOLCHAIN=go1.27.3 bash tools/dev-restart.sh`.
 
+Validation and compilation finish before the helper stops its previous instance. A failed build leaves that instance running. An intentional `--pull` / `-Pull` hands off to the updated helper so newly checked-out safeguards take effect immediately.
+
 **Success looks like:** the terminal reports `Fresh CLIHarbor started`, a new browser tab opens on `http://127.0.0.1:<ephemeral-port>`, and **Overview** offers **Open tasks** or setup guidance. Use the newly opened tab: each launch gets a new port and local browser session.
 
 The helper uses `--no-auto-setup`; it does not download a vendor CLI automatically. On macOS, open **Add a CLI** to install Conjur, kubectl, or GitHub CLI where a reviewed artifact is offered. Installation is a separate, explicit action and does not sign you in.
@@ -256,7 +258,7 @@ go run ./tools/task check
 
 The gate includes frontend checks/build, embedded-source synchronization, Go module verification, and Go formatting/vet/tests. A regenerated embedded tree must be committed before the synchronization gate passes. A matching source fingerprint alone does not prove the JavaScript was rebuilt.
 
-On macOS, a symlinked Terraform installation can make the real-state-removal integration test fail with `invalid argument`. Set `CLIHARBOR_TEST_TERRAFORM` to the approved **resolved executable file** (for example, the actual Homebrew Cellar path) when running the gate. The override selects the real CLI; it does not skip the integration test or relax identity checks.
+The real-state-removal integration resolves the selected Terraform executable before capturing its identity, including Homebrew PATH symlinks. `CLIHARBOR_TEST_TERRAFORM` optionally selects another approved installed executable. Production identity capture still rejects unresolved symlinks; the integration neither skips execution nor relaxes that safeguard.
 
 Additional focused gates:
 

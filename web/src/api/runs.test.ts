@@ -212,8 +212,32 @@ describe('run API request/response identity', () => {
   ])('rejects creation responses for the wrong %s', async (_identity, payload) => {
     serve(payload);
     await expect(createRun('csrf', request)).rejects.toMatchObject({
-      detail: { code: 'invalid_response' },
+      detail: { code: 'run_start_unknown', retryable: false },
     });
+  });
+
+  test.each(['network', 'truncated body', 'internal error'])('reports %s after submission as unknown without retrying', async (failure) => {
+    const fetchMock = vi.fn(async () => {
+      if (failure === 'network') throw new TypeError('connection lost');
+      if (failure === 'truncated body') return new Response('{', { status: 202 });
+      return new Response(JSON.stringify({ error: {
+        code: 'internal_error', category: 'internal', message: 'The local runtime encountered an internal error.', retryable: false,
+      } }), { status: 500 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(createRun('csrf', { ...request, approval: { id: 'approval' } })).rejects.toMatchObject({
+      detail: { code: 'run_start_unknown', retryable: false },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('preserves a confirmed rejection and caller cancellation', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: {
+      code: 'approval_required', category: 'policy', message: 'A fresh approval is required.', retryable: false,
+    } }), { status: 403 })));
+    await expect(createRun('csrf', request)).rejects.toMatchObject({ detail: { code: 'approval_required' } });
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new DOMException('abandoned', 'AbortError'); }));
+    await expect(createRun('csrf', request)).rejects.toMatchObject({ name: 'AbortError' });
   });
 
   test.each(['fetch', 'cancel'] as const)('rejects %s responses for another run', async (operation) => {

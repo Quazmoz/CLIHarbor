@@ -1064,7 +1064,8 @@ function WorkspaceApp() {
       logActivity({ level: 'INFO', message: `Execution started: ${task.name} (run ${snapshot.runId})`, tag: 'Running', tone: 'running' });
     } catch (error) {
       const failure = normalizeError(error).detail;
-      logActivity({ level: 'ERROR', message: `Run could not start: ${failure.message}`, tag: 'Failed', tone: 'failed' });
+      const unknown = failure.code === 'run_start_unknown';
+      logActivity({ level: unknown ? 'WARN' : 'ERROR', message: `${unknown ? 'Run start unconfirmed' : 'Run could not start'}: ${failure.message}`, tag: unknown ? 'Unconfirmed' : 'Failed', tone: unknown ? 'pending' : 'failed' });
       if (failureTarget === 'task') {
         setTaskFailure(failure);
       } else {

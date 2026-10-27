@@ -3,6 +3,7 @@ import type { TaskImpactScope, TaskRisk } from './tasks';
 import {
   clientError,
   errorFromResponse,
+  normalizeError,
   parseServerErrorDetail,
   type AppError,
   type AppErrorDetail,
@@ -573,9 +574,20 @@ export async function previewRun(csrfToken: string, request: CreateRunRequest): 
 }
 
 export async function createRun(csrfToken: string, request: CreateRunRequest, signal?: AbortSignal): Promise<RunSnapshot> {
-  const snapshot = parseSnapshot(await mutation('/api/v1/runs', csrfToken, request, signal));
-  if (snapshot.packId !== request.packId || snapshot.commandId !== request.commandId) invalidResponse();
-  return snapshot;
+  try {
+    const snapshot = parseSnapshot(await mutation('/api/v1/runs', csrfToken, request, signal));
+    if (snapshot.packId !== request.packId || snapshot.commandId !== request.commandId) invalidResponse();
+    return snapshot;
+  } catch (error) {
+    // Superseded read workflows already ignore caller cancellation. A lost or
+    // invalid start acknowledgement cannot prove that the process did not run.
+    if (error instanceof Error && error.name === 'AbortError') throw error;
+    const failure = normalizeError(error);
+    if (['network_unavailable', 'invalid_response', 'internal_error', 'request_timeout'].includes(failure.detail.code)) {
+      throw clientError('run_start_unknown');
+    }
+    throw failure;
+  }
 }
 
 export async function cancelRun(csrfToken: string, runId: string): Promise<RunSnapshot> {

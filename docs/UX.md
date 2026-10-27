@@ -226,6 +226,10 @@ Accepting a new run moves focus to its result heading, including on narrow windo
 
 Live replay is deduplicated by run identity and event sequence. Five failures without a new validated event stop automatic recovery; opening another empty connection does not reset that budget. A permanently closed connection reconciles immediately. CLIHarbor reconciles against the retained snapshot and offers explicit recovery. Authentication checks replace partial evidence with the authoritative snapshot rather than appending replayed evidence twice. Cancellation responses apply only to the run that requested them.
 
+A lost, malformed, mismatched or internal-error run-start acknowledgement is **unconfirmed**, never proof that the CLI failed to run. The UI directs the operator to Execution History and the target before another attempt; it never automatically resubmits. Confirmed policy/input rejections keep their specific error. Opening a different history run clears previous output and errors immediately while the new evidence loads. Reopening the same selected run leaves its evidence readable.
+
+Idempotent runtime reads have a deadline covering both headers and the complete response body: 15 seconds for memory-backed metadata and 60 seconds for probe-capable reads. Caller cancellation remains silent on navigation. These deadlines do not apply to run starts, installations, sign-in or other mutations.
+
 ## 9. Structured results
 
 Phase 5 implements a minimal cards renderer for validated scalar structured results. The browser consumes only the backend's normalized DTO, validates its fixed shape again, and renders labels/values as ordinary React text. HTML/script-looking field values are data, not markup.
@@ -430,9 +434,9 @@ The Conjur security-audit route is now titled **Conjur pattern explorer**. It st
 The Conjur **Tools** tab contains approved inventory tasks and migration playbooks/templates. General Command Builder and Diagnostics destinations remain in workspace navigation; Audit retains its contextual run-history link and an unavailable CLI retains its Diagnostics remediation.
 
 
-## Terraform dedicated workspace (read-only milestone)
+## Terraform dedicated workspace (native Windows qualification pending)
 
-When Terraform is loaded, Built-in CLIs includes a dedicated Terraform workspace with Overview, Projects, Resources, State management, Configuration, Plans and History navigation. The approved project and local state lists come from a backend-only root allowlist; selecting another project clears the state, search filters, selected resource and any prior inventory. Resource tables, selectors and search show only addresses, types, modules and managed/data classification from bounded state-v4 metadata. Use native labelled select controls and a horizontally scrollable table for narrow viewports. No selection mutates state. State removal preview, configuration validation, plan execution and Terraform-specific mutation history display explicit disabled/unsupported states until qualified; a read-only status must never imply a functioning dry-run or backup lifecycle.
+When Terraform is loaded, Built-in CLIs includes a dedicated Terraform workspace with Overview, Projects, Resources, State management, Configuration, Plans and History navigation. The approved project and local state lists come from a backend-only root allowlist; selecting another project clears the state, search filters, selected resource and any prior inventory. Resource tables, selectors and search show only addresses, types, modules and managed/data classification from bounded state-v4 metadata. Use native labelled select controls and a horizontally scrollable table for narrow viewports. No selection mutates state. Local state removal is a separate guarded operation with a CLI dry run, expiring one-use approval, typed confirmation, locking, verified backups and post-execution reconciliation (ADR-040). An unverified result never triggers replay. Provider-dependent validation, plan execution and Terraform-specific mutation history remain unavailable. Native Windows path/locking/reparse-point acceptance is still required.
 
 ### Checking newly installed CLIs (native Windows acceptance pending)
 

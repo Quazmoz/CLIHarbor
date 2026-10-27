@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { RunsPage } from './RunsPage';
 import type { Task } from './api/tasks';
+import { installFakeBackend, type RouteReply } from './test/fakeBackend';
 
 function response(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -44,6 +45,34 @@ afterEach(() => {
 });
 
 describe('RunsPage', () => {
+  test('clears previous evidence immediately when an activity link selects another run', async () => {
+    const first = 'a'.repeat(32);
+    const second = 'b'.repeat(32);
+    const summaries = [first, second].map((runId, index) => ({
+      runId, commandId: index === 0 ? 'inspect' : 'older', packId: 'fixture', toolId: 'fixture', status: 'exited', exitCode: 0,
+    }));
+    const snapshot = (index: number, text: string) => ({ ...summaries[index], events: [
+      { sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-05T10:00:00Z', dataBase64: btoa(text) },
+    ] });
+    let finishSecond!: (reply: RouteReply) => void;
+    const secondResponse = new Promise<RouteReply>((resolve) => { finishSecond = resolve; });
+    const backend = installFakeBackend({
+      '/api/v1/runs': { body: { runs: summaries } },
+      ['/api/v1/runs/' + first]: { body: snapshot(0, 'first run evidence') },
+      ['/api/v1/runs/' + second]: () => secondResponse,
+    });
+    const view = render(<RunsPage tasks={tasks} requestedRun={{ runId: first }} />);
+    await screen.findByText('first run evidence');
+    view.rerender(<RunsPage tasks={tasks} requestedRun={{ runId: second }} />);
+    expect(screen.getByText('Loading run evidence…')).toBeInTheDocument();
+    expect(screen.queryByText('first run evidence')).not.toBeInTheDocument();
+    await act(async () => finishSecond({ body: snapshot(1, 'second run evidence') }));
+    expect(await screen.findByText('second run evidence')).toBeInTheDocument();
+    view.rerender(<RunsPage tasks={tasks} requestedRun={{ runId: second }} />);
+    expect(screen.getByText('second run evidence')).toBeInTheDocument();
+    expect(backend.calls('/api/v1/runs/' + second)).toHaveLength(1);
+  });
+
   test('opens the same activity link again after selecting a different run', async () => {
     const first = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     const second = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';

@@ -183,6 +183,12 @@ func newRemovalHarness(t *testing.T, mode string) *removalHarness {
 
 func activateExecutable(t *testing.T, p *Platform, exe string) {
 	t.Helper()
+	// Match discovery: identity capture receives the resolved executable, not
+	// a PATH symlink (for example Homebrew's terraform link).
+	exe, err := filepath.EvalSymlinks(exe)
+	if err != nil {
+		t.Fatal(err)
+	}
 	identity, err := discovery.CaptureExecutableIdentity(exe)
 	if err != nil {
 		t.Fatal(err)
