@@ -167,20 +167,25 @@ func TestDiscoverMarksIncompatibleVersion(t *testing.T) {
 }
 
 func TestDiscoverExplainsPrereleaseConstraintMismatch(t *testing.T) {
-	dir := t.TempDir()
-	createExecutable(t, dir, platformExecutableName("fixture"))
-	resolver := NewResolver(Config{GOOS: runtime.GOOS, PathValue: dir, ProbeRunner: &fakeProbeRunner{output: "fixture-1.7.1-apple"}})
-	snapshot, err := resolver.Discover(context.Background(), testRegistry(t, packs.Tool{
-		ExecutableNames:   []string{"fixture"},
-		VersionProbe:      &packs.VersionProbe{Parser: packs.VersionParserSemverText},
-		VersionConstraint: ">=1.6.0 <2.0.0",
-	}), nil)
-	if err != nil {
-		t.Fatalf("Discover() error = %v", err)
-	}
-	state, _ := snapshot.Find(ToolRef{PackID: "demo", ToolID: "fixture"})
-	if state.Status != StatusIncompatible || !strings.Contains(state.Message, "pre-release") {
-		t.Fatalf("state = %#v, want incompatible with pre-release hint", state)
+	for constraint, wantHint := range map[string]bool{
+		">=1.6.0 <2.0.0": true,  // only the -apple tag keeps 1.7.1 out
+		">=2.0.0-0":      false, // 1.7.1 is simply too old; the tag is not the cause
+	} {
+		dir := t.TempDir()
+		createExecutable(t, dir, platformExecutableName("fixture"))
+		resolver := NewResolver(Config{GOOS: runtime.GOOS, PathValue: dir, ProbeRunner: &fakeProbeRunner{output: "fixture-1.7.1-apple"}})
+		snapshot, err := resolver.Discover(context.Background(), testRegistry(t, packs.Tool{
+			ExecutableNames:   []string{"fixture"},
+			VersionProbe:      &packs.VersionProbe{Parser: packs.VersionParserSemverText},
+			VersionConstraint: constraint,
+		}), nil)
+		if err != nil {
+			t.Fatalf("Discover(%q) error = %v", constraint, err)
+		}
+		state, _ := snapshot.Find(ToolRef{PackID: "demo", ToolID: "fixture"})
+		if state.Status != StatusIncompatible || strings.Contains(state.Message, "pre-release") != wantHint {
+			t.Fatalf("constraint %q: state = %#v, want incompatible with pre-release hint %v", constraint, state, wantHint)
+		}
 	}
 }
 
