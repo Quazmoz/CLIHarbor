@@ -818,6 +818,21 @@ async function main() {
     assert.match(permissionRequest.approval.id, /^[a-f0-9]{32}$/);
     await waitJS(page, 'permission mutation and authoritative readback', 'document.querySelector(".conjur-permissions-form .operation-result")?.textContent.includes("Permissions updated") && document.querySelector(".conjur-permissions-current table")?.textContent.includes("operators")');
     assert.equal(await page.evaluate('location.pathname'), '/dedicated/conjur');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
+    assert.equal(await page.evaluate(`(() => {
+      const grants = document.querySelector('.conjur-permissions-table');
+      grants.focus(); grants.scrollLeft = grants.scrollWidth;
+      const revoke = grants.querySelector('button');
+      return document.activeElement === grants && grants.getBoundingClientRect().right <= innerWidth &&
+        revoke.getBoundingClientRect().right <= grants.getBoundingClientRect().right + 1;
+    })()`), true, 'permission grants must support keyboard focus and keep Revoke reachable by local scrolling');
+    await page.evaluate('document.querySelector(".conjur-permissions-table").scrollIntoView({ block: "center" }); true');
+    assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'permission readback must fit at 320px');
+    await capture('conjur-permission-readback-320');
+    await clickButton(page, 'Revoke execute from operators');
+    await waitJS(page, 'dedicated revoke review', 'document.querySelector(".conjur-permissions-form .mutation-approval")?.textContent.includes("Revoke execute from operators")');
+    assert.equal(await page.evaluate('location.pathname'), '/dedicated/conjur');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
     await clickButton(page, 'Secrets');
     await waitJS(page, 'secret maintenance ready after permission readback', 'Array.from(document.querySelectorAll("button")).some((button) => button.getAttribute("aria-label") === "Update value" && button.getClientRects().length > 0 && !button.disabled)');
     await clickButton(page, 'Update value');
@@ -828,6 +843,16 @@ async function main() {
     assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'Conjur update selectors must fit at 320px');
     await capture('conjur-update-320');
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    await waitJS(page, 'update variable inventory', 'Array.from(document.querySelectorAll(".conjur-task-panel select option")).some((option) => option.value === "value:apps/db/password")');
+    await page.evaluate(`(() => {
+      const variable = document.querySelector('.conjur-task-panel select');
+      variable.value = 'value:apps/db/password'; variable.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await setTextInput(page, 'Secret value', 'browser-review-only-fixture');
+    await clickButton(page, 'Review action');
+    await waitJS(page, 'update preflight and target-bound approval', 'document.querySelector(".conjur-task-panel .mutation-approval")?.textContent.includes("apps/db/password")');
+    assert.equal(await page.evaluate('document.querySelector(".conjur-task-panel .mutation-approval").textContent.includes("browser-review-only-fixture")'), false, 'write-only value must stay out of the approved preview');
+    assert.equal(await page.evaluate('location.pathname'), '/dedicated/conjur');
 
     stage('direct run history route');
     await navigate(page, baseURL + '/runs');

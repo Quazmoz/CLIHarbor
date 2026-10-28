@@ -389,6 +389,17 @@ partial-result recovery, busy guards and delayed reads. Generic task tests also
 qualify the extracted shared typed controls. No real Conjur tenant or Windows
 runtime acceptance is implied by these fixtures.
 
+Second-pass Conjur regressions reject parser-invalid existence/read output,
+duplicate raw JSON keys (including escaped equivalents and nested grants),
+wrong/missing resource IDs and mismatched preview targets. They preserve
+selected roles outside current inventory, focus and label manual entry,
+clear the grantee after a variable change, and hold a remounted dedicated
+action disabled until the original mutation settles. Embedded-browser
+acceptance also checks keyboard scrolling to Revoke at 320px and reviews a
+revoke without applying it. Update-value review exercises the real backend's
+structured existence preflight and target-bound approval without applying a
+secret mutation, and checks that the value stays out of the preview.
+
 `WorkspaceImprovements.test.tsx` covers top-bar activity/history links, failure-preserving metadata, guided-request lifetime after unmount, mutation navigation/Back/unload warnings, one-use session requests under StrictMode, and single-flight missing-tool refresh with catalog publication. `api/toolRefresh.test.ts` checks identity-only CSRF requests and rejects unknown, inconsistent or unsafe response metadata. Existing guided mutation tests assert per-step confirmed/unconfirmed recovery without secret values. These complement the backend refresh/activation guards; native Windows discovery acceptance is still required.
 
 Delayed-response regressions hold secret creation at its existence check and each dependent mutation, hold permission mutation and its authoritative refresh, and hold Terraform dry-run/execute requests. They verify busy text/spinners, disabled repeated submissions, no secret in progress messages, partial-failure recovery and terminal cleanup. Command Builder tests cover pending start and validation (including form submission while validation is pending); production browser coverage checks the running notice, disabled action, 1366/320 px geometry, reduced motion, and cancellation cleanup.

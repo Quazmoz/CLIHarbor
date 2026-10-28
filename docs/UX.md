@@ -495,6 +495,13 @@ and clears stale options; manual entry remains explicit for IDs outside the
 first 500 visible IDs per kind, new LDAP names, service IDs and issuer IDs
 without reviewed inventory commands. CLI authorization remains authoritative.
 
+Manual ID entry receives keyboard focus when selected. A saved role remains
+visible as **not currently listed** when inventory is unavailable or changes;
+the browser must never display a default while submitting a different role.
+Choosing another variable clears the prior grantee and approval. Permission
+tables have a labeled, keyboard-focusable horizontal scroll region so Revoke
+remains reachable in narrow windows.
+
 Edits invalidate prior approvals. Mutations display the exact approved argv,
 non-secret policy payload, target, effect, scope and vendor account/endpoint;
 destructive actions require the backend's exact typed confirmation plus explicit

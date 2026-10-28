@@ -37,19 +37,39 @@ export function parseConjurIDs(output: string, max: number, account?: string): s
   return [...new Set(parsed as string[])];
 }
 
-// No arbitrary resource/role JSON is ever fetched or stored in run history here.
-// The kind is derived from a validated full ID, never from an untrusted annotation.
+// JSON.parse validates grammar but silently drops duplicate object keys.
+// Scan validated tokens before interpreting raw object output as evidence.
+export function parseConjurObject(output: string): Record<string, unknown> {
+  if (output.length > MAX_OUTPUT) throw new Error('Conjur JSON evidence exceeded its limit.');
+  let parsed: unknown;
+  try { parsed = JSON.parse(output); } catch { throw new Error('Conjur returned invalid JSON evidence.'); }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Conjur returned unexpected JSON evidence.');
+  const parents: Array<Set<string> | null> = [];
+  let key = '';
+  for (const [token] of output.matchAll(/"(?:[^"\\]|\\.)*"|[{}:]|\[|\]/gu)) {
+    if (token === '{' || token === '[') {
+      if (parents.length >= 64) throw new Error('Conjur JSON evidence exceeded its nesting limit.');
+      parents.push(token === '{' ? new Set() : null);
+    } else if (token === '}' || token === ']') parents.pop();
+    else if (token === ':') {
+      const keys = parents.at(-1);
+      if (!keys || keys.has(key)) throw new Error('Conjur returned ambiguous duplicate JSON evidence.');
+      keys.add(key);
+    } else key = JSON.parse(token) as string;
+  }
+  return parsed as Record<string, unknown>;
+}
+
 export function parseExists(output: string): boolean {
   if (output.length > 256) throw new Error('Conjur existence response exceeded its limit.');
-  let parsed: unknown;
-  try { parsed = JSON.parse(output); } catch { throw new Error('Conjur returned invalid existence JSON.'); }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed) ||
-      Object.keys(parsed).length !== 1 || typeof (parsed as Record<string, unknown>).exists !== 'boolean') {
+  const parsed = parseConjurObject(output);
+  if (Object.keys(parsed).length !== 1 || typeof parsed.exists !== 'boolean') {
     throw new Error('Conjur returned an unexpected existence response.');
   }
   return (parsed as { exists: boolean }).exists;
 }
 
+// Explorer metadata comes from validated IDs, never arbitrary resource annotations.
 export function metadataFromID(id: string): Record<string, string> {
   if (!validConjurID(id)) throw new Error('Invalid resource identifier.');
   return { id, kind: id.split(':', 3)[1] };
@@ -151,6 +171,7 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
         }
         return JSON.stringify({ exists: exists.value === 'true' });
       }
+      if (snapshot.structured?.status === 'invalid') throw new Error('Conjur read output did not pass the reviewed output schema.');
       const stdout = decodeRunOutput(snapshot, 'stdout.chunk');
       if (stdout.length > MAX_OUTPUT) throw new Error('Response exceeds the explorer output limit.');
       return stdout;
@@ -170,17 +191,13 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
       throw new Error('Conjur connection or CLI is not ready. Open sign-in and Diagnostics.');
     }
     const who = await runRead('whoami', {}, signal);
-    let identity: unknown;
-    try { identity = JSON.parse(who); } catch { throw new Error('Session identity response is not valid JSON.'); }
-    if (typeof identity !== 'object' || identity === null || Array.isArray(identity)) {
-      throw new Error('Session identity response is incomplete.');
-    }
-    const user = (identity as Record<string, unknown>).username ?? (identity as Record<string, unknown>).user;
+    const identity = parseConjurObject(who);
+    const user = identity.username ?? identity.user;
     if (typeof user !== 'string' || user.length === 0 || user.length > 256 ||
         /[\p{Cc}\p{Cf}]/u.test(user)) {
       throw new Error('Current authenticated identity could not be verified.');
     }
-    const account = (identity as Record<string, unknown>).account;
+    const account = identity.account;
     if (account !== audit.target.account) {
       throw new Error('The CLI session account differs from its configured connection.');
     }

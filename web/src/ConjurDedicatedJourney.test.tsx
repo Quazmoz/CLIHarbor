@@ -32,7 +32,7 @@ test('Access Explorer permission shortcuts stay dedicated and complete a selecte
       const request = body as { commandId: string; values: Record<string, string> };
       let output: unknown = '';
       if (request.commandId === 'list-resources') output = request.values.kind === 'variable' ? ['dev:variable:apps/db/password'] : request.values.kind === 'group' ? ['dev:group:admins'] : [];
-      if (request.commandId === 'resource-show') output = { owner: 'dev:policy:apps', policy: 'dev:policy:apps', permissions: granted ? [{ role: 'dev:group:admins', privilege: 'execute', policy: 'dev:policy:apps' }] : [] };
+      if (request.commandId === 'resource-show') output = { id: request.values['resource-id'], owner: 'dev:policy:apps', policy: 'dev:policy:apps', permissions: granted ? [{ role: 'dev:group:admins', privilege: 'execute', policy: 'dev:policy:apps' }] : [] };
       if (request.commandId === 'secret-permit') granted = true;
       return { body: { packId: PACK, toolId: 'conjur', commandId: request.commandId, runId: (++sequence).toString(16).padStart(32, '0'), status: 'exited', exitCode: 0,
         events: [{ sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-28T10:00:00Z', dataBase64: btoa(JSON.stringify(output)) }] } };

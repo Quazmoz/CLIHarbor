@@ -4,11 +4,13 @@ import { ConjurTaskPanel } from './ConjurTaskPanel';
 import { createRun, previewRun, type RunSnapshot } from '../../api/runs';
 import type { Task, TaskInput } from '../../api/tasks';
 import { clientError } from '../../api/errors';
+import { OperationActivityProvider } from '../../OperationActivity';
 
 vi.mock('../../api/runs', async (original) => ({ ...(await original<typeof import('../../api/runs')>()), createRun: vi.fn(), previewRun: vi.fn() }));
 const PACK = 'cyberark-conjur-v9';
 const input = (id: string, type: TaskInput['type'] = 'string'): TaskInput => ({ id, type, label: id, required: type !== 'boolean', validation: { maxLength: 2048 } });
-const task = (commandId: string, risk: Task['risk'], inputs: TaskInput[]): Task => ({ packId: PACK, packName: 'Conjur', toolId: 'conjur', commandId, risk, name: commandId, requiresAuth: true, inputs });
+const task = (commandId: string, risk: Task['risk'], inputs: TaskInput[]): Task => ({ packId: PACK, packName: 'Conjur', toolId: 'conjur', commandId, risk, name: commandId, requiresAuth: true, inputs,
+  ...(risk === 'read' ? {} : { impact: { targetInput: inputs.some((input) => input.id === 'variable-id') ? 'variable-id' : 'group-name', targetLabel: 'Target', effect: 'Change selected target', scope: 'single' as const } }) });
 const set = task('secret-set-value', 'change', [input('variable-id'), input('value', 'secret')]);
 const remove = task('secret-delete', 'destructive', [input('policy-branch'), input('variable-id'), input('dry-run', 'boolean')]);
 const inventory = task('list-resources', 'read', []);
@@ -16,6 +18,8 @@ const exists = task('resource-exists', 'read', [input('resource-id')]);
 const tasks = [set, remove, inventory, exists];
 const run = (commandId: string, value: unknown = 'Value added'): RunSnapshot => ({
   packId: PACK, toolId: 'conjur', commandId, runId: 'a'.repeat(32), status: 'exited', exitCode: 0,
+  ...(commandId === 'resource-exists' ? { structured: { status: 'available' as const, renderer: 'cards' as const,
+    fields: [{ key: 'exists', label: 'Exists', type: 'boolean' as const, present: true, value: String((value as { exists: boolean }).exists) }] } } : {}),
   events: [{ sequence: 1, type: 'stdout.chunk', timestamp: '', dataBase64: btoa(typeof value === 'string' ? value : JSON.stringify(value)) }],
 });
 const props = { tasks, csrfToken: 'csrf', account: 'dev', endpoint: 'https://example.test' };
@@ -128,4 +132,60 @@ test('read query results keep hostile-looking output inert in the Conjur workspa
   expect(await screen.findByText('<img id="conjur-task-pwn" onerror=alert(1)>')).toBeInTheDocument();
   expect(document.querySelector('#conjur-task-pwn')).toBeNull();
   expect(vi.mocked(previewRun)).not.toHaveBeenCalled();
+});
+
+test.each([set, remove])('$commandId refuses raw existence output rejected by the reviewed parser', async (task) => {
+  render(<ConjurTaskPanel {...props} task={task} />);
+  await selectVariable();
+  if (task === set) fireEvent.change(screen.getByLabelText(/^value/), { target: { value: 'fixture-value' } });
+  vi.mocked(createRun).mockResolvedValueOnce({ ...run('resource-exists', '{"exists":false,"exists":true}'),
+    structured: { status: 'invalid', renderer: 'cards', error: 'duplicate_key' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Review action' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('unrecognized existence result');
+  expect(vi.mocked(previewRun)).not.toHaveBeenCalled();
+  expect(vi.mocked(createRun).mock.calls.some(([, request]) => request.commandId === task.commandId)).toBe(false);
+});
+
+test.each([set, remove])('$commandId refuses an authoritative absent-variable result', async (task) => {
+  render(<ConjurTaskPanel {...props} task={task} />);
+  await selectVariable();
+  if (task === set) fireEvent.change(screen.getByLabelText(/^value/), { target: { value: 'fixture-value' } });
+  vi.mocked(createRun).mockResolvedValueOnce(run('resource-exists', { exists: false }));
+  fireEvent.click(screen.getByRole('button', { name: 'Review action' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('did not confirm that this variable exists');
+  expect(vi.mocked(previewRun)).not.toHaveBeenCalled();
+});
+
+test('an accepted mutation keeps a remounted Conjur action locked until its original request settles', async () => {
+  const view = render(<OperationActivityProvider><ConjurTaskPanel {...props} task={set} /></OperationActivityProvider>);
+  await selectVariable();
+  fireEvent.change(screen.getByLabelText(/^value/), { target: { value: 'fixture-value' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Review action' }));
+  await screen.findByRole('region', { name: 'Conjur action approval' });
+  let finish!: (value: RunSnapshot) => void;
+  vi.mocked(createRun).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /I approve this exact action/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Approve and run' }));
+  view.rerender(<OperationActivityProvider>{null}</OperationActivityProvider>);
+  view.rerender(<OperationActivityProvider><ConjurTaskPanel {...props} task={remove} /></OperationActivityProvider>);
+  const review = screen.getByRole('button', { name: 'Review action' });
+  expect(review).toBeDisabled();
+  fireEvent.submit(review.closest('form')!);
+  expect(vi.mocked(previewRun)).toHaveBeenCalledTimes(1);
+  await act(async () => finish(run('secret-set-value')));
+  await waitFor(() => expect(review).toBeEnabled());
+  expect(vi.mocked(createRun).mock.calls.filter(([, request]) => request.commandId === set.commandId)).toHaveLength(1);
+});
+
+test('refuses approval for a different target even in the matching Conjur account and endpoint', async () => {
+  render(<ConjurTaskPanel {...props} task={set} />);
+  await selectVariable();
+  fireEvent.change(screen.getByLabelText(/^value/), { target: { value: 'fixture-value' } });
+  const original = vi.mocked(previewRun).getMockImplementation()!;
+  vi.mocked(previewRun).mockImplementationOnce(async (...args) => ({ ...await original(...args),
+    impact: { target: 'other/secret', targetLabel: 'Variable', effect: 'Change selected target', scope: 'single' } }));
+  fireEvent.click(screen.getByRole('button', { name: 'Review action' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('matching approved plan');
+  expect(screen.queryByRole('region', { name: 'Conjur action approval' })).not.toBeInTheDocument();
+  expect(vi.mocked(createRun).mock.calls.some(([, request]) => request.commandId === set.commandId)).toBe(false);
 });

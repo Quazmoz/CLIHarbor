@@ -127,13 +127,15 @@ test('shows current grants, revokes from the granting branch and grants from dro
 });
 
 test('resource descriptions with cross-account or malformed grants fail closed', () => {
-  expect(parseVariableAccess(JSON.stringify(resource), 'dev').permissions).toHaveLength(1);
+  expect(parseVariableAccess(JSON.stringify(resource), 'dev', 'apps/db/password').permissions).toHaveLength(1);
+  const duplicate = '{"id":"dev:variable:other",' + JSON.stringify(resource).slice(1);
+  expect(() => parseVariableAccess(duplicate, 'dev', 'apps/db/password')).toThrow(/duplicate/);
   for (const permissions of [[{ privilege: 'execute', role: 'other:host:x', policy: 'dev:policy:root' }],
     [{ privilege: 'exec ute', role: 'dev:host:x', policy: 'dev:policy:root' }],
     [{ privilege: 'execute', role: 'dev:host:x', policy: 'dev:group:root' }]]) {
-    expect(() => parseVariableAccess(JSON.stringify({ ...resource, permissions }), 'dev')).toThrow(/unexpected/);
+    expect(() => parseVariableAccess(JSON.stringify({ ...resource, permissions }), 'dev', 'apps/db/password')).toThrow(/unexpected/);
   }
-  expect(() => parseVariableAccess('[]', 'dev')).toThrow(/unexpected/);
+  expect(() => parseVariableAccess('[]', 'dev', 'apps/db/password')).toThrow(/unexpected/);
 });
 
 test('policy YAML uses a branch-relative resource ID, including the SaaS data branch', () => {
@@ -236,4 +238,47 @@ test('a change whose reload fails does not claim the table is current', async ()
   expect(await within(region).findByText(/applied, but current permissions could not be reloaded/)).toBeInTheDocument();
   expect(within(region).queryByText(/Current permissions were reloaded/)).not.toBeInTheDocument();
   expect(within(region).queryByRole('table')).not.toBeInTheDocument();
+});
+
+test.each(['other/secret', undefined])('refuses ownership and grants without the exact requested variable ID (%s)', async (id) => {
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'resource-show'
+    ? run('resource-show', { ...resource, id: id === undefined ? undefined : 'dev:variable:' + id })
+    : run('list-resources', lists[request.values.kind as string]));
+  render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
+  fireEvent.click(screen.getByRole('button', { name: /Manage permissions/ }));
+  chooseVariable(screen.getByRole('region', { name: 'Manage Conjur secret permissions' }), 'apps/db/password');
+  fireEvent.click(screen.getByRole('button', { name: 'Show current permissions' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('unexpected resource description');
+  expect(screen.queryByRole('region', { name: 'Current permissions' })).not.toBeInTheDocument();
+  expect(vi.mocked(previewRun)).not.toHaveBeenCalled();
+});
+
+test('does not derive permission actions from raw output rejected by the pack parser', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'resource-show'
+    ? { ...run('resource-show', resource), structured: { status: 'invalid', renderer: 'cards', error: 'duplicate_key' } }
+    : run('list-resources', lists[request.values.kind as string]));
+  render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
+  fireEvent.click(screen.getByRole('button', { name: /Manage permissions/ }));
+  chooseVariable(screen.getByRole('region', { name: 'Manage Conjur secret permissions' }), 'apps/db/password');
+  fireEvent.click(screen.getByRole('button', { name: 'Show current permissions' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('reviewed output schema');
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(vi.mocked(previewRun)).not.toHaveBeenCalled();
+});
+
+test('changing variables clears the prior grantee before another grant can be reviewed', async () => {
+  render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
+  fireEvent.click(screen.getByRole('button', { name: /Manage permissions/ }));
+  const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
+  await screen.findByRole('option', { name: 'apps/db/password' });
+  chooseVariable(region, 'apps/db/password');
+  fireEvent.click(screen.getByRole('button', { name: 'Show current permissions' }));
+  const grantee = await screen.findByRole('combobox', { name: 'Grant access to' });
+  await within(grantee).findByRole('option', { name: 'admins' });
+  fireEvent.change(grantee, { target: { value: 'group:admins' } });
+  chooseVariable(region, 'apps/other');
+  vi.mocked(createRun).mockResolvedValueOnce(run('resource-show', { ...resource, id: 'dev:variable:apps/other' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Show current permissions' }));
+  expect(await screen.findByRole('combobox', { name: 'Grant access to' })).toHaveValue('');
+  expect(screen.getByRole('button', { name: 'Review grant' })).toBeDisabled();
 });

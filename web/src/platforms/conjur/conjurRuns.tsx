@@ -91,7 +91,32 @@ export async function completedRun(snapshot: RunSnapshot): Promise<RunSnapshot> 
 export async function runRead(csrfToken: string, commandId: string, values: Record<string, unknown>): Promise<string> {
   const snapshot = await completedRun(await createRun(csrfToken, { packId: PACK, commandId, values }));
   if (!successful(snapshot, commandId)) throw new Error('Conjur could not complete the read-only query. Check Runs for details.');
+  if (snapshot.structured?.status === 'invalid') throw new Error('Conjur read output did not pass the reviewed output schema.');
   return decodeRunOutput(snapshot, 'stdout.chunk');
+}
+
+// Carry only the generated run ID to the UI, never untrusted vendor output.
+export class ExistenceCheckFailure extends Error {
+  readonly runId: string;
+
+  constructor(runId: string) {
+    super('Conjur could not verify the variable. The read-only existence check failed; no changes were sent. Inspect Runs for the underlying CLI error.');
+    this.runId = /^[A-Za-z0-9_-]{1,128}$/u.test(runId) ? runId : '';
+  }
+}
+
+/** Mutation preflights require the reviewed parser's evidence, never raw JSON. */
+export async function variableExists(csrfToken: string, fullID: string, account: string): Promise<boolean> {
+  const snapshot = await completedRun(await createRun(csrfToken, {
+    packId: PACK, commandId: 'resource-exists',
+    values: { 'resource-id': account + ':variable:' + fullID },
+  }));
+  if (!successful(snapshot, 'resource-exists')) throw new ExistenceCheckFailure(snapshot.runId);
+  const field = snapshot.structured?.status === 'available'
+    ? snapshot.structured.fields?.find((field) => field.key === 'exists' && field.present && field.type === 'boolean')
+    : undefined;
+  if (field && (field.value === 'true' || field.value === 'false')) return field.value === 'true';
+  throw new Error('Conjur returned an unrecognized existence result.');
 }
 
 /** Local IDs (account and kind stripped) of visible resources of one kind. */
@@ -164,8 +189,10 @@ export function InventoryStatus({ state, disabled, onRetry }: {
 }
 
 /** Grouped options whose values are "kind:id", so one select carries a typed Conjur role. */
-export function RoleOptions({ inventory, kinds }: { inventory: Inventory | null; kinds: readonly InventoryKind[] }) {
-  return <>{inventory && kinds.map((kind) => (inventory[kind]?.length ?? 0) > 0 && (
+export function RoleOptions({ inventory, kinds, selected = '' }: { inventory: Inventory | null; kinds: readonly InventoryKind[]; selected?: string }) {
+  return <>{selected && !kinds.some((kind) => inventory?.[kind]?.some((id) => kind + ':' + id === selected)) &&
+    <option value={selected}>{selected} (not currently listed)</option>}
+    {inventory && kinds.map((kind) => (inventory[kind]?.length ?? 0) > 0 && (
     <optgroup key={kind} label={KIND_LABELS[kind]}>
       {inventory[kind]!.map((id) => <option key={id} value={kind + ':' + id}>{id}</option>)}
     </optgroup>

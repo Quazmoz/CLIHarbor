@@ -557,6 +557,15 @@ are excluded from prefills, previews, saved navigation state and execution
 evidence, and are cleared from form state on run submission. These forms add no
 CLI command, credential storage, arbitrary argv, or direct service API.
 
+All mutation existence preflights share the creation flow's reviewed boolean
+evidence check; rejected or unavailable structured evidence never falls back
+to raw stdout. Guided reads also refuse explicitly rejected parser results.
+Raw object evidence used for identity and permission inspection is size/depth
+bounded and checked for duplicate keys, including escaped-equivalent keys,
+before interpretation. Permission descriptions must identify the exact
+requested variable, and mutation preview targets must match the task's
+declared target input. An empty grant list is not an effective-access verdict.
+
 The dedicated access view only starts backend-advertised Conjur pack tasks marked `risk: read` from an internal finite command allowlist; typed resource/role IDs are checked with Conjur's reviewed boolean exists tasks before being presented as verified objects. It cannot run secret-value retrieval, construct arbitrary shell commands, or invoke mutations. It caps inventory pages, role relationship arrays, payload lengths, total page offset, and per-operation polling; failed, forbidden, incomplete and inconsistent vendor responses produce **no access verdict**. Only a validated `id` and `kind` derived from the ID may be rendered/exported as resource metadata; `resource-show` and `role-show` are intentionally not invoked by the explorer because generic run history retains raw approved task output. The existing generic run history still records ordinary approved read-task output; it must never admit secret-bearing tasks through this explorer.
 
 A pre/post endpoint/account/version/identity comparison rejects detected session drift, but it is not an atomic vendor snapshot, and it does not prove effective permission. Conjur's own privilege checks remain authoritative. No credentials or secret values belong in this interface.

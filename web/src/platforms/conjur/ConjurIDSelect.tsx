@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 /** Visible inventory is a convenience, not an existence/authorization verdict. */
 export function ConjurIDSelect({ label, value, options, onChange, disabled = false, required = true, maxLength = 2048, error, id, loading = false }: {
@@ -10,12 +10,14 @@ export function ConjurIDSelect({ label, value, options, onChange, disabled = fal
   const generated = useId();
   const controlID = id ?? generated;
   const [manual, setManual] = useState(false);
+  const manualInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (manual) manualInput.current?.focus(); }, [manual]);
   const other = manual || Boolean(value && !options.includes(value));
   return <div className="field-group">
     <label className="field"><span>{label}</span>
       <select id={controlID} value={other ? 'manual' : value ? 'value:' + value : ''} disabled={disabled} required={required && !other}
         aria-busy={loading}
-        aria-invalid={error ? true : undefined} aria-describedby={error ? controlID + '-error' : undefined}
+        aria-invalid={error && !other ? true : undefined} aria-describedby={error ? controlID + '-error' : undefined}
         onChange={(event) => {
           setManual(event.target.value === 'manual');
           onChange(event.target.value.startsWith('value:') ? event.target.value.slice(6) : '');
@@ -26,7 +28,7 @@ export function ConjurIDSelect({ label, value, options, onChange, disabled = fal
       </select>
     </label>
     {other && <label className="field"><span>{label} — enter ID</span>
-      <input value={value} required={required} maxLength={maxLength} disabled={disabled} spellCheck={false}
+      <input ref={manualInput} id={controlID + '-manual'} value={value} required={required} maxLength={maxLength} disabled={disabled} spellCheck={false}
         aria-invalid={error ? true : undefined} aria-describedby={error ? controlID + '-error' : undefined}
         onChange={(event) => onChange(event.target.value)} />
     </label>}

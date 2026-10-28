@@ -8,7 +8,7 @@ import { useMutationActivity, useMutationPending } from '../../OperationActivity
 import {
   GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, ROLE_KINDS, RoleOptions,
   approvalsFresh, completedRun, matchingPlans, safeMessage as sharedSafeMessage, splitRole, successful,
-  supportedTask, useConjurInventory,
+  supportedTask, useConjurInventory, variableExists as exists, ExistenceCheckFailure,
 } from './conjurRuns';
 
 // Deliberately accept only simple relative policy paths in this guided flow.
@@ -61,34 +61,6 @@ export function fullVariableID(branch: string, variable: string): string | null 
       (branch !== 'root' && !PATH.test(branch))) return null;
   const id = branch === 'root' ? variable : branch + '/' + variable;
   return id.length <= 2048 ? id : null;
-}
-
-// A failed CLI read is not evidence of absence. Carry only CLIHarbor's
-// generated run ID to the UI, never untrusted vendor stdout or stderr.
-class ExistenceCheckFailure extends Error {
-  readonly runId: string;
-
-  constructor(runId: string) {
-    super('Conjur could not verify that the variable is new. The read-only existence check failed; no changes were sent. Inspect Runs for the underlying CLI error.');
-    this.runId = /^[A-Za-z0-9_-]{1,128}$/u.test(runId) ? runId : '';
-  }
-}
-
-async function exists(csrfToken: string, fullID: string, account: string): Promise<boolean> {
-  const snapshot = await completedRun(await createRun(csrfToken, {
-    packId: PACK, commandId: 'resource-exists',
-    values: { 'resource-id': account + ':variable:' + fullID },
-  }));
-  if (!successful(snapshot, 'resource-exists')) throw new ExistenceCheckFailure(snapshot.runId);
-  const existsField = snapshot.structured?.status === 'available'
-    ? snapshot.structured.fields?.find((field) => field.key === 'exists' && field.present && field.type === 'boolean')
-    : undefined;
-  if (existsField && (existsField.value === 'true' || existsField.value === 'false')) {
-    return existsField.value === 'true';
-  }
-  // The reviewed pack requires a single structured boolean. Never fall back to
-  // JSON.parse(stdout): it can mask parser failures such as duplicate keys.
-  throw new Error('Conjur returned an unrecognized existence result.');
 }
 
 function safeMessage(error: unknown): string {
@@ -363,7 +335,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
               aria-busy={inventoryState === 'loading'}
               onChange={(event) => changed(() => setOwner(event.target.value))}>
               <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'Parent policy (Conjur default)'}</option>
-              <RoleOptions inventory={inventory} kinds={ROLE_KINDS} />
+              <RoleOptions inventory={inventory} kinds={ROLE_KINDS} selected={owner} />
             </select>
           </label>
           <p>The owner holds every privilege on the variable, including reading and changing its value.</p>
@@ -372,7 +344,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
               aria-busy={inventoryState === 'loading'}
               onChange={(event) => changed(() => setGrantee(event.target.value))}>
               <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'Owner only (no additional grant)'}</option>
-              <RoleOptions inventory={inventory} kinds={GRANTEE_KINDS} />
+              <RoleOptions inventory={inventory} kinds={GRANTEE_KINDS} selected={grantee} />
             </select>
           </label>
           {grantee && (

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { Task } from '../../api/tasks';
 import { createRun, previewRun, type RunPreview } from '../../api/runs';
-import { validConjurID } from './ConjurAccessExplorer';
+import { parseConjurObject, validConjurID } from './ConjurAccessExplorer';
 import { WorkingStatus } from '../../WorkingStatus';
 import { ExecutionContext, OperationResult, type OperationOutcome } from '../../OperationResult';
 import { useMutationActivity, useMutationPending } from '../../OperationActivity';
@@ -30,14 +30,13 @@ export function policyRelativeVariableID(variableID: string, branch: string): st
 }
 
 /** Parses `conjur resource show` JSON, keeping only validated same-account ownership and grants. */
-export function parseVariableAccess(output: string, account: string): VariableAccess {
-  let parsed: unknown;
-  try { parsed = JSON.parse(output); } catch { throw new Error('Conjur returned an invalid resource description.'); }
-  const record = (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : {}) as Record<string, unknown>;
+export function parseVariableAccess(output: string, account: string, variableID: string): VariableAccess {
+  const record = parseConjurObject(output);
   const id = (value: unknown, kind?: string): value is string =>
     typeof value === 'string' && validConjurID(value, account) && (kind === undefined || kindOf(value) === kind);
   const permissions = record.permissions;
-  if (!id(record.owner) || !id(record.policy, 'policy') || !Array.isArray(permissions) ||
+  if (record.id !== account + ':variable:' + variableID || !id(record.id, 'variable') ||
+      !id(record.owner) || !id(record.policy, 'policy') || !Array.isArray(permissions) ||
       permissions.length > MAX_PERMISSIONS || permissions.some((entry: unknown) => {
         const grant = (typeof entry === 'object' && entry !== null ? entry : {}) as Record<string, unknown>;
         return !id(grant.role) || !id(grant.policy, 'policy') ||
@@ -128,7 +127,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   }
 
   async function readAccess(id: string) {
-    const loaded = parseVariableAccess(await runRead(csrfToken, 'resource-show', { 'resource-id': account + ':variable:' + id }), account!);
+    const loaded = parseVariableAccess(await runRead(csrfToken, 'resource-show', { 'resource-id': account + ':variable:' + id }), account!, id);
     if (alive.current) { setAccess(loaded); setShown(id); }
   }
 
@@ -251,7 +250,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
               loading={inventoryState === 'loading'}
               onChange={(value) => {
                 setVariable(value); setError(''); setAccess(null); setShown(''); setChange(null);
-                setApproved(false); setOutcome(''); setResult(null);
+                setApproved(false); setOutcome(''); setResult(null); setGrantee(''); setManualRole(false);
               }} />
             <p className="field-help">Choose a visible variable or enter another ID. Inventory is bounded to 500 IDs per kind.</p>
             <button type="submit" disabled={!variableValid || busy} aria-busy={busy}>
@@ -264,8 +263,8 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
               <h4>Current permissions on <code>{shown}</code></h4>
               <p><strong>Owner:</strong> <code>{localID(access.owner)}</code> ({kindOf(access.owner)}) holds every privilege.
                 {' '}<strong>Defined in policy:</strong> <code>{localID(access.policy)}</code></p>
-              {access.permissions.length === 0 ? <p>No explicit grants. Only the owner and its members have access.</p> : (
-                <table>
+              {access.permissions.length === 0 ? <p>No explicit grants were returned. Inherited access is not shown.</p> : (
+                <div className="conjur-permissions-table" role="region" aria-label="Explicit permission grants" tabIndex={0}><table>
                   <thead><tr><th scope="col">Role</th><th scope="col">Privilege</th><th scope="col">Granted by policy</th><th scope="col">Action</th></tr></thead>
                   <tbody>
                     {access.permissions.map((grant) => {
@@ -288,7 +287,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                       );
                     })}
                   </tbody>
-                </table>
+                </table></div>
               )}
               <p>These are explicit grants on this variable. Access inherited through role membership is not listed.</p>
 
@@ -306,7 +305,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                         setGrantee(event.target.value === 'manual' ? 'group:' : event.target.value); setChange(null); setApproved(false);
                       }}>
                       <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'Choose a role'}</option>
-                      <RoleOptions inventory={inventory} kinds={GRANTEE_KINDS} />
+                      <RoleOptions inventory={inventory} kinds={GRANTEE_KINDS} selected={manualRole ? '' : grantee} />
                       <option value="manual">Enter another role…</option>
                     </select>
                   </label>

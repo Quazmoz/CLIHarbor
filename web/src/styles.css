@@ -3699,6 +3699,7 @@ select:not([multiple]):not([size]):disabled {
   border-radius: var(--radius-md); background: var(--surface-2);
 }
 .conjur-permissions-current h4 { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.conjur-permissions-table { max-width: 100%; min-width: 0; overflow-x: auto; }
 .conjur-permissions-form label { gap: 0.5rem; }
 .conjur-permissions-form label > input:not([type="checkbox"]),
 .conjur-permissions-form label > select {

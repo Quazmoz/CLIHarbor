@@ -8,10 +8,9 @@ import { WorkingStatus } from '../../WorkingStatus';
 import { useMutationActivity, useMutationPending } from '../../OperationActivity';
 import { OutputExplorer } from '../../OutputExplorer';
 import { ConjurIDSelect } from './ConjurIDSelect';
-import { parseExists } from './ConjurAccessExplorer';
 import { policyRelativeVariableID } from './ConjurManagePermissions';
 import { normalizeConjurSaaSAPIURL } from './ConjurBackendConnection';
-import { approvalsFresh, completedRun, InventoryStatus, matchingContext, PACK, ROLE_KINDS, runRead, successful, TOOL, useConjurInventory, type InventoryKind } from './conjurRuns';
+import { approvalsFresh, completedRun, InventoryStatus, matchingContext, PACK, ROLE_KINDS, successful, TOOL, useConjurInventory, variableExists, type InventoryKind } from './conjurRuns';
 
 interface Props {
   task: Task; tasks: Task[]; csrfToken: string; account?: string; endpoint?: string;
@@ -110,14 +109,15 @@ export function ConjurTaskPanel({ task, tasks, csrfToken, account, endpoint, pre
         if (['secret-set-value', 'secret-delete'].includes(task.commandId) && account &&
           tasks.some((entry) => entry.packId === PACK && entry.commandId === 'resource-exists' && entry.risk === 'read')) {
           const fullID = branch && branch !== 'root' ? branch + '/' + submitted['variable-id'] : submitted['variable-id'];
-          if (!parseExists(await runRead(csrfToken, 'resource-exists', { 'resource-id': account + ':variable:' + fullID }))) {
+          if (!await variableExists(csrfToken, String(fullID), account)) {
             throw new Error('Conjur did not confirm that this variable exists. No change was approved.');
           }
           if (!alive.current) return;
         }
         const next = await previewRun(csrfToken, { packId: PACK, commandId: task.commandId, values: submitted });
         if (next.packId !== PACK || next.commandId !== task.commandId || next.toolId !== TOOL || next.risk !== task.risk ||
-          !matchingContext(next, account, endpoint) || !next.impact || !next.approval ||
+          !matchingContext(next, account, endpoint) || !next.impact || !task.impact ||
+          next.impact.target !== submitted[task.impact.targetInput] || !next.approval ||
           next.approval.mode !== (task.risk === 'destructive' ? 'typed' : 'explicit') ||
           (next.approval.mode === 'typed' && !next.approval.requiredText)) throw new Error('Conjur did not return a matching approved plan.');
         if (alive.current) { setPlan(next); setConsent(false); setConfirmation(''); }

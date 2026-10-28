@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { ConjurAccessExplorer, parseConjurIDs, metadataFromID, parseExists, validConjurID } from './ConjurAccessExplorer';
+import { ConjurAccessExplorer, parseConjurIDs, parseConjurObject, metadataFromID, parseExists, validConjurID } from './ConjurAccessExplorer';
 import { cancelRun, createRun, type RunSnapshot } from '../../api/runs';
 import { fetchTools } from '../../api/tools';
 import { fetchSecretAudit } from './secretAuditApi';
@@ -226,4 +226,30 @@ describe('Conjur access workflow', () => {
     expect(screen.getByRole('button', { name: 'Search inventory' })).toBeDisabled();
     expect(createRun).not.toHaveBeenCalled();
   });
+});
+
+test('a rejected identity schema cannot establish access evidence from raw output', async () => {
+  vi.mocked(createRun).mockResolvedValueOnce({ runId: 'identity-invalid', packId: 'cyberark-conjur-v9', toolId: 'conjur',
+    commandId: 'whoami', status: 'exited', exitCode: 0,
+    structured: { status: 'invalid', renderer: 'cards', error: 'duplicate_key' } });
+  render(<ConjurAccessExplorer tasks={tasks} csrfToken="csrf" onOpenTask={() => {}} onOpenSignIn={() => {}} onOpenDiagnostics={() => {}} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Search inventory' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('reviewed output schema');
+  expect(vi.mocked(createRun)).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+  '{"exists":false,"exists":true}',
+  '{"exists":false,"\\u0065xists":true}',
+  '{"permissions":[{"role":"dev:group:a","role":"dev:group:b"}]}',
+  '{"nested":[{"x":0,"x":1}]}',
+])('rejects duplicate keys before raw Conjur objects become evidence: %s', (output) => {
+  expect(() => parseConjurObject(output)).toThrow(/duplicate/);
+});
+
+test('duplicate-key checks preserve valid escaped strings, arrays and separate object scopes', () => {
+  const expected = { text: '"key": { [ ] } \\ path', array: [{ role: 'a' }, { role: 'b' }], role: 'parent' };
+  expect(parseConjurObject(JSON.stringify(expected))).toEqual(expected);
+  expect(() => parseConjurObject('{"a":'.repeat(65) + '0' + '}'.repeat(65))).toThrow(/nesting/);
+  expect(() => parseConjurObject('{broken}')).toThrow(/invalid/);
 });
