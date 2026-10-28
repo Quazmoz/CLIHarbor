@@ -45,6 +45,71 @@ afterEach(() => {
 });
 
 describe('RunsPage', () => {
+  test('combines metadata search, CLI scope and outcome filters without fetching or losing selected evidence', async () => {
+    const summaries = [
+      { runId: 'a'.repeat(32), packId: 'fixture', commandId: 'inspect', toolId: 'fixture', status: 'exited', exitCode: 0, toolVersion: '1.2.3' },
+      { runId: 'b'.repeat(32), packId: 'fixture', commandId: 'older', toolId: 'fixture', status: 'exited', exitCode: 7 },
+      { runId: 'c'.repeat(32), packId: 'other', commandId: 'inspect', toolId: 'fixture', status: 'failed' },
+    ];
+    const backend = installFakeBackend({
+      '/api/v1/runs': { body: { runs: summaries } },
+      ['/api/v1/runs/' + summaries[0].runId]: { body: { ...summaries[0], events: [
+        { sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-28T10:00:00Z', dataBase64: btoa('retained-output-sentinel') },
+      ] } },
+    });
+    render(<RunsPage tasks={tasks} requestedRun={{ runId: summaries[0].runId }} />);
+    await screen.findByText('retained-output-sentinel');
+    const listNames = () => Array.from(document.querySelectorAll('.run-history-entry strong')).map((element) => element.textContent);
+    expect(listNames()).toEqual(['Inspect resources', 'Older task', 'inspect']);
+    const search = screen.getByRole('searchbox', { name: 'Search runs' });
+    fireEvent.change(search, { target: { value: 'INSPECT 1.2.3 SUCCEEDED' } });
+    expect(listNames()).toEqual(['Inspect resources']);
+    fireEvent.change(search, { target: { value: summaries[1].runId.slice(0, 10) } });
+    expect(listNames()).toEqual(['Older task']);
+    fireEvent.change(search, { target: { value: 'retained-output-sentinel' } });
+    expect(listNames()).toEqual([]);
+    expect(screen.getByText(/No retained runs match these filters/)).toBeInTheDocument();
+    expect(screen.getByText('retained-output-sentinel')).toBeInTheDocument();
+    expect(screen.getByText('The selected run is outside the current list filters.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(search).toHaveFocus();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Outcome' }), { target: { value: 'failed' } });
+    expect(listNames()).toEqual(['Older task', 'inspect']);
+    fireEvent.change(screen.getByRole('combobox', { name: 'CLI' }), { target: { value: 'other/fixture' } });
+    expect(listNames()).toEqual(['inspect']);
+    fireEvent.change(search, { target: { value: 'fixture' } });
+    expect(screen.getByText('1 of 3 runs')).toHaveAttribute('role', 'status');
+    expect(backend.calls('/api/v1/runs')).toHaveLength(1);
+    expect(backend.calls('/api/v1/runs/' + summaries[0].runId)).toHaveLength(1);
+    expect(backend.requests).toHaveLength(2);
+  });
+
+  test('classifies terminal outcomes separately and preserves filters across refresh and eviction', async () => {
+    const summaries = [
+      { status: 'exited', exitCode: 0 }, { status: 'exited', exitCode: 1 },
+      { status: 'failed' }, { status: 'cancelled' }, { status: 'timed-out' }, { status: 'running' },
+    ].map((outcome, index) => ({
+      ...outcome, runId: (index + 1).toString().repeat(32), packId: 'fixture', commandId: 'inspect', toolId: 'fixture',
+    }));
+    const backend = installFakeBackend({ '/api/v1/runs': { body: { runs: summaries } } });
+    render(<RunsPage tasks={tasks} />);
+    await screen.findByText('6 of 6 runs');
+    for (const [outcome, count] of [['succeeded', 1], ['failed', 2], ['cancelled', 1], ['timed-out', 1], ['running', 1]] as const) {
+      fireEvent.change(screen.getByRole('combobox', { name: 'Outcome' }), { target: { value: outcome } });
+      expect(document.querySelectorAll('.run-history-entry')).toHaveLength(count);
+    }
+    fireEvent.change(screen.getByRole('combobox', { name: 'CLI' }), { target: { value: 'fixture/fixture' } });
+    backend.on({ '/api/v1/runs': { body: { runs: [{ ...summaries[0], packId: 'other' }] } } });
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh history' }));
+    await screen.findByText('0 of 1 runs');
+    expect(screen.getByRole('combobox', { name: 'CLI' })).toHaveValue('fixture/fixture');
+    expect(screen.getByRole('combobox', { name: 'Outcome' })).toHaveValue('running');
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByText('1 of 1 runs')).toBeInTheDocument();
+    expect(document.querySelectorAll('.run-history-entry')).toHaveLength(1);
+    expect(backend.requests.every((request) => request.method === 'GET')).toBe(true);
+  });
+
   test.each([
     { status: 'exited', exitCode: 7 },
     { status: 'cancelled' },
@@ -211,14 +276,14 @@ describe('RunsPage', () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(response(200, { runs: [{ ...summary, status: 'running' }] })).mockReturnValue(slowPoll);
     vi.stubGlobal('fetch', fetchMock);
     render(<RunsPage tasks={tasks} />);
-    await screen.findByText('Running');
+    await screen.findByText('Running', { selector: '.run-history-status' });
     await act(async () => intervalCallback?.());
     await act(async () => intervalCallback?.());
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const signal = fetchMock.mock.calls[1][1].signal as AbortSignal;
     expect(signal.aborted).toBe(false);
     await act(async () => resolvePoll(response(200, { runs: [{ ...summary, status: 'exited', exitCode: 0 }] })));
-    expect(await screen.findByText('Succeeded')).toBeInTheDocument();
+    expect(await screen.findByText('Succeeded', { selector: '.run-history-status' })).toBeInTheDocument();
   });
 
   test('renders metadata-only history and loads retained evidence only after explicit selection', async () => {
@@ -382,7 +447,7 @@ describe('RunsPage', () => {
 
     render(<RunsPage tasks={tasks} />);
 
-    expect(await screen.findByText('Running')).toBeInTheDocument();
+    expect(await screen.findByText('Running', { selector: '.run-history-status' })).toBeInTheDocument();
     await waitFor(() => expect(intervalCallback).toBeDefined());
 
     await act(async () => {
@@ -395,7 +460,7 @@ describe('RunsPage', () => {
       intervalCallback?.();
     });
 
-    expect(await screen.findByText('Succeeded')).toBeInTheDocument();
+    expect(await screen.findByText('Succeeded', { selector: '.run-history-status' })).toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([input]) => requestPath(input as RequestInfo | URL) === '/api/v1/runs')).toHaveLength(2);
     await waitFor(() => expect(clearIntervalSpy).toHaveBeenCalledWith(-1));
   });

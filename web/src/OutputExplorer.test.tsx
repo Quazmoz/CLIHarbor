@@ -106,6 +106,26 @@ describe('OutputExplorer', () => {
     expect(screen.getByRole('button', { name: 'Formatted' })).toBeDisabled();
     expect(screen.getByText('original evidence')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Copy .* value/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Export/ })).not.toBeInTheDocument();
+  });
+
+  test('exports only successful complete previews and disables empty filtered exports', () => {
+    const props = { stdout: '{"id":"metadata"}', stderr: '', rawOutput: <pre>original</pre> };
+    const view = render(<OutputExplorer {...props} status="running" />);
+    expect(screen.queryByRole('button', { name: /Export/ })).not.toBeInTheDocument();
+    view.rerender(<OutputExplorer {...props} status="exited" exitCode={7} />);
+    expect(screen.queryByRole('button', { name: /Export/ })).not.toBeInTheDocument();
+    view.rerender(<OutputExplorer {...props} status="exited" exitCode={0} />);
+    expect(screen.getByRole('button', { name: 'Export JSON' })).toBeEnabled();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an ID or value' }), { target: { value: 'missing' } });
+    expect(screen.getByRole('button', { name: 'Export JSON' })).toBeDisabled();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an ID or value' }), { target: { value: '' } });
+    view.rerender(<OutputExplorer {...props} stdout={JSON.stringify({ id: 'metadata', large: 'a'.repeat(8193) })} status="exited" exitCode={0} />);
+    expect(screen.getByText('metadata')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export JSON' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
+    expect(screen.queryByRole('button', { name: /Export/ })).not.toBeInTheDocument();
   });
 
   test('requires a successful exit even when structured fields are supplied', () => {

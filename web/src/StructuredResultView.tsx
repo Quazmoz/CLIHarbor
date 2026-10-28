@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import type { StructuredField } from './api/runs';
+import { ResultExport } from './ResultExport';
 
 type SortMode = 'source' | 'label' | 'key';
 
 interface StructuredResultViewProps {
   fields: StructuredField[];
+  runId?: string;
 }
 
 function searchableFieldText(field: StructuredField): string {
@@ -31,7 +33,7 @@ function normalizedFieldJSON(fields: StructuredField[]): string {
   );
 }
 
-export function StructuredResultView({ fields }: StructuredResultViewProps) {
+export function StructuredResultView({ fields, runId }: StructuredResultViewProps) {
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('source');
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
@@ -96,6 +98,8 @@ export function StructuredResultView({ fields }: StructuredResultViewProps) {
           {visibleFields.length} of {fields.length}
         </span>
       </div>
+
+      <ResultExport runId={runId} fields={visibleFields.map((field) => ({ field: field.key, value: field.present ? field.value : null }))} />
 
       {visibleFields.length === 0 ? (
         <p className="structured-result-empty" role="status">

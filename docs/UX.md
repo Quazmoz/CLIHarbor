@@ -245,9 +245,22 @@ Implemented structured-result conveniences:
 - explicit per-field copy for present validated values only;
 - an expandable normalized JSON inspection view built from the validated structured DTO rather than raw process output.
 
-Still deferred:
+**Export JSON** and **Export CSV** download the displayed fields from successful
+formatted results, both in Command Builder and retained Run details. Filters and
+structured-field sorting determine the exported rows. Empty selections and
+generic previews that omit values because of size/depth/row limits cannot be
+exported. Raw, failed, running, and parser-rejected output has no export action.
 
-- export of non-secret results.
+JSON uses `cliharbor.result-fields/v1`: the source run ID and a `fields` array
+of `{field, value}` display pairs. Values are displayed strings; absent optional
+structured fields use `null`, distinct from an empty string. Generic JSON paths
+are display labels, not reversible object selectors. CSV includes run ID,
+field, presence and displayed value, UTF-8 BOM and CRLF row endings; quoted
+formula-like cells receive an apostrophe to prevent spreadsheet evaluation.
+These are field reports, not exact raw-output or typed-JSON backups. Downloads
+start only on an explicit click, stay local, and report browser failures while
+retaining the visible result. No output, input, credential or query is added to
+browser storage. Run IDs also identify the download filenames.
 
 Do not add export to secret-bearing results without explicit classification and review. Copy behavior must also be revisited before any secret-bearing browser workflow is enabled.
 
@@ -319,6 +332,17 @@ History is intentionally process-local:
 No persistence or history-retention setting has been added. That remains a separate policy decision, especially before secret-bearing workflows are ever enabled.
 
 Initial list/detail requests announce loading and expose their busy state. Active history polling permits only one request per surface at a time, ignores responses from abandoned selections, and refreshes immediately when the page becomes visible again. Completed selected evidence is not polled merely because another run is active, and nonretryable failures stop automatic polling for that surface. Selecting the currently displayed run preserves its evidence. Background refresh leaves existing evidence readable through temporary connection failures; authoritative eviction clears it.
+
+**Search runs**, **Outcome**, and **CLI** filter the retained metadata locally.
+Search is case-insensitive and matches every space-separated term against task
+name, pack name/ID, command, tool/version, run ID and outcome; it never fetches or
+searches output or inputs. Failed outcomes include non-zero exits. CLI choices
+are scoped by pack and tool, including tools no longer in the current task
+catalog. Counts announce matches, and Clear filters restores all retained runs
+and focuses search. Filters survive refresh in browser memory only. Filtering
+does not select another run or clear its evidence; an explicit note identifies
+selected evidence outside the list filters. A filter miss remains distinct
+from an empty retained history.
 
 ## 13. Settings
 

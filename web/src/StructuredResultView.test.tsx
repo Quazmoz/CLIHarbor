@@ -36,9 +36,32 @@ afterEach(() => {
     Object.defineProperty(navigator, 'clipboard', originalClipboard);
   }
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('StructuredResultView', () => {
+  test('downloads only the filtered validated fields in displayed sort order', async () => {
+    let blob: Blob | undefined;
+    vi.stubGlobal('URL', { createObjectURL: (value: Blob) => { blob = value; return 'blob:structured-result'; }, revokeObjectURL: vi.fn() });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<StructuredResultView fields={fields} runId={'a'.repeat(32)} />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sort fields' }), { target: { value: 'label' } });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter fields' }), { target: { value: 'value' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+    expect(blob).toBeDefined();
+    const content = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(blob!);
+    });
+    expect(JSON.parse(content)).toEqual({
+      schemaVersion: 'cliharbor.result-fields/v1', runId: 'a'.repeat(32),
+      fields: [{ field: 'alpha', value: 'alpha-value' }],
+    });
+    expect(content).not.toContain(fields[0].value);
+    expect(content).not.toContain('missing');
+  });
+
   test('distinguishes absent fields from a filter miss', () => {
     const { rerender } = render(<StructuredResultView fields={[]} />);
     const search = screen.getByRole('searchbox', { name: 'Filter fields' });

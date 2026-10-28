@@ -2145,6 +2145,7 @@ function WorkspaceApp() {
                       </p>
                     )}
                     <OutputExplorer key={run.snapshot.runId}
+                      runId={run.snapshot.runId}
                       stdout={output.stdout} stderr={output.stderr}
                       status={run.snapshot.status} exitCode={run.snapshot.exitCode} structured={run.snapshot.structured}
                       rawOutput={<div className="output-grid">

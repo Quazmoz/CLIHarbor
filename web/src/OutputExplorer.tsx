@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { RunStatus, StructuredResult } from './api/runs';
 import { StructuredResultView } from './StructuredResultView';
+import { ResultExport } from './ResultExport';
 
 type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
 interface OutputRow { path: string; value: string; }
@@ -45,11 +46,12 @@ interface OutputExplorerProps {
   status: RunStatus;
   exitCode?: number;
   structured?: StructuredResult;
+  runId?: string;
   rawOutput: ReactNode;
 }
 
 /** A presentation-only view of already-authorized process output, never a parser used for execution. */
-export function OutputExplorer({ stdout, stderr, status, exitCode, structured, rawOutput }: OutputExplorerProps) {
+export function OutputExplorer({ stdout, stderr, status, exitCode, structured, runId, rawOutput }: OutputExplorerProps) {
   const succeeded = status === 'exited' && exitCode === 0;
   // A generic preview must not override the run outcome or the reviewed parser's rejection.
   const parsed = useMemo(() => succeeded && structured === undefined ? rowsFromJSON(stdout) : null, [succeeded, structured, stdout]);
@@ -90,7 +92,7 @@ export function OutputExplorer({ stdout, stderr, status, exitCode, structured, r
       </div>
       {shownMode === 'formatted' ? (
         <>
-          {validated ? <StructuredResultView fields={structured.fields ?? []} /> : (
+          {validated ? <StructuredResultView fields={structured.fields ?? []} runId={runId} /> : (
             <div className="output-explorer-values">
               <div className="output-explorer-filter">
                 <label htmlFor="output-value-search">Find an ID or value</label>
@@ -98,6 +100,7 @@ export function OutputExplorer({ stdout, stderr, status, exitCode, structured, r
                   value={query} onChange={(event) => setQuery(event.target.value)} />
                 <span>{rows.length} of {parsed?.rows.length ?? 0} values</span>
               </div>
+              <ResultExport runId={runId} disabled={parsed?.truncated} fields={rows.map((row) => ({ field: row.path, value: row.value }))} />
               {parsed?.truncated && <p role="status" className="output-limit-note">Large or deeply nested result: preview is limited. Use Raw for the complete retained output.</p>}
               {rows.length === 0 ? <p role="status">{parsed?.rows.length === 0
                 ? parsed.truncated ? 'No values fit within the preview limits. Switch to Raw to inspect the result.'

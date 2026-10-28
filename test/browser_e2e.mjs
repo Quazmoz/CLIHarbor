@@ -463,7 +463,7 @@ async function chooseTask(page, value) {
 
 async function setTextInput(page, label, value) {
   const expression = '(() => {' +
-    'const input = Array.from(document.querySelectorAll("input")).find((element) => element.closest("label")?.textContent?.trim().startsWith(' + JSON.stringify(label) + '));' +
+    'const input = Array.from(document.querySelectorAll("input")).find((element) => Array.from(element.labels ?? []).some((label) => label.textContent?.trim().startsWith(' + JSON.stringify(label) + ')));' +
     'if (!input) return false;' +
     'const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;' +
     'setter.call(input, ' + JSON.stringify(value) + ');' +
@@ -1108,6 +1108,30 @@ async function main() {
         await waitJS(page, 'selected JSON history evidence', 'document.querySelector(".run-history-id")?.textContent === ' + JSON.stringify(filteredRunID) +
           ' && document.querySelector(".output-value-list")?.textContent.includes("alice")');
       }
+      const downloadPath = path.join(chrome.userDataDir, 'result-exports-' + surface);
+      await mkdir(downloadPath, { recursive: true });
+      await page.call('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath });
+      await setTextInput(page, 'Find an ID or value', 'alice');
+      await waitJS(page, 'filtered export field', 'document.querySelectorAll(".output-value-list li").length === 1');
+      for (const format of ['JSON', 'CSV']) {
+        await clickButton(page, 'Export ' + format);
+        const downloaded = await poll('local ' + format + ' field download', () =>
+          readFile(path.join(downloadPath, 'cliharbor-result-' + filteredRunID + '.' + format.toLowerCase()), 'utf8'));
+        if (format === 'JSON') {
+          const report = JSON.parse(downloaded);
+          assert.equal(report.schemaVersion, 'cliharbor.result-fields/v1');
+          assert.equal(report.runId, filteredRunID);
+          assert.deepEqual(report.fields, [{ field: 'username', value: 'alice' }]);
+          assert.deepEqual(Object.keys(report).sort(), ['fields', 'runId', 'schemaVersion']);
+        } else {
+          assert.match(downloaded, /"Run ID","Field","Present","Value"\r\n/);
+          assert.equal(downloaded.includes('"' + filteredRunID + '","username","true","alice"'), true);
+        }
+      }
+      await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
+      assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'exports must fit at 320px');
+      await capture('result-export-' + surface + '-mobile');
+      await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
       await page.evaluate(`(() => {
         const input = document.getElementById('output-value-search');
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'no-matching-value');
@@ -1123,6 +1147,29 @@ async function main() {
     const filteredSnapshot = await fetchJSON(page, '/api/v1/runs/' + filteredRunID);
     assert.equal(filteredSnapshot.body.exitCode, 0);
     assert.equal(filteredSnapshot.body.events.filter((event) => event.type === 'run.started').length, 1);
+
+    stage('history filters preserve selected evidence without executing a command');
+    await setTextInput(page, 'Search runs', filteredRunID);
+    await waitJS(page, 'history run-ID search', 'document.querySelectorAll(".run-history-entry").length === 1');
+    await page.evaluate(`(() => {
+      const selects = document.querySelectorAll('.run-history-filters select');
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+      setter.call(selects[0], 'failed'); selects[0].dispatchEvent(new Event('change', { bubbles: true }));
+      setter.call(selects[1], 'cyberark-conjur-v9/conjur'); selects[1].dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await waitJS(page, 'combined history filters', 'document.querySelectorAll(".run-history-entry").length === 0 && document.body.innerText.includes("No retained runs match these filters")');
+    assert.equal(await page.evaluate('document.querySelector(".output-grid")?.textContent.includes("alice")'), true);
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
+    await capture('history-filters-mobile');
+    const filteredGeometry = await page.evaluate(`(() => ({
+      fits: document.documentElement.scrollWidth <= innerWidth,
+      overflow: Array.from(document.querySelectorAll('main *')).filter((node) => node.getBoundingClientRect().right > innerWidth)
+        .slice(0, 12).map((node) => ({ tag: node.tagName, className: node.className, width: node.getBoundingClientRect().width, right: node.getBoundingClientRect().right })),
+    }))()`);
+    assert.equal(filteredGeometry.fits, true, 'history filters must fit at 320px: ' + JSON.stringify(filteredGeometry.overflow));
+    await clickButton(page, 'Clear filters');
+    await waitJS(page, 'cleared history search', 'document.querySelector(".run-history-filters input") === document.activeElement && document.querySelectorAll(".run-history-entry").length > 0');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
     await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
 
     stage('lost run-start acknowledgement recovers through history without replay');

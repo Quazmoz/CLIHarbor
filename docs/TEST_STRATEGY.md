@@ -321,6 +321,20 @@ Empty-result regressions distinguish empty JSON objects/arrays, nested empty col
 
 ## 10. Redaction tests
 
+`ResultExport.test.tsx` checks the local report shape, run provenance, absent
+versus empty values, Unicode/CSV quoting, formula protection in names and values,
+URL cleanup, safe filenames and browser failure recovery. Output acceptance
+blocks export for incomplete/non-zero/parser-rejected/truncated results and
+empty filters. The production Chrome suite downloads field reports from both
+Tasks and History and verifies their contents, run ID, filtering and 320 px
+layout without another process execution.
+
+`RunsPage.test.tsx` covers combined multi-term metadata search, pack/tool scope,
+all outcome groups, non-zero exit classification, counts, clear/focus, refresh
+and eviction, and preserved selected evidence. It asserts filtering performs
+no extra API reads and never searches the selected raw output. Chrome checks
+combined history controls and narrow layout against real retained runs.
+
 Prove secrets are absent—not merely hidden—from future input diagnostics, invocation previews, logs, errors, run metadata, stdout/stderr persistence, structured output, and diagnostic bundles.
 
 Current tests already cover local pack path redaction, secret-output metadata constraints, and discovery probe failures not echoing captured output.

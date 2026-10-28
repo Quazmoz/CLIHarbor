@@ -181,6 +181,20 @@ Current structured JSON contracts are deliberately narrow:
 
 Raw process state/stdout/stderr remain authoritative evidence.
 
+Explicit browser JSON/CSV field exports reuse only the successful formatted
+view, including its bounds and reviewed-parser rejection rules. The allowlisted
+report contains a run ID and displayed field/value pairs (CSV also records
+presence); it excludes raw streams, request values, argv, executable paths and
+browser credentials. CSV quotes delimiters and neutralizes formula-like cells,
+including dangerous field names. Truncated generic previews cannot be exported
+as complete results. Reports download locally only on an operator click and
+remain operational data to review before sharing, not sanitized support
+diagnostics or execution authority. There is no report import or auto-upload.
+
+Run-history search/filtering reads the existing metadata list only. Queries and
+filters remain transient browser memory and do not trigger output retrieval,
+task execution, storage writes, or new backend authority.
+
 ### SI-8 — Pack trust is explicit
 
 Schema validation does not make a pack trusted.

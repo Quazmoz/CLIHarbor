@@ -92,6 +92,10 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
   const [listLoading, setListLoading] = useState(true);
   const [listFailure, setListFailure] = useState<AppErrorDetail | null>(null);
   const [listRefresh, setListRefresh] = useState(0);
+  const [query, setQuery] = useState('');
+  const [outcome, setOutcome] = useState('all');
+  const [toolFilter, setToolFilter] = useState('all');
+  const searchRef = useRef<HTMLInputElement>(null);
   const [selectedRunID, setSelectedRunID] = useState<string | null>(requestedRun?.runId ?? null);
   const [seenRequest, setSeenRequest] = useState(requestedRun);
   const [detail, setDetail] = useState<RunSnapshot | null>(null);
@@ -236,6 +240,28 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
     stderr: decodeRunOutput(detail, 'stderr.chunk'),
   }, [detail]);
 
+  // Keep an evicted CLI selectable until the operator clears its filter.
+  const historyTools = [...new Set([
+    ...summaries.map((run) => run.packId + '/' + run.toolId),
+    ...(toolFilter === 'all' ? [] : [toolFilter]),
+  ])].sort();
+  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const visibleRuns = summaries.filter((run) => {
+    const tone = runOutcomeTone(run.status, run.exitCode);
+    if (outcome !== 'all' && tone !== outcome) return false;
+    if (toolFilter !== 'all' && run.packId + '/' + run.toolId !== toolFilter) return false;
+    const task = tasks.find((task) => task.packId === run.packId && task.commandId === run.commandId);
+    const text = [task?.name, task?.packName, run.packId, run.commandId, run.toolId,
+      run.toolVersion, run.runId, statusText(run.status, run.exitCode)].join(' ').toLocaleLowerCase();
+    return terms.every((term) => text.includes(term));
+  });
+  const clearFilters = () => {
+    setQuery('');
+    setOutcome('all');
+    setToolFilter('all');
+    searchRef.current?.focus();
+  };
+
   return (
     <section className="runs-page" aria-labelledby="runs-heading">
       <div className="route-heading route-heading--actions">
@@ -262,6 +288,41 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
             <span className="summary-meta">{summaries.length} retained</span>
           </div>
 
+          <div className="run-history-filters">
+            <label className="structured-result-control">
+              <span>Search runs</span>
+              <input ref={searchRef} type="search" value={query} maxLength={256}
+                placeholder="Task, CLI, run ID, or outcome"
+                onChange={(event) => setQuery(event.target.value)} />
+            </label>
+            <div className="run-history-filter-selects">
+              <label className="structured-result-control">
+                <span>Outcome</span>
+                <select value={outcome} onChange={(event) => setOutcome(event.target.value)}>
+                  <option value="all">All outcomes</option>
+                  <option value="running">Running</option>
+                  <option value="succeeded">Succeeded</option>
+                  <option value="failed">Failed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="timed-out">Timed out</option>
+                </select>
+              </label>
+              <label className="structured-result-control">
+                <span>CLI</span>
+                <select value={toolFilter} onChange={(event) => setToolFilter(event.target.value)}>
+                  <option value="all">All CLIs</option>
+                  {historyTools.map((tool) => (
+                    <option key={tool} value={tool}>{tool}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="panel-heading-row">
+              <span className="summary-meta" role="status">{visibleRuns.length} of {summaries.length} runs</span>
+              <button type="button" className="link-button" disabled={!query && outcome === 'all' && toolFilter === 'all'} onClick={clearFilters}>Clear filters</button>
+            </div>
+          </div>
+
           {listFailure !== null && <FailureNotice failure={listFailure} />}
           {listLoading && summaries.length === 0 && <p role="status">Loading retained runs…</p>}
 
@@ -279,7 +340,7 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
 
           {summaries.length > 0 && (
             <ol className="run-history-list">
-              {summaries.map((summary) => (
+              {visibleRuns.map((summary) => (
                 <li key={summary.runId}>
                   <button
                     type="button"
@@ -304,6 +365,9 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
                 </li>
               ))}
             </ol>
+          )}
+          {summaries.length > 0 && visibleRuns.length === 0 && (
+            <p className="empty-state">No retained runs match these filters. Clear filters to see all retained runs.</p>
           )}
         </article>
 
@@ -338,6 +402,9 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
               </div>
 
               {detailFailure !== null && <FailureNotice failure={detailFailure} />}
+              {selectedSummary && !visibleRuns.some((run) => run.runId === selectedRunID) && (
+                <p>The selected run is outside the current list filters.</p>
+              )}
               {detailLoading && detail === null && <p role="status">Loading run evidence…</p>}
 
               {detail !== null && (
@@ -375,6 +442,7 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
                     <p className="parser-warning" role="status">Structured result validation failed. Inspect raw output for the original evidence.</p>
                   )}
                   <OutputExplorer key={detail.runId}
+                    runId={detail.runId}
                     stdout={output.stdout} stderr={output.stderr}
                     structured={detail.structured} status={detail.status} exitCode={detail.exitCode}
                     rawOutput={<div className="output-grid">
