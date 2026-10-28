@@ -236,6 +236,61 @@ test('Conjur overview invalidates a changed ready CLI and ignores late supersede
   expect(screen.getAllByText('Not available')).toHaveLength(2);
 });
 
+test('Conjur overview re-reads an externally changed target on return without discovery drift', async () => {
+  const pending: Array<{ resolve: (response: Response) => void; signal?: AbortSignal | null }> = [];
+  vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
+    pending.push({ resolve, signal: init?.signal });
+    init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+  })));
+  const ready: ToolDiagnostic = {
+    packId: platform.packId, packName: 'Conjur', packVersion: '1.0',
+    toolId: platform.toolId, status: 'ready', version: '9.3.1',
+  };
+  const reply = (url: string, account = 'conjur') => new Response(JSON.stringify({
+    available: true, packId: platform.packId, toolId: platform.toolId,
+    state: 'idle', total: 0, processed: 0, inspected: 0, findings: [], failures: [],
+    target: { applianceUrl: url, account },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const view = render(<PlatformPage platform={platform} tasks={tasks} tools={[ready]}
+    onOpenFeature={vi.fn()} onOpenDiagnostics={vi.fn()} onOpenTask={vi.fn()} />);
+  await waitFor(() => expect(pending).toHaveLength(1));
+  await act(async () => { pending[0].resolve(reply('https://old.example.test', 'old')); });
+  expect(screen.getByText('https://old.example.test')).toBeInTheDocument();
+
+  // `conjur init` rewrote ~/.conjurrc in a terminal; tool metadata is unchanged.
+  act(() => { window.dispatchEvent(new Event('focus')); });
+  await waitFor(() => expect(pending).toHaveLength(2));
+  await act(async () => { pending[1].resolve(reply('https://new.example.test', 'new')); });
+  expect(screen.getByText('https://new.example.test')).toBeInTheDocument();
+  expect(screen.getByText('new')).toBeInTheDocument();
+  expect(screen.queryByText('https://old.example.test')).not.toBeInTheDocument();
+
+  // A superseded refresh resolving late cannot restore its older target.
+  act(() => { window.dispatchEvent(new Event('focus')); });
+  act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+  await waitFor(() => expect(pending).toHaveLength(4));
+  expect(pending[2].signal?.aborted).toBe(true);
+  await act(async () => { pending[3].resolve(reply('https://new.example.test', 'new')); });
+  await act(async () => { pending[2].resolve(reply('https://stale.example.test', 'stale')); });
+  expect(screen.queryByText('https://stale.example.test')).not.toBeInTheDocument();
+  expect(screen.getByText('https://new.example.test')).toBeInTheDocument();
+
+  // A failed refresh fails closed instead of keeping the last known target.
+  act(() => { window.dispatchEvent(new Event('focus')); });
+  await waitFor(() => expect(pending).toHaveLength(5));
+  await act(async () => { pending[4].resolve(new Response('{}', { status: 500 })); });
+  expect(screen.queryByText('https://new.example.test')).not.toBeInTheDocument();
+  expect(screen.getAllByText('Not available')).toHaveLength(2);
+
+  // Unmount aborts the in-flight read and stops listening for returns.
+  act(() => { window.dispatchEvent(new Event('focus')); });
+  await waitFor(() => expect(pending).toHaveLength(6));
+  view.unmount();
+  expect(pending[5].signal?.aborted).toBe(true);
+  window.dispatchEvent(new Event('focus'));
+  expect(pending).toHaveLength(6);
+});
+
 test('Conjur migration draft identifiers are discarded when the vendor context changes', () => {
   const tool: ToolDiagnostic = {
     packId: platform.packId, packName: 'Conjur', packVersion: '1.0',

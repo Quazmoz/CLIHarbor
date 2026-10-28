@@ -66,6 +66,18 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
   // Never render an environment snapshot obtained under a different platform or
   // discovery state, even for the frame before an effect processes new props.
   const target = targetSnapshot?.discoveryKey === discoveryKey ? targetSnapshot : null;
+  // The vendor CLI can rewrite ~/.conjurrc without changing discovery, e.g. while
+  // the operator is in a terminal. Re-read the backend's target on return.
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    const returned = () => { if (document.visibilityState === 'visible') setRefresh((value) => value + 1); };
+    window.addEventListener('focus', returned);
+    document.addEventListener('visibilitychange', returned);
+    return () => {
+      window.removeEventListener('focus', returned);
+      document.removeEventListener('visibilitychange', returned);
+    };
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
     void fetchSecretAudit(controller.signal).then((audit) => {
@@ -77,7 +89,7 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
       }
     }).catch(() => { if (!controller.signal.aborted) setTargetSnapshot(null); });
     return () => controller.abort();
-  }, [platform.packId, platform.toolId, discoveryKey]);
+  }, [platform.packId, platform.toolId, discoveryKey, refresh]);
 
   const ready = platform.ready && (tool === undefined || tool.status === 'ready');
   const hasFeature = (id: PlatformFeatureID) => platform.features.some((feature) => feature.id === id);
