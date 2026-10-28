@@ -111,7 +111,8 @@ func TestDraftPackGeneratesDiscoveryOnlyDraft(t *testing.T) {
 func TestParseSubcommandCandidatesDropsUnsafeOrOversizedSummaries(t *testing.T) {
 	helpText := "Commands:\n" +
 		"  safe      Short safe summary\n" +
-		"  escaped   \x1b[31mterminal control\n" +
+		"  escaped   \x1b]0;title\aterminal control\n" + // OSC is not stripped like colour
+
 		"  huge      " + strings.Repeat("x", maxDraftSummaryRunes+1) + "\n"
 
 	candidates := parseSubcommandCandidates(helpText)
@@ -149,6 +150,13 @@ func TestParseSubcommandCandidatesAcceptsCommonHelpLayouts(t *testing.T) {
 	got := parseSubcommands(helpText)
 	if want := []string{"auth", "create", "init"}; strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("subcommands = %v, want %v", got, want)
+	}
+
+	// Coloured help, raw or after capture-help turned ESC into U+FFFD, behind a BOM.
+	colored := "\ufeff\x1b[1mCOMMANDS\x1b[0m\n  \x1b[32mget\x1b[0m:   Get things\n  \uFFFD[32mlist\uFFFD[0m    List things\n"
+	candidates := parseSubcommandCandidates(colored)
+	if len(candidates) != 2 || candidates[0] != (draftSubcommandCandidate{Name: "get", Summary: "Get things"}) || candidates[1].Name != "list" {
+		t.Fatalf("colored candidates = %#v", candidates)
 	}
 }
 

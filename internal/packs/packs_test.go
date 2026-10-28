@@ -187,6 +187,11 @@ func TestParseRejectsInvalidPacks(t *testing.T) {
 			code: ErrUnsafeExecutable,
 		},
 		{
+			name: "launcher executable",
+			data: strings.Replace(minimalPack, "[fixture-cli]", "[env]", 1),
+			code: ErrUnsafeExecutable,
+		},
+		{
 			name: "script executable",
 			data: strings.Replace(minimalPack, "[fixture-cli]", "[operator.cmd]", 1),
 			code: ErrUnsafeExecutable,
@@ -237,6 +242,14 @@ func TestParseSchemaErrorNamesDeepestFailure(t *testing.T) {
 	}
 	if validation.Path != "commands.status.argv.0.flag" || !strings.Contains(validation.Message, "got string, want object") {
 		t.Fatalf("schema error = %q at %q, want flag type detail", validation.Message, validation.Path)
+	}
+}
+
+func TestParseModelErrorNamesCause(t *testing.T) {
+	data := strings.Replace(minimalPack, "executableNames: [fixture-cli]\n", "executableNames: [fixture-cli]\n      versionConstraint: \">=1.0.0\"\n", 1)
+	_, err := Parse([]byte(data))
+	if err == nil || !strings.Contains(err.Error(), "versionConstraint requires versionProbe") {
+		t.Fatalf("Parse() error = %v, want the model invariant named", err)
 	}
 }
 

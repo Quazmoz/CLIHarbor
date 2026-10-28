@@ -188,7 +188,8 @@ func ValidatePackPaths(options Options, paths []string) error {
 		pack := loadedPack.Pack
 		if _, err := fmt.Fprintf(
 			options.Out,
-			"- %s %s (%s): %d tool(s), %d command(s), source %s\n",
+			// Quoted: validate runs before lint would flag control characters.
+			"- %s %s %q: %d tool(s), %d command(s), source %q\n",
 			pack.Metadata.ID,
 			pack.Metadata.Version,
 			pack.Metadata.Name,

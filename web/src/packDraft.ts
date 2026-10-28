@@ -21,7 +21,8 @@ export interface DraftIssue {
 const idPattern = /^[a-z][a-z0-9-]{0,62}$/;
 const executablePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const platformOrder: DraftPlatform[] = ['windows', 'linux', 'darwin'];
-const unsafeExecutable = /^(?:(?:cmd|powershell|pwsh|bash|sh|zsh|fish|python\d*|node|ruby|perl|java|cscript|wscript|mshta|rundll32|regsvr32)(?:\.exe|\.com)?|.*\.(?:bat|cmd|ps1|sh|py|js))$/i;
+// Mirrors isForbiddenExecutable in internal/packs/validation.go (plus java and script extensions).
+const unsafeExecutable = /^(?:(?:cmd|powershell|pwsh|bash|sh|zsh|fish|dash|ksh|csh|tcsh|python\d*|pythonw|py|node|ruby|perl|java|osascript|cscript|wscript|mshta|rundll32|regsvr32|wsl|env|xargs|sudo|doas|runas|busybox)(?:\.exe|\.com)?|.*\.(?:bat|cmd|ps1|psm1|vbs|vbe|jse|wsf|wsh|hta|sh|py|js))$/i;
 function hasControlCharacters(value: string): boolean {
   return [...value].some((character) => {
     const code = character.codePointAt(0) ?? 0;

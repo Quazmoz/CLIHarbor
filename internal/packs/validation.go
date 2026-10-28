@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unicode"
 	"unicode/utf8"
 
 	semver "github.com/Masterminds/semver/v3"
@@ -153,7 +154,15 @@ func Parse(data []byte) (Pack, error) {
 	decoder.DisallowUnknownFields()
 	var pack Pack
 	if err := decoder.Decode(&pack); err != nil {
-		return zero, validationError(ErrSchema, "", "pack could not be decoded into the v1 model")
+		// Model invariants (e.g. Tool.UnmarshalJSON) can echo pack text, so
+		// neutralize control characters before the reason reaches a terminal.
+		reason := strings.Map(func(r rune) rune {
+			if unicode.IsControl(r) {
+				return utf8.RuneError
+			}
+			return r
+		}, err.Error())
+		return zero, validationError(ErrSchema, "", "pack could not be decoded into the v1 model: "+reason)
 	}
 	if err := validateSemantics(pack); err != nil {
 		return zero, err
@@ -874,7 +883,13 @@ func isForbiddenExecutable(name string) bool {
 	}
 	base := strings.TrimSuffix(lower, ".exe")
 	switch base {
-	case "cmd", "powershell", "pwsh", "sh", "bash", "zsh", "fish", "wscript", "cscript", "python", "python3", "node", "ruby", "perl", "mshta", "rundll32", "regsvr32", "wsl":
+	// ponytail: denylist, so it only covers common names; an allowlist or
+	// publisher identity check is the upgrade if packs come from untrusted authors.
+	case "cmd", "powershell", "pwsh", "sh", "bash", "zsh", "fish", "dash", "ksh", "csh", "tcsh",
+		"wscript", "cscript", "python", "python3", "pythonw", "py", "node", "ruby", "perl", "osascript",
+		"mshta", "rundll32", "regsvr32", "wsl",
+		// Launchers run an arbitrary program named in argv.
+		"env", "xargs", "sudo", "doas", "runas", "busybox":
 		return true
 	default:
 		return false

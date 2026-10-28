@@ -24,7 +24,7 @@ describe('pack authoring preview', () => {
 
   test('rejects duplicate pack identity, invalid paths, scripts and interpreter basenames', () => {
     expect(preparePackDraft(valid, ['acme-cli']).yaml).toBeNull();
-    for (const executable of ['../acme', 'C:\\tools\\acme.exe', 'cmd.exe', 'pwsh', 'bash', 'thing.ps1']) {
+    for (const executable of ['../acme', 'C:\\tools\\acme.exe', 'cmd.exe', 'pwsh', 'bash', 'thing.ps1', 'env', 'wsl.exe', 'sudo', 'helper.vbs']) {
       const result = preparePackDraft({ ...valid, executable });
       expect(result.yaml, executable).toBeNull();
       expect(result.issues.some((issue) => issue.field === 'executable')).toBe(true);

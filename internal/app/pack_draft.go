@@ -25,6 +25,9 @@ var (
 	draftSummarySeparator  = regexp.MustCompile("(?: {2,}|\\t+)")
 	// Matches "Commands:", "CORE COMMANDS", "Basic Commands (Beginner):", etc.
 	draftCommandsHeader = regexp.MustCompile(`^(?:[a-z][a-z -]* )?(?:sub)?commands(?: \([^)]*\))?:?$`)
+	// ANSI CSI sequences (colour, bold), raw or with ESC already replaced by
+	// U+FFFD as capture-help's sanitizer does.
+	draftANSISequence = regexp.MustCompile(`(?:\x1b|\x{FFFD})\[[0-9;?]*[ -/]*[@-~]`)
 )
 
 type draftSubcommandCandidate struct {
@@ -229,6 +232,7 @@ func readDraftHelpFile(path string) (string, error) {
 // only and never become executable commands without an explicit human-authored
 // pack edit.
 func parseSubcommandCandidates(helpText string) []draftSubcommandCandidate {
+	helpText = draftANSISequence.ReplaceAllString(strings.TrimPrefix(helpText, "\ufeff"), "")
 	summaries := make(map[string]string)
 	inSection := false
 	for _, rawLine := range strings.Split(helpText, "\n") {

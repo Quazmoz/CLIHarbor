@@ -279,7 +279,8 @@ Security contract:
 - only string, integer, or enum inputs are accepted;
 - optional positional values require `omitWhenEmpty: true`;
 - string/enum positional values must declare `disallowLeadingDash: true`;
-- enum positional values beginning with `-` are invalid.
+- enum positional values beginning with `-` are invalid;
+- the planner refuses any rendered positional value beginning with `-`, including a negative integer (`-1` would otherwise reach the CLI as a short flag).
 
 A positional value cannot introduce a new subcommand or flag boundary because its location is fixed by the trusted pack and leading-dash values are refused.
 
@@ -462,7 +463,7 @@ cliharbor pack test --cases <cases.json> <pack.yaml-or-directory>
 
 This is intentional: CLIHarbor does not infer command trees or security-sensitive argv from an executable name.
 
-`pack capture-help` executes only one explicitly trusted fixed `helpProbes` entry through the existing bounded discovery/identity/read-only-probe path and writes sanitized no-clobber authoring evidence. `pack draft` reads previously captured UTF-8 help text from an explicitly selected regular file using a bounded 1 MiB open-file snapshot, rejecting symlinks, unexpected file replacement, and detected modification during reading. It emits a valid discovery-only scaffold with `commands: {}`. Candidate subcommand names plus short descriptions may be preserved as YAML comments only; summaries containing terminal control characters or exceeding the bounded summary length are omitted. Neither command can convert captured text into executable argv, probes, or task authority.
+`pack capture-help` executes only one explicitly trusted fixed `helpProbes` entry through the existing bounded discovery/identity/read-only-probe path and writes sanitized no-clobber authoring evidence. `pack draft` reads previously captured UTF-8 help text from an explicitly selected regular file using a bounded 1 MiB open-file snapshot, rejecting symlinks, unexpected file replacement, and detected modification during reading. It emits a valid discovery-only scaffold with `commands: {}`. A leading UTF-8 BOM and ANSI colour/style (CSI) sequences are removed before parsing. Candidate subcommand names plus short descriptions may be preserved as YAML comments only; summaries still containing terminal control characters or exceeding the bounded summary length are omitted. Neither command can convert captured text into executable argv, probes, or task authority.
 
 `pack init` and `pack draft` default `runtime.platforms` to the current operating system when no `--platform` is given. Every authoring command rejects a pack ID reserved by a built-in pack (unless the file is byte-identical to the embedded pack), the same rule `serve` and `doctor` enforce, so a pack that validates also loads.
 

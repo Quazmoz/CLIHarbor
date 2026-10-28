@@ -127,7 +127,9 @@ func TestValidatePackPathsCombinesFilesAndDirectoriesWithoutExecution(t *testing
 	if err := os.WriteFile(first, []byte(strings.Replace(minimalPackForAuthoring, "id: first", "id: alpha", 1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(second, []byte(strings.Replace(minimalPackForAuthoring, "id: first", "id: beta", 1)), 0o600); err != nil {
+	// Pack text is untrusted until linted; an OSC 52 name must not reach the terminal raw.
+	beta := strings.NewReplacer("id: first", "id: beta", "name: First", `name: "x\e]52;c;aGk=\a"`).Replace(minimalPackForAuthoring)
+	if err := os.WriteFile(second, []byte(beta), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -140,11 +142,14 @@ func TestValidatePackPathsCombinesFilesAndDirectoriesWithoutExecution(t *testing
 		"Validated 2 pack(s)",
 		"no executable, version probe, help probe, or task was run",
 		"- alpha 0.1.0",
-		"- beta 0.1.0",
+		`- beta 0.1.0 "x\x1b]52;c;aGk=\a"`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("validation output %q missing %q", text, want)
 		}
+	}
+	if strings.ContainsAny(text, "\x1b\a") {
+		t.Fatalf("validation output %q contains raw terminal control characters", text)
 	}
 }
 

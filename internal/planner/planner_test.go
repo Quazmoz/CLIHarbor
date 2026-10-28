@@ -271,6 +271,23 @@ func TestPlanCloneDoesNotShareArgSlice(t *testing.T) {
 	}
 }
 
+func TestBuildRejectsNegativeIntegerPositional(t *testing.T) {
+	registry, snapshot := plannerFixture(t, packs.RiskRead, false, false)
+	build := func(page int) (Plan, error) {
+		return Build(registry, snapshot, Request{PackID: "demo", CommandID: "inspect", Values: map[string]json.RawMessage{
+			"mode": rawJSON(t, "safe"),
+			"page": rawJSON(t, page),
+		}})
+	}
+	// "-1" would reach the vendor CLI as an undeclared short flag (git log -1, ls -1).
+	_, err := build(-1)
+	assertPlannerCode(t, err, ErrInvalidInput)
+	plan, err := build(2)
+	if err != nil || plan.Args[len(plan.Args)-1] != "2" {
+		t.Fatalf("Build(page=2) = %#v, %v", plan.Args, err)
+	}
+}
+
 func plannerFixture(t *testing.T, risk packs.Risk, requiresAuth, secret bool) (*packs.Registry, discovery.Snapshot) {
 	t.Helper()
 	min := int64(0)
@@ -294,6 +311,7 @@ func plannerFixture(t *testing.T, risk packs.Risk, requiresAuth, secret bool) (*
 					{ID: "limit", Type: packs.InputInteger, Label: "Limit", Validation: packs.InputValidation{Min: &min, Max: &max}},
 					{ID: "verbose", Type: packs.InputBoolean, Label: "Verbose"},
 					{ID: "mode", Type: packs.InputEnum, Label: "Mode", Required: true, Validation: packs.InputValidation{Enum: []string{"safe", "detailed"}, DisallowLeadingDash: true}},
+					{ID: "page", Type: packs.InputInteger, Label: "Page"},
 				},
 				Argv: []packs.Argument{
 					{Literal: "inspect"},
@@ -301,6 +319,7 @@ func plannerFixture(t *testing.T, risk packs.Risk, requiresAuth, secret bool) (*
 					{Flag: &packs.FlagArgument{Name: "--limit", ValueFrom: "limit", OmitWhenEmpty: true}},
 					{Switch: &packs.SwitchArgument{Name: "--verbose", EnabledFrom: "verbose"}},
 					{Map: &packs.MapArgument{ValueFrom: "mode", Values: map[string]string{"safe": "--safe-mode", "detailed": "--detailed-mode"}}},
+					{Positional: &packs.PositionalArgument{ValueFrom: "page", OmitWhenEmpty: true}},
 				},
 				Output:       packs.Output{Mode: packs.OutputRaw, Sensitivity: packs.Sensitivity{ContainsSecrets: secret}},
 				Requirements: packs.Requirements{RequiresAuth: requiresAuth},

@@ -205,6 +205,10 @@ func Build(registry *packs.Registry, snapshot discovery.Snapshot, request Reques
 			if !current.present || (argument.Positional.OmitWhenEmpty && current.argument == "") {
 				continue
 			}
+			// Covers negative integers too, which disallowLeadingDash cannot.
+			if strings.HasPrefix(current.argument, "-") {
+				return zero, &Error{Code: ErrInvalidInput, Path: "values." + argument.Positional.ValueFrom, Message: "positional value cannot begin with a dash"}
+			}
 			args = append(args, current.argument)
 		case argument.Switch != nil:
 			current, ok := values[argument.Switch.EnabledFrom]
