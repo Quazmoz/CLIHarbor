@@ -10,6 +10,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -234,6 +235,87 @@ func TestRunHTTPAPIExecutesTypedFixtureThroughAuthenticatedBoundary(t *testing.T
 	wantStdout := "inspect:--query\x1f" + query + "\x1f--limit\x1f0\x1f--verbose\x1f--safe-mode"
 	if string(stdout) != wantStdout {
 		t.Fatalf("stdout = %q, want %q", stdout, wantStdout)
+	}
+
+	postJSON := func(path string, payload map[string]any) (int, []byte) {
+		t.Helper()
+		body, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request, err := http.NewRequest(http.MethodPost, baseURL+path, bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Origin", baseURL)
+		request.Header.Set("X-CLIHarbor-CSRF", status.CSRFToken)
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		raw, err := io.ReadAll(response.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return response.StatusCode, raw
+	}
+
+	// The preview shows exactly the argv that ran, without executable path authority.
+	validValues := map[string]any{"query": query, "limit": 0, "verbose": true, "mode": "safe"}
+	code, raw := postJSON("/api/v1/runs/preview", map[string]any{"packId": "integration", "commandId": "inspect", "values": validValues})
+	var preview runs.Preview
+	if err := json.Unmarshal(raw, &preview); err != nil || code != http.StatusOK {
+		t.Fatalf("preview = HTTP %d %s (%v)", code, raw, err)
+	}
+	// The fixture is this test binary, so the pack declares its helper-process literals first.
+	want := []string{"-test.run=^TestExecutionFixtureProcess$", "--", "--cliharbor-phase4b-fixture", "inspect", "--query", query, "--limit", "0", "--verbose", "--safe-mode"}
+	if !reflect.DeepEqual(preview.Args, want) {
+		t.Fatalf("preview args = %q, want the executed argv %q", preview.Args, want)
+	}
+	if bytes.Contains(raw, []byte(fixture.executable)) {
+		t.Fatalf("preview leaked executable path: %s", raw)
+	}
+
+	// Undeclared commands, inputs, flag-shaped values and off-enum choices are
+	// refused at the API boundary and never become runs.
+	withValue := func(key string, value any) map[string]any {
+		values := map[string]any{"query": "ok", "mode": "safe"}
+		values[key] = value
+		return values
+	}
+	for _, rejected := range []struct {
+		name    string
+		command string
+		values  map[string]any
+		field   string
+	}{
+		{"undeclared command", "rm", map[string]any{}, "commandId"},
+		{"undeclared input", "inspect", withValue("exec", "rm -rf /"), "values.exec"},
+		{"flag-shaped value", "inspect", withValue("query", "--output=/etc/passwd"), "values.query"},
+		{"off-enum choice", "inspect", withValue("mode", "--detailed-mode --other"), "values.mode"},
+	} {
+		for _, path := range []string{"/api/v1/runs/preview", "/api/v1/runs"} {
+			code, raw := postJSON(path, map[string]any{"packId": "integration", "commandId": rejected.command, "values": rejected.values})
+			if code != http.StatusBadRequest || !bytes.Contains(raw, []byte(`"field":"`+rejected.field+`"`)) {
+				t.Fatalf("%s via %s = HTTP %d %s, want 400 on %s", rejected.name, path, code, raw, rejected.field)
+			}
+		}
+	}
+	listResponse, err := client.Get(baseURL + "/api/v1/runs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var listed struct {
+		Runs []struct {
+			RunID string `json:"runId"`
+		} `json:"runs"`
+	}
+	err = json.NewDecoder(listResponse.Body).Decode(&listed)
+	listResponse.Body.Close()
+	if err != nil || len(listed.Runs) != 1 || listed.Runs[0].RunID != created.RunID {
+		t.Fatalf("retained runs = %+v (%v), want only the accepted run", listed.Runs, err)
 	}
 
 	transport.CloseIdleConnections()
