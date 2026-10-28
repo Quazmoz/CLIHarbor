@@ -430,7 +430,7 @@ func runPackCommand(args []string) error {
 		toolID := flags.String("tool", "", "tool id")
 		executable := flags.String("executable", "", "approved executable basename")
 		var platforms stringList
-		flags.Var(&platforms, "platform", "supported platform: windows, linux, or darwin (repeatable; defaults to windows)")
+		flags.Var(&platforms, "platform", "supported platform: windows, linux, or darwin (repeatable; defaults to the current OS)")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
@@ -454,7 +454,7 @@ func runPackCommand(args []string) error {
 		executable := flags.String("executable", "", "approved executable basename")
 		helpFile := flags.String("help-file", "", "captured vendor --help output to draft reviewable commands from")
 		var platforms stringList
-		flags.Var(&platforms, "platform", "supported platform: windows, linux, or darwin (repeatable; defaults to windows)")
+		flags.Var(&platforms, "platform", "supported platform: windows, linux, or darwin (repeatable; defaults to the current OS)")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}

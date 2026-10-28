@@ -12,6 +12,34 @@ import (
 	packassets "github.com/Quazmoz/CLIHarbor/packs"
 )
 
+// rejectReservedPackIDs stops explicit local packs from reusing a built-in
+// pack ID unless they are byte-identical to the embedded pack. Authoring
+// commands share it so a pack that validates also loads.
+func rejectReservedPackIDs(builtins *packs.Registry, loaded []packs.LoadedPack) error {
+	for _, item := range loaded {
+		if item.Source.Kind != packs.SourceExplicitLocal {
+			continue
+		}
+		if builtin, reserved := builtins.FindPack(item.Pack.Metadata.ID); reserved && item.ContentSHA256 != builtin.ContentSHA256 {
+			return fmt.Errorf("explicit pack id %q is reserved for a built-in CLI (only the exact embedded pack is permitted)", item.Pack.Metadata.ID)
+		}
+	}
+	return nil
+}
+
+// rejectReservedNewPackID is the scaffold-time form: new content can never
+// match an embedded pack, so a built-in ID alone is a conflict.
+func rejectReservedNewPackID(id string) error {
+	builtins, err := packs.NewLoader().LoadBuiltins(packassets.Builtins())
+	if err != nil {
+		return fmt.Errorf("load built-in pack identities: %w", err)
+	}
+	if _, reserved := builtins.FindPack(id); reserved {
+		return fmt.Errorf("pack id %q is reserved for a built-in CLI; choose a unique ID", id)
+	}
+	return nil
+}
+
 type RuntimeState struct {
 	Registry      *packs.Registry
 	Discovery     discovery.Snapshot
@@ -47,12 +75,9 @@ func prepareRuntime(ctx context.Context, options Options) (RuntimeState, error) 
 		loaded = append(loaded, registry.Packs()...)
 	}
 
-	for _, item := range loaded {
-		if item.Source.Kind == packs.SourceExplicitLocal && !options.allowReservedPackFixturesForTest {
-			if builtin, reserved := builtinRegistry.FindPack(item.Pack.Metadata.ID); reserved &&
-				item.ContentSHA256 != builtin.ContentSHA256 {
-				return RuntimeState{}, fmt.Errorf("explicit pack id %q is reserved for a built-in CLI (only the exact embedded pack is permitted)", item.Pack.Metadata.ID)
-			}
+	if !options.allowReservedPackFixturesForTest {
+		if err := rejectReservedPackIDs(builtinRegistry, loaded); err != nil {
+			return RuntimeState{}, err
 		}
 	}
 

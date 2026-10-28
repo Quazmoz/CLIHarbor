@@ -23,6 +23,8 @@ const (
 var (
 	draftSubcommandPattern = regexp.MustCompile("^[a-z][a-z0-9-]{0,62}$")
 	draftSummarySeparator  = regexp.MustCompile("(?: {2,}|\\t+)")
+	// Matches "Commands:", "CORE COMMANDS", "Basic Commands (Beginner):", etc.
+	draftCommandsHeader = regexp.MustCompile(`^(?:[a-z][a-z -]* )?(?:sub)?commands(?: \([^)]*\))?:?$`)
 )
 
 type draftSubcommandCandidate struct {
@@ -67,6 +69,9 @@ func DraftPack(options Options, config PackDraftConfig) error {
 	if err != nil {
 		return err
 	}
+	if err := rejectReservedNewPackID(config.ID); err != nil {
+		return err
+	}
 
 	helpText, err := readDraftHelpFile(config.HelpPath)
 	if err != nil {
@@ -74,7 +79,7 @@ func DraftPack(options Options, config PackDraftConfig) error {
 	}
 	candidates := parseSubcommandCandidates(helpText)
 	if len(candidates) == 0 {
-		return fmt.Errorf("pack draft found no candidate subcommands in %s; capture the vendor's command listing with its --help output", filepath.Base(config.HelpPath))
+		return fmt.Errorf("pack draft found no candidate subcommands in %s; capture the vendor's command listing with its --help output, or use 'cliharbor pack init' for a CLI without subcommands", filepath.Base(config.HelpPath))
 	}
 	if len(candidates) > maxDraftSubcommands {
 		return fmt.Errorf("pack draft detected %d subcommands, exceeding the %d-command limit; draft focused packs from narrower help output", len(candidates), maxDraftSubcommands)
@@ -249,7 +254,7 @@ func parseSubcommandCandidates(helpText string) []draftSubcommandCandidate {
 		if len(fields) == 0 {
 			continue
 		}
-		name := strings.SplitN(fields[0], ",", 2)[0]
+		name := strings.TrimSuffix(strings.SplitN(fields[0], ",", 2)[0], ":")
 		if !draftSubcommandPattern.MatchString(name) {
 			continue
 		}
@@ -297,17 +302,5 @@ func parseDraftSummary(trimmed string) string {
 }
 
 func isCommandsHeader(trimmed string) bool {
-	if !strings.HasSuffix(trimmed, ":") {
-		switch strings.ToLower(trimmed) {
-		case "commands", "subcommands":
-			return true
-		default:
-			return false
-		}
-	}
-	lower := strings.TrimSpace(strings.ToLower(strings.TrimSuffix(trimmed, ":")))
-	if lower == "commands" || lower == "subcommands" {
-		return true
-	}
-	return strings.HasSuffix(lower, " commands")
+	return draftCommandsHeader.MatchString(strings.ToLower(trimmed))
 }

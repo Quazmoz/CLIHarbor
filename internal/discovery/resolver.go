@@ -166,6 +166,9 @@ func (r *Resolver) resolveTool(ctx context.Context, state ToolState, tool packs.
 		if !constraint.Check(version) {
 			state.Status = StatusIncompatible
 			state.Message = "detected version does not satisfy the pack constraint"
+			if version.Prerelease() != "" {
+				state.Message += "; it has a pre-release tag, which a constraint matches only when its bounds carry one (for example >=1.2.0-0 <2.0.0-0)"
+			}
 			return state, nil
 		}
 	}

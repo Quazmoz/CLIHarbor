@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -80,8 +81,8 @@ func TestInitPackDefaultsToWindowsAndDoesNotOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pack.Runtime.Platforms) != 1 || pack.Runtime.Platforms[0] != "windows" {
-		t.Fatalf("platforms = %#v, want [windows]", pack.Runtime.Platforms)
+	if len(pack.Runtime.Platforms) != 1 || pack.Runtime.Platforms[0] != runtime.GOOS {
+		t.Fatalf("platforms = %#v, want [%s]", pack.Runtime.Platforms, runtime.GOOS)
 	}
 
 	if err := InitPack(Options{Out: &out}, config); err == nil {
@@ -198,3 +199,23 @@ runtime:
       executableNames: [first-cli]
 commands: {}
 `
+
+func TestPackAuthoringRejectsReservedBuiltinIDsBeforeServe(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	config := PackInitConfig{ID: "github-cli", Name: "Mine", ToolID: "gh", ExecutableName: "gh", OutputPath: filepath.Join(dir, "gh.yaml")}
+	if err := InitPack(Options{Out: &bytes.Buffer{}}, config); err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Fatalf("InitPack() error = %v, want reserved-ID rejection", err)
+	}
+
+	// A hand-written pack reusing the ID must fail validation, not first at serve.
+	path := filepath.Join(dir, "custom.yaml")
+	data := "apiVersion: cliharbor.dev/v1\nkind: CliPack\nmetadata:\n  id: github-cli\n  name: Mine\n  version: 0.1.0\nruntime:\n  platforms: [" + runtime.GOOS + "]\n  tools:\n    gh:\n      executableNames: [gh]\ncommands: {}\n"
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidatePackPaths(Options{Out: &bytes.Buffer{}}, []string{path}); err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Fatalf("ValidatePackPaths() error = %v, want reserved-ID rejection", err)
+	}
+}

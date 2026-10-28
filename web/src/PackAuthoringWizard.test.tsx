@@ -22,6 +22,14 @@ describe('custom CLI pack wizard', () => {
     expect(screen.getByText(/explicitly load the reviewed pack/i)).toBeInTheDocument();
   });
 
+  test('defaults the draft platform to the host operating system', () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    render(<PackAuthoringWizard registeredPackIds={[]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Start authoring' }));
+    expect(screen.getByRole('checkbox', { name: 'macOS' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Windows' })).not.toBeChecked();
+  });
+
   test('blocks an existing pack and disallowed executable names', () => {
     render(<PackAuthoringWizard registeredPackIds={['acme-cli']} />);
     fireEvent.click(screen.getByRole('button', { name: 'Start authoring' }));

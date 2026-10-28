@@ -141,8 +141,12 @@ func Parse(data []byte) (Pack, error) {
 		return zero, fmt.Errorf("initialize pack schema: %w", err)
 	}
 	if err := schema.Validate(instance); err != nil {
-		path := schemaErrorPath(err)
-		return zero, validationError(ErrSchema, path, "pack does not match the v1 schema")
+		path, reason := schemaErrorDetail(err)
+		message := "pack does not match the v1 schema"
+		if reason != "" {
+			message += ": " + reason
+		}
+		return zero, validationError(ErrSchema, path, message)
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(jsonBytes))
@@ -302,27 +306,32 @@ func normalizeYAML(value any) (any, error) {
 	}
 }
 
-func schemaErrorPath(err error) string {
+// schemaErrorDetail reports the deepest failing leaf, which for a oneOf
+// also picks the branch the author most likely meant.
+func schemaErrorDetail(err error) (string, string) {
 	var validation *jsonschema.ValidationError
 	if !errors.As(err, &validation) {
-		return ""
+		return "", ""
 	}
-	return validationErrorPath(validation)
+	leaf := deepestSchemaError(validation)
+	reason := ""
+	if output := leaf.BasicOutput(); output.Error != nil {
+		reason = output.Error.String()
+	}
+	return strings.Join(leaf.InstanceLocation, "."), reason
 }
 
-func validationErrorPath(validation *jsonschema.ValidationError) string {
-	if validation == nil {
-		return ""
+func deepestSchemaError(validation *jsonschema.ValidationError) *jsonschema.ValidationError {
+	if len(validation.Causes) == 0 {
+		return validation
 	}
-	if len(validation.InstanceLocation) > 0 {
-		return strings.Join(validation.InstanceLocation, ".")
-	}
+	var deepest *jsonschema.ValidationError
 	for _, cause := range validation.Causes {
-		if path := validationErrorPath(cause); path != "" {
-			return path
+		if candidate := deepestSchemaError(cause); deepest == nil || len(candidate.InstanceLocation) > len(deepest.InstanceLocation) {
+			deepest = candidate
 		}
 	}
-	return ""
+	return deepest
 }
 
 func validateSemantics(pack Pack) error {

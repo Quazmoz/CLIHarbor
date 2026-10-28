@@ -1,13 +1,21 @@
 import { useState } from 'react';
 import { preparePackDraft, type DraftFields, type DraftPlatform } from './packDraft';
 
-const defaultDraft: DraftFields = {
+// The workspace is served on loopback, so the browser's OS is the host OS.
+// Defaulting to it keeps a fresh draft from being unsupported-platform there.
+function hostPlatform(): DraftPlatform {
+  const agent = navigator.userAgent;
+  if (/Windows/i.test(agent)) return 'windows';
+  if (/Mac|darwin/i.test(agent)) return 'darwin';
+  return /Linux|X11/i.test(agent) ? 'linux' : 'windows';
+}
+const defaultDraft = (): DraftFields => ({
   packId: '',
   name: '',
   toolId: '',
   executable: '',
-  platforms: ['windows'],
-};
+  platforms: [hostPlatform()],
+});
 const allPlatforms: { id: DraftPlatform; label: string }[] = [
   { id: 'windows', label: 'Windows' },
   { id: 'linux', label: 'Linux' },

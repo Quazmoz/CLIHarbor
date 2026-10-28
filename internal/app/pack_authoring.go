@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
+	packassets "github.com/Quazmoz/CLIHarbor/packs"
 	"gopkg.in/yaml.v3"
 )
 
@@ -65,6 +67,9 @@ func InitPack(options Options, config PackInitConfig) error {
 
 	platforms, err := normalizePackPlatforms(config.Platforms)
 	if err != nil {
+		return err
+	}
+	if err := rejectReservedNewPackID(config.ID); err != nil {
 		return err
 	}
 
@@ -145,7 +150,7 @@ func InitPack(options Options, config PackInitConfig) error {
 
 func normalizePackPlatforms(values []string) ([]string, error) {
 	if len(values) == 0 {
-		return []string{"windows"}, nil
+		values = []string{runtime.GOOS}
 	}
 	seen := make(map[string]struct{}, len(values))
 	platforms := make([]string, 0, len(values))
@@ -242,6 +247,14 @@ func loadPackAuthoringRegistry(paths []string) (*packs.Registry, error) {
 	}
 	if len(loaded) == 0 {
 		return nil, fmt.Errorf("no pack YAML files found")
+	}
+
+	builtins, err := loader.LoadBuiltins(packassets.Builtins())
+	if err != nil {
+		return nil, fmt.Errorf("load built-in pack identities: %w", err)
+	}
+	if err := rejectReservedPackIDs(builtins, loaded); err != nil {
+		return nil, err
 	}
 
 	registry, err := packs.NewRegistry(loaded)

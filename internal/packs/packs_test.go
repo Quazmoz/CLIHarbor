@@ -226,6 +226,20 @@ func TestParseRejectsInvalidPacks(t *testing.T) {
 	}
 }
 
+func TestParseSchemaErrorNamesDeepestFailure(t *testing.T) {
+	// A flag written as a scalar fails every argv oneOf branch; the author
+	// needs the branch that got furthest, not just the command name.
+	data := strings.Replace(minimalPack, "      - literal: status\n", "      - flag: --status\n", 1)
+	_, err := Parse([]byte(data))
+	var validation *ValidationError
+	if !errors.As(err, &validation) || validation.Code != ErrSchema {
+		t.Fatalf("Parse() error = %v, want schema error", err)
+	}
+	if validation.Path != "commands.status.argv.0.flag" || !strings.Contains(validation.Message, "got string, want object") {
+		t.Fatalf("schema error = %q at %q, want flag type detail", validation.Message, validation.Path)
+	}
+}
+
 func TestParseStructuredOutputContract(t *testing.T) {
 	good := strings.Replace(minimalPack, "      mode: raw", `      mode: json
       renderer: cards

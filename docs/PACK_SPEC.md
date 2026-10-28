@@ -154,6 +154,7 @@ Rules:
 - raw probe output is not retained in normal discovery state;
 - `semver-text` must resolve exactly one distinct semantic version;
 - a version constraint requires a version probe;
+- a pre-release or vendor-tagged version (for example `1.7.1-apple`) satisfies a constraint only when its bounds carry a pre-release, so write `>=1.6.0-0 <2.0.0-0` to accept such builds; doctor names this cause when it rejects one;
 - an incompatible version cannot become executable authority.
 
 Do not guess vendor version commands. Establish them from authoritative documentation/source or reviewed Phase 0 evidence.
@@ -462,6 +463,8 @@ cliharbor pack test --cases <cases.json> <pack.yaml-or-directory>
 This is intentional: CLIHarbor does not infer command trees or security-sensitive argv from an executable name.
 
 `pack capture-help` executes only one explicitly trusted fixed `helpProbes` entry through the existing bounded discovery/identity/read-only-probe path and writes sanitized no-clobber authoring evidence. `pack draft` reads previously captured UTF-8 help text from an explicitly selected regular file using a bounded 1 MiB open-file snapshot, rejecting symlinks, unexpected file replacement, and detected modification during reading. It emits a valid discovery-only scaffold with `commands: {}`. Candidate subcommand names plus short descriptions may be preserved as YAML comments only; summaries containing terminal control characters or exceeding the bounded summary length are omitted. Neither command can convert captured text into executable argv, probes, or task authority.
+
+`pack init` and `pack draft` default `runtime.platforms` to the current operating system when no `--platform` is given. Every authoring command rejects a pack ID reserved by a built-in pack (unless the file is byte-identical to the embedded pack), the same rule `serve` and `doctor` enforce, so a pack that validates also loads.
 
 `pack validate` runs only the hardened pack loader and cross-pack registry construction. It does **not** discover tools or execute version probes, help probes, or tasks. Multiple supplied files/directories are validated together so duplicate IDs and other registry conflicts fail closed before runtime.
 

@@ -133,6 +133,25 @@ func TestParseSubcommandCandidatesDropsUnsafeOrOversizedSummaries(t *testing.T) 
 	}
 }
 
+func TestParseSubcommandCandidatesAcceptsCommonHelpLayouts(t *testing.T) {
+	helpText := "CORE COMMANDS\n" + // gh
+		"  auth:          Authenticate gh\n" +
+		"\n" +
+		"Basic Commands (Beginner):\n" + // kubectl
+		"  create          Create a resource\n" +
+		"\n" +
+		"Main commands:\n" + // terraform
+		"  init          Prepare your working directory\n" +
+		"\n" +
+		"Use \"x options\" for a list of global command-line options (applies to all commands).\n" +
+		"  ignored       Not under a header\n"
+
+	got := parseSubcommands(helpText)
+	if want := []string{"auth", "create", "init"}; strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("subcommands = %v, want %v", got, want)
+	}
+}
+
 func TestReadDraftHelpFileUsesBoundedRegularFileSnapshot(t *testing.T) {
 	root := t.TempDir()
 	for _, test := range []struct {

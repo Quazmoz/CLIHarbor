@@ -166,6 +166,24 @@ func TestDiscoverMarksIncompatibleVersion(t *testing.T) {
 	}
 }
 
+func TestDiscoverExplainsPrereleaseConstraintMismatch(t *testing.T) {
+	dir := t.TempDir()
+	createExecutable(t, dir, platformExecutableName("fixture"))
+	resolver := NewResolver(Config{GOOS: runtime.GOOS, PathValue: dir, ProbeRunner: &fakeProbeRunner{output: "fixture-1.7.1-apple"}})
+	snapshot, err := resolver.Discover(context.Background(), testRegistry(t, packs.Tool{
+		ExecutableNames:   []string{"fixture"},
+		VersionProbe:      &packs.VersionProbe{Parser: packs.VersionParserSemverText},
+		VersionConstraint: ">=1.6.0 <2.0.0",
+	}), nil)
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+	state, _ := snapshot.Find(ToolRef{PackID: "demo", ToolID: "fixture"})
+	if state.Status != StatusIncompatible || !strings.Contains(state.Message, "pre-release") {
+		t.Fatalf("state = %#v, want incompatible with pre-release hint", state)
+	}
+}
+
 func TestDiscoverAcceptsVendorReleaseCommitSuffixWithinConstraint(t *testing.T) {
 	dir := t.TempDir()
 	createExecutable(t, dir, platformExecutableName("fixture"))
