@@ -61,8 +61,8 @@ test('Conjur permission actions prioritize reviewed grant, revoke and inspection
   fireEvent.click(grant);
   fireEvent.click(revoke);
   fireEvent.click(change);
-  expect(onOpenTask).toHaveBeenNthCalledWith(1, 'cyberark-conjur-v9/secret-permit');
-  expect(onOpenTask).toHaveBeenNthCalledWith(2, 'cyberark-conjur-v9/secret-deny');
+  expect(onOpenTask).not.toHaveBeenCalled();
+  expect(screen.getByRole('combobox', { name: 'Conjur action' })).toHaveValue('secret-deny');
   expect(onOpenFeature).toHaveBeenCalledExactlyOnceWith('access-explorer');
 });
 
@@ -110,8 +110,8 @@ test('Conjur workflows only show backend-advertised tasks owned by this platform
   expect(within(toolbox).queryByRole('button', { name: 'Browse secret variable IDs' })).not.toBeInTheDocument();
   expect(within(toolbox).queryByRole('button', { name: /All approved tasks|Diagnostics/ })).not.toBeInTheDocument();
   fireEvent.click(within(toolbox).getByRole('button', { name: 'List policies' }));
-  expect(onOpenTask).toHaveBeenNthCalledWith(1, 'cyberark-conjur-v9/role-members');
-  expect(onOpenTask).toHaveBeenNthCalledWith(2, 'cyberark-conjur-v9/list-policies');
+  expect(onOpenTask).not.toHaveBeenCalled();
+  expect(screen.getByRole('combobox', { name: 'Conjur action' })).toHaveValue('list-policies');
 });
 
 // The Conjur workspace polls the secret-audit snapshot on mount; declare it so
@@ -177,7 +177,8 @@ test('Conjur homepage reveals migration playbooks without dispatching any CLI op
   const stage = screen.getByRole('region', { name: '1 · Inventory the source' });
   expect(within(stage).getByRole('button', { name: 'Variable IDs' })).toBeEnabled();
   fireEvent.click(within(stage).getByRole('button', { name: 'Variable IDs' }));
-  expect(onOpenTask).toHaveBeenCalledExactlyOnceWith('cyberark-conjur-v9/list-variables', undefined);
+  expect(onOpenTask).not.toHaveBeenCalled();
+  expect(screen.getByRole('combobox', { name: 'Conjur action' })).toHaveValue('list-variables');
 });
 
 test('Conjur overview invalidates a changed ready CLI and ignores late superseded audit responses', async () => {
@@ -336,8 +337,6 @@ test('Conjur Secrets tab exposes all four guarded CRUD operations', () => {
   fireEvent.click(within(crud).getByRole('button', { name: 'Browse variables' }));
   fireEvent.click(within(crud).getByRole('button', { name: 'Update value' }));
   fireEvent.click(screen.getByRole('button', { name: 'Delete variable' }));
-  expect(onOpenTask.mock.calls.map(([id]) => id)).toEqual([
-    'cyberark-conjur-v9/list-variables', 'cyberark-conjur-v9/secret-set-value',
-    'cyberark-conjur-v9/secret-delete',
-  ]);
+  expect(onOpenTask).not.toHaveBeenCalled();
+  expect(screen.getByRole('combobox', { name: 'Conjur action' })).toHaveValue('secret-delete');
 });

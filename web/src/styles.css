@@ -3139,7 +3139,7 @@ footer p {
 .conjur-env-warn::before { background: var(--warning); }
 .conjur-env .conjur-env-actions { margin-left: auto; }
 .conjur-setup-notice { margin: 0.75rem 0 0; }
-.output-tabs.conjur-tabs { margin-top: 1.25rem; padding: 0; background: none; border-radius: 0; }
+.output-tabs.conjur-tabs { flex-wrap: wrap; margin-top: 1.25rem; padding: 0; background: none; border-radius: 0; }
 .conjur-panel { padding-top: 1.25rem; }
 .conjur-panel-heading h3 { margin: 0 0 0.25rem; color: var(--text-strong); font-size: 1.05rem; }
 .conjur-panel-heading p { margin: 0 0 1rem; color: var(--text-muted); max-width: 72ch; }
@@ -3175,6 +3175,14 @@ footer p {
 .conjur-create-form p { margin: 0; overflow-wrap: anywhere; }
 .conjur-create-form pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .conjur-create-form .mutation-approval { display: grid; gap: 0.6rem; min-width: 0; }
+.conjur-action-selector { margin: 1rem 0; }
+.conjur-task-panel { margin-top: 1rem; padding: 1rem; border: 1px solid var(--border-strong); border-radius: var(--radius-md); min-width: 0; }
+.conjur-task-panel h3 { scroll-margin-top: 7rem; }
+.conjur-task-panel fieldset { border: 0; padding: 0; margin: 1rem 0; min-width: 0; }
+.conjur-task-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; }
+.conjur-task-panel select, .conjur-action-selector select { width: 100%; min-width: 0; }
+.conjur-task-panel .invocation-preview { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .conjur-task-fields { grid-template-columns: minmax(0, 1fr); } }
 .conjur-create-form .conjur-create-consent { display: flex; gap: 0.65rem; align-items: flex-start; }
 .conjur-create-form .conjur-create-consent input { flex-shrink: 0; margin-top: 0.3rem; }
 

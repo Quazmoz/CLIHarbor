@@ -386,6 +386,13 @@ Downloading the Conjur executable still does not configure a Conjur appliance/ac
 
 ## Coverage and exclusions
 
+Dedicated UI actions now stay within the Conjur workspace (ADR-041). Grant and
+revoke shortcuts reuse the guided permission manager, including from Access
+Explorer and create-secret recovery. Other catalog actions have local typed
+forms, inventory/enum selectors and the existing backend approval protocol.
+There is no pack/schema or command-authority expansion. LDAP names, service IDs
+and issuer IDs without an approved enumeration contract remain explicit inputs.
+
 The pinned CyberArk `conjur-cli-go` v9.3.1 provides commands beyond the **24 reviewed CLIHarbor pack tasks**. CLIHarbor supports resource/role queries, bounded inventory, whoami, LDAP group/user mapping list/show/create/delete, issuer delete, fixed-template secret variable operations, and the dedicated Conjur sign-in and secret-value audit. This is not full upstream CLI parity.
 
 The following capabilities remain outside the browser's present authorization and data-sensitivity contract, pending separate per-command qualification:

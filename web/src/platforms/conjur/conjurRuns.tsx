@@ -1,6 +1,6 @@
 // Shared plumbing for guided Conjur workflows: approved-run completion, plan
 // validation and the read-only inventory that feeds role/policy dropdowns.
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Task } from '../../api/tasks';
 import {
   createRun, decodeRunOutput, fetchRun, subscribeRunEvents,
@@ -16,10 +16,11 @@ const MAX_RECONCILE_MS = 10_000;
 export const PRIVILEGES = ['read, execute', 'read', 'execute', 'update', 'read, execute, update'];
 export const ROLE_KINDS = ['policy', 'group', 'host', 'layer', 'user'] as const;
 export const GRANTEE_KINDS = ['group', 'host', 'layer', 'user'] as const;
-export type InventoryKind = typeof ROLE_KINDS[number] | 'variable';
+export type InventoryKind = typeof ROLE_KINDS[number] | 'variable' | 'webservice' | 'host_factory';
 export type Inventory = Partial<Record<InventoryKind, string[]>>;
 const KIND_LABELS: Record<InventoryKind, string> = {
   policy: 'Policies', group: 'Groups', host: 'Hosts', layer: 'Layers', user: 'Users', variable: 'Variables',
+  webservice: 'Web services', host_factory: 'Host factories',
 };
 const PAGE = 100;
 // ponytail: first 500 IDs per kind in Conjur's order; add list-resources --search typeahead if tenants outgrow it.
@@ -124,20 +125,24 @@ export function useConjurInventory(csrfToken: string, account: string | undefine
   const available = Boolean(account) && tasks.some((task) => task.packId === PACK && task.toolId === TOOL &&
     task.commandId === 'list-resources' && task.risk === 'read');
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!available || !account || loading.current) return;
     loading.current = true;
+    setInventory(null);
     setState('loading');
     try {
       const loaded: Inventory = {};
-      for (const kind of kinds) loaded[kind] = await listIDs(csrfToken, account, kind);
+      for (const kind of kinds) {
+        if (!alive.current) return;
+        loaded[kind] = await listIDs(csrfToken, account, kind);
+      }
       if (alive.current) { setInventory(loaded); setState('idle'); }
     } catch {
       if (alive.current) setState('failed');
     } finally {
       loading.current = false;
     }
-  }
+  }, [available, account, csrfToken, kinds]);
   return { inventory, state, load };
 }
 
@@ -152,7 +157,7 @@ export function InventoryStatus({ state, disabled, onRetry }: {
   );
   if (state !== 'failed') return null;
   return (
-    <p role="alert">Conjur policies and roles could not be listed, so the dropdowns are unavailable.{' '}
+    <p role="alert">Conjur dropdown options could not be listed. Retry or enter an ID manually.{' '}
       <button type="button" className="secondary-button" disabled={disabled} onClick={onRetry}>Retry</button>
     </p>
   );
@@ -177,8 +182,12 @@ export function matchingPlans(steps: RunPreview[], account: string | undefined, 
   const fields = steps[0]?.context?.fields;
   return steps.length > 0 && steps.every((step) => step.risk === 'change' && step.approval?.mode === 'explicit' &&
       step.context !== undefined && JSON.stringify(step.context.fields) === JSON.stringify(fields)) &&
-    fields?.find((field) => field.label === 'Account')?.value === account &&
-    fields?.find((field) => field.label === 'Endpoint')?.value.replace(/\/$/u, '') === endpoint?.replace(/\/$/u, '');
+    matchingContext(steps[0], account, endpoint);
+}
+
+export function matchingContext(plan: RunPreview | undefined, account: string | undefined, endpoint: string | undefined): boolean {
+  return Boolean(account && endpoint && plan?.context?.fields.find((field) => field.label === 'Account')?.value === account &&
+    plan.context.fields.find((field) => field.label === 'Endpoint')?.value.replace(/\/$/u, '') === endpoint.replace(/\/$/u, ''));
 }
 
 /** Later approvals must remain valid while the first run completes. */

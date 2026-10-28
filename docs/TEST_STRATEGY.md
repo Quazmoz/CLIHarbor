@@ -375,6 +375,20 @@ Once run APIs exist prove read tasks do not require destructive confirmation, de
 
 ## 14. UI and accessibility tests
 
+Conjur dedicated acceptance covers Access Explorer → permission manager →
+approved grant → authoritative readback without visiting `/tasks`. The browser
+fixture uses the actual embedded Conjur pack with a test-only Linux platform
+extension and a credential-free CLI implementation for inventory and policy
+updates, so real planner, approval, process and audit boundaries are exercised.
+Desktop and 320px checks cover permission review and update-value selectors.
+`ConjurDedicatedJourney.test.tsx` checks route continuity and exact grant inputs;
+`ConjurTaskPanel.test.tsx` checks write-only value clearing, duplicate prevention,
+typed destructive confirmation, context mismatch, approval invalidation and
+LDAP multi-selection. Existing permission tests keep granting-policy scoping,
+partial-result recovery, busy guards and delayed reads. Generic task tests also
+qualify the extracted shared typed controls. No real Conjur tenant or Windows
+runtime acceptance is implied by these fixtures.
+
 `WorkspaceImprovements.test.tsx` covers top-bar activity/history links, failure-preserving metadata, guided-request lifetime after unmount, mutation navigation/Back/unload warnings, one-use session requests under StrictMode, and single-flight missing-tool refresh with catalog publication. `api/toolRefresh.test.ts` checks identity-only CSRF requests and rejects unknown, inconsistent or unsafe response metadata. Existing guided mutation tests assert per-step confirmed/unconfirmed recovery without secret values. These complement the backend refresh/activation guards; native Windows discovery acceptance is still required.
 
 Delayed-response regressions hold secret creation at its existence check and each dependent mutation, hold permission mutation and its authoritative refresh, and hold Terraform dry-run/execute requests. They verify busy text/spinners, disabled repeated submissions, no secret in progress messages, partial-failure recovery and terminal cleanup. Command Builder tests cover pending start and validation (including form submission while validation is pending); production browser coverage checks the running notice, disabled action, 1366/320 px geometry, reduced motion, and cancellation cleanup.

@@ -1,3 +1,4 @@
+import { InputControl, initialValues, requestValues, taskInputDOMID, type FormValue } from './taskForm';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { clientError, normalizeError, invalidInputError, type AppErrorDetail } from './api/errors';
 import { fetchRuntimeStatus, type RuntimeStatus } from './api/status';
@@ -25,6 +26,7 @@ import { ExecutionContext, OperationResult } from './OperationResult';
 import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
 import { SecretAuditPage } from './platforms/conjur/SecretAuditPage';
 import { ConjurAccessExplorer } from './platforms/conjur/ConjurAccessExplorer';
+import type { ConjurTaskRequest } from './platforms/conjur/ConjurWorkspace';
 import { OverviewPage } from './OverviewPage';
 import { PlatformPage, PlatformsPage } from './PlatformPage';
 import { dedicatedSignIn } from './platforms';
@@ -35,7 +37,7 @@ import { TaskSwitcher } from './TaskSwitcher';
 import { ToolExplorer } from './ToolExplorer';
 import { ExecutionPreflight } from './ExecutionPreflight';
 import { OutputExplorer } from './OutputExplorer';
-import { inputGuidance, runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
+import { runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
   loadTaskPreferences,
   recordRecentTask,
@@ -50,7 +52,6 @@ type ViewState =
   | { kind: 'ready'; status: RuntimeStatus; tasks: Task[]; tools: ToolDiagnostic[] }
   | { kind: 'error'; failure: AppErrorDetail };
 
-type FormValue = string | boolean | string[];
 type StreamState = 'connecting' | 'connected' | 'stopped' | 'idle';
 
 interface RetryRun {
@@ -86,61 +87,6 @@ async function loadRuntime(
     fetchPlatforms(signal).catch((error: unknown) => { if (isAbort(error)) throw error; return []; }),
   ]);
   return { status, tasks, tools, platforms };
-}
-
-function initialValues(task: Task | undefined): Record<string, FormValue> {
-  const values: Record<string, FormValue> = {};
-  for (const input of task?.inputs ?? []) {
-    switch (input.type) {
-      case 'boolean':
-        values[input.id] = false;
-        break;
-      case 'multiselect':
-        values[input.id] = [];
-        break;
-      case 'enum':
-        values[input.id] = input.required ? (input.validation?.enum?.[0] ?? '') : '';
-        break;
-      default:
-        values[input.id] = '';
-    }
-  }
-  return values;
-}
-
-function requestValues(task: Task, formValues: Record<string, FormValue>): Record<string, unknown> {
-  const values: Record<string, unknown> = {};
-  for (const input of task.inputs) {
-    const value = formValues[input.id];
-    if (input.type === 'boolean') {
-      values[input.id] = value === true;
-      continue;
-    }
-    if (input.type === 'multiselect') {
-      const selected = Array.isArray(value) ? value : [];
-      if (input.required || selected.length > 0) {
-        values[input.id] = selected;
-      }
-      continue;
-    }
-    const text = typeof value === 'string' ? value : '';
-    if (input.required && (text.length === 0 || (input.type === 'integer' && text.trim().length === 0))) {
-      throw invalidInputError(`values.${input.id}`);
-    }
-    if (!input.required && text.length === 0) {
-      continue;
-    }
-    if (input.type === 'integer') {
-      const integer = Number(text);
-      if (!Number.isSafeInteger(integer)) {
-        throw invalidInputError(`values.${input.id}`);
-      }
-      values[input.id] = integer;
-    } else {
-      values[input.id] = text;
-    }
-  }
-  return values;
 }
 
 function cloneFormValues(values: Record<string, FormValue>): Record<string, FormValue> {
@@ -242,10 +188,6 @@ function completeRun(current: RunView, complete: RunComplete): RunView {
   };
 }
 
-function taskInputDOMID(inputID: string): string {
-  return `task-input-${inputID}`;
-}
-
 function fieldFailureFor(input: TaskInput, failure: AppErrorDetail | null): AppErrorDetail | undefined {
   return failure?.field === `values.${input.id}` ? failure : undefined;
 }
@@ -334,146 +276,6 @@ function FailureNotice({ title, failure }: { title: string; failure: AppErrorDet
   );
 }
 
-function FieldFailure({ id, failure }: { id: string; failure: AppErrorDetail }) {
-  return (
-    <p id={id} className="field-error" role="alert">
-      {failure.message} {failure.remediation}
-    </p>
-  );
-}
-
-function FieldLabel({ input }: { input: TaskInput }) {
-  return (
-    <span className="field-label-text">
-      <span>{input.label}</span>
-      <span className="field-requirement" aria-hidden="true">
-        {input.required ? 'Required' : 'Optional'}
-      </span>
-    </span>
-  );
-}
-
-function InputControl({
-  input,
-  value,
-  onChange,
-  error,
-}: {
-  input: TaskInput;
-  value: FormValue | undefined;
-  onChange: (value: FormValue) => void;
-  error?: AppErrorDetail;
-}) {
-  const validation = input.validation ?? {};
-  const domID = taskInputDOMID(input.id);
-  const errorID = `${domID}-error`;
-  const helpID = `${domID}-help`;
-  const guidance = inputGuidance(input);
-  const describedBy = [guidance === undefined ? undefined : helpID, error === undefined ? undefined : errorID]
-    .filter((id): id is string => id !== undefined)
-    .join(' ') || undefined;
-
-  if (input.type === 'boolean') {
-    return (
-      <div className="field-group">
-        <label className="checkbox-row">
-          <input
-            id={domID}
-            type="checkbox"
-            checked={value === true}
-            aria-invalid={error === undefined ? undefined : true}
-            aria-describedby={describedBy}
-            onChange={(event) => onChange(event.target.checked)}
-          />
-          <FieldLabel input={input} />
-        </label>
-        {guidance && <p id={helpID} className="field-help">{guidance}</p>}
-        {error && <FieldFailure id={errorID} failure={error} />}
-      </div>
-    );
-  }
-
-  if (input.type === 'enum') {
-    return (
-      <div className="field-group">
-        <label className="field">
-          <FieldLabel input={input} />
-          <select
-            id={domID}
-            required={input.required}
-            value={typeof value === 'string' ? value : ''}
-            aria-invalid={error === undefined ? undefined : true}
-            aria-describedby={describedBy}
-            onChange={(event) => onChange(event.target.value)}
-          >
-            {!input.required && <option value="">Not set</option>}
-            {(validation.enum ?? []).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        {guidance && <p id={helpID} className="field-help">{guidance}</p>}
-        {error && <FieldFailure id={errorID} failure={error} />}
-      </div>
-    );
-  }
-
-  if (input.type === 'multiselect') {
-    const selected = Array.isArray(value) ? value : [];
-    return (
-      <div className="field-group">
-        <label className="field">
-          <FieldLabel input={input} />
-          <select
-            id={domID}
-            multiple
-            required={input.required}
-            value={selected}
-            aria-invalid={error === undefined ? undefined : true}
-            aria-describedby={describedBy}
-            onChange={(event) => onChange(Array.from(event.target.selectedOptions, (option) => option.value))}
-          >
-            {(validation.enum ?? []).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        {guidance && <p id={helpID} className="field-help">{guidance}</p>}
-        {error && <FieldFailure id={errorID} failure={error} />}
-      </div>
-    );
-  }
-
-  return (
-    <div className="field-group">
-      <label className="field">
-        <FieldLabel input={input} />
-        <input
-          id={domID}
-          type={input.type === 'integer' ? 'number' : input.type === 'secret' ? 'password' : 'text'}
-          autoComplete={input.type === 'secret' ? 'off' : undefined}
-          spellCheck={input.type === 'secret' ? false : undefined}
-          required={input.required}
-          value={typeof value === 'string' ? value : ''}
-          step={input.type === 'integer' ? 1 : undefined}
-          min={input.type === 'integer' ? validation.min : undefined}
-          max={input.type === 'integer' ? validation.max : undefined}
-          minLength={input.type === 'string' || input.type === 'secret' ? validation.minLength : undefined}
-          maxLength={input.type === 'string' || input.type === 'secret' ? validation.maxLength : undefined}
-          aria-invalid={error === undefined ? undefined : true}
-          aria-describedby={describedBy}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </label>
-      {guidance && <p id={helpID} className="field-help">{guidance}</p>}
-      {error && <FieldFailure id={errorID} failure={error} />}
-    </div>
-  );
-}
 
 function structuredFailureMessage(code: StructuredErrorCode | undefined): string {
   switch (code) {
@@ -623,6 +425,9 @@ export function App() {
 }
 
 function WorkspaceApp() {
+  const [conjurTaskRequest, setConjurTaskRequest] = useState<ConjurTaskRequest>();
+  const conjurTaskSequence = useRef(0);
+  const clearConjurTaskRequest = useCallback(() => setConjurTaskRequest(undefined), []);
   const { confirmNavigation, local } = useOperationActivity();
   const lastPathRef = useRef(window.location.pathname + window.location.search);
   const [requestedRun, setRequestedRun] = useState<{ runId: string } | undefined>(() => {
@@ -1594,11 +1399,9 @@ function WorkspaceApp() {
               if (starting || activeRunID !== null) return;
               const currentPlatform = platforms.find((p) => p.id === 'conjur');
               if (!currentPlatform) return;
-              setTaskToolFilter(taskToolKey(currentPlatform));
               setSelectedPlatformID('conjur');
-              focusConfigurationRef.current = true;
-              selectTaskByKey(currentPlatform.packId + '/' + commandId, state.tasks, prefill);
-              navigate('tasks', 'conjur');
+              setConjurTaskRequest({ commandId, values: prefill, sequence: ++conjurTaskSequence.current });
+              navigate('platform', 'conjur');
             }}
           />
         )}
@@ -1630,6 +1433,8 @@ function WorkspaceApp() {
             tasks={state.tasks}
             tools={state.tools}
             csrfToken={state.status.csrfToken}
+            requestedTask={activePlatform.id === 'conjur' ? conjurTaskRequest : undefined}
+            onTaskRequestHandled={clearConjurTaskRequest}
             onOpenRuns={() => navigate('runs')}
             onOpenFeature={openPlatformFeature}
             onOpenDiagnostics={() => navigate('diagnostics')}

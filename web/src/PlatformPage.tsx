@@ -1,7 +1,7 @@
 import type { Platform, PlatformFeatureID } from './api/platforms';
 import type { ToolDiagnostic } from './api/tools';
 import type { Task } from './api/tasks';
-import { dedicatedWorkspace } from './platforms';
+import { dedicatedWorkspace, type PlatformWorkspaceProps } from './platforms';
 import { ToolIcon } from './ToolIcon';
 
 interface PlatformPageProps {
@@ -13,6 +13,8 @@ interface PlatformPageProps {
   onOpenFeature: (feature: PlatformFeatureID) => void;
   onOpenDiagnostics: () => void;
   onOpenTask: (taskKey: string, prefill?: Record<string, string>) => void;
+  requestedTask?: PlatformWorkspaceProps['requestedTask'];
+  onTaskRequestHandled?: () => void;
 }
 
 const featureDetail: Record<PlatformFeatureID, string> = {
@@ -23,7 +25,7 @@ const featureDetail: Record<PlatformFeatureID, string> = {
 };
 
 /** Home for one dedicated CLI: what CLIHarbor adds on top of the generic workspace. */
-export function PlatformPage({ platform, tasks, tools = [], csrfToken, onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: PlatformPageProps) {
+export function PlatformPage({ platform, tasks, tools = [], csrfToken, onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask, requestedTask, onTaskRequestHandled }: PlatformPageProps) {
   const tool = tools.find((candidate) => candidate.packId === platform.packId && candidate.toolId === platform.toolId);
   const taskCount = tasks.filter((task) => task.packId === platform.packId && task.toolId === platform.toolId).length;
   const Workspace = dedicatedWorkspace[platform.id];
@@ -34,6 +36,7 @@ export function PlatformPage({ platform, tasks, tools = [], csrfToken, onOpenRun
       <p>{platform.summary}</p>
       {Workspace ? (
         <Workspace platform={platform} tasks={tasks} tool={tool} csrfToken={csrfToken} onOpenRuns={onOpenRuns}
+          requestedTask={requestedTask} onTaskRequestHandled={onTaskRequestHandled}
           onOpenFeature={onOpenFeature} onOpenDiagnostics={onOpenDiagnostics} onOpenTask={onOpenTask} />
       ) : (
         <>

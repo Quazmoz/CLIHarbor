@@ -17,6 +17,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
+	builtinpacks "github.com/Quazmoz/CLIHarbor/packs"
 )
 
 const browserE2EEnv = "CLIHARBOR_BROWSER_E2E"
@@ -116,6 +117,39 @@ case "${1:-}" in
       printf 'netrc_path: "%s"\n' "$CLIHARBOR_E2E_CONJUR_NETRC"
     } > "$CONJURRC"
     ;;
+  list)
+    kind=""
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "--kind" ]; then kind="$2"; shift; fi
+      shift
+    done
+    case "$kind" in
+      variable) printf '["engineering:variable:apps/db/password"]\n' ;;
+      policy) printf '["engineering:policy:apps"]\n' ;;
+      group) printf '["engineering:group:operators"]\n' ;;
+      *) printf '[]\n' ;;
+    esac
+    ;;
+  resource)
+    case "${2:-}" in
+      exists) printf '{"exists":true}\n' ;;
+      show)
+        if [ -s "$CLIHARBOR_E2E_CONJUR_POLICY" ]; then
+          printf '{"id":"engineering:variable:apps/db/password","owner":"engineering:policy:apps","policy":"engineering:policy:apps","permissions":[{"role":"engineering:group:operators","privilege":"execute","policy":"engineering:policy:apps"}]}\n'
+        else
+          printf '{"id":"engineering:variable:apps/db/password","owner":"engineering:policy:apps","policy":"engineering:policy:apps","permissions":[]}\n'
+        fi
+        ;;
+      *) exit 2 ;;
+    esac
+    ;;
+  policy)
+    [ "${2:-}" = "update" ] || exit 2
+    [ "${3:-}" = "--branch" ] && [ "${4:-}" = "apps" ] || exit 2
+    [ "${5:-}" = "--file" ] && [ "${6:-}" = "-" ] || exit 2
+    cat > "$CLIHARBOR_E2E_CONJUR_POLICY"
+    printf '[]\n'
+    ;;
   whoami)
     if [ -s "$CLIHARBOR_E2E_CONJUR_NETRC" ] &&
        grep -q 'alice' "$CLIHARBOR_E2E_CONJUR_NETRC" &&
@@ -135,41 +169,8 @@ esac
 		t.Fatal(err)
 	}
 
-	pack := `apiVersion: cliharbor.dev/v1
-kind: CliPack
-metadata:
-  id: cyberark-conjur-v9
-  name: Browser E2E Conjur
-  version: 0.2.0
-runtime:
-  platforms: [linux, darwin]
-  tools:
-    conjur:
-      executableNames: [conjur]
-      versionProbe:
-        args: [--version]
-        parser: semver-text
-        timeoutMillis: 3000
-      versionConstraint: ">=9.3.1-0 <10.0.0-0"
-      sessionCheck:
-        commandId: whoami
-        unauthenticatedStderrContains: "please login again"
-commands:
-  whoami:
-    name: Who am I
-    tool: conjur
-    risk: read
-    argv:
-      - literal: whoami
-      - literal: --output
-      - literal: json
-    output:
-      mode: json
-      renderer: raw
-    requirements:
-      requiresAuth: true
-      authMode: vendor-session
-`
+	pack := strings.Replace(string(builtinpacks.Builtins()["conjur/conjur-v9.yaml"]), "platforms: [windows, darwin]", "platforms: [windows, linux, darwin]", 1)
+
 	packPath := filepath.Join(tempDir, "conjur-browser-e2e.yaml")
 	if err := os.WriteFile(packPath, []byte(pack), 0o600); err != nil {
 		t.Fatal(err)
@@ -183,6 +184,7 @@ commands:
 	fixture.options.ToolOverrides[ref] = conjurPath
 
 	t.Setenv("CONJURRC", conjurrcPath)
+	t.Setenv("CLIHARBOR_E2E_CONJUR_POLICY", filepath.Join(tempDir, "applied-policy.yml"))
 	t.Setenv("CLIHARBOR_E2E_CONJUR_URL", loginServer.URL)
 	t.Setenv("CLIHARBOR_E2E_CONJUR_IDENTITY", identity)
 	t.Setenv("CLIHARBOR_E2E_CONJUR_SECRET", secret)

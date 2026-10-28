@@ -91,7 +91,7 @@ describe('Conjur migration inventory presets', () => {
     fireEvent.click(screen.getByText('Migration playbooks & policy templates'));
     fireEvent.click(screen.getByRole('button', { name: 'Filtered variable inventory' }));
 
-    expect(window.location.pathname).toBe('/tasks');
+    expect(window.location.pathname).toBe('/dedicated/conjur');
     expect(screen.getByRole('combobox', { name: 'Resource kind' })).toHaveValue('variable');
     expect(screen.getByRole('combobox', { name: 'Page size' })).toHaveValue('25');
     expect(fetchMock.mock.calls.some(isRunPost)).toBe(false);

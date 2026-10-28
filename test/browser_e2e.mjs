@@ -384,7 +384,7 @@ class ChromeHarness {
   }
 }
 
-function isRunCreateRequest(params, commandID) {
+function isRunCreateRequest(params, commandID, packID = 'integration') {
   if (params.request?.url === undefined || params.request.url !== new URL('/api/v1/runs', bootstrapURL).href) {
     return false;
   }
@@ -393,7 +393,7 @@ function isRunCreateRequest(params, commandID) {
   }
   try {
     const body = JSON.parse(params.request.postData);
-    return body?.packId === 'integration' && body?.commandId === commandID;
+    return body?.packId === packID && body?.commandId === commandID;
   } catch {
     return false;
   }
@@ -476,7 +476,7 @@ async function setTextInput(page, label, value) {
 
 async function clickButton(page, text) {
   const expression = '(() => {' +
-    'const button = Array.from(document.querySelectorAll("button")).find((element) => element.getClientRects().length > 0 && element.textContent?.trim() === ' + JSON.stringify(text) + ');' +
+    'const button = Array.from(document.querySelectorAll("button")).find((element) => element.getClientRects().length > 0 && (element.getAttribute("aria-label") === ' + JSON.stringify(text) + ' || element.textContent?.trim() === ' + JSON.stringify(text) + '));' +
     'if (!button || button.disabled) return false;' +
     'button.click();' +
     'return true;' +
@@ -784,6 +784,50 @@ async function main() {
     const quickSession = await quickSessionRequest;
     assert.deepEqual(JSON.parse(quickSession.request.postData), { packId: 'cyberark-conjur-v9', commandId: 'whoami', values: {} });
     await waitJS(page, 'quick session re-verified', 'document.body.innerText.includes("Authenticated") && document.querySelector(".cli-sessions:not(.operation-activity) summary").textContent.includes("1 signed in")');
+
+    stage('Conjur permissions stay dedicated with verified dropdowns and approval');
+    await navigate(page, baseURL + '/dedicated/conjur/access-explorer');
+    await waitJS(page, 'dedicated access explorer', 'document.querySelector("#access-heading") !== null');
+    await clickButton(page, 'Grant secret permission · Approval required');
+    await waitJS(page, 'dedicated permission variable options', 'location.pathname === "/dedicated/conjur" && Array.from(document.querySelectorAll("select option")).some((option) => option.value === "value:apps/db/password")');
+    await page.evaluate(`(() => {
+      const select = Array.from(document.querySelectorAll('select')).find((control) => control.closest('label')?.textContent.startsWith('Secret variable ID'));
+      select.value = 'value:apps/db/password'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await clickButton(page, 'Show current permissions');
+    await waitJS(page, 'dedicated grantee options', 'Array.from(document.querySelectorAll("select option")).some((option) => option.value === "group:operators")');
+    await page.evaluate(`(() => {
+      const select = Array.from(document.querySelectorAll('select')).find((control) => control.closest('label')?.textContent.startsWith('Grant access to'));
+      select.value = 'group:operators'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await clickButton(page, 'Review grant');
+    await waitJS(page, 'permission approval in Conjur', 'document.querySelector(".conjur-permissions-form .mutation-approval") !== null');
+    assert.equal(await page.evaluate('location.pathname'), '/dedicated/conjur');
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      await page.evaluate('document.querySelector(".conjur-permissions-form .mutation-approval").scrollIntoView({ block: "center" }); true');
+      await capture('conjur-permission-approval-' + width);
+      assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'Conjur approval must fit at ' + width + 'px: ' + JSON.stringify(await page.evaluate('Array.from(document.querySelectorAll("main *")).filter((element) => element.getClientRects().length > 0 && element.getBoundingClientRect().right > innerWidth).map((element) => ({ tag: element.tagName, class: element.className, text: element.textContent.slice(0, 80), x: element.getBoundingClientRect().x, width: element.getBoundingClientRect().width })).slice(0, 15)')));
+    }
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    await page.evaluate('document.querySelector(".conjur-permissions-form .mutation-approval input[type=checkbox]").click()');
+    const permissionStart = page.waitEvent('Network.requestWillBeSent', (params) => isRunCreateRequest(params, 'secret-permit', 'cyberark-conjur-v9'));
+    await clickButton(page, 'Apply permission change');
+    const permissionRequest = JSON.parse((await permissionStart).request.postData);
+    assert.deepEqual(permissionRequest.values, { 'policy-branch': 'apps', 'variable-id': 'db/password', 'role-kind': 'group', 'role-id': '/operators', privileges: 'read, execute', 'dry-run': false });
+    assert.match(permissionRequest.approval.id, /^[a-f0-9]{32}$/);
+    await waitJS(page, 'permission mutation and authoritative readback', 'document.querySelector(".conjur-permissions-form .operation-result")?.textContent.includes("Permissions updated") && document.querySelector(".conjur-permissions-current table")?.textContent.includes("operators")');
+    assert.equal(await page.evaluate('location.pathname'), '/dedicated/conjur');
+    await clickButton(page, 'Secrets');
+    await waitJS(page, 'secret maintenance ready after permission readback', 'Array.from(document.querySelectorAll("button")).some((button) => button.getAttribute("aria-label") === "Update value" && button.getClientRects().length > 0 && !button.disabled)');
+    await clickButton(page, 'Update value');
+    await waitJS(page, 'dedicated update action', 'document.querySelector(".conjur-task-panel")?.textContent.includes("Set secret value") && document.querySelector(".conjur-task-panel input[type=password]") !== null');
+    assert.equal(await page.evaluate('location.pathname'), '/dedicated/conjur');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
+    await page.evaluate('document.querySelector(".conjur-task-panel input[type=password]").scrollIntoView({ block: "center" }); true');
+    assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'Conjur update selectors must fit at 320px');
+    await capture('conjur-update-320');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
 
     stage('direct run history route');
     await navigate(page, baseURL + '/runs');

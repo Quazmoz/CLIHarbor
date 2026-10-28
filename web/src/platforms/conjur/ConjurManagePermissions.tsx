@@ -5,10 +5,11 @@ import { validConjurID } from './ConjurAccessExplorer';
 import { WorkingStatus } from '../../WorkingStatus';
 import { ExecutionContext, OperationResult, type OperationOutcome } from '../../OperationResult';
 import { useMutationActivity, useMutationPending } from '../../OperationActivity';
+import { ConjurIDSelect } from './ConjurIDSelect';
 import {
   GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, RoleOptions,
   approvalsFresh, completedRun, matchingPlans, runRead, safeMessage, successful,
-  supportedTask, useConjurInventory,
+  splitRole, supportedTask, useConjurInventory,
 } from './conjurRuns';
 
 const INVENTORY_KINDS = ['variable', ...GRANTEE_KINDS] as const;
@@ -57,6 +58,8 @@ interface Props {
   endpoint?: string;
   contextKey: string;
   onOpenRuns?: () => void;
+  initialVariable?: string;
+  initiallyOpen?: boolean;
 }
 
 interface Change {
@@ -68,14 +71,15 @@ interface Change {
   preview: RunPreview;
 }
 
-export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, contextKey, onOpenRuns }: Props) {
+export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, contextKey, onOpenRuns, initialVariable = '', initiallyOpen = false }: Props) {
   const beginMutation = useMutationActivity();
-  const listID = useId();
-  const [open, setOpen] = useState(false);
-  const [variable, setVariable] = useState('');
+  const variableInputID = useId();
+  const [open, setOpen] = useState(initiallyOpen);
+  const [variable, setVariable] = useState(initialVariable);
   const [access, setAccess] = useState<VariableAccess | null>(null);
   const [shown, setShown] = useState('');
   const [grantee, setGrantee] = useState('');
+  const [manualRole, setManualRole] = useState(false);
   const [privileges, setPrivileges] = useState(PRIVILEGES[0]);
   const [change, setChange] = useState<Change | null>(null);
   const [approved, setApproved] = useState(false);
@@ -99,6 +103,12 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   const canDeny = supportedTask(tasks, 'secret-deny', 'change', PERMISSION_INPUTS);
   const allowed = Boolean(account && endpoint) && (canPermit || canDeny) &&
     supportedTask(tasks, 'resource-show', 'read', { 'resource-id': 'string' });
+  useEffect(() => {
+    if (initiallyOpen && allowed) {
+      void loadInventory();
+      document.getElementById(variableInputID)?.focus();
+    }
+  }, [initiallyOpen, allowed, loadInventory, variableInputID]);
   const variableValid = Boolean(account) && validConjurID(account + ':variable:' + variable, account);
   const pending = change !== null && change.contextKey === contextKey && change.variable === shown ? change : null;
 
@@ -236,14 +246,14 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
             target={pending?.variable || shown || variable || 'Choose a secret variable ID'} />
           <InventoryStatus state={inventoryState} disabled={busy} onRetry={() => void loadInventory()} />
           <form onSubmit={show} autoComplete="off">
-            <label>Secret variable ID
-              <input required maxLength={2048} value={variable} disabled={busy} spellCheck={false} list={listID}
-                placeholder="apps/db/password" aria-busy={inventoryState === 'loading'}
-                onChange={(event) => { setVariable(event.target.value); setError(''); }} />
-            </label>
-            <datalist id={listID}>
-              {inventory?.variable?.map((id) => <option key={id} value={id} />)}
-            </datalist>
+            <ConjurIDSelect label="Secret variable ID" value={variable} disabled={busy} options={inventory?.variable ?? []}
+              id={variableInputID}
+              loading={inventoryState === 'loading'}
+              onChange={(value) => {
+                setVariable(value); setError(''); setAccess(null); setShown(''); setChange(null);
+                setApproved(false); setOutcome(''); setResult(null);
+              }} />
+            <p className="field-help">Choose a visible variable or enter another ID. Inventory is bounded to 500 IDs per kind.</p>
             <button type="submit" disabled={!variableValid || busy} aria-busy={busy}>
               {busy ? 'Working…' : 'Show current permissions'}
             </button>
@@ -285,24 +295,37 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
               {canPermit && (
                 <form className="conjur-permissions-grant" onSubmit={(event) => {
                   event.preventDefault();
-                  if (!grantee) return;
+                  if (!validConjurID(account + ':' + grantee, account) || !(GRANTEE_KINDS as readonly string[]).includes(splitRole(grantee)[0])) return;
                   const role = account + ':' + grantee;
                   review('secret-permit', 'Grant ' + privileges + ' to ' + localID(role), localID(access.policy), role, privileges);
                 }}>
                   <label>Grant access to
-                    <select value={grantee} disabled={busy || !inventory}
-                      aria-busy={inventoryState === 'loading'} onChange={(event) => setGrantee(event.target.value)}>
+                    <select value={manualRole ? 'manual' : grantee} disabled={busy || inventoryState === 'loading'}
+                      aria-busy={inventoryState === 'loading'} onChange={(event) => {
+                        setManualRole(event.target.value === 'manual');
+                        setGrantee(event.target.value === 'manual' ? 'group:' : event.target.value); setChange(null); setApproved(false);
+                      }}>
                       <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'Choose a role'}</option>
                       <RoleOptions inventory={inventory} kinds={GRANTEE_KINDS} />
+                      <option value="manual">Enter another role…</option>
                     </select>
                   </label>
+                  {manualRole && <>
+                    <label>Role kind<select value={splitRole(grantee)[0]} disabled={busy} onChange={(event) => {
+                      setGrantee(event.target.value + ':' + splitRole(grantee)[1]); setChange(null); setApproved(false);
+                    }}>{GRANTEE_KINDS.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>
+                    <label>Role ID<input value={splitRole(grantee)[1]} required maxLength={2048} disabled={busy} spellCheck={false}
+                      onChange={(event) => { setGrantee(splitRole(grantee)[0] + ':' + event.target.value); setChange(null); setApproved(false); }} /></label>
+                  </>}
                   <label>Privileges
-                    <select value={privileges} disabled={busy} onChange={(event) => setPrivileges(event.target.value)}>
+                    <select value={privileges} disabled={busy} onChange={(event) => {
+                      setPrivileges(event.target.value); setChange(null); setApproved(false);
+                    }}>
                       {PRIVILEGES.map((privilege) => <option key={privilege} value={privilege}>{privilege}</option>)}
                     </select>
                   </label>
                   <p>read shows metadata, execute fetches the secret value, update changes the value.</p>
-                  <button type="submit" disabled={!grantee || busy ||
+                  <button type="submit" disabled={!validConjurID(account + ':' + grantee, account) || busy ||
                     policyRelativeVariableID(shown, localID(access.policy)) === null}>Review grant</button>
                 </form>
               )}

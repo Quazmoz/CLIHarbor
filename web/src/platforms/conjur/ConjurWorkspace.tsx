@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import type { Platform, PlatformFeatureID } from '../../api/platforms';
 import type { Task } from '../../api/tasks';
 import type { ToolDiagnostic } from '../../api/tools';
@@ -6,6 +6,10 @@ import { fetchSecretAudit } from './secretAuditApi';
 import { ConjurCreateSecret } from './ConjurCreateSecret';
 import { ConjurManagePermissions } from './ConjurManagePermissions';
 import { ConjurMigrationWorkbench } from './ConjurMigrationWorkbench';
+import { ConjurTaskPanel } from './ConjurTaskPanel';
+import { useOperationActivity } from '../../OperationActivity';
+
+export interface ConjurTaskRequest { commandId: string; values?: Record<string, string>; sequence: number }
 
 interface Props {
   platform: Platform;
@@ -16,6 +20,8 @@ interface Props {
   onOpenFeature: (feature: PlatformFeatureID) => void;
   onOpenDiagnostics: () => void;
   onOpenTask: (taskKey: string, prefill?: Record<string, string>) => void;
+  requestedTask?: ConjurTaskRequest;
+  onTaskRequestHandled?: () => void;
 }
 
 type Risk = Task['risk'];
@@ -30,6 +36,10 @@ type TabID = (typeof tabs)[number]['id'];
 const accessInspection = ['resource-show', 'resource-permitted-roles', 'role-show', 'role-members', 'role-memberships'];
 // list-variables already has its canonical home as Secrets › Browse variables.
 const resourceInventory = ['list-policies', 'list-hosts', 'list-groups', 'list-resources', 'count-resources'];
+const createCommands = ['secret-create', 'secret-create-owned'];
+const permissionCommands = ['secret-permit', 'secret-deny'];
+const tabForCommand = (id: string): TabID => permissionCommands.includes(id) || accessInspection.includes(id) || id.startsWith('role-') || id === 'resource-exists'
+  ? 'access' : id.startsWith('secret-') || id === 'list-variables' ? 'secrets' : 'tools';
 
 /** One compact, full-row action. The title is the accessible name; detail and risk describe it. */
 function Action({ title, detail, risk, available, onOpen }: {
@@ -49,7 +59,15 @@ function Action({ title, detail, risk, available, onOpen }: {
 }
 
 /** Conjur's dedicated home: environment context first, then one focused workflow per tab. */
-export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, onOpenFeature, onOpenDiagnostics, onOpenTask }: Props) {
+export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, onOpenFeature, onOpenDiagnostics, requestedTask, onTaskRequestHandled }: Props) {
+  const { local } = useOperationActivity();
+  const workspaceBusy = Object.values(local).some((work) => work.path === window.location.pathname && work.anchor?.startsWith('conjur-'));
+  const sequence = useRef(requestedTask?.sequence ?? 0);
+  const [choice, setChoice] = useState(requestedTask?.commandId ?? '');
+  const [createRequest, setCreateRequest] = useState<ConjurTaskRequest | null>(requestedTask && createCommands.includes(requestedTask.commandId) ? requestedTask : null);
+  const [permissionRequest, setPermissionRequest] = useState<ConjurTaskRequest | null>(requestedTask && permissionCommands.includes(requestedTask.commandId) ? requestedTask : null);
+  const [action, setAction] = useState<ConjurTaskRequest | null>(requestedTask && !createCommands.includes(requestedTask.commandId) && !permissionCommands.includes(requestedTask.commandId) ? requestedTask : null);
+  useEffect(() => { if (requestedTask) onTaskRequestHandled?.(); }, [requestedTask, onTaskRequestHandled]);
   // A ready CLI may still switch version, pack contract, or login capability.
   // Never show the previous vendor endpoint under a changed discovery context.
   const discoveryKey = JSON.stringify([
@@ -59,7 +77,7 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
     tool?.credentialLogin?.method,
     tool?.credentialLogin?.method === 'conjur-password' ? tool.credentialLogin.setupRequired : undefined,
   ]);
-  const [tab, setTab] = useState<TabID>('secrets');
+  const [tab, setTab] = useState<TabID>(requestedTask ? tabForCommand(requestedTask.commandId) : 'secrets');
   const [targetSnapshot, setTargetSnapshot] = useState<{
     discoveryKey: string; applianceUrl: string; account: string;
   } | null>(null);
@@ -98,14 +116,33 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
   const platformTasks = tasks.filter((task) => task.packId === platform.packId && task.toolId === platform.toolId);
   const taskFor = (commandId: string, risk: Risk) =>
     platformTasks.find((task) => task.commandId === commandId && task.risk === risk);
+  const openTask = (key: string, prefill?: Record<string, string>) => {
+    if (!ready || workspaceBusy) return;
+    const task = platformTasks.find((task) => task.packId + '/' + task.commandId === key);
+    if (!task) return;
+    const values = Object.fromEntries(task.inputs.filter((input) => input.type !== 'secret' && typeof prefill?.[input.id] === 'string')
+      .map((input) => [input.id, prefill![input.id]]));
+    const request = { commandId: task.commandId, values, sequence: ++sequence.current };
+    setChoice(task.commandId); setTab(tabForCommand(task.commandId));
+    if (permissionCommands.includes(task.commandId)) { setPermissionRequest(request); setAction(null); }
+    else if (createCommands.includes(task.commandId)) { setCreateRequest(request); setAction(null); }
+    else setAction(request);
+  };
+  const permissionVariable = permissionRequest?.values?.['resource-id'];
+  const initialPermissionVariable = permissionVariable?.startsWith((target?.account ?? '') + ':variable:')
+    ? permissionVariable.slice(((target?.account ?? '') + ':variable:').length)
+    : permissionRequest?.values?.['variable-id']
+      ? (permissionRequest.values['policy-branch'] && permissionRequest.values['policy-branch'] !== 'root' ? permissionRequest.values['policy-branch'] + '/' : '') + permissionRequest.values['variable-id']
+      : '';
+  const selectedAction = action ? platformTasks.find((task) => task.commandId === action.commandId) : undefined;
   const taskAction = (commandId: string, risk: Risk, title: string, detail: string) => {
     const task = taskFor(commandId, risk);
-    return <Action title={title} detail={detail} risk={risk} available={ready && task !== undefined}
-      onOpen={() => { if (task) onOpenTask(task.packId + '/' + task.commandId); }} />;
+    return <Action title={title} detail={detail} risk={risk} available={ready && !workspaceBusy && task !== undefined}
+      onOpen={() => { if (task) openTask(task.packId + '/' + task.commandId); }} />;
   };
   const taskGroup = (ids: string[]) => ids.flatMap((id) => platformTasks.filter((task) => task.commandId === id)).map((task) => (
     <Action key={task.commandId} title={task.name} detail={task.description ?? 'Open the approved CLI workflow.'}
-      risk={task.risk} available={ready} onOpen={() => onOpenTask(task.packId + '/' + task.commandId)} />
+      risk={task.risk} available={ready && !workspaceBusy} onOpen={() => openTask(task.packId + '/' + task.commandId)} />
   ));
   const inspectionTasks = taskGroup(accessInspection);
   const inventoryTasks = taskGroup(resourceInventory);
@@ -153,6 +190,12 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
         </div>
       </dl>
       {!ready && <p role="status" className="conjur-setup-notice"><strong>Setup needed.</strong> Check tool readiness before using these workflows.</p>}
+      <label className="field conjur-action-selector"><span>Conjur action</span>
+        <select value={choice} disabled={!ready || !csrfToken || workspaceBusy} onChange={(event) => openTask(platform.packId + '/' + event.target.value)}>
+          <option value="">Choose a Conjur action</option>
+          {platformTasks.map((task) => <option key={task.commandId} value={task.commandId}>{task.name} · {riskLabel[task.risk]}</option>)}
+        </select>
+      </label>
 
       <div className="output-tabs conjur-tabs" role="tablist" aria-label="Conjur workflows" onKeyDown={selectByKey}>
         {tabs.map((candidate) => (
@@ -171,10 +214,11 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
         </header>
         <div className="conjur-action-list" role="group" aria-label="Conjur secret management">
           {csrfToken ? (
-            <ConjurCreateSecret key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
+            <ConjurCreateSecret key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '') + '/' + (createRequest?.sequence ?? 0)}
               tasks={platformTasks} csrfToken={csrfToken} account={ready ? target?.account : undefined}
-              endpoint={ready ? target?.applianceUrl : undefined} onOpenRuns={onOpenRuns} onManageAccess={() => setTab('access')}
-              onInspectTarget={taskFor('resource-exists', 'read') ? (id) => onOpenTask(platform.packId + '/resource-exists', {
+              endpoint={ready ? target?.applianceUrl : undefined} onOpenRuns={onOpenRuns} initial={createRequest?.values} initiallyOpen={createRequest !== null}
+              onManageAccess={taskFor('secret-permit', 'change') ? (id) => openTask(platform.packId + '/secret-permit', { 'variable-id': id }) : undefined}
+              onInspectTarget={taskFor('resource-exists', 'read') ? (id) => openTask(platform.packId + '/resource-exists', {
                 'resource-id': target?.account + ':variable:' + id,
               }) : undefined}
               contextKey={discoveryKey + '/' + (target?.applianceUrl ?? '') + '/' + (target?.account ?? '')} />
@@ -198,8 +242,9 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
             detail="Browse resources and roles with bounded, read-only inventory and labeled permission relationships."
             onOpen={() => onOpenFeature('access-explorer')} />
           {csrfToken && (
-            <ConjurManagePermissions key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
+            <ConjurManagePermissions key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '') + '/' + (permissionRequest?.sequence ?? 0)}
               tasks={platformTasks} csrfToken={csrfToken} account={ready ? target?.account : undefined}
+              initiallyOpen={permissionRequest !== null} initialVariable={initialPermissionVariable}
               endpoint={ready ? target?.applianceUrl : undefined}
               contextKey={discoveryKey + '/' + (target?.applianceUrl ?? '') + '/' + (target?.account ?? '')} onOpenRuns={onOpenRuns} />
           )}
@@ -237,9 +282,15 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
         <details id="conjur-migration" className="conjur-migration-details">
           <summary>Migration playbooks &amp; policy templates</summary>
           <ConjurMigrationWorkbench key={discoveryKey} tasks={platformTasks} packId={platform.packId}
-            toolId={platform.toolId} onOpenTask={onOpenTask} />
+            toolId={platform.toolId} onOpenTask={openTask} />
         </details>
       </div>
+      {action && <div hidden={tab !== tabForCommand(action.commandId)}>
+        {selectedAction && csrfToken && ready ? <ConjurTaskPanel
+          key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '') + '/' + action.sequence}
+          task={selectedAction} tasks={platformTasks} csrfToken={csrfToken} account={target?.account} endpoint={target?.applianceUrl}
+          prefill={action.values} onOpenRuns={onOpenRuns} /> : <p role="status">This Conjur action is not currently available.</p>}
+      </div>}
     </div>
   );
 }

@@ -964,3 +964,16 @@ Add four vendor-verified, page-bounded read-only inventory commands (variables, 
 
 **Verification:** `internal/platforms/terraform/state_removal_test.go` covers a fake-CLI matrix: one-use, expiry, wrong confirmation, stale snapshot, non-inventory and flag-like addresses, dry-run mismatch, held lock, overreach, concurrent writer, failure after write, audit failure, missing tool, single-flight and preview bounds. It also runs the full flow against real Terraform when it is installed (`CLIHARBOR_TEST_TERRAFORM`), with a project `backend "s3"` block proving no redirection. Also `internal/server/terraform_state_removal_test.go` and `web/src/platforms/terraform/TerraformStateRemoval.test.tsx`. Verified with Terraform 1.9.8 on Linux arm64. **Native Windows (file locking, reparse points, path casing) has not been run, so this stays on hold for beta.**
 
+
+## ADR-041 — Keep Conjur actions inside the dedicated workspace
+
+**Date:** 2026-10-28
+**Status:** Accepted; replaces the earlier UX choice to send dedicated Conjur shortcuts to Command Builder.
+
+**Context:** Grant/Revoke and secret maintenance shortcuts sent operators from Conjur into the general task screen even though guided creation and permission management already existed. This discarded the dedicated workflow and left operators to type IDs the application could safely list.
+
+**Decision:** Keep Conjur catalog actions, Access Explorer handoffs and migration presets inside the dedicated workspace. Reuse the guided create/permission forms and the existing backend-authorized task metadata, preview/run API, completion helpers and typed input controls. Inventory-backed native selectors provide variables, policies, resources and roles; enum fields remain backend-defined. Unknown IDs and names without an approved inventory stay explicit inputs. No remote lookup, command scraping, new pack command or additional execution API is introduced.
+
+**Security/reliability:** Backend one-use approvals, destructive typed confirmation, executable identity, audit evidence, vendor context and vendor authorization remain authoritative. Edits invalidate draft approvals; secret prefills are excluded and write-only values clear on submission. Shared activity survives unmount and locks a remounted form until the original request settles. CLI/window-focus target refresh continues to reset stale forms. A completed command is distinguished from an unverified service outcome; no mutation is automatically replayed.
+
+**Verification:** Dedicated navigation and exact grant/readback acceptance, native dropdown/manual-entry interactions, context/approval/secret clearing tests, inherited generic form coverage, production embedded-browser checks and regenerated assets. Native Windows and real-tenant qualification remain separate release gates.

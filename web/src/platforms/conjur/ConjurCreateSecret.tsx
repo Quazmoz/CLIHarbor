@@ -23,7 +23,9 @@ interface Props {
   contextKey: string;
   onOpenRuns?: () => void;
   onInspectTarget?: (id: string) => void;
-  onManageAccess?: () => void;
+  onManageAccess?: (id: string) => void;
+  initial?: Record<string, string>;
+  initiallyOpen?: boolean;
 }
 
 interface Plan {
@@ -93,14 +95,14 @@ function safeMessage(error: unknown): string {
   return error instanceof ExistenceCheckFailure ? error.message : sharedSafeMessage(error);
 }
 
-export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contextKey, onOpenRuns, onInspectTarget, onManageAccess }: Props) {
+export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contextKey, onOpenRuns, onInspectTarget, onManageAccess, initial, initiallyOpen = false }: Props) {
   const beginMutation = useMutationActivity();
   // SaaS tenants cannot load policy into root; their secrets live under data.
   // The parent remounts this form when the endpoint changes.
   const saas = Boolean(endpoint && normalizeConjurSaaSAPIURL(endpoint));
-  const [open, setOpen] = useState(false);
-  const [branch, setBranch] = useState(saas ? 'data' : 'root');
-  const [variable, setVariable] = useState('');
+  const [open, setOpen] = useState(initiallyOpen);
+  const [branch, setBranch] = useState(initial?.['policy-branch'] ?? (saas ? 'data' : 'root'));
+  const [variable, setVariable] = useState(initial?.['variable-id'] ?? '');
   const [value, setValue] = useState('');
   const [plan, setPlan] = useState<Plan | null>(null);
   const [approved, setApproved] = useState(false);
@@ -112,7 +114,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   const [failedCheckRunId, setFailedCheckRunId] = useState('');
   const [outcome, setOutcome] = useState('');
   const [result, setResult] = useState<OperationOutcome | null>(null);
-  const [owner, setOwner] = useState('');
+  const [owner, setOwner] = useState(initial?.['owner-kind'] && initial?.['owner-id'] ? initial['owner-kind'] + ':' + initial['owner-id'].replace(/^\//u, '') : '');
   const [grantee, setGrantee] = useState('');
   const [privileges, setPrivileges] = useState(PRIVILEGES[0]);
   const busyRef = useRef(false);
@@ -129,6 +131,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     }) &&
     supportedTask(tasks, 'secret-set-value', 'change', { 'variable-id': 'string', value: 'secret' });
   const { inventory, state: inventoryState, load: loadInventory } = useConjurInventory(csrfToken, account, tasks, ROLE_KINDS);
+  useEffect(() => { if (initiallyOpen) void loadInventory(); }, [initiallyOpen, loadInventory]);
   const canOwn = supportedTask(tasks, 'secret-create-owned', 'change', {
     'policy-branch': 'string', 'variable-id': 'string', 'owner-kind': 'enum', 'owner-id': 'string', 'dry-run': 'boolean',
   });
@@ -422,7 +425,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
           {result && <OperationResult result={result}>
             {onOpenRuns && <button type="button" className="secondary-button" onClick={onOpenRuns}>Open Execution History</button>}
             {onInspectTarget && result.target && <button type="button" className="secondary-button" onClick={() => onInspectTarget(result.target!)}>Inspect variable</button>}
-            {onManageAccess && <button type="button" className="secondary-button" onClick={onManageAccess}>Manage access</button>}
+            {onManageAccess && result.target && <button type="button" className="secondary-button" onClick={() => onManageAccess(result.target!)}>Manage access</button>}
           </OperationResult>}
           {error && <p role="alert">{error}</p>}
           {error && failedCheckRunId && (

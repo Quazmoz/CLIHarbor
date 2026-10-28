@@ -50,6 +50,11 @@ beforeEach(() => {
 });
 afterEach(() => { vi.resetAllMocks(); });
 
+function chooseVariable(region: HTMLElement, value: string) {
+  fireEvent.change(within(region).getByRole('combobox', { name: 'Secret variable ID' }), { target: { value: 'manual' } });
+  fireEvent.change(within(region).getByRole('textbox', { name: 'Secret variable ID — enter ID' }), { target: { value } });
+}
+
 test('keeps permission work visible and disabled through mutation and refresh, without duplicate requests', async () => {
   let finishChange!: (value: RunSnapshot) => void;
   let finishRead!: (value: RunSnapshot) => void;
@@ -60,8 +65,8 @@ test('keeps permission work visible and disabled through mutation and refresh, w
   render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
   const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
   fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
-  await waitFor(() => expect(region.querySelector('datalist option')).toHaveAttribute('value', 'apps/db/password'));
-  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }), { target: { value: 'apps/db/password' } });
+  await within(region).findByRole('option', { name: 'apps/db/password' });
+  chooseVariable(region, 'apps/db/password');
   vi.mocked(createRun).mockImplementationOnce(() => reading);
   const form = within(region).getByRole('button', { name: 'Show current permissions' }).closest('form')!;
   fireEvent.submit(form);
@@ -93,7 +98,7 @@ test('shows current grants, revokes from the granting branch and grants from dro
   render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
   const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
   fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
-  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }), { target: { value: 'apps/db/password' } });
+  chooseVariable(region, 'apps/db/password');
   fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
   const table = await within(region).findByRole('table');
   expect(within(table).getByText('apps/web')).toBeInTheDocument();
@@ -151,8 +156,7 @@ test('a data-policy grant previews the relative variable and absolute role', asy
   render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
   const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
   fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
-  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }),
-    { target: { value: 'data/vault/app/password' } });
+  chooseVariable(region, 'data/vault/app/password');
   fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
   await within(region).findByRole('region', { name: 'Current permissions' });
   await within(region).findByRole('option', { name: 'admins' });
@@ -177,8 +181,7 @@ test('does not offer an unsafe revoke when the granting policy is unrelated', as
   render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
   const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
   fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
-  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }),
-    { target: { value: 'apps/db/password' } });
+  chooseVariable(region, 'apps/db/password');
   fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
   const table = await within(region).findByRole('table');
   expect(within(table).queryByRole('button', { name: /Revoke execute/ })).not.toBeInTheDocument();
@@ -200,8 +203,7 @@ test('permission dropdown indicates an active CLI read and clears loading on suc
   const status = within(region).getByText('Loading dropdown options from Conjur…');
   expect(status.querySelector('.conjur-inventory-spinner')).toBeInTheDocument();
   expect(within(region).getByRole('combobox', { name: /Secret variable ID/ })).toHaveAttribute('aria-busy', 'true');
-  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }),
-    { target: { value: 'apps/db/password' } });
+  chooseVariable(region, 'apps/db/password');
   fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
   const grantee = await within(region).findByRole('combobox', { name: /Grant access to/ });
   expect(grantee).toBeDisabled();
@@ -224,7 +226,7 @@ test('a change whose reload fails does not claim the table is current', async ()
   render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
   const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
   fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
-  fireEvent.change(within(region).getByRole('combobox', { name: /Secret variable ID/ }), { target: { value: 'apps/db/password' } });
+  chooseVariable(region, 'apps/db/password');
   fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
   const table = await within(region).findByRole('table');
   fireEvent.click(within(table).getByRole('button', { name: 'Revoke execute from apps/web' }));

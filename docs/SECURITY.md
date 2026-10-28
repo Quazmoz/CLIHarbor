@@ -543,6 +543,20 @@ The run manager requires a writable local mutation journal for all approved `cha
 
 ### Conjur Access Explorer read-only boundary
 
+Conjur shortcuts now open dedicated forms instead of the general task screen.
+This is presentation routing only: forms consume the current backend task
+allowlist and the existing preview/run APIs. Mutation plans must match pack,
+tool, command, risk and the displayed account/endpoint before approval is shown;
+destructive plans keep their backend-issued typed confirmation. Role/resource
+dropdowns come only from bounded reviewed inventory, remain untrusted input,
+and never grant existence or authorization. Known-unsafe or ambiguous inventory
+is not promoted into options. Names with commas are excluded from LDAP role
+multi-selection because that command accepts an explicitly comma-separated
+list; manual CSV entry remains visible and reviewed as such. Write-only values
+are excluded from prefills, previews, saved navigation state and execution
+evidence, and are cleared from form state on run submission. These forms add no
+CLI command, credential storage, arbitrary argv, or direct service API.
+
 The dedicated access view only starts backend-advertised Conjur pack tasks marked `risk: read` from an internal finite command allowlist; typed resource/role IDs are checked with Conjur's reviewed boolean exists tasks before being presented as verified objects. It cannot run secret-value retrieval, construct arbitrary shell commands, or invoke mutations. It caps inventory pages, role relationship arrays, payload lengths, total page offset, and per-operation polling; failed, forbidden, incomplete and inconsistent vendor responses produce **no access verdict**. Only a validated `id` and `kind` derived from the ID may be rendered/exported as resource metadata; `resource-show` and `role-show` are intentionally not invoked by the explorer because generic run history retains raw approved task output. The existing generic run history still records ordinary approved read-task output; it must never admit secret-bearing tasks through this explorer.
 
 A pre/post endpoint/account/version/identity comparison rejects detected session drift, but it is not an atomic vendor snapshot, and it does not prove effective permission. Conjur's own privilege checks remain authoritative. No credentials or secret values belong in this interface.

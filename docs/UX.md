@@ -49,7 +49,7 @@ create flow.
 
 Every task shortcut is derived from the backend-advertised pack/tool task
 catalog, respects runtime availability and risk classification, and opens
-the shared `/tasks` runner rather than executing or approving anything.
+an in-workspace Conjur form rather than executing or approving anything.
 Grant/revoke operations require backend preview, explicit approval and mutation
 auditing. `!deny` only revokes grants created in the same policy branch;
 permission changes are not presented as atomic. Secrets are never displayed
@@ -70,13 +70,13 @@ Left sidebar:
 
 **Built-in CLIs** opens the `/dedicated` directory: one card per registered dedicated integration showing its readiness, summary, approved task count and features, each opening that integration's home. The home's reviewed feature cards reach sign-in, Access Explorer, security audit, and approved tasks without a second sidebar or execution surface. While inside an integration, the top-bar link stays current and names it (`Built-in CLIs · CyberArk Conjur`). Without any dedicated integration, the directory says so and points to Other CLIs. A new integration registers its custom home in `web/src/platforms/index.ts` (`dedicatedWorkspace`); unregistered ones get the generic feature-card home. A removed/unknown dedicated deep link must never silently resolve to another integration.
 
-**Other CLIs** opens Add a CLI: the reviewed installation catalog and the custom-pack draft flow. The latter downloads a locally generated, discovery-only YAML draft through **Create a custom CLI pack**; it does not register, trust, validate, download binaries, or execute tasks. Operator review, `pack validate`, `pack lint`, and an explicit `--pack-file` restart remain required. Conjur tasks deliberately use the shared `/tasks` runner; active built-in context is reflected in the top-bar destination and breadcrumbs.
+**Other CLIs** opens Add a CLI: the reviewed installation catalog and the custom-pack draft flow. The latter downloads a locally generated, discovery-only YAML draft through **Create a custom CLI pack**; it does not register, trust, validate, download binaries, or execute tasks. Operator review, `pack validate`, `pack lint`, and an explicit `--pack-file` restart remain required. Conjur workspace actions stay in dedicated forms; the general `/tasks` runner remains available separately for operators who explicitly choose it. Active built-in context is reflected in the top bar and breadcrumbs.
 
 Clickable breadcrumbs at the top of the main content show **CLI workspace** or **Built-in CLIs → selected platform** and the current page; the top bar links to Diagnostics only when a configured CLI needs attention, with connection status displayed only while connecting or when unavailable. Build version remains in Diagnostics. The top-right **Sign in** control opens the universal sign-in page at `/authentication` (ADR-038). Every task, diagnostics, tool, and built-in-CLI sign-in link leads there; legacy `/dedicated/<id>/sign-in` links open it too. Native link modifiers, browser history, page titles, keyboard focus, and the narrow-window **Menu** sidebar toggle must continue working.
 
 Beside **Sign in**, a compact **CLI sessions** disclosure becomes **N signed in** after reviewed session checks succeed. Opening it lists CLI names, text/symbol statuses, and last-check times, with **Manage sign-ins & check sessions** opening the universal page. Results survive page navigation in memory; reload, runtime/context changes and connection edits invalidate evidence. Unchecked and unavailable checks never count as signed in. The disclosure uses native keyboard behavior, Escape closes it and restores focus, and the panel fits a 320 px viewport. It performs no background commands; external account/session changes need a fresh session check.
 
-Tool filtering lives in the task catalog rather than being duplicated as a second set of sidebar navigation buttons. Each executable has its own category, including when a reviewed pack contains several tools or different packs use the same tool ID. Labels show the pack name and executable tool ID. Choosing a filter selects a matching task; **All tools** restores the full catalog. A contextual scope banner on Tasks identifies the selected CLI and offers **Show all CLIs**. A built-in CLI's approved-task feature card still navigates to the shared runner and is identified by its tool context in breadcrumbs. Search, Favorites, and Recently used obey the same category filter; filters are transient and create no execution authority.
+Tool filtering lives in the task catalog rather than being duplicated as a second set of sidebar navigation buttons. Each executable has its own category, including when a reviewed pack contains several tools or different packs use the same tool ID. Labels show the pack name and executable tool ID. Choosing a filter selects a matching task; **All tools** restores the full catalog. A contextual scope banner on Tasks identifies the selected CLI and offers **Show all CLIs**. Integrations without dedicated task forms use the shared runner for their approved-task feature card, identified by tool context in breadcrumbs. Search, Favorites, and Recently used obey the same category filter; filters are transient and create no execution authority.
 
 ## 3. Persistent context bar
 
@@ -476,6 +476,34 @@ The Conjur home groups quick links to **backend-authorized** inventory, access-i
 The Conjur security-audit route is now titled **Conjur pattern explorer**. It starts with a metadata-only **Variable IDs · regex** mode: Conjur resource IDs are listed and matched without ever retrieving secret values. Built-in editable presets cover credential-like names, production, service accounts, and legacy paths. A separate **Secret values · regex** mode requires explicit per-attempt acknowledgement and offers reference-URI and PEM-header patterns. Both modes use Go/RE2 expressions; matched results are variable IDs, never matched text or values. Regex criteria remain ephemeral. Search matches are not vulnerability findings. Older heuristic, contains and exact scan inputs remain accepted via the existing API for compatibility.
 
 The Conjur **Tools** tab contains approved inventory tasks and migration playbooks/templates. General Command Builder and Diagnostics destinations remain in workspace navigation; Audit retains its contextual run-history link and an unavailable CLI retains its Diagnostics remediation.
+
+### Dedicated Conjur action forms
+
+Conjur secret, access, inspection, inventory and migration shortcuts stay at
+`/dedicated/conjur`. The **Conjur action** dropdown exposes the currently
+backend-authorized Conjur catalog without sending the operator to Command
+Builder. Grant/Revoke opens the existing guided permission manager; creation
+keeps the multi-step create form. Access Explorer shortcuts return to that
+manager and carry a selected variable when available. Create's **Manage access**
+also carries the created variable. Other actions use a dedicated form sharing
+the generic typed controls and run API, not a second executor.
+
+Variable, policy, resource, role and privilege selectors use bounded approved
+inventory and enum metadata; LDAP mappings offer multi-selection of Conjur
+roles. Dropdown values are presentation-only. Inventory failure offers retry
+and clears stale options; manual entry remains explicit for IDs outside the
+first 500 visible IDs per kind, new LDAP names, service IDs and issuer IDs
+without reviewed inventory commands. CLI authorization remains authoritative.
+
+Edits invalidate prior approvals. Mutations display the exact approved argv,
+non-secret policy payload, target, effect, scope and vendor account/endpoint;
+destructive actions require the backend's exact typed confirmation plus explicit
+consent. Approvals remain expiring and one-use. Secret values stay write-only
+and clear when a run request is submitted. Busy controls, navigation guards,
+terminal-evidence checks and unconfirmed-outcome guidance prevent automatic
+replay. A successful generic action reports CLI completion, not an inferred
+service-state guarantee. Changing the discovered CLI or vendor target resets
+the forms, including when the operator returns from a terminal window.
 
 
 ## Terraform dedicated workspace (native Windows qualification pending)

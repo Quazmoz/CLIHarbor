@@ -302,14 +302,14 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
       <p>Explore visible resources and Conjur-returned relationships. A permitted-role list is not a verified effective-access decision. An empty or incomplete result does not prove denial.</p>
       <section className="conjur-permission-next" aria-label="Permission change shortcuts">
         <h3>Change secret variable permissions</h3>
-        <p>Inspect access below, then prepare a grant or revoke in the existing task form. To replace a privilege, review each change separately and re-check the result. Revocation only applies to grants from the same policy branch.</p>
+        <p>Inspect access below, then manage grants and revocations in the dedicated Conjur workspace. To replace a privilege, review each change separately and re-check the result. Revocation only applies to grants from the same policy branch.</p>
         <div className="platform-toolbox-grid">
           <button type="button" disabled={working || !changeTasks.has('secret-permit')}
-            onClick={() => { if (!working && changeTasks.has('secret-permit')) onOpenTask('secret-permit', {}); }}>
+            onClick={() => { if (!working && changeTasks.has('secret-permit')) onOpenTask('secret-permit', inspection?.type === 'resource' && inspection.id.split(':')[1] === 'variable' ? { 'resource-id': inspection.id } : {}); }}>
             Grant secret permission · Approval required
           </button>
           <button type="button" className="secondary-button" disabled={working || !changeTasks.has('secret-deny')}
-            onClick={() => { if (!working && changeTasks.has('secret-deny')) onOpenTask('secret-deny', {}); }}>
+            onClick={() => { if (!working && changeTasks.has('secret-deny')) onOpenTask('secret-deny', inspection?.type === 'resource' && inspection.id.split(':')[1] === 'variable' ? { 'resource-id': inspection.id } : {}); }}>
             Revoke secret permission · Approval required
           </button>
         </div>
