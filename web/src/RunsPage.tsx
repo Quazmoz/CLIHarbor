@@ -12,6 +12,7 @@ import type { Task } from './api/tasks';
 import { runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import { OutputExplorer } from './OutputExplorer';
 import { MutationAuditTrail } from './MutationAuditTrail';
+import { RunComparison } from './RunComparison';
 
 interface RunsPageProps {
   tasks: Task[];
@@ -99,6 +100,7 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
   const [selectedRunID, setSelectedRunID] = useState<string | null>(requestedRun?.runId ?? null);
   const [seenRequest, setSeenRequest] = useState(requestedRun);
   const [detail, setDetail] = useState<RunSnapshot | null>(null);
+  const [comparisonBaseline, setComparisonBaseline] = useState<RunSnapshot | null>(null);
   const [detailLoading, setDetailLoading] = useState(requestedRun !== undefined);
   const [detailFailure, setDetailFailure] = useState<AppErrorDetail | null>(null);
   const [detailRefresh, setDetailRefresh] = useState(0);
@@ -121,6 +123,7 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
       (runs) => {
         if (controller.signal.aborted) return;
         setSummaries(runs);
+        setComparisonBaseline((current) => current && runs.some((run) => run.runId === current.runId) ? current : null);
         setListFailure(null);
         setListLoading(false);
       },
@@ -159,7 +162,10 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
           return;
         }
         const failure = normalizeError(error).detail;
-        if (failure.code === 'run_not_found') setDetail(null);
+        if (failure.code === 'run_not_found') {
+          setDetail(null);
+          setComparisonBaseline((current) => current?.runId === selectedRunID ? null : current);
+        }
         setDetailFailure(failure);
         setDetailLoading(false);
       },
@@ -323,6 +329,16 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
             </div>
           </div>
 
+          {comparisonBaseline && (
+            <div className="run-comparison-pin">
+              <p role="status">Baseline: {taskName(comparisonBaseline, tasks)} <code>{comparisonBaseline.runId}</code></p>
+              <button type="button" className="secondary-button" onClick={() => {
+                setComparisonBaseline(null);
+                detailHeadingRef.current?.focus();
+              }}>Clear comparison</button>
+            </div>
+          )}
+
           {listFailure !== null && <FailureNotice failure={listFailure} />}
           {listLoading && summaries.length === 0 && <p role="status">Loading retained runs…</p>}
 
@@ -434,6 +450,11 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
                       </dd>
                     </div>
                   </dl>
+
+                  <button type="button" className="secondary-button"
+                    disabled={detail.status === 'running' || detailLoading || detailFailure !== null || listLoading || listFailure !== null || !selectedSummary || comparisonBaseline?.runId === detail.runId}
+                    onClick={() => setComparisonBaseline(detail)}>Pin for comparison</button>
+                  {comparisonBaseline && <RunComparison baseline={comparisonBaseline} selected={detail} />}
 
                   {detail.failure && <FailureNotice failure={detail.failure} />}
 

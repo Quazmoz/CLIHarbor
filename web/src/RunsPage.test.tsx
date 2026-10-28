@@ -45,6 +45,66 @@ afterEach(() => {
 });
 
 describe('RunsPage', () => {
+  test('pins completed evidence and compares another selection without fetching or executing work for pin/clear', async () => {
+    const summaries = ['a', 'b'].map((id) => ({
+      runId: id.repeat(32), packId: 'fixture', commandId: 'inspect', toolId: 'fixture', status: 'exited', exitCode: 0,
+    }));
+    const snapshot = (index: number) => ({ ...summaries[index], events: [
+      { sequence: 1, type: 'stdout.chunk', timestamp: '2026-10-28T10:00:00Z', dataBase64: btoa(index === 0 ? 'baseline evidence' : 'selected evidence') },
+    ] });
+    let finishSecond!: (reply: RouteReply) => void;
+    const pending = new Promise<RouteReply>((resolve) => { finishSecond = resolve; });
+    const backend = installFakeBackend({
+      '/api/v1/runs': { body: { runs: summaries } },
+      ['/api/v1/runs/' + summaries[0].runId]: { body: snapshot(0) },
+      ['/api/v1/runs/' + summaries[1].runId]: () => pending,
+    });
+    const storage = vi.spyOn(Storage.prototype, 'setItem');
+    render(<RunsPage tasks={tasks} requestedRun={{ runId: summaries[0].runId }} />);
+    await screen.findByText('baseline evidence');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Pin for comparison' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Pin for comparison' }));
+    expect(screen.getByText(/Baseline pinned. Open another run/)).toBeInTheDocument();
+    expect(backend.requests).toHaveLength(2);
+    fireEvent.click(document.querySelectorAll<HTMLButtonElement>('.run-history-entry')[1]);
+    expect(screen.getByText('Loading run evidence…')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Compare recorded runs' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear comparison' })).toBeInTheDocument();
+    await act(async () => finishSecond({ body: snapshot(1) }));
+    expect(await screen.findByText('stdout · Text differs')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search runs' }), { target: { value: 'no-match' } });
+    expect(screen.getByText('stdout · Text differs')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear comparison' }));
+    expect(screen.getByRole('heading', { name: 'Inspect resources' })).toHaveFocus();
+    expect(screen.queryByRole('region', { name: 'Compare recorded runs' })).not.toBeInTheDocument();
+    expect(screen.getByText('selected evidence')).toBeInTheDocument();
+    expect(backend.requests).toHaveLength(3);
+    expect(backend.requests.every((request) => request.method === 'GET')).toBe(true);
+    expect(storage).not.toHaveBeenCalled();
+  });
+
+  test('drops pinned evidence after authoritative eviction and prevents pinning an active run', async () => {
+    const first = { runId: 'a'.repeat(32), packId: 'fixture', commandId: 'inspect', toolId: 'fixture', status: 'exited', exitCode: 0 };
+    const second = { ...first, runId: 'b'.repeat(32), status: 'running', exitCode: undefined };
+    const backend = installFakeBackend({
+      '/api/v1/runs': { body: { runs: [first, second] } },
+      ['/api/v1/runs/' + first.runId]: { body: { ...first, events: [] } },
+      ['/api/v1/runs/' + second.runId]: { body: { ...second, events: [] } },
+    });
+    render(<RunsPage tasks={tasks} requestedRun={{ runId: first.runId }} />);
+    const pin = await screen.findByRole('button', { name: 'Pin for comparison' });
+    await waitFor(() => expect(pin).toBeEnabled());
+    fireEvent.click(pin);
+    fireEvent.click(document.querySelectorAll<HTMLButtonElement>('.run-history-entry')[1]);
+    expect(await screen.findByText(/Wait for the selected run to finish/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pin for comparison' })).toBeDisabled();
+    backend.on({ '/api/v1/runs': { body: { runs: [second] } } });
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh history' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Clear comparison' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('region', { name: 'Compare recorded runs' })).not.toBeInTheDocument();
+    expect(backend.requests.every((request) => request.method === 'GET')).toBe(true);
+  });
+
   test('combines metadata search, CLI scope and outcome filters without fetching or losing selected evidence', async () => {
     const summaries = [
       { runId: 'a'.repeat(32), packId: 'fixture', commandId: 'inspect', toolId: 'fixture', status: 'exited', exitCode: 0, toolVersion: '1.2.3' },

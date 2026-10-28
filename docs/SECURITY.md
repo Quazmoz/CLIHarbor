@@ -195,6 +195,15 @@ Run-history search/filtering reads the existing metadata list only. Queries and
 filters remain transient browser memory and do not trigger output retrieval,
 task execution, storage writes, or new backend authority.
 
+History comparison retains at most one additional already-fetched completed
+snapshot in browser memory, cleared on page exit/reload or observed eviction.
+It adds no endpoint, process execution, output parser, export, or persistent
+storage. Only the same pack/command/tool is comparable; separate run outcomes
+and tool versions remain visible. Stdout/stderr comparisons use the existing
+UTF-8 decoder and inert React text, preserve their separation, and bound each
+display preview. Equal decoded output is not proof of equal bytes, matching
+inputs/context, successful execution, or unchanged vendor state.
+
 ### SI-8 — Pack trust is explicit
 
 Schema validation does not make a pack trusted.

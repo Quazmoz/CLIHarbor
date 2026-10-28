@@ -344,6 +344,24 @@ does not select another run or clear its evidence; an explicit note identifies
 selected evidence outside the list filters. A filter miss remains distinct
 from an empty retained history.
 
+**Pin for comparison** keeps one completed run as a transient baseline. Open
+another run of the same pack, command and tool to compare recorded stdout and
+stderr separately. Each side shows its run ID, outcome, version and start
+timestamp; different CLI versions remain visible and comparable. Running
+evidence and other tasks are not compared. Failed and parser-rejected runs can
+be compared as raw diagnostics without gaining formatted-success status.
+
+The native stream disclosures report equality of the complete decoded retained
+text. Previews align lines by number, mark differences with `≠` plus a border,
+and stop at 200 lines or 20,000 characters per stream. Insertions shift later
+comparisons; this is not semantic JSON matching or an insertion-aware diff.
+Limited previews say so, and ordinary Raw evidence remains available. Inputs
+and vendor contexts may differ, so matching text is not a service-state or
+authorization verdict. Pinning/clearing issues no requests; opening another
+run uses the existing single-run read. Filters preserve the baseline, while
+confirmed list eviction, a matching `run_not_found`, leaving History or reload
+clears it. Clear comparison returns focus to the selected run heading.
+
 ## 13. Settings
 
 Initial settings:

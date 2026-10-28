@@ -1172,6 +1172,51 @@ async function main() {
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
     await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
 
+    stage('compare recorded runs without execution side effects');
+    const comparisonIDs = [];
+    for (const query of ['comparison-before', 'comparison-after']) {
+      await chooseTask(page, 'integration/inspect');
+      await setTextInput(page, 'Query', query);
+      await clickButton(page, 'Run command');
+      await waitJS(page, 'completed comparison fixture', 'document.querySelector(".run-panel h2")?.textContent === "Succeeded" && document.querySelector(".output-explorer")?.textContent.includes(' + JSON.stringify(query) + ')');
+      comparisonIDs.push(await page.evaluate('document.querySelector(".run-meta dd")?.textContent?.trim()'));
+    }
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Execution History").click()');
+    await waitJS(page, 'comparison run history', 'document.querySelectorAll(".run-history-entry").length >= 2');
+    await page.evaluate('document.querySelectorAll(".run-history-entry")[1].click(); true');
+    await waitJS(page, 'baseline evidence loaded', 'document.querySelector(".run-history-id")?.textContent === ' + JSON.stringify(comparisonIDs[0]) + ' && Array.from(document.querySelectorAll("button")).some((button) => button.textContent === "Pin for comparison" && !button.disabled)');
+    await page.evaluate(`(() => {
+      const originalFetch = window.fetch;
+      window.__cliharborComparisonFetch = originalFetch;
+      window.__cliharborComparisonStarts = 0;
+      window.fetch = (...args) => {
+        if (String(args[0]) === '/api/v1/runs' && args[1]?.method === 'POST') window.__cliharborComparisonStarts++;
+        return originalFetch(...args);
+      };
+    })()`);
+    await clickButton(page, 'Pin for comparison');
+    await waitJS(page, 'baseline pinned', 'document.querySelector(".run-comparison")?.textContent.includes("Baseline pinned")');
+    await page.evaluate('document.querySelectorAll(".run-history-entry")[0].click(); true');
+    await waitJS(page, 'selected comparison evidence', 'document.querySelector(".run-history-id")?.textContent === ' + JSON.stringify(comparisonIDs[1]) + ' && document.querySelector(".run-comparison")?.textContent.includes("stdout · Text differs")');
+    assert.equal(await page.evaluate('document.querySelector(".run-comparison")?.textContent.includes("comparison-before") && document.querySelector(".run-comparison")?.textContent.includes("comparison-after")'), true);
+    assert.equal(await page.evaluate('document.querySelectorAll(".run-comparison-line-changed").length > 0'), true);
+    for (const width of [1366, 768, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      await page.evaluate('document.querySelector(".run-comparison").scrollIntoView({ block: "start" }); true');
+      assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'run comparison must fit at ' + width + 'px');
+      await capture('run-comparison-' + width);
+    }
+    await clickButton(page, 'Clear comparison');
+    await waitJS(page, 'comparison cleared with focus return', 'document.querySelector(".run-comparison") === null && document.activeElement?.id === "run-history-detail-heading"');
+    assert.equal(await page.evaluate('window.__cliharborComparisonStarts'), 0);
+    await page.evaluate('window.fetch = window.__cliharborComparisonFetch; delete window.__cliharborComparisonFetch; true');
+    for (const runID of comparisonIDs) {
+      const snapshot = await fetchJSON(page, '/api/v1/runs/' + runID);
+      assert.equal(snapshot.body.events.filter((event) => event.type === 'run.started').length, 1);
+    }
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
+
     stage('lost run-start acknowledgement recovers through history without replay');
     await chooseTask(page, 'integration/inspect');
     await setTextInput(page, 'Query', 'lost-acknowledgement-fixture');

@@ -335,6 +335,16 @@ and eviction, and preserved selected evidence. It asserts filtering performs
 no extra API reads and never searches the selected raw output. Chrome checks
 combined history controls and narrow layout against real retained runs.
 
+`RunComparison.test.tsx` covers separated streams, inert hostile/Unicode text,
+failed outcomes, raw parser-rejected JSON, positional and trailing-empty-line
+differences, and full-text equality beyond bounded previews. It refuses active,
+same-run and mismatched pack/command/tool selections. History acceptance covers
+pin/clear without API traffic or storage writes, delayed selection without stale
+comparison output, filters preserving the baseline, focus return, and baseline
+eviction. Chrome compares two explicitly executed fixture runs, verifies one
+process start per run and no comparison-triggered POST, and checks responsive
+geometry down to 320 pixels.
+
 Prove secrets are absent—not merely hidden—from future input diagnostics, invocation previews, logs, errors, run metadata, stdout/stderr persistence, structured output, and diagnostic bundles.
 
 Current tests already cover local pack path redaction, secret-output metadata constraints, and discovery probe failures not echoing captured output.
