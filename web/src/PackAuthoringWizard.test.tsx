@@ -36,7 +36,7 @@ describe('custom CLI pack wizard', () => {
     fireEvent.change(screen.getByLabelText('Pack ID'), { target: { value: 'acme-cli' } });
     expect(screen.getByText(/already loaded/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Executable filename (basename only)'), { target: { value: 'powershell.exe' } });
-    expect(screen.getByText(/not a path, script, shell/i)).toBeInTheDocument();
+    expect(screen.getByText(/not a path, Windows script, shell/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download pack draft (.yaml)' })).toBeDisabled();
   });
   test('recovers from a blocked browser download and retains the inert YAML preview', () => {

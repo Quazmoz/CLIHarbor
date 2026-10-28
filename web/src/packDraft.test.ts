@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { preparePackDraft, type DraftFields } from './packDraft';
+import policy from '../../internal/packs/testdata/executable-policy.json';
 
 const valid: DraftFields = {
   packId: 'acme-cli',
@@ -22,13 +23,21 @@ describe('pack authoring preview', () => {
     expect(result.yaml).not.toContain('install:');
   });
 
-  test('rejects duplicate pack identity, invalid paths, scripts and interpreter basenames', () => {
+  test('rejects a duplicate pack identity', () => {
     expect(preparePackDraft(valid, ['acme-cli']).yaml).toBeNull();
-    for (const executable of ['../acme', 'C:\\tools\\acme.exe', 'cmd.exe', 'pwsh', 'bash', 'thing.ps1', 'env', 'wsl.exe', 'sudo', 'helper.vbs']) {
+  });
+  test('agrees with the backend executable policy contract', () => {
+    for (const executable of policy.accept) {
+      expect(preparePackDraft({ ...valid, executable }).issues, executable).toEqual([]);
+    }
+    for (const executable of policy.reject) {
       const result = preparePackDraft({ ...valid, executable });
       expect(result.yaml, executable).toBeNull();
-      expect(result.issues.some((issue) => issue.field === 'executable')).toBe(true);
+      expect(result.issues.some((issue) => issue.field === 'executable'), executable).toBe(true);
     }
+    // Go parses this exact YAML in TestExecutablePolicyContract.
+    const { yaml } = preparePackDraft(policy.draft.fields as DraftFields);
+    expect(yaml).toBe(policy.draft.yaml);
   });
 
   test('rejects invalid ids, control characters, empty or duplicate OS selection', () => {

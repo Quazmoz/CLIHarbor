@@ -1,11 +1,13 @@
 package packs
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -611,5 +613,55 @@ func assertCode(t *testing.T, err error, want ErrorCode) {
 	}
 	if validation.Code != want {
 		t.Fatalf("error code = %q (%v), want %q", validation.Code, err, want)
+	}
+}
+
+// executablePolicy is the browser/backend contract in testdata; web/src/packDraft.test.ts reads the same file.
+type executablePolicy struct {
+	Accept []string `json:"accept"`
+	Reject []string `json:"reject"`
+	Draft  struct {
+		Fields struct {
+			PackID, Name, ToolID, Executable string
+		} `json:"fields"`
+		YAML string `json:"yaml"`
+	} `json:"draft"`
+}
+
+func TestExecutablePolicyContract(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "executable-policy.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var policy executablePolicy
+	if err := json.Unmarshal(data, &policy); err != nil {
+		t.Fatal(err)
+	}
+	withExecutable := func(name string) []byte {
+		return []byte(strings.Replace(minimalPack, "[fixture-cli]", "["+strconv.Quote(name)+"]", 1))
+	}
+	for _, name := range policy.Accept {
+		if _, err := Parse(withExecutable(name)); err != nil {
+			t.Errorf("accept %q: Parse() error = %v", name, err)
+		}
+	}
+	for _, name := range policy.Reject {
+		_, err := Parse(withExecutable(name))
+		var validation *ValidationError
+		if !errors.As(err, &validation) || (validation.Code != ErrUnsafeExecutable && validation.Code != ErrSchema) {
+			t.Errorf("reject %q: Parse() error = %v, want unsafe executable or schema rejection", name, err)
+		}
+	}
+
+	// The browser's exact output must pass the authoritative parser unchanged.
+	pack, err := Parse([]byte(policy.Draft.YAML))
+	if err != nil {
+		t.Fatalf("browser draft rejected: %v", err)
+	}
+	fields := policy.Draft.Fields
+	tool, ok := pack.Runtime.Tools[fields.ToolID]
+	if pack.Metadata.ID != fields.PackID || pack.Metadata.Name != fields.Name || !ok ||
+		len(tool.ExecutableNames) != 1 || tool.ExecutableNames[0] != fields.Executable || len(pack.Commands) != 0 {
+		t.Fatalf("browser draft decoded as %+v", pack)
 	}
 }

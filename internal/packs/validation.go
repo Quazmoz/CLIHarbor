@@ -348,7 +348,7 @@ func validateSemantics(pack Pack) error {
 		tool := pack.Runtime.Tools[toolID]
 		for i, executable := range tool.ExecutableNames {
 			if isForbiddenExecutable(executable) {
-				return validationError(ErrUnsafeExecutable, fmt.Sprintf("runtime.tools.%s.executableNames[%d]", toolID, i), "shells and general-purpose interpreters are not allowed as v1 tools")
+				return validationError(ErrUnsafeExecutable, fmt.Sprintf("runtime.tools.%s.executableNames[%d]", toolID, i), "shells, interpreters, program launchers, and Windows script types are not allowed as v1 tools")
 			}
 			if filepath.Base(executable) != executable || strings.ContainsAny(executable, `/\\`) {
 				return validationError(ErrUnsafeExecutable, fmt.Sprintf("runtime.tools.%s.executableNames[%d]", toolID, i), "tool executable names must be basenames, not paths")
@@ -875,25 +875,35 @@ func validateArgument(arg Argument, inputs map[string]Input, path string) error 
 	return validationError(ErrSemantic, path, "argument has no recognized execution mapping")
 }
 
+// isForbiddenExecutable is the authoritative tool-executable policy (PACK_SPEC
+// §4). web/src/packDraft.ts mirrors it; testdata/executable-policy.json pins
+// both. Rejected: Windows script types (CreateProcess routes batch through
+// cmd.exe, which re-parses argv; the rest need a script host), shells,
+// general-purpose interpreters, and launchers that run a program named in
+// argv. Unix shebang scripts such as kafka-topics.sh are exec'd directly with
+// argv intact, so their extension adds no risk over an extensionless script.
 func isForbiddenExecutable(name string) bool {
 	lower := strings.ToLower(name)
 	switch filepath.Ext(lower) {
 	case ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta":
 		return true
+	case ".exe", ".com": // the Windows variants the resolver accepts
+		lower = strings.TrimSuffix(lower, filepath.Ext(lower))
 	}
-	base := strings.TrimSuffix(lower, ".exe")
-	switch base {
+	switch lower {
 	// ponytail: denylist, so it only covers common names; an allowlist or
 	// publisher identity check is the upgrade if packs come from untrusted authors.
 	case "cmd", "powershell", "pwsh", "sh", "bash", "zsh", "fish", "dash", "ksh", "csh", "tcsh",
-		"wscript", "cscript", "python", "python3", "pythonw", "py", "node", "ruby", "perl", "osascript",
-		"mshta", "rundll32", "regsvr32", "wsl",
-		// Launchers run an arbitrary program named in argv.
-		"env", "xargs", "sudo", "doas", "runas", "busybox":
+		"wscript", "cscript", "osascript", "mshta", "rundll32", "regsvr32", "wsl",
+		"env", "xargs", "sudo", "doas", "runas", "busybox", "nohup", "nice", "timeout", "stdbuf", "setsid":
 		return true
-	default:
-		return false
 	}
+	// Interpreters ship versioned names (python3.12, perl5.36, node18, javaw).
+	switch strings.TrimRight(lower, "0123456789.") {
+	case "python", "pythonw", "py", "perl", "ruby", "node", "java", "javaw":
+		return true
+	}
+	return false
 }
 
 func sortedKeys[V any](items map[string]V) []string {

@@ -21,8 +21,17 @@ export interface DraftIssue {
 const idPattern = /^[a-z][a-z0-9-]{0,62}$/;
 const executablePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const platformOrder: DraftPlatform[] = ['windows', 'linux', 'darwin'];
-// Mirrors isForbiddenExecutable in internal/packs/validation.go (plus java and script extensions).
-const unsafeExecutable = /^(?:(?:cmd|powershell|pwsh|bash|sh|zsh|fish|dash|ksh|csh|tcsh|python\d*|pythonw|py|node|ruby|perl|java|osascript|cscript|wscript|mshta|rundll32|regsvr32|wsl|env|xargs|sudo|doas|runas|busybox)(?:\.exe|\.com)?|.*\.(?:bat|cmd|ps1|psm1|vbs|vbe|jse|wsf|wsh|hta|sh|py|js))$/i;
+// Advisory mirror of isForbiddenExecutable (internal/packs/validation.go);
+// internal/packs/testdata/executable-policy.json pins both to the same verdicts.
+const windowsScriptExtension = /\.(?:bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta)$/;
+const forbiddenExecutable = /^(?:cmd|powershell|pwsh|sh|bash|zsh|fish|dash|ksh|csh|tcsh|wscript|cscript|osascript|mshta|rundll32|regsvr32|wsl|env|xargs|sudo|doas|runas|busybox|nohup|nice|timeout|stdbuf|setsid)$/;
+const versionedInterpreter = /^(?:python|pythonw|py|perl|ruby|node|java|javaw)[0-9.]*$/;
+function isUnsafeExecutable(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (windowsScriptExtension.test(lower)) return true;
+  const base = lower.replace(/\.(?:exe|com)$/, '');
+  return forbiddenExecutable.test(base) || versionedInterpreter.test(base);
+}
 function hasControlCharacters(value: string): boolean {
   return [...value].some((character) => {
     const code = character.codePointAt(0) ?? 0;
@@ -52,10 +61,10 @@ export function preparePackDraft(fields: DraftFields, registeredPackIds: readonl
   if (!idPattern.test(toolId)) {
     issues.push({ field: 'toolId', message: 'Use 1–63 lowercase letters, digits or hyphens, starting with a letter.' });
   }
-  if (!executablePattern.test(executable) || unsafeExecutable.test(executable)) {
+  if (!executablePattern.test(executable) || isUnsafeExecutable(executable)) {
     issues.push({
       field: 'executable',
-      message: 'Enter an executable basename, not a path, script, shell, or general-purpose interpreter.',
+      message: 'Enter an executable basename, not a path, Windows script, shell, interpreter, or program launcher.',
     });
   }
   if (fields.platforms.length !== platforms.length || platforms.length === 0) {

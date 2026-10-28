@@ -95,9 +95,16 @@ tools:
     executableNames: [conjur]
 ```
 
-Paths are not valid pack configuration. CLIHarbor rejects common shells, script extensions, general-purpose interpreters, and launcher binaries as tool executables.
+Paths are not valid pack configuration. CLIHarbor rejects, case-insensitively and with or without `.exe`/`.com`:
 
-On Windows, an extensionless approved basename may resolve to the exact basename, `.exe`, or `.com`; batch/script extensions are not considered.
+- Windows script types (`.bat`, `.cmd`, `.ps1`, `.psm1`, `.vbs`, `.vbe`, `.js`, `.jse`, `.wsf`, `.wsh`, `.hta`): Windows runs batch files through `cmd.exe`, which re-parses argv, and the rest need a script host;
+- common shells, including `cmd`, PowerShell, POSIX shells and `wsl`;
+- general-purpose interpreters, including versioned names such as `python3.12`, `perl5.36`, `node18`, `java`/`javaw`, `osascript` and the Windows Script Host;
+- launchers that run a program named in their own argv (`env`, `xargs`, `sudo`, `doas`, `runas`, `busybox`, `nohup`, `nice`, `timeout`, `stdbuf`, `setsid`).
+
+A Unix shebang script such as `kafka-topics.sh` is accepted: the kernel executes it directly with argv intact, so its extension adds no risk over an extensionless vendor script. The list is a guardrail for reviewed packs, not an allowlist; `internal/packs/testdata/executable-policy.json` pins the backend and browser wizard to the same verdicts, and the backend is authoritative.
+
+On Windows, an extensionless approved basename resolves only to `<name>.exe` or `<name>.com`; the bare file and batch/script extensions are not considered.
 
 ## 6. Discovery
 

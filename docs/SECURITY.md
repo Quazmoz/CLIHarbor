@@ -79,7 +79,7 @@ trusted pack task + validated typed values + ready discovery state
 
 CLIHarbor does not concatenate browser values into a shell command and does not invoke CMD, PowerShell, POSIX shells or general-purpose interpreters merely to execute normal tasks.
 
-The v1 pack model rejects common shells/interpreters/script launchers as tool executables.
+The v1 pack model rejects common shells, interpreters, program launchers and Windows script types as tool executables (PACK_SPEC §4). The browser pack wizard mirrors this check for convenience only; the backend parser is authoritative.
 
 ### SI-2 — Browser cannot choose executable or command syntax
 
