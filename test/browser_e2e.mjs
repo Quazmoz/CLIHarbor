@@ -560,6 +560,13 @@ async function main() {
     '})()'), true);
     await waitJS(page, 'quick switcher ready',
       'document.querySelector(".task-switcher[open]") !== null && document.activeElement?.id === "task-switcher-input"');
+    assert.equal(await page.evaluate('(async () => {' +
+      'const dialog = document.querySelector(".task-switcher");' +
+      'const closed = new Promise((resolve) => dialog.addEventListener("close", resolve, { once: true }));' +
+      'dialog.close(); dialog.showModal(); document.querySelector("#task-switcher-input").focus();' +
+      'await closed; await new Promise(requestAnimationFrame);' +
+      'return dialog.isConnected && dialog.open && document.activeElement?.id === "task-switcher-input";' +
+    '})()'), true, 'a queued native close event must not dismiss a reopened task search');
     await page.evaluate('(() => {' +
       'const input = document.querySelector("#task-switcher-input");' +
       'const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;' +
@@ -1277,6 +1284,16 @@ async function main() {
     }
     await clickButton(page, 'Clear comparison');
     await waitJS(page, 'comparison cleared with focus return', 'document.querySelector(".run-comparison") === null && document.activeElement?.id === "run-history-detail-heading"');
+    await page.evaluate('history.back(); true');
+    await waitJS(page, 'Back restores the earlier run URL and evidence',
+      'location.search === ' + JSON.stringify('?run=' + comparisonIDs[0]) +
+      ' && document.querySelector(".run-history-id")?.textContent === ' + JSON.stringify(comparisonIDs[0]) +
+      ' && document.querySelector(".run-history-detail-panel")?.textContent.includes("comparison-before")');
+    await page.evaluate('history.forward(); true');
+    await waitJS(page, 'Forward restores the later run URL and evidence',
+      'location.search === ' + JSON.stringify('?run=' + comparisonIDs[1]) +
+      ' && document.querySelector(".run-history-id")?.textContent === ' + JSON.stringify(comparisonIDs[1]) +
+      ' && document.querySelector(".run-history-detail-panel")?.textContent.includes("comparison-after")');
     assert.equal(await page.evaluate('window.__cliharborComparisonStarts'), 0);
     await page.evaluate('window.fetch = window.__cliharborComparisonFetch; delete window.__cliharborComparisonFetch; true');
     for (const runID of comparisonIDs) {
@@ -1453,7 +1470,7 @@ async function main() {
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
     await page.evaluate('document.querySelector(".operation-activity summary").click()');
     await page.evaluate('Array.from(document.querySelectorAll(".operation-activity a")).find((link) => link.getAttribute("href").endsWith(' + JSON.stringify(waitRunID) + ')).click()');
-    await waitJS(page, 'activity opens exact retained run', 'location.pathname === "/runs" && document.querySelector(".run-history-id")?.textContent.trim() === ' + JSON.stringify(waitRunID));
+    await waitJS(page, 'activity opens exact retained run', 'location.pathname === "/runs" && location.search === ' + JSON.stringify('?run=' + waitRunID) + ' && document.querySelector(".run-history-id")?.textContent.trim() === ' + JSON.stringify(waitRunID));
     await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
     await waitJS(page, 'return to running command without replay', 'location.pathname === "/tasks" && document.querySelector(".run-panel h2")?.textContent.trim() === "Running"');
 

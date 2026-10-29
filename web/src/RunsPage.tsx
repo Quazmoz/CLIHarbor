@@ -17,6 +17,7 @@ import { RunComparison } from './RunComparison';
 interface RunsPageProps {
   tasks: Task[];
   onOpenTasks?: () => void;
+  onSelectRun?: (runId: string) => void;
   requestedRun?: { runId: string };
 }
 
@@ -87,7 +88,7 @@ function FailureNotice({ failure }: { failure: AppErrorDetail }) {
   );
 }
 
-export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
+export function RunsPage({ tasks, onOpenTasks, onSelectRun, requestedRun }: RunsPageProps) {
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
   const [summaries, setSummaries] = useState<RunSummary[]>([]);
   const [listLoading, setListLoading] = useState(true);
@@ -106,11 +107,11 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
   const [detailRefresh, setDetailRefresh] = useState(0);
   if (seenRequest !== requestedRun) {
     setSeenRequest(requestedRun);
-    if (requestedRun && requestedRun.runId !== selectedRunID) {
-      setSelectedRunID(requestedRun.runId);
+    if ((requestedRun?.runId ?? null) !== selectedRunID) {
+      setSelectedRunID(requestedRun?.runId ?? null);
       setDetail(null);
       setDetailFailure(null);
-      setDetailLoading(true);
+      setDetailLoading(requestedRun !== undefined);
     }
   }
   const listRequestRef = useRef<AbortController | null>(null);
@@ -221,6 +222,7 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
 
   const selectRun = (runID: string) => {
     if (runID === selectedRunID) return;
+    if (onSelectRun) { onSelectRun(runID); return; }
     setSelectedRunID(runID);
     setDetail(null);
     setDetailFailure(null);
@@ -376,6 +378,7 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
                         {statusText(summary.status, summary.exitCode)}
                       </span>
                       <span>{formatTimestamp(summary.startedAt)}</span>
+                      <code className="summary-meta" title={summary.runId}>Run {summary.runId.slice(0, 8)}</code>
                     </span>
                   </button>
                 </li>
@@ -387,7 +390,7 @@ export function RunsPage({ tasks, onOpenTasks, requestedRun }: RunsPageProps) {
           )}
         </article>
 
-        {summaries.length > 0 && (
+        {(summaries.length > 0 || selectedRunID !== null) && (
         <article className="panel run-history-detail-panel" aria-labelledby="run-history-detail-heading" aria-busy={detailLoading}>
           <p className="status-label">Run detail</p>
           {selectedRunID === null ? (

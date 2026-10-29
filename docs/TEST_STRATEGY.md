@@ -609,9 +609,20 @@ an ambiguous task selector.
 
 ## Global quick-task navigation acceptance
 
+`TaskSwitcher.test.tsx` replays queued native dialog-close events after reopening
+under root StrictMode. Chrome verifies the real queued event leaves the reopened
+modal and search focus intact. A genuine close still dismisses it.
+
 The header Find task shortcut and Ctrl/Command+K modal consume only the server-authorized task list. React tests validate multi-term search, favorite/recent ordering, auth/risk labels, empty catalogs, typed-input shortcut suppression, and selecting a task without issuing run/preview API calls. The production-embedded Chrome E2E opens the native modal, searches a fixture task, checks its 320 px layout, and confirms that selection returns to the existing task form with no execution side effect. The existing task-catalog `/` shortcut must not focus background inputs while this modal is open.
 
 ## UI simplification acceptance
+
+`AppNavigation.test.tsx` covers Activity and history-row URLs, Back/Forward,
+abandoned pending detail reads, direct evidence through metadata-list failure,
+and invalid/duplicate run parameters without executing a command. Chrome checks
+same-route history traversal with real retained runs and zero additional starts.
+`MutationAuditTrail.test.tsx` verifies retained evidence during refresh/failure,
+single-flight busy feedback, retry recovery and abort-on-unmount.
 
 Navigation regressions cover top-bar integration destinations, the built-in CLI directory, browser back navigation, unavailable dedicated deep links, and attention-only readiness links. Overview retains conservative per-CLI session checks, actionable unavailable tools, recent run outcomes, and favorite shortcuts while omitting duplicate metrics/Workspace metadata and hiding onboarding after setup or prior use. The embedded Chrome harness verifies that exactly one task tool selector is visible at each supported width, that switching through either selector preserves scope through resizing, and that keyboard navigation reaches the header links and collapsed preflight metadata. Conjur Tools retains inventory and migration workflows; shared runner validation, approval and output boundaries remain covered by the existing suites.
 

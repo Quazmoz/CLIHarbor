@@ -316,6 +316,14 @@ Color alone must not convey risk.
 
 ## 12. Run history
 
+Activity links, completion cards and history-row selections use the same
+`/runs?run=<id>` navigation. Back and Forward reconcile the selected evidence
+with that URL, including clearing an abandoned selection when returning to the
+history list. Invalid or duplicate run parameters select nothing. Rows show a
+short run ID to distinguish repeated executions; full IDs remain in run detail.
+A valid direct run link can display its evidence even when the metadata list
+is temporarily unavailable. Navigation only reads retained evidence.
+
 The browser now exposes a first-class `/runs` page backed by the existing bounded in-memory run manager.
 
 History is intentionally process-local:
@@ -361,6 +369,11 @@ authorization verdict. Pinning/clearing issues no requests; opening another
 run uses the existing single-run read. Filters preserve the baseline, while
 confirmed list eviction, a matching `run_not_found`, leaving History or reload
 clears it. Clear comparison returns focus to the selected run heading.
+
+The mutation audit panel keeps previously loaded entries readable during a
+refresh or read failure and labels them as previously loaded. Refresh is
+single-flight, exposes busy feedback, and can be retried after failure. Leaving
+History aborts a pending audit read; this does not cancel a mutation.
 
 ## 13. Settings
 

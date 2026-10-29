@@ -47,7 +47,10 @@ export function TaskSwitcher({ tasks, preferences, onSelect, onClose }: TaskSwit
 
   return (
     <dialog ref={dialogRef} className="task-switcher" aria-labelledby="task-switcher-title"
-      aria-describedby="task-switcher-description" onClose={onClose}>
+      aria-describedby="task-switcher-description" onClose={(event) => {
+        // Native close events are queued: an effect replay may already have reopened it.
+        if (!event.currentTarget.open) onClose();
+      }}>
       <div className="task-switcher-heading">
         <div>
           <p className="status-label">Quick navigation</p>

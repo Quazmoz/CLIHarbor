@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { Task } from './api/tasks';
 import { TaskSwitcher } from './TaskSwitcher';
@@ -90,4 +90,25 @@ test('never fabricates results when the approved catalog is empty', () => {
   expect(within(dialog).getByText('No tasks found')).toBeInTheDocument();
   fireEvent.submit(within(dialog).getByRole('searchbox').closest('form')!);
   expect(onSelect).not.toHaveBeenCalled();
+});
+
+test('ignores queued native close events from an earlier dialog opening', () => {
+  const queued: HTMLDialogElement[] = [];
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+    configurable: true, value(this: HTMLDialogElement) {
+      this.removeAttribute('open');
+      queued.push(this);
+    },
+  });
+  const onClose = vi.fn();
+  render(<TaskSwitcher tasks={tasks} preferences={emptyTaskPreferences()} onSelect={() => {}} onClose={onClose} />,
+    { reactStrictMode: true });
+  const dialog = screen.getByRole('dialog', { name: 'Find a task' }) as HTMLDialogElement;
+  expect(queued).toHaveLength(1);
+  act(() => { for (const closed of queued.splice(0)) fireEvent(closed, new Event('close')); });
+  expect(onClose).not.toHaveBeenCalled();
+  expect(dialog).toHaveAttribute('open');
+  expect(within(dialog).getByRole('searchbox')).toHaveFocus();
+  act(() => { dialog.close(); fireEvent(dialog, new Event('close')); });
+  expect(onClose).toHaveBeenCalledTimes(1);
 });

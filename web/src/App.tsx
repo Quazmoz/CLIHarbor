@@ -424,16 +424,19 @@ export function App() {
   return <OperationActivityProvider><WorkspaceApp /></OperationActivityProvider>;
 }
 
+function requestedRunFromLocation(): { runId: string } | undefined {
+  if (window.location.pathname !== routePaths.runs) return;
+  const ids = new URLSearchParams(window.location.search).getAll('run');
+  return ids.length === 1 && /^[0-9a-f]{32}$/u.test(ids[0]) ? { runId: ids[0] } : undefined;
+}
+
 function WorkspaceApp() {
   const [conjurTaskRequest, setConjurTaskRequest] = useState<ConjurTaskRequest>();
   const conjurTaskSequence = useRef(0);
   const clearConjurTaskRequest = useCallback(() => setConjurTaskRequest(undefined), []);
   const { confirmNavigation, local } = useOperationActivity();
   const lastPathRef = useRef(window.location.pathname + window.location.search);
-  const [requestedRun, setRequestedRun] = useState<{ runId: string } | undefined>(() => {
-    const id = new URLSearchParams(window.location.search).get('run');
-    return id && /^[0-9a-f]{32}$/.test(id) ? { runId: id } : undefined;
-  });
+  const [requestedRun, setRequestedRun] = useState(requestedRunFromLocation);
   const [quickCheck, setQuickCheck] = useState<{ toolKey: string; id: number } | null>(null);
   const quickCheckSequence = useRef(0);
   const clearQuickCheck = useCallback(() => setQuickCheck(null), []);
@@ -672,8 +675,10 @@ function WorkspaceApp() {
         return;
       }
       lastPathRef.current = window.location.pathname + window.location.search;
+      setRequestedRun(requestedRunFromLocation());
       setNavigationOpen(false);
       setRoute(routeFromPath(window.location.pathname));
+      mainRef.current?.focus({ preventScroll: true });
       const pathPlatform = platformIDFromPath(window.location.pathname);
       if (pathPlatform !== '') setSelectedPlatformID(pathPlatform);
     };
@@ -1119,12 +1124,15 @@ function WorkspaceApp() {
     : (platforms.find((platform) => platform.id === selectedPlatformID) ?? platforms[0]);
   const activePlatformID = activePlatform?.id ?? '';
 
-  const navigate = useCallback((nextRoute: AppRoute, platformID: string = activePlatformID) => {
-    const nextPath = pathForRoute(nextRoute, platformID);
-    if (!confirmNavigation(nextPath)) return false;
-    if (window.location.pathname !== nextPath) {
+  const navigate = useCallback((nextRoute: AppRoute, platformID: string = activePlatformID, runId?: string) => {
+    const pathname = pathForRoute(nextRoute, platformID);
+    const nextPath = pathname +
+      (nextRoute === 'runs' && runId ? '?run=' + encodeURIComponent(runId) : '');
+    if (!confirmNavigation(pathname)) return false;
+    if (window.location.pathname + window.location.search !== nextPath) {
       window.history.pushState({}, '', nextPath);
     }
+    if (nextRoute === 'runs') setRequestedRun(runId ? { runId } : undefined);
     setRoute(nextRoute);
     setNavigationOpen(false);
     lastPathRef.current = nextPath;
@@ -1262,9 +1270,8 @@ function WorkspaceApp() {
         </nav>
         <div className="topbar-context">
           {state.kind === 'ready' && <OperationActivity tasks={state.tasks} onOpen={(path, runId, anchor) => {
-            if (!navigate(routeFromPath(path), platformIDFromPath(path) || activePlatformID)) return;
-            if (runId) setRequestedRun({ runId });
-            else requestAnimationFrame(() => {
+            if (!navigate(routeFromPath(path), platformIDFromPath(path) || activePlatformID, runId)) return;
+            if (!runId) requestAnimationFrame(() => {
               const notice = anchor ? document.getElementById(anchor) : document.querySelector<HTMLElement>('.working-status:not(:empty)');
               const panel = notice?.closest('[role="tabpanel"][hidden]');
               const tabID = panel?.getAttribute('aria-labelledby');
@@ -1387,7 +1394,8 @@ function WorkspaceApp() {
           />
         )}
 
-        {state.kind === 'ready' && route === 'runs' && <RunsPage tasks={state.tasks} requestedRun={requestedRun} onOpenTasks={() => navigate('tasks')} />}
+      {state.kind === 'ready' && route === 'runs' && <RunsPage tasks={state.tasks} requestedRun={requestedRun}
+        onSelectRun={(runId) => navigate('runs', undefined, runId)} onOpenTasks={() => navigate('tasks')} />}
 
         {state.kind === 'ready' && route === 'access-explorer' && activePlatform?.id === 'conjur' && (
           <ConjurAccessExplorer
@@ -1860,7 +1868,7 @@ function WorkspaceApp() {
                       next: runTask?.risk !== 'read' && !(run.snapshot.status === 'exited' && run.snapshot.exitCode === 0)
                         ? 'A change may have occurred. Inspect execution evidence and the target before deciding whether another change is needed.'
                         : 'Review the output and execution evidence before your next command.',
-                    }}><button type="button" className="secondary-button" onClick={() => { if (navigate('runs')) setRequestedRun({ runId: run.snapshot.runId }); }}>Open Execution History</button></OperationResult>}
+                    }}><button type="button" className="secondary-button" onClick={() => navigate('runs', undefined, run.snapshot.runId)}>Open Execution History</button></OperationResult>}
                     <p className="run-task-name">{state.tasks.find((task) => task.packId + '/' + task.commandId === run.retry.taskKey)?.name ?? run.snapshot.commandId}</p>
                     {run.snapshot.startedAt !== undefined && (
                       <RunTiming startedAt={run.snapshot.startedAt} endedAt={run.snapshot.status === 'running' ? undefined : run.snapshot.endedAt} />
