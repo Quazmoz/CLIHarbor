@@ -1274,6 +1274,7 @@ async function main() {
 
     stage('failed JSON output preserves immediate diagnostics in tasks and history');
     await chooseTask(page, 'integration/fail');
+    const originalExitCode = await page.evaluate('Array.from(document.querySelectorAll("input")).find((input) => Array.from(input.labels ?? []).some((label) => label.textContent.trim().startsWith("Exit code"))).value');
     await setTextInput(page, 'Exit code', '7');
     const failedCreateRequest = page.waitEvent('Network.requestWillBeSent',
       (params) => isRunCreateRequest(params, 'fail'));
@@ -1306,6 +1307,21 @@ async function main() {
     assert.deepEqual(await page.evaluate(rawFailure), expectedFailure);
     await page.evaluate('document.querySelector(".output-explorer").scrollIntoView({ block: "start" }); true');
     await capture('failed-run-mobile');
+    stage('raw stream search, wrapping and fresh task configuration');
+    await setTextInput(page, 'Search stderr', 'FIXTURE FAILURE');
+    await waitJS(page, 'case-insensitive stderr search', 'document.querySelector(".output-explorer").textContent.includes("1 matching line in stderr") && document.querySelectorAll(".output-search-line").length === 1');
+    assert.equal(await page.evaluate('document.querySelector(".output-line-number").textContent'), '1');
+    assert.equal(await page.evaluate(`document.querySelector('pre[aria-label="stdout output"]').textContent`), '{"ok":false}');
+    await clickButton(page, 'Wrap stderr lines');
+    assert.equal(await page.evaluate(`getComputedStyle(document.querySelector('pre[aria-label="stderr output"]')).whiteSpace`), 'pre');
+    assert.equal(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'raw controls and unwrapped output must fit at 320px');
+    await setTextInput(page, 'Search stderr', 'no matching diagnostic');
+    await waitJS(page, 'explicit raw search miss', 'document.querySelector(".output-explorer").textContent.includes("No stderr lines match.")');
+    await clickButton(page, 'Clear stderr search');
+    assert.equal(await page.evaluate('document.activeElement.getAttribute("type")'), 'search');
+    assert.deepEqual(await page.evaluate(rawFailure), expectedFailure);
+    await clickButton(page, 'Configure this task');
+    await waitJS(page, 'history reopens fresh command form', 'location.pathname === "/tasks" && Array.from(document.querySelectorAll("input")).some((input) => Array.from(input.labels ?? []).some((label) => label.textContent.trim().startsWith("Exit code")) && input.value === ' + JSON.stringify(originalExitCode) + ')');
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
     const failedSnapshot = await fetchJSON(page, '/api/v1/runs/' + failedRunID);
     assert.equal(failedSnapshot.body.exitCode, 7);
@@ -1658,6 +1674,23 @@ async function main() {
     assert.equal(cancelled.status, 200);
     assert.equal(cancelled.body.status, 'cancelled');
     assert.equal(cancelled.body.events.filter((event) => event.type === 'run.started').length, 1, 'cancellation/reconnect must preserve single execution');
+
+    stage('cancel an active run from retained history');
+    await clickButton(page, 'Run command');
+    await waitJS(page, 'second wait run starts', 'document.querySelector(".run-panel h2")?.textContent?.trim() === "Running"');
+    const historyCancelID = await page.evaluate('document.querySelector(".run-meta dd").textContent.trim()');
+    assert.notEqual(historyCancelID, waitRunID);
+    await page.evaluate('document.querySelector(\'.primary-nav a[href="/runs"]\').click()');
+    await waitJS(page, 'history lists active run', 'document.querySelector(".run-history-entry").textContent.includes(' + JSON.stringify(historyCancelID.slice(0, 8)) + ')');
+    await page.evaluate('document.querySelector(".run-history-entry").click(); true');
+    await waitJS(page, 'history cancellation available', 'Array.from(document.querySelectorAll("button")).some((button) => button.textContent === "Cancel this run" && !button.disabled)');
+    await clickButton(page, 'Cancel this run');
+    await waitJS(page, 'history confirms cancellation', 'document.querySelector(".run-history-detail-panel").textContent.includes("Run finished: Cancelled.")', 8000);
+    const historyCancelled = await fetchJSON(page, '/api/v1/runs/' + historyCancelID);
+    assert.equal(historyCancelled.body.status, 'cancelled');
+    assert.equal(historyCancelled.body.events.filter((event) => event.type === 'run.started').length, 1);
+    await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
+    await waitJS(page, 'return after history cancellation', 'location.pathname === "/tasks" && document.querySelector(".run-panel h2")?.textContent.trim() === "Cancelled"');
 
     stage('retained run eviction');
     const eviction = await page.evaluate('(async () => {' +

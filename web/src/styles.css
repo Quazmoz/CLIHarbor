@@ -1158,6 +1158,18 @@ main:focus { outline: none; }
   overflow-wrap: anywhere;
 }
 
+.output-stream { min-width: 0; }
+.output-stream-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 0.5rem; }
+.output-stream-controls label { flex: 1 1 12rem; min-width: 0; font-size: 0.8rem; }
+.output-stream-controls input { display: block; width: 100%; margin-top: 0.3rem; }
+.output-stream-controls button { font-size: 0.75rem; }
+.output-stream-status { color: var(--text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+.output-grid pre.output-stream-nowrap { white-space: pre; overflow-wrap: normal; }
+.output-search-line { display: flex; gap: 0.8rem; }
+.output-line-number { flex: 0 0 4ch; color: var(--text-muted); text-align: right; user-select: none; }
+.output-search-line > span:last-child { min-width: 0; }
+.run-history-task-action { margin-block: 0.8rem; }
+
 .tool-diagnostics {
   margin-top: var(--space-4);
   padding: 0;

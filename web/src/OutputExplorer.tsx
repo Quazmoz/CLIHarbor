@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import type { RunStatus, StructuredResult } from './api/runs';
 import { StructuredResultView } from './StructuredResultView';
 import { ResultExport } from './ResultExport';
+import { OutputStream } from './OutputStream';
 
 type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
 interface OutputRow { path: string; value: string; }
@@ -47,7 +48,7 @@ interface OutputExplorerProps {
   exitCode?: number;
   structured?: StructuredResult;
   runId?: string;
-  rawOutput: ReactNode;
+  rawOutput?: ReactNode;
 }
 
 /** A presentation-only view of already-authorized process output, never a parser used for execution. */
@@ -124,7 +125,10 @@ export function OutputExplorer({ stdout, stderr, status, exitCode, structured, r
       ) : (
         <>
           {succeeded && stdout === '' && stderr === '' && <p role="status">Command completed successfully. No stdout or stderr was returned.</p>}
-          {rawOutput}
+          {rawOutput ?? <div key={runId} className="output-grid">
+            <OutputStream name="stdout" text={stdout} live={status === 'running'} />
+            <OutputStream name="stderr" text={stderr} live={status === 'running'} />
+          </div>}
         </>
       )}
     </section>

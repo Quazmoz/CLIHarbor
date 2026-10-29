@@ -181,6 +181,16 @@ Current structured JSON contracts are deliberately narrow:
 
 Raw process state/stdout/stderr remain authoritative evidence.
 
+Raw stream searches are literal, bounded browser-only presentation over already
+retained non-secret output. They display at most 200 matching lines per stream;
+the complete match count and complete-stream copy use the original retained
+text. Queries and controls are not persisted or sent to the server. Searches
+cannot change run outcomes, parser decisions or execution authority. History
+cancellation reuses the authenticated CSRF-protected run endpoint and verifies
+completion through retained snapshots. Configuring a historical task uses only
+its matching current-catalog identity and fresh defaults, never recovered input,
+approval or credential state.
+
 Explicit browser JSON/CSV field exports reuse only the successful formatted
 view, including its bounds and reviewed-parser rejection rules. The allowlisted
 report contains a run ID and displayed field/value pairs (CSV also records

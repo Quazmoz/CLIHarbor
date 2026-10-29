@@ -203,6 +203,16 @@ CLIHarbor local browser-session state and vendor-owned CLI session state remain 
 
 ## 8. Run view
 
+The Raw viewer is shared by Command Builder, retained run detail and dedicated
+Conjur task results. Each stream has literal, case-insensitive **Search stdout**
+or **Search stderr**, line wrapping and complete-stream copy. Search displays
+original line numbers and the first 200 matching lines with the full match
+count. Clearing search restores the complete retained text; copying always
+copies that complete stream, including hidden lines. Queries, controls and copy
+feedback are transient and reset for another run. Live output follows new text
+until the operator scrolls away or pauses **Follow**; searching suspends follow.
+Stdout/stderr remain separate inert text, including on parser or CLI failure.
+
 A run has states:
 
 ```text
@@ -315,6 +325,16 @@ Destructive tasks require deliberate friction:
 Color alone must not convey risk.
 
 ## 12. Run history
+
+**Cancel this run** stops an active retained run through the existing
+authenticated cancellation endpoint. Duplicate clicks are suppressed. The UI
+continues reading its outcome after acknowledgement or transport failure;
+acknowledgement alone never means cancelled. Vendor changes may already have
+happened. Leaving a pending cancellation cannot replace another selected run's
+evidence. **Configure this task** opens a completed run's matching current-catalog
+task in Command Builder with fresh defaults and no automatic execution. Old
+inputs and approvals are never restored. Missing tasks and active-work guards
+disable this action.
 
 Activity links, completion cards and history-row selections use the same
 `/runs?run=<id>` navigation. Back and Forward reconcile the selected evidence

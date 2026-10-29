@@ -214,9 +214,6 @@ export function ConjurTaskPanel({ task, tasks, csrfToken, account, endpoint, pre
     {message && <p role="alert">{message}</p>}
     {outcome && <OperationResult result={outcome}>{onOpenRuns && <button type="button" onClick={onOpenRuns}>Open Execution History</button>}</OperationResult>}
     {snapshot && output && <OutputExplorer runId={snapshot.runId} status={snapshot.status} exitCode={snapshot.exitCode} structured={snapshot.structured}
-      stdout={output.stdout} stderr={output.stderr} rawOutput={<div className="output-grid">
-        <section aria-label="Conjur stdout"><h4>stdout</h4><pre tabIndex={0}>{output.stdout || 'No stdout returned.'}</pre></section>
-        <section aria-label="Conjur stderr"><h4>stderr</h4><pre tabIndex={0}>{output.stderr || 'No stderr returned.'}</pre></section>
-      </div>} />}
+      stdout={output.stdout} stderr={output.stderr} />}
   </section>;
 }

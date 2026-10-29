@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { normalizeError, type AppErrorDetail } from './api/errors';
 import {
+  cancelRun,
   decodeRunOutput,
   fetchRun,
   fetchRuns,
@@ -16,9 +17,63 @@ import { RunComparison } from './RunComparison';
 
 interface RunsPageProps {
   tasks: Task[];
+  csrfToken?: string;
+  tasksLocked?: boolean;
+  onConfigureTask?: (task: Task) => void;
   onOpenTasks?: () => void;
   onSelectRun?: (runId: string) => void;
   requestedRun?: { runId: string };
+}
+
+function HistoryCancellation({ run, csrfToken, onReconcile }: { run: RunSnapshot; csrfToken: string; onReconcile: () => void }) {
+  const [phase, setPhase] = useState<'idle' | 'requesting' | 'requested'>('idle');
+  const [failure, setFailure] = useState<AppErrorDetail | null>(null);
+  const pending = useRef(false);
+  const alive = useRef(true);
+  const region = useRef<HTMLDivElement>(null);
+  const focused = useRef(false);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
+  useEffect(() => {
+    if ((run.status !== 'running' || failure !== null) && focused.current &&
+        (document.activeElement === document.body || region.current?.contains(document.activeElement))) {
+      region.current?.focus();
+      focused.current = false;
+    }
+  }, [run.status, failure]);
+  const cancel = async () => {
+    if (pending.current || phase !== 'idle' || run.status !== 'running') return;
+    pending.current = true;
+    setPhase('requesting');
+    setFailure(null);
+    try {
+      await cancelRun(csrfToken, run.runId);
+      if (alive.current) setPhase('requested');
+    } catch (error) {
+      if (alive.current) {
+        setFailure(normalizeError(error).detail);
+        setPhase('idle');
+      }
+    } finally {
+      pending.current = false;
+      // Read the final outcome; a cancellation acknowledgement is not completion evidence.
+      if (alive.current) onReconcile();
+    }
+  };
+  return <div ref={region} tabIndex={-1} aria-label="Run cancellation">
+    {run.status === 'running' ? <>
+      <button type="button" className="secondary-button" disabled={phase !== 'idle'} aria-busy={phase === 'requesting'}
+        onFocus={() => { focused.current = true; }} onBlur={(event) => {
+          if (event.relatedTarget && !region.current?.contains(event.relatedTarget)) focused.current = false;
+        }}
+        onClick={() => void cancel()}>{phase === 'requesting' ? 'Requesting cancellation…' : phase === 'requested' ? 'Cancellation requested' : 'Cancel this run'}</button>
+      <p className="overview-hint">Cancellation stops local execution. Vendor changes may already have happened; inspect the target before another attempt.</p>
+      {phase !== 'idle' && <p role="status">{phase === 'requesting' ? 'Sending cancellation request…' : 'Cancellation requested. Waiting for the final run outcome.'}</p>}
+      {failure && <><FailureNotice failure={failure} /><p>Cancellation is unconfirmed. Live history checks continue when available; refresh this run to verify its outcome.</p></>}
+    </> : phase !== 'idle' ? <span className="summary-meta">Run finished: {statusText(run.status, run.exitCode)}.</span> : null}
+  </div>;
 }
 
 const ACTIVE_RUN_REFRESH_MS = 2000;
@@ -88,7 +143,7 @@ function FailureNotice({ failure }: { failure: AppErrorDetail }) {
   );
 }
 
-export function RunsPage({ tasks, onOpenTasks, onSelectRun, requestedRun }: RunsPageProps) {
+export function RunsPage({ tasks, csrfToken, tasksLocked = false, onConfigureTask, onOpenTasks, onSelectRun, requestedRun }: RunsPageProps) {
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
   const [summaries, setSummaries] = useState<RunSummary[]>([]);
   const [listLoading, setListLoading] = useState(true);
@@ -269,6 +324,7 @@ export function RunsPage({ tasks, onOpenTasks, onSelectRun, requestedRun }: Runs
     setToolFilter('all');
     searchRef.current?.focus();
   };
+  const selectedTask = detail && tasks.find((task) => task.packId === detail.packId && task.commandId === detail.commandId && task.toolId === detail.toolId);
 
   return (
     <section className="runs-page" aria-labelledby="runs-heading">
@@ -454,6 +510,16 @@ export function RunsPage({ tasks, onOpenTasks, onSelectRun, requestedRun }: Runs
                     </div>
                   </dl>
 
+                  {csrfToken && <HistoryCancellation key={detail.runId} run={detail} csrfToken={csrfToken} onReconcile={() => {
+                    setListRefresh((value) => value + 1);
+                    setDetailRefresh((value) => value + 1);
+                  }} />}
+                  {onConfigureTask && detail.status !== 'running' && <div className="run-history-task-action">
+                    <button type="button" className="secondary-button" disabled={!selectedTask || tasksLocked || detailFailure !== null}
+                      onClick={() => { if (selectedTask) onConfigureTask(selectedTask); }}>Configure this task</button>
+                    <p className="overview-hint">{selectedTask ? 'Opens a fresh form with current defaults. Review inputs and approvals before running.' : 'This task is no longer available in the current CLI catalog.'}</p>
+                  </div>}
+
                   <button type="button" className="secondary-button"
                     disabled={detail.status === 'running' || detailLoading || detailFailure !== null || listLoading || listFailure !== null || !selectedSummary || comparisonBaseline?.runId === detail.runId}
                     onClick={() => setComparisonBaseline(detail)}>Pin for comparison</button>
@@ -469,16 +535,7 @@ export function RunsPage({ tasks, onOpenTasks, onSelectRun, requestedRun }: Runs
                     runId={detail.runId}
                     stdout={output.stdout} stderr={output.stderr}
                     structured={detail.structured} status={detail.status} exitCode={detail.exitCode}
-                    rawOutput={<div className="output-grid">
-                      <section aria-labelledby="history-stdout-heading">
-                        <h3 id="history-stdout-heading">stdout</h3>
-                        <pre tabIndex={0}>{output.stdout || 'No stdout retained.'}</pre>
-                      </section>
-                      <section aria-labelledby="history-stderr-heading">
-                        <h3 id="history-stderr-heading">stderr</h3>
-                        <pre tabIndex={0}>{output.stderr || 'No stderr retained.'}</pre>
-                      </section>
-                    </div>} />
+                  />
                 </>
               )}
             </>
