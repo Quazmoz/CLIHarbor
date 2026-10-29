@@ -61,18 +61,18 @@ The left sidebar is reserved for the standard **CLI workspace** routes. **Built-
 
 ```text
 Top bar: [Find task search] [Built-in CLIs] [Other CLIs] [Activity] [CLI attention only when needed] [Connecting/error only when applicable] [Sign in] [CLI sessions]
-Main content: [Breadcrumbs] above each page
+Main content: [Breadcrumbs] only inside a Built-in CLI journey (top-level pages are already identified by the sidebar)
 Left sidebar:
-  CLI workspace
-    Work: Overview, Command Builder (/tasks), Execution History (/runs)
-    Set up & manage: Add a CLI, Diagnostics
+  Work: Overview, Command Builder (/tasks), Execution History (/runs)
+  Set up & manage: Add a CLI, Diagnostics
+  Footer: local-runtime / no-telemetry trust note
 ```
 
 **Built-in CLIs** opens the `/dedicated` directory: one card per registered dedicated integration showing its readiness, summary, approved task count and features, each opening that integration's home. The home's reviewed feature cards reach sign-in, Access Explorer, security audit, and approved tasks without a second sidebar or execution surface. While inside an integration, the top-bar link stays current and names it (`Built-in CLIs · CyberArk Conjur`). Without any dedicated integration, the directory says so and points to Other CLIs. A new integration registers its custom home in `web/src/platforms/index.ts` (`dedicatedWorkspace`); unregistered ones get the generic feature-card home. A removed/unknown dedicated deep link must never silently resolve to another integration.
 
 **Other CLIs** opens Add a CLI: the reviewed installation catalog and the custom-pack draft flow. The latter downloads a locally generated, discovery-only YAML draft through **Create a custom CLI pack**; it does not register, trust, validate, download binaries, or execute tasks. Operator review, `pack validate`, `pack lint`, and an explicit `--pack-file` restart remain required. Conjur workspace actions stay in dedicated forms; the general `/tasks` runner remains available separately for operators who explicitly choose it. Active built-in context is reflected in the top bar and breadcrumbs.
 
-Clickable breadcrumbs at the top of the main content show **CLI workspace** or **Built-in CLIs → selected platform** and the current page; the top bar links to Diagnostics only when a configured CLI needs attention, with connection status displayed only while connecting or when unavailable. Build version remains in Diagnostics. The top-right **Sign in** control opens the universal sign-in page at `/authentication` (ADR-038). Every task, diagnostics, tool, and built-in-CLI sign-in link leads there; legacy `/dedicated/<id>/sign-in` links open it too. Native link modifiers, browser history, page titles, keyboard focus, and the narrow-window **Menu** sidebar toggle must continue working.
+Inside a Built-in CLI journey, clickable breadcrumbs at the top of the main content show **Built-in CLIs → selected platform** and the current page; top-level workspace pages show no breadcrumb. The top bar links to Diagnostics only when a configured CLI needs attention, with connection status displayed only while connecting or when unavailable. Build version remains in Diagnostics. The top-right **Sign in** control opens the universal sign-in page at `/authentication` (ADR-038). Every task, diagnostics, tool, and built-in-CLI sign-in link leads there; legacy `/dedicated/<id>/sign-in` links open it too. Native link modifiers, browser history, page titles, keyboard focus, and the narrow-window **Menu** sidebar toggle must continue working.
 
 Beside **Sign in**, a compact **CLI sessions** disclosure becomes **N signed in** after reviewed session checks succeed. Opening it lists CLI names, text/symbol statuses, and last-check times, with **Manage sign-ins & check sessions** opening the universal page. Results survive page navigation in memory; reload, runtime/context changes and connection edits invalidate evidence. Unchecked and unavailable checks never count as signed in. The disclosure uses native keyboard behavior, Escape closes it and restores focus, and the panel fits a 320 px viewport. It performs no background commands; external account/session changes need a fresh session check.
 

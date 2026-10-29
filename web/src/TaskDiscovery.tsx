@@ -65,7 +65,7 @@ function TaskSection({
     <section className="task-discovery-section" aria-labelledby={'task-section-' + section}>
       <div className="task-section-heading">
         <h3 id={'task-section-' + section}>{title}</h3>
-        <span>{tasks.length}</span>
+        {section !== 'all' && <span>{tasks.length}</span>}
       </div>
       {tasks.length === 0 ? (
         <p className="task-section-empty">{emptyText}</p>
@@ -105,7 +105,6 @@ function TaskSection({
                   onClick={() => onToggleFavorite(task)}
                 >
                   <span aria-hidden="true">{favorite ? '★' : '☆'}</span>
-                  <span>Favorite</span>
                 </button>
               </li>
             );
@@ -217,7 +216,7 @@ export function TaskDiscovery({
           }}>
           <summary ref={summaryRef} className="task-catalog-summary">
             <span>{catalogOpen ? 'Browse approved tasks' : 'Change task'}</span>
-            <span className="task-catalog-selection">{catalogOpen ? `${tasks.length} available` : tasks.find((task) => taskKey(task) === selectedTaskKey)?.name ?? 'Select a task'}</span>
+            {!catalogOpen && <span className="task-catalog-selection">{tasks.find((task) => taskKey(task) === selectedTaskKey)?.name ?? 'Select a task'}</span>}
           </summary>
           <div className="task-catalog-body">
           <div className="task-search">
@@ -251,7 +250,7 @@ export function TaskDiscovery({
                 Clear
               </button>
             </span>
-            <small id="task-search-help">Press / to search names, descriptions, packs, tools, or commands.</small>
+            <small id="task-search-help" className="visually-hidden">Press / to search names, descriptions, packs, tools, or commands.</small>
           </div>
 
           {filteredTasks.length === 0 && (normalizedQuery.length > 0 || toolFilter !== '') ? (

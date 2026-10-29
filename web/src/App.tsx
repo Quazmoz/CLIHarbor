@@ -1187,7 +1187,6 @@ function WorkspaceApp() {
         </div>
         <nav className="primary-nav" aria-label="Primary">
           <div className="nav-group" role="group" aria-labelledby="nav-label-workspace">
-            <p className="nav-group-label">CLI workspace</p>
             <p className="nav-subgroup-label" id="nav-label-workspace">Work</p>
             {navigationItems.filter((item) => item.group === 'Workspace').map(navLink)}
           </div>
@@ -1196,6 +1195,7 @@ function WorkspaceApp() {
             {navigationItems.filter((item) => item.group === 'Manage').map(navLink)}
           </div>
         </nav>
+        <p className="sidebar-foot">Local runtime · No cloud backend · No telemetry by default · No remote runtime assets</p>
       </aside>
       <header className="topbar">
         <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
@@ -1286,14 +1286,14 @@ function WorkspaceApp() {
       )}
 
       <main ref={mainRef} id="main-content" tabIndex={-1} aria-busy={state.kind === 'loading'}>
-        <nav className="breadcrumbs" aria-label="Breadcrumb">
-          <a href={inDedicatedJourney ? routePaths.platforms : '/'}
+        {inDedicatedJourney && <nav className="breadcrumbs" aria-label="Breadcrumb">
+          <a href={routePaths.platforms}
             onClick={(event) => {
               if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               event.preventDefault();
-              navigate(inDedicatedJourney ? 'platforms' : 'overview');
-            }}>{inDedicatedJourney ? 'Built-in CLIs' : 'CLI workspace'}</a>
-          {inDedicatedJourney && breadcrumbPlatform !== undefined && route !== 'platform' && (
+              navigate('platforms');
+            }}>Built-in CLIs</a>
+          {breadcrumbPlatform !== undefined && route !== 'platform' && (
             <>
               <span className="breadcrumb-divider" aria-hidden="true">/</span>
               <a href={pathForRoute('platform', breadcrumbPlatform.id)} onClick={(event) => {
@@ -1309,7 +1309,7 @@ function WorkspaceApp() {
             : route === 'secret-audit' ? 'Security audit'
             : route === 'tasks' && taskFilterLabel !== undefined ? 'Command Builder · ' + taskFilterLabel.packName
             : navigationItems.find((item) => item.route === route)?.label}</span>
-        </nav>
+        </nav>}
         {state.kind === 'loading' && (
           <section className="panel" role="status" aria-live="polite" aria-busy="true">
             <h2>Checking runtime</h2>
@@ -1953,10 +1953,6 @@ function WorkspaceApp() {
           </div>
         )}
       </main>
-
-      <footer>
-        <p>Local runtime · No cloud backend · No telemetry by default · No remote runtime assets</p>
-      </footer>
     </div>
   );
 }

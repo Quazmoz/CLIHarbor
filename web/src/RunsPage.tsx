@@ -330,12 +330,8 @@ export function RunsPage({ tasks, csrfToken, tasksLocked = false, onConfigureTas
     <section className="runs-page" aria-labelledby="runs-heading">
       <div className="route-heading route-heading--actions">
         <div>
-          <p className="status-label">Local run history</p>
           <h2 id="runs-heading">Recent runs</h2>
-          <p>
-            Review bounded run metadata from this CLIHarbor process. Active runs refresh automatically while this page is
-            visible. Restarting CLIHarbor clears this in-memory history.
-          </p>
+          <p>Runs from this CLIHarbor process. Active runs refresh automatically; history clears when CLIHarbor restarts.</p>
         </div>
         <button type="button" className="secondary-button" disabled={listLoading} onClick={refresh}>
           {listLoading ? 'Refreshing…' : 'Refresh history'}
@@ -345,14 +341,11 @@ export function RunsPage({ tasks, csrfToken, tasksLocked = false, onConfigureTas
       <div className="run-history-layout">
         <article className="panel run-history-list-panel" aria-labelledby="run-history-list-heading" aria-busy={listLoading}>
           <div className="panel-heading-row">
-            <div>
-              <p className="status-label">Retained</p>
-              <h3 id="run-history-list-heading">Runs</h3>
-            </div>
+            <h3 id="run-history-list-heading">Runs</h3>
             <span className="summary-meta">{summaries.length} retained</span>
           </div>
 
-          <div className="run-history-filters">
+          {summaries.length > 0 && <div className="run-history-filters">
             <label className="structured-result-control">
               <span>Search runs</span>
               <input ref={searchRef} type="search" value={query} maxLength={256}
@@ -385,7 +378,7 @@ export function RunsPage({ tasks, csrfToken, tasksLocked = false, onConfigureTas
               <span className="summary-meta" role="status">{visibleRuns.length} of {summaries.length} runs</span>
               <button type="button" className="link-button" disabled={!query && outcome === 'all' && toolFilter === 'all'} onClick={clearFilters}>Clear filters</button>
             </div>
-          </div>
+          </div>}
 
           {comparisonBaseline && (
             <div className="run-comparison-pin">
