@@ -116,7 +116,7 @@ export function StructuredResultView({ fields, runId }: StructuredResultViewProp
                   type="button"
                   className="structured-copy-button"
                   disabled={!field.present}
-                  aria-label={`Copy ${field.label} value`}
+                  aria-label={`Copy value: ${field.label}`}
                   onClick={() => void copyFieldValue(field)}
                 >
                   Copy value

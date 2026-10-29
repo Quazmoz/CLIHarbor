@@ -96,19 +96,19 @@ test('activity opens the exact run and preserves observed running metadata throu
   const backend = installFakeBackend({ '/api/v1/runs': { body: { runs: [{ ...run, events: undefined, status: 'running', exitCode: undefined }] } } });
   render(<OperationActivityProvider><OperationActivity tasks={tasks} onOpen={onOpen} /></OperationActivityProvider>);
   await screen.findByText('1 running');
-  fireEvent.click(screen.getByLabelText('Operation activity'));
-  const panel = within(screen.getByLabelText('Operation activity').closest('details')!);
+  fireEvent.click(screen.getByLabelText(/^Operation activity,/));
+  const panel = within(screen.getByLabelText(/^Operation activity,/).closest('details')!);
   fireEvent.click(panel.getByRole('link', { name: 'Details' }));
   expect(onOpen).toHaveBeenCalledWith('/runs', run.runId);
   backend.on({ '/api/v1/runs': () => { throw new Error('untrusted-error-must-not-render'); } });
-  fireEvent.click(screen.getByLabelText('Operation activity'));
+  fireEvent.click(screen.getByLabelText(/^Operation activity,/));
   fireEvent.click(panel.getByRole('button', { name: 'Refresh activity' }));
   expect(await panel.findByText(/Activity could not be refreshed/)).toBeInTheDocument();
   expect(screen.getByText('Activity unavailable')).toBeInTheDocument();
   expect(panel.getByText('example · Running')).toBeInTheDocument();
   expect(screen.queryByText('untrusted-error-must-not-render')).not.toBeInTheDocument();
-  fireEvent.keyDown(screen.getByLabelText('Operation activity'), { key: 'Escape' });
-  expect(screen.getByLabelText('Operation activity').closest('details')).not.toHaveAttribute('open');
+  fireEvent.keyDown(screen.getByLabelText(/^Operation activity,/), { key: 'Escape' });
+  expect(screen.getByLabelText(/^Operation activity,/).closest('details')).not.toHaveAttribute('open');
 });
 
 test('pending mutation activity survives unmount, warns before leaving, and clears only when its request settles', async () => {

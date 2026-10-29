@@ -1006,7 +1006,7 @@ async function main() {
     stage('direct run history route');
     await navigate(page, baseURL + '/runs');
     await waitJS(page, 'runs route',
-      'location.pathname === "/runs" && document.body.innerText.includes("Recent runs")');
+      'location.pathname === "/runs" && document.body.innerText.includes("Execution History")');
     const runsSurface = await page.evaluate('(() => ({' +
       'horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,' +
       'hasRunsLink: Array.from(document.querySelectorAll("a")).some((link) => link.textContent?.trim() === "Execution History")' +
@@ -1831,4 +1831,3 @@ main().catch((error) => {
   console.error(message);
   process.exitCode = 1;
 });
-

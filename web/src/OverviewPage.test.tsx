@@ -146,12 +146,21 @@ describe('OverviewPage', () => {
         preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />,
     );
     expect(screen.getByRole('heading', { name: 'What would you like to do?' })).toBeInTheDocument();
-    const attention = screen.getByRole('article', { name: 'Tools needing attention' });
-    expect(within(attention).getByText('Docker · docker')).toBeInTheDocument();
-    expect(within(attention).queryByText(/Conjur/)).not.toBeInTheDocument();
-    fireEvent.click(within(attention).getByRole('button', { name: /Docker/ }));
+    expect(screen.queryByRole('article', { name: 'Tools needing attention' })).not.toBeInTheDocument();
+    const optional = screen.getByRole('article', { name: 'More CLIs available' });
+    expect(within(optional).getByText(/1 optional CLI is not installed/)).toBeInTheDocument();
+    fireEvent.click(within(optional).getByRole('button', { name: 'Browse optional CLIs' }));
     expect(navigate).toHaveBeenCalledWith('tools');
     fireEvent.click(screen.getByRole('button', { name: 'Open tasks' }));
+    expect(navigate).toHaveBeenCalledWith('tasks');
+  });
+
+  test('offers an actionable empty history and keeps genuine readiness failures visible', async () => {
+    const navigate = vi.fn();
+    render(<OverviewPage tasks={[tasks[0]]} tools={[readyTools[0], { ...readyTools[1], status: 'incompatible' }]}
+      preferences={{ favorites: [], recent: [] }} onNavigate={navigate} onOpenTask={vi.fn()} />);
+    expect(screen.getByRole('article', { name: 'Tools needing attention' })).toHaveTextContent('Docker');
+    fireEvent.click(await screen.findByRole('button', { name: 'Build your first command' }));
     expect(navigate).toHaveBeenCalledWith('tasks');
   });
 

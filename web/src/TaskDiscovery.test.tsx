@@ -38,6 +38,17 @@ const tasks: Task[] = [
 ];
 
 describe('TaskDiscovery', () => {
+  test('one task search matches terms across CLI, pack and description without a second tool select', () => {
+    const { container } = render(
+      <TaskDiscovery tasks={tasks} selectedTaskKey="" preferences={{ favorites: [], recent: [] }}
+        onSelect={vi.fn()} onToggleFavorite={vi.fn()} />,
+    );
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find a task' }), { target: { value: 'METADATA  alpha conjur' } });
+    expect(container.querySelectorAll('[data-task-action="select"]')).toHaveLength(1);
+    expect(container.querySelector('[data-task-key="alpha/inspect"]')).not.toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Tool' })).not.toBeInTheDocument();
+  });
+
   test('separates executables in the same pack and scopes repeated tool IDs to their pack', () => {
     const catalog = [...tasks, { ...tasks[1], packId: 'alpha', packName: 'Alpha Pack', commandId: 'other-tool' }];
     const { container, rerender } = render(

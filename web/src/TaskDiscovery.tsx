@@ -154,7 +154,7 @@ export function TaskDiscovery({
   );
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const matches = (task: Task) => (toolFilter === '' || taskToolKey(task) === toolFilter) &&
-    (normalizedQuery.length === 0 || searchableText(task).includes(normalizedQuery));
+    (normalizedQuery.length === 0 || normalizedQuery.split(/\s+/).every((term) => searchableText(task).includes(term)));
   const filteredTasks = tasks.filter(matches);
   const favoriteTasks = preferences.favorites
     .map((identity) => byIdentity.get(taskIdentityKey(identity)))

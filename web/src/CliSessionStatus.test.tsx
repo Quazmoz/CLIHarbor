@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { App } from './App';
 import { CliSessionStatus } from './CliSessionStatus';
@@ -38,9 +38,29 @@ function sessions() {
 
 afterEach(() => window.history.replaceState({}, '', '/'));
 
+test('Escape closes a nested header disclosure before closing More and restores each trigger', async () => {
+  boot();
+  await act(async () => { render(<App />); });
+  await screen.findByRole('heading', { name: 'Sign in' });
+  const more = screen.getByRole('button', { name: 'More' });
+  for (const label of [/Operation activity, /, /CLI sign-in status, /]) {
+    fireEvent.click(more);
+    const summary = screen.getByLabelText(label);
+    fireEvent.click(summary);
+    expect(summary.closest('details')).toHaveAttribute('open');
+    fireEvent.keyDown(summary, { key: 'Escape' });
+    expect(summary.closest('details')).not.toHaveAttribute('open');
+    expect(summary).toHaveFocus();
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.keyDown(summary, { key: 'Escape' });
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    expect(more).toHaveFocus();
+  }
+});
+
 test('shows only verified sessions, preserves results across navigation, and re-checks signed-out evidence', async () => {
   const backend = boot();
-  render(<App />);
+  await act(async () => { render(<App />); });
   await screen.findByRole('heading', { name: 'Sign in' });
   expect(sessions().getByText('Not checked')).toBeVisible();
   expect(backend.calls('POST /api/v1/runs')).toHaveLength(0);
@@ -74,10 +94,12 @@ test('abandoning a pending check clears Checking and ignores its late completion
   const backend = boot();
   let finish!: (value: { status: number; body: typeof run }) => void;
   backend.on({ 'POST /api/v1/runs': () => new Promise((resolve) => { finish = resolve; }) });
-  render(<App />);
+  await act(async () => { render(<App />); });
   fireEvent.click(await screen.findByRole('button', { name: 'Check session' }));
+  await waitFor(() => expect(backend.calls('POST /api/v1/runs')).toHaveLength(1));
   expect(sessions().getByText('Checking…', { selector: '.cli-session-label' })).toBeVisible();
   fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
+  await screen.findByRole('heading', { name: 'Check your tools' });
   await act(async () => finish({ status: 202, body: run }));
   expect(screen.queryByText('1 signed in')).not.toBeInTheDocument();
   const details = screen.getByLabelText(/CLI sign-in status, /).closest('details')!;
@@ -92,9 +114,10 @@ test('updates the header from streamed check completion and keeps other tools un
     '/api/v1/tools': { body: { tools: [tool, { ...tool, packId: 'another', packName: 'Another pack', sessionCheck: undefined }] } },
     'POST /api/v1/runs': { status: 202, body: { ...run, status: 'running', exitCode: undefined } },
   });
-  render(<App />);
+  await act(async () => { render(<App />); });
   fireEvent.click(await screen.findByRole('button', { name: 'Check session' }));
   await screen.findByRole('button', { name: 'Cancel check' });
+  await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
   await act(async () => FakeEventSource.latest!.emit('run-complete', {
     runId: run.runId, sequence: 0, status: 'exited', exitCode: 0,
   }));
@@ -117,6 +140,7 @@ test('an unchanged tool refresh preserves a pending check and connection edits c
   const view = render(<AuthenticationPage {...props} tools={[tool]} />);
   fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
   await screen.findByRole('button', { name: 'Cancel check' });
+  await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
   view.rerender(<AuthenticationPage {...props} tools={[{ ...tool }]} />);
   expect(FakeEventSource.latest!.closed).toBe(false);
   expect(onCheckChange).toHaveBeenLastCalledWith(tool, expect.objectContaining({ kind: 'checking' }));

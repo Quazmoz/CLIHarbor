@@ -83,7 +83,9 @@ describe('App', () => {
         case '/api/v1/status':
           return Promise.resolve(response(200, { name: 'CLIHarbor', version: 'test', session: 'active', csrfToken: 'test-csrf' }));
         case '/api/v1/tools':
-          return Promise.resolve(response(200, { tools: [] }));
+          return Promise.resolve(response(200, { tools: tasks.map((task) => ({
+            packId: task.packId, packName: task.packName, packVersion: '1.0.0', toolId: task.toolId, status: 'ready',
+          })) }));
         case '/api/v1/tasks':
           return Promise.resolve(response(200, { tasks }));
         case '/api/v1/runs':
@@ -95,11 +97,12 @@ describe('App', () => {
     }));
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: /Target first/ }), { target: { value: 'first-context' } });
-    const toolSelect = screen.getByRole('combobox', { name: 'Tool' });
+    const explorer = document.querySelector<HTMLDetailsElement>('.tool-explorer')!;
+    fireEvent.click(explorer.querySelector('summary')!);
+    const toolSelect = within(explorer).getByRole('button', { name: /CLI Suite second/ });
     toolSelect.focus();
-    fireEvent.change(toolSelect, { target: { value: 'suite/second' } });
-    // Changing the filter must not remount the select and drop keyboard focus.
-    expect(screen.getByRole('combobox', { name: 'Tool' })).toBe(toolSelect);
+    fireEvent.click(toolSelect);
+    expect(within(explorer).getByRole('button', { name: /CLI Suite second/ })).toBe(toolSelect);
     expect(toolSelect).toHaveFocus();
     expect(screen.getByRole('textbox', { name: /Target second/ })).toHaveValue('');
     expect(screen.queryByRole('textbox', { name: /Target first/ })).not.toBeInTheDocument();
@@ -108,7 +111,7 @@ describe('App', () => {
     await waitFor(() => expect(started).toEqual([{ packId: 'suite', commandId: 'second', values: { target: 'second-context' } }]));
     await waitFor(() => expect(FakeEventSource.latest).toBeDefined());
     expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeDisabled();
-    expect(screen.getByRole('combobox', { name: 'Tool' })).toBeDisabled();
+    expect(toolSelect).toBeDisabled();
   });
 
   test('loads authenticated runtime status and safe task metadata without rendering the CSRF token', async () => {
@@ -142,7 +145,7 @@ describe('App', () => {
     expect(screen.queryByText('Local runtime ready')).not.toBeInTheDocument();
     expect(screen.queryByText(/executables ready/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Diagnostics' }));
-    expect(screen.getByText('1.2.3-test')).toBeInTheDocument();
+    expect(await screen.findByText('1.2.3-test')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
     expect(screen.getByRole('heading', { name: 'Command Builder' })).toBeInTheDocument();
     expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
@@ -1285,7 +1288,7 @@ describe('App routing', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Execution History' }));
     expect(window.location.pathname).toBe('/runs');
-    expect(await screen.findByRole('heading', { name: 'Recent runs' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Execution History' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
     expect(window.location.pathname).toBe('/authentication');

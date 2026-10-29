@@ -1,8 +1,7 @@
-import type { ComponentProps, ComponentType } from 'react';
+import { lazy, type ComponentProps, type ComponentType } from 'react';
 import type { ToolSignIn } from '../AuthenticationPage';
 import { conjurSignIn } from './conjur/ConjurSignIn';
-import { ConjurWorkspace } from './conjur/ConjurWorkspace';
-import { TerraformWorkspace } from './terraform/TerraformWorkspace';
+import type { ConjurWorkspace } from './conjur/ConjurWorkspace';
 
 // Frontend half of each dedicated platform, keyed by the backend platform ID
 // from /api/v1/platforms. A platform missing here simply has no custom sign-in.
@@ -14,6 +13,6 @@ export type PlatformWorkspaceProps = ComponentProps<typeof ConjurWorkspace>;
 
 // A platform missing here gets the generic feature list on its home page.
 export const dedicatedWorkspace: Readonly<Record<string, ComponentType<PlatformWorkspaceProps>>> = {
-  conjur: ConjurWorkspace,
-  terraform: TerraformWorkspace,
+  conjur: lazy(() => import('./conjur/ConjurWorkspace').then((module) => ({ default: module.ConjurWorkspace }))),
+  terraform: lazy(() => import('./terraform/TerraformWorkspace').then((module) => ({ default: module.TerraformWorkspace }))),
 };

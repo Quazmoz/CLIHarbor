@@ -1,5 +1,5 @@
 import { InputControl, initialValues, requestValues, taskInputDOMID, type FormValue } from './taskForm';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { clientError, normalizeError, invalidInputError, type AppErrorDetail } from './api/errors';
 import { fetchRuntimeStatus, type RuntimeStatus } from './api/status';
 import { fetchTasks, type Task, type TaskInput } from './api/tasks';
@@ -24,20 +24,14 @@ import { WorkingStatus } from './WorkingStatus';
 import { OperationActivity, OperationActivityProvider, useOperationActivity, useWorkingActivity } from './OperationActivity';
 import { ExecutionContext, OperationResult } from './OperationResult';
 import { RunsPage, formatDuration, formatTimestamp } from './RunsPage';
-import { SecretAuditPage } from './platforms/conjur/SecretAuditPage';
-import { ConjurAccessExplorer } from './platforms/conjur/ConjurAccessExplorer';
 import type { ConjurTaskRequest } from './platforms/conjur/ConjurWorkspace';
-import { OverviewPage } from './OverviewPage';
-import { PlatformPage, PlatformsPage } from './PlatformPage';
 import { dedicatedSignIn } from './platforms';
 import { fetchPlatforms, type Platform, type PlatformFeatureID } from './api/platforms';
-import { ToolsPage } from './ToolsPage';
 import { TaskDiscovery, taskToolKey } from './TaskDiscovery';
 import { TaskSwitcher } from './TaskSwitcher';
 import { ToolExplorer } from './ToolExplorer';
 import { ExecutionPreflight } from './ExecutionPreflight';
 import { OutputExplorer } from './OutputExplorer';
-import { SupportDiagnostics } from './SupportDiagnostics';
 import { runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
   loadTaskPreferences,
@@ -47,6 +41,28 @@ import {
   toggleFavoriteTask,
   type TaskPreferences,
 } from './taskPreferences';
+
+const OverviewPage = lazy(() => import('./OverviewPage').then((module) => ({ default: module.OverviewPage })));
+const PlatformPage = lazy(() => import('./PlatformPage').then((module) => ({ default: module.PlatformPage })));
+const PlatformsPage = lazy(() => import('./PlatformPage').then((module) => ({ default: module.PlatformsPage })));
+const ToolsPage = lazy(() => import('./ToolsPage').then((module) => ({ default: module.ToolsPage })));
+const SupportDiagnostics = lazy(() => import('./SupportDiagnostics').then((module) => ({ default: module.SupportDiagnostics })));
+const SecretAuditPage = lazy(() => import('./platforms/conjur/SecretAuditPage').then((module) => ({ default: module.SecretAuditPage })));
+const ConjurAccessExplorer = lazy(() => import('./platforms/conjur/ConjurAccessExplorer').then((module) => ({ default: module.ConjurAccessExplorer })));
+
+function WorkspaceLoading() {
+  return (
+    <section className="workspace-loading" role="status" aria-busy="true">
+      <span className="visually-hidden">Loading workspace…</span>
+      <div className="skeleton skeleton-title" aria-hidden="true" />
+      <div className="skeleton skeleton-subtitle" aria-hidden="true" />
+      <div className="skeleton-grid" aria-hidden="true">
+        <div className="panel skeleton-card"><div className="skeleton" /><div className="skeleton" /><div className="skeleton" /></div>
+        <div className="panel skeleton-card"><div className="skeleton" /><div className="skeleton" /></div>
+      </div>
+    </section>
+  );
+}
 
 type ViewState =
   | { kind: 'loading' }
@@ -409,6 +425,10 @@ function WorkspaceApp() {
   const [taskChosen, setTaskChosen] = useState(false);
   const [taskToolFilter, setTaskToolFilter] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  useEffect(() => {
+    if (navigationOpen) document.querySelector<HTMLAnchorElement>('#workspace-navigation a')?.focus();
+  }, [navigationOpen]);
   const [taskSwitcherOpen, setTaskSwitcherOpen] = useState(false);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [selectedPlatformID, setSelectedPlatformID] = useState(() => platformIDFromPath(window.location.pathname));
@@ -686,6 +706,16 @@ function WorkspaceApp() {
     run !== null && run.retained && run.snapshot.status === 'running' ? run.snapshot.runId : null;
   const displayedRunID = run?.snapshot.runId;
   const taskSwitcherAvailable = state.kind === 'ready' && state.tasks.length > 0 && !starting && activeRunID === null;
+  const openTaskSearch = useCallback(() => {
+    if (route === 'tasks') {
+      const input = document.getElementById('task-search-input');
+      const catalog = input?.closest('details');
+      if (catalog) catalog.open = true;
+      input?.focus();
+    } else {
+      setTaskSwitcherOpen(true);
+    }
+  }, [route]);
 
   useEffect(() => {
     if (!taskSwitcherAvailable) return;
@@ -697,11 +727,11 @@ function WorkspaceApp() {
       if (target instanceof HTMLElement &&
           (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
       event.preventDefault();
-      setTaskSwitcherOpen(true);
+      openTaskSearch();
     };
     document.addEventListener('keydown', openTaskSwitcher);
     return () => document.removeEventListener('keydown', openTaskSwitcher);
-  }, [taskSwitcherAvailable]);
+  }, [taskSwitcherAvailable, openTaskSearch]);
 
   const displayedRunFinished = run !== null && run.snapshot.status !== 'running';
   // Also refocus when a run ends: the Cancel button that had focus disappears.
@@ -1091,6 +1121,7 @@ function WorkspaceApp() {
     if (nextRoute === 'runs') setRequestedRun(runId ? { runId } : undefined);
     setRoute(nextRoute);
     setNavigationOpen(false);
+    setOverflowOpen(false);
     lastPathRef.current = nextPath;
     mainRef.current?.focus({ preventScroll: true });
     return true;
@@ -1174,7 +1205,12 @@ function WorkspaceApp() {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Skip to main content</a>
-      <aside id="workspace-navigation" className={'sidebar' + (navigationOpen ? ' sidebar--open' : '')}>
+      <aside id="workspace-navigation" className={'sidebar' + (navigationOpen ? ' sidebar--open' : '')} onKeyDown={(event) => {
+        if (event.key === 'Escape' && navigationOpen) {
+          setNavigationOpen(false);
+          document.querySelector<HTMLButtonElement>('.navigation-toggle')?.focus();
+        }
+      }}>
         <div className="brand-block">
           <svg className="brand-mark" aria-hidden="true" viewBox="0 0 32 32" fill="none">
             <path d="M13 6h6l1.5 18h-9z" fill="#1f86ea" />
@@ -1183,7 +1219,7 @@ function WorkspaceApp() {
             <path d="M16 1.5v2" stroke="#7cc4ff" strokeWidth="1.6" strokeLinecap="round" />
             <path d="M4 27.5c3 0 3-1.6 6-1.6s3 1.6 6 1.6 3-1.6 6-1.6 3 1.6 6 1.6" stroke="#3b9eff" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
-          <h1>CLI<span>Harbor</span></h1>
+          <div className="brand-name">CLI<span>Harbor</span></div>
         </div>
         <nav className="primary-nav" aria-label="Primary">
           <div className="nav-group" role="group" aria-labelledby="nav-label-workspace">
@@ -1201,7 +1237,7 @@ function WorkspaceApp() {
         <button type="button" className="secondary-button navigation-toggle" aria-controls="workspace-navigation" aria-expanded={navigationOpen}
           onClick={() => setNavigationOpen((open) => !open)}>Menu</button>
         <button type="button" className="quick-switch-trigger" disabled={!taskSwitcherAvailable}
-          onClick={() => setTaskSwitcherOpen(true)} aria-haspopup="dialog" aria-keyshortcuts="Control+k Meta+k">
+          onClick={openTaskSearch} aria-haspopup={route === 'tasks' ? undefined : 'dialog'} aria-keyshortcuts="Control+k Meta+k">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
             strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>
@@ -1210,6 +1246,17 @@ function WorkspaceApp() {
           <span className="quick-switch-hint" aria-hidden="true">Search tasks, tools, and commands…</span>
           <kbd>Ctrl + K</kbd>
         </button>
+        <div className={'topbar-overflow' + (overflowOpen ? ' topbar-overflow--open' : '')} onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            setOverflowOpen(false);
+            event.currentTarget.querySelector('button')?.focus();
+          }
+        }} onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setOverflowOpen(false);
+        }}>
+          <button type="button" className="secondary-button topbar-overflow-toggle" aria-expanded={overflowOpen}
+            aria-controls="topbar-secondary" onClick={() => setOverflowOpen((open) => !open)}>More</button>
+          <div id="topbar-secondary" className="topbar-overflow-panel">
         <nav className="section-switcher" aria-label="CLI sections">
           <a href={routePaths.platforms}
             aria-current={route === 'platforms' || headerPlatform !== undefined ? 'page' : undefined}
@@ -1241,13 +1288,13 @@ function WorkspaceApp() {
               {state.kind === 'loading' ? 'Connecting…' : 'Connection unavailable'}
             </span>
           )}
-          {state.kind === 'ready' && readyToolCount < state.tools.length && (
+          {state.kind === 'ready' && state.tools.some((tool) => tool.status !== 'ready' && tool.status !== 'missing') && (
             <a className="status-pill status-pill--warn" href="/diagnostics" onClick={(event) => {
               if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               event.preventDefault();
               navigate('diagnostics');
             }}>
-              {state.tools.length - readyToolCount} CLI{state.tools.length - readyToolCount === 1 ? '' : 's'} need{state.tools.length - readyToolCount === 1 ? 's' : ''} attention
+              Check tool readiness
             </a>
           )}
           <a className="topbar-sign-in" href={routePaths.authentication}
@@ -1272,6 +1319,8 @@ function WorkspaceApp() {
             }} />
           )}
         </div>
+          </div>
+        </div>
       </header>
 
       {taskSwitcherOpen && state.kind === 'ready' && taskSwitcherAvailable && (
@@ -1286,6 +1335,7 @@ function WorkspaceApp() {
       )}
 
       <main ref={mainRef} id="main-content" tabIndex={-1} aria-busy={state.kind === 'loading'}>
+        <h1 className="visually-hidden">CLIHarbor workspace</h1>
         {inDedicatedJourney && <nav className="breadcrumbs" aria-label="Breadcrumb">
           <a href={routePaths.platforms}
             onClick={(event) => {
@@ -1310,13 +1360,9 @@ function WorkspaceApp() {
             : route === 'tasks' && taskFilterLabel !== undefined ? 'Command Builder · ' + taskFilterLabel.packName
             : navigationItems.find((item) => item.route === route)?.label}</span>
         </nav>}
-        {state.kind === 'loading' && (
-          <section className="panel" role="status" aria-live="polite" aria-busy="true">
-            <h2>Checking runtime</h2>
-            <p>Verifying the authenticated local browser session and available safe tasks…</p>
-          </section>
-        )}
+        {state.kind === 'loading' && <WorkspaceLoading />}
 
+        <Suspense key={route} fallback={<WorkspaceLoading />}>
         {state.kind === 'error' && (
           <section ref={runtimeErrorRef} className="panel error-panel" role="alert" tabIndex={-1}>
             <p className="status-label">Connection state</p>
@@ -1515,7 +1561,6 @@ function WorkspaceApp() {
                         preferences={taskPreferences}
                         collapsed={taskChosen}
                         toolFilter={taskToolFilter}
-                        onFilterChange={changeTaskCategory}
                         disabled={starting || activeRunID !== null}
                         onSelect={(key) => {
                           focusConfigurationRef.current = true;
@@ -1826,15 +1871,18 @@ function WorkspaceApp() {
                 {run !== null && (
                   <>
                     {run.context && <ExecutionContext fields={run.context.fields} target={run.target} />}
-                    {run.retained && run.snapshot.status !== 'running' && <OperationResult result={{
+                    {run.retained && run.snapshot.status !== 'running' && runTask?.risk !== 'read' && <OperationResult result={{
                       title: run.snapshot.status === 'exited' && run.snapshot.exitCode === 0 ? 'Command completed successfully' : 'Command outcome needs review',
                       tone: run.snapshot.status === 'exited' && run.snapshot.exitCode === 0 ? 'success' : 'warning',
                       steps: [{ label: runTask?.name ?? run.snapshot.commandId, state: run.snapshot.status === 'exited' && run.snapshot.exitCode === 0 ? 'done' : 'unknown' }],
-                      next: runTask?.risk !== 'read' && !(run.snapshot.status === 'exited' && run.snapshot.exitCode === 0)
+                      next: !(run.snapshot.status === 'exited' && run.snapshot.exitCode === 0)
                         ? 'A change may have occurred. Inspect execution evidence and the target before deciding whether another change is needed.'
                         : 'Review the output and execution evidence before your next command.',
                     }}><button type="button" className="secondary-button" onClick={() => navigate('runs', undefined, run.snapshot.runId)}>Open Execution History</button></OperationResult>}
                     <p className="run-task-name">{state.tasks.find((task) => task.packId + '/' + task.commandId === run.retry.taskKey)?.name ?? run.snapshot.commandId}</p>
+                    {run.retained && run.snapshot.status !== 'running' && runTask?.risk === 'read' && (
+                      <button type="button" className="secondary-button" onClick={() => navigate('runs', undefined, run.snapshot.runId)}>Open Execution History</button>
+                    )}
                     {run.snapshot.startedAt !== undefined && (
                       <RunTiming startedAt={run.snapshot.startedAt} endedAt={run.snapshot.status === 'running' ? undefined : run.snapshot.endedAt} />
                     )}
@@ -1952,6 +2000,7 @@ function WorkspaceApp() {
             </section>
           </div>
         )}
+        </Suspense>
       </main>
     </div>
   );

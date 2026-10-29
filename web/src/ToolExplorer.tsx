@@ -20,35 +20,29 @@ export function toolStatusLabel(tool: ToolDiagnostic): { label: string; tone: 'r
 }
 
 export function ToolExplorer({ tools, tasks, selectedToolKey, disabled, onSelectTool, onOpenTools }: ToolExplorerProps) {
-  const [query, setQuery] = useState('');
-  const normalized = query.trim().toLocaleLowerCase();
-  const visible = tools.filter((tool) =>
-    normalized === '' || [tool.packName, tool.toolId, tool.packId].join(' ').toLocaleLowerCase().includes(normalized));
+  const [expanded, setExpanded] = useState(window.innerWidth >= 1100);
   const taskCount = (tool: ToolDiagnostic) => tasks.filter((task) => taskToolKey(task) === taskToolKey(tool)).length;
   const groups = [
-    { id: 'ready', title: 'Ready to use', tools: visible.filter((tool) => tool.status === 'ready') },
-    { id: 'attention', title: 'Needs setup', tools: visible.filter((tool) => tool.status !== 'ready') },
+    { id: 'ready', title: 'Ready to use', tools: tools.filter((tool) => tool.status === 'ready') },
+    { id: 'attention', title: 'Needs setup', tools: tools.filter((tool) => tool.status !== 'ready') },
   ].filter((group) => group.tools.length > 0);
 
   return (
-    <aside className="panel tool-explorer" aria-labelledby="tool-explorer-heading">
+    <details className="panel tool-explorer" open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
+      <summary id="tool-explorer-heading">Tool Explorer</summary>
+      <div className="tool-explorer-content">
       <div className="tool-explorer-header">
-        <h2 id="tool-explorer-heading">Tool Explorer</h2>
+        <span className="overview-muted">Filter approved tasks by CLI</span>
         <button type="button" className="icon-button" aria-label="Add a CLI" title="Add a CLI" onClick={onOpenTools}>
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
         </button>
       </div>
-      <label className="tool-explorer-search">
-        <span className="visually-hidden">Search tools</span>
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg>
-        <input type="search" value={query} placeholder="Search tools…" onChange={(event) => setQuery(event.target.value)} />
-      </label>
       <button type="button" className="tool-explorer-all" aria-pressed={selectedToolKey === ''} disabled={disabled}
         onClick={() => onSelectTool('')}>
         <span>All tools</span>
         <span className="tool-explorer-count">{tasks.length} task{tasks.length === 1 ? '' : 's'}</span>
       </button>
-      {groups.length === 0 && <p className="tool-explorer-empty">{tools.length === 0 ? 'No CLIs are configured yet. Use Add a CLI to set one up.' : <>No tools match “{query.trim()}”.</>}</p>}
+      {groups.length === 0 && <p className="tool-explorer-empty">No CLIs are configured yet. Use Add a CLI to set one up.</p>}
       {groups.map((group) => (
         <details key={group.id} className="tool-explorer-group" open>
           <summary>
@@ -67,10 +61,10 @@ export function ToolExplorer({ tools, tasks, selectedToolKey, disabled, onSelect
                     onClick={() => (count > 0 ? onSelectTool(key) : onOpenTools())}>
                     <ToolIcon tool={tool} />
                     <span className="tool-explorer-copy">
-                      <strong>{tool.packName}</strong>
+                      <strong title={tool.packName}>{tool.packName}</strong>{' '}
                       <span>
                         {tool.toolId}{tool.version ? ' ' + tool.version : ''} · {count > 0 ? `${count} task${count === 1 ? '' : 's'}` : 'set up in Add a CLI'}
-                      </span>
+                      </span>{' '}
                     </span>
                     <span className={'tool-badge tool-badge--' + status.tone}>{status.label}</span>
                   </button>
@@ -80,6 +74,7 @@ export function ToolExplorer({ tools, tasks, selectedToolKey, disabled, onSelect
           </ul>
         </details>
       ))}
-    </aside>
+      </div>
+    </details>
   );
 }

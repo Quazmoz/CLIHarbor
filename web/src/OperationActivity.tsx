@@ -117,15 +117,20 @@ export function OperationActivity({ tasks, onOpen }: { tasks: Task[]; onOpen: (p
   const running = runs.filter((run) => run.status === 'running');
   const localWork = Object.values(local);
   const visible = [...running, ...runs.filter((run) => run.status !== 'running').slice(0, 3)];
+  const label = unavailable ? 'Activity unavailable' : running.length > 0 ? running.length + ' running' : localWork.length > 0 ? 'Working…' : !loaded ? 'Checking activity…' : 'Activity';
   return (
     <details className="cli-sessions operation-activity" onKeyDown={(event) => {
-      if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); }
+      if (event.key === 'Escape' && event.currentTarget.open) {
+        event.stopPropagation();
+        event.currentTarget.open = false;
+        event.currentTarget.querySelector('summary')?.focus();
+      }
     }} onBlur={(event) => {
       if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
     }}>
-      <summary aria-label="Operation activity">
+      <summary aria-label={'Operation activity, ' + label}>
         {(running.length > 0 || localWork.length > 0) && <span className="work-spinner" aria-hidden="true" />}
-        <span aria-live="polite">{unavailable ? 'Activity unavailable' : running.length > 0 ? running.length + ' running' : localWork.length > 0 ? 'Working…' : !loaded ? 'Checking activity…' : 'Activity'}</span>
+        <span aria-live="polite">{label}</span>
       </summary>
       <div className="cli-sessions-panel">
         <h2>Operation activity</h2>

@@ -41,14 +41,13 @@ const permissionCommands = ['secret-permit', 'secret-deny'];
 const tabForCommand = (id: string): TabID => permissionCommands.includes(id) || accessInspection.includes(id) || id.startsWith('role-') || id === 'resource-exists'
   ? 'access' : id.startsWith('secret-') || id === 'list-variables' ? 'secrets' : 'tools';
 
-/** One compact, full-row action. The title is the accessible name; detail and risk describe it. */
 function Action({ title, detail, risk, available, onOpen }: {
   title: string; detail: string; risk?: Risk; available: boolean; onOpen: () => void;
 }) {
   const id = useId();
   return (
     <button type="button" className={'conjur-action' + (risk ? ' conjur-action--' + risk : '')} disabled={!available}
-      aria-label={title} aria-describedby={risk ? id + ' ' + id + '-risk' : id} onClick={() => { if (available) onOpen(); }}>
+      aria-describedby={risk ? id + ' ' + id + '-risk' : id} onClick={() => { if (available) onOpen(); }}>
       <span className="conjur-action-text">
         <strong>{title}</strong>
         <span id={id}>{available ? detail : detail + ' Unavailable until the CLI and approved task are ready.'}</span>
@@ -182,11 +181,14 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
           <dd className="conjur-env-warn">Not verified</dd>
         </div>
         <div className="conjur-env-actions">
+          <dt className="visually-hidden">Session actions</dt>
+          <dd>
           {ready ? (
             hasFeature('sign-in') && <button type="button" className="secondary-button" onClick={() => onOpenFeature('sign-in')}>Check identity</button>
           ) : (
             <button type="button" className="secondary-button" onClick={onOpenDiagnostics}>Open Diagnostics</button>
           )}
+          </dd>
         </div>
       </dl>
       {!ready && <p role="status" className="conjur-setup-notice"><strong>Setup needed.</strong> Check tool readiness before using these workflows.</p>}

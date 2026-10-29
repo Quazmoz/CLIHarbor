@@ -26,7 +26,7 @@ test('activity and retained-run selections write exact URLs, and Back/Forward re
   const api = backend();
   render(<App />);
   await screen.findByText('Activity');
-  const activity = screen.getByLabelText('Operation activity');
+  const activity = screen.getByLabelText(/^Operation activity,/);
   fireEvent.click(activity);
   fireEvent.click(within(activity.closest('details')!).getAllByRole('link', { name: 'Details' })[0]);
   expect(await screen.findByText('Output for ' + first)).toBeInTheDocument();

@@ -53,6 +53,7 @@ describe('ToolExplorer', () => {
     const onOpenTools = vi.fn();
     const missing: ToolDiagnostic = { ...readyTool, packId: 'k', packName: 'Kube', toolId: 'kubectl', status: 'missing', version: undefined };
     render(<ToolExplorer tools={[readyTool, missing]} tasks={[readTask]} selectedToolKey="" onSelectTool={onSelectTool} onOpenTools={onOpenTools} />);
+    fireEvent.click(screen.getByText('Tool Explorer', { selector: 'summary' }));
 
     expect(screen.getByRole('button', { name: /^All tools/ })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByRole('button', { name: /^Pack/ }));
@@ -63,7 +64,6 @@ describe('ToolExplorer', () => {
     fireEvent.click(kube);
     expect(onOpenTools).toHaveBeenCalled();
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search tools' }), { target: { value: 'zzz' } });
-    expect(screen.getByText('No tools match “zzz”.')).toBeInTheDocument();
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
   });
 });

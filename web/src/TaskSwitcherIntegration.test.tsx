@@ -77,7 +77,10 @@ test('Ctrl+K opens search across CLIs and selects an existing task without execu
   expect(screen.getByRole('heading', { name: 'List variables', level: 4 })).toBeInTheDocument();
   expect(requests.some((path) => path === 'POST /api/v1/runs' || path === 'POST /api/v1/runs/preview')).toBe(false);
   fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true });
-  expect(await screen.findByRole('dialog', { name: 'Find a task' })).toBeInTheDocument();
+  expect(screen.queryByRole('dialog', { name: 'Find a task' })).not.toBeInTheDocument();
+  expect(screen.getByRole('searchbox', { name: 'Find a task' })).toHaveFocus();
+  expect(screen.queryByRole('searchbox', { name: 'Search tools' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('combobox', { name: 'Tool' })).not.toBeInTheDocument();
 });
 
 test('search shortcut does not hijack typing and native dismiss leaves the route unchanged', async () => {

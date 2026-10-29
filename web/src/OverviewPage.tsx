@@ -86,8 +86,9 @@ export function OverviewPage({
   onOpenTask,
 }: OverviewPageProps) {
   const readyToolCount = tools.filter((tool) => tool.status === 'ready').length;
-  const attentionTools = tools.filter((tool) => tool.status !== 'ready');
-  const attentionToolCount = attentionTools.length;
+  const attentionTools = tools.filter((tool) => tool.status !== 'ready' && tool.status !== 'missing');
+  const optionalToolCount = tools.filter((tool) => tool.status === 'missing').length;
+  const attentionToolCount = attentionTools.length + optionalToolCount;
   const shortcuts = useMemo(() => quickTasks(tasks, preferences), [tasks, preferences]);
   const workflowReady = readyToolCount > 0 && tasks.length > 0;
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
@@ -148,6 +149,13 @@ export function OverviewPage({
       </header>
 
       <div className="overview-grid">
+        {optionalToolCount > 0 && (
+          <article className="panel overview-card" aria-labelledby="optional-tools-heading">
+            <h2 id="optional-tools-heading">More CLIs available</h2>
+            <p>{optionalToolCount} optional CLI{optionalToolCount === 1 ? ' is' : 's are'} not installed. Add only the tools you need.</p>
+            <button type="button" className="secondary-button" onClick={() => onNavigate('tools')}>Browse optional CLIs</button>
+          </article>
+        )}
         {attentionTools.length > 0 && (
           <article className="panel overview-card" aria-labelledby="overview-tools-heading">
             <div className="overview-card-heading">
@@ -160,7 +168,7 @@ export function OverviewPage({
                 return (
                   <li key={taskToolKey(tool)}>
                     <button type="button" className="overview-tool-row"
-                      onClick={() => onNavigate(tool.status === 'missing' ? 'tools' : 'diagnostics')}>
+                      onClick={() => onNavigate('diagnostics')}>
                       <span className="overview-tool-name"><ToolIcon tool={tool} size="sm" /><strong>{tool.packName} · {tool.toolId}</strong></span>
                       <span className={'overview-status overview-status--' + status.tone}>{status.label}</span>
                       <Glyph d={ICONS.chevron} />
@@ -174,13 +182,18 @@ export function OverviewPage({
 
         <article className="panel overview-card" aria-labelledby="overview-runs-heading">
           <div className="overview-card-heading">
-            <h2 id="overview-runs-heading">Recent executions</h2>
+            <h2 id="overview-runs-heading">Execution History</h2>
             <button type="button" className="link-button" onClick={() => onNavigate('runs')}>View all →</button>
           </div>
           {runs === null ? (
-            <p className="overview-muted">{runsFailed ? 'Execution history is unavailable right now.' : 'Loading recent executions…'}</p>
+            <p className="overview-muted">{runsFailed ? 'Execution History is unavailable right now.' : 'Loading Execution History…'}</p>
           ) : recentRuns.length === 0 ? (
-            <p className="overview-muted">No tasks have run yet. Runs you start appear here.</p>
+            <div className="overview-empty">
+              <p>No tasks have run yet. Choose an approved task, review its inputs, and start your first run.</p>
+              <button type="button" className="secondary-button" onClick={() => onNavigate(workflowReady ? 'tasks' : 'tools')}>
+                {workflowReady ? 'Build your first command' : 'Set up a CLI'}
+              </button>
+            </div>
           ) : (
             <ol className="overview-timeline">
               {recentRuns.map((run) => {

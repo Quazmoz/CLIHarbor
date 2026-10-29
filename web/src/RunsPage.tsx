@@ -330,7 +330,7 @@ export function RunsPage({ tasks, csrfToken, tasksLocked = false, onConfigureTas
     <section className="runs-page" aria-labelledby="runs-heading">
       <div className="route-heading route-heading--actions">
         <div>
-          <h2 id="runs-heading">Recent runs</h2>
+          <h2 id="runs-heading">Execution History</h2>
           <p>Runs from this CLIHarbor process. Active runs refresh automatically; history clears when CLIHarbor restarts.</p>
         </div>
         <button type="button" className="secondary-button" disabled={listLoading} onClick={refresh}>

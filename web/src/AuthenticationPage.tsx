@@ -714,7 +714,8 @@ export function AuthenticationPage({
   onQuickCheckHandled,
 }: AuthenticationPageProps) {
   const vendorSessionTools = useMemo(
-    () => tools.filter((tool) => tool.requiresVendorSession === true),
+    () => tools.filter((tool) => tool.requiresVendorSession === true)
+      .sort((a, b) => Number(b.status === 'ready') - Number(a.status === 'ready')),
     [tools],
   );
   const noSignInTools = tools.filter((tool) => tool.requiresVendorSession !== true);

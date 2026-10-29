@@ -111,9 +111,9 @@ describe('command preview and retry workflows', () => {
     await screen.findByRole('heading', { name: 'Inspect' });
     const header = document.querySelector<HTMLElement>('.topbar')!;
     expect(within(header).queryByText(/executables ready/)).not.toBeInTheDocument();
-    if (status === 'ready') expect(within(header).queryByRole('link', { name: '1 CLI needs attention' })).not.toBeInTheDocument();
+    if (status === 'ready' || status === 'missing') expect(within(header).queryByRole('link', { name: 'Check tool readiness' })).not.toBeInTheDocument();
     else {
-      fireEvent.click(within(header).getByRole('link', { name: '1 CLI needs attention' }));
+      fireEvent.click(within(header).getByRole('link', { name: 'Check tool readiness' }));
       expect(window.location.pathname).toBe('/diagnostics');
       expect(screen.getByRole('main')).toHaveFocus();
     }
@@ -127,6 +127,9 @@ describe('command preview and retry workflows', () => {
         { packId: 'cyberark-conjur-v9', packName: 'Conjur', commandId: 'list', name: 'List variables', toolId: 'conjur', requiresAuth: true, inputs: [] },
         { packId: 'fixture', packName: 'Fixture', commandId: 'inspect', name: 'Inspect fixture', toolId: 'fixture', inputs: [] },
       ] }));
+      if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: [{
+        packId: 'cyberark-conjur-v9', packName: 'Conjur', packVersion: '1.0.0', toolId: 'conjur', status: 'ready',
+      }] }));
       if (path === '/api/v1/platforms') return Promise.resolve(response(200, { platforms: [{
         id: 'conjur', name: 'CyberArk Conjur', summary: 'Built for Conjur.', packId: 'cyberark-conjur-v9', toolId: 'conjur', ready: true,
         features: [{ id: 'tasks', name: 'Conjur tasks' }, { id: 'sign-in', name: 'Sign in' }, { id: 'security-audit', name: 'Security audit' }],
@@ -159,7 +162,7 @@ describe('command preview and retry workflows', () => {
     expect(builtIn).not.toHaveAttribute('aria-current');
     fireEvent.click(addCLI);
     expect(window.location.pathname).toBe('/tools');
-    expect(screen.getByRole('heading', { name: 'Add a command-line tool' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Add a command-line tool' })).toBeInTheDocument();
     expect(addCLI).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('main')).toHaveFocus();
     expect(screen.queryByRole('combobox', { name: 'Switch built-in CLI' })).not.toBeInTheDocument();
@@ -170,20 +173,21 @@ describe('command preview and retry workflows', () => {
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /audit/i })).not.toBeInTheDocument();
 
     fireEvent.click(builtIn);
-    fireEvent.click(screen.getByRole('button', { name: 'Open CyberArk Conjur' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open CyberArk Conjur' }));
     expect(window.location.pathname).toBe('/dedicated/conjur');
-    expect(screen.getByRole('heading', { name: 'CyberArk Conjur' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'CyberArk Conjur' })).toBeInTheDocument();
     expect(builtIn).toHaveTextContent('Built-in CLIs · CyberArk Conjur');
 
     fireEvent.click(screen.getByRole('tab', { name: 'Audit' }));
-    const link = screen.getByRole('button', { name: 'Regex pattern explorer' });
+    const link = screen.getByRole('button', { name: /^Regex pattern explorer/ });
     fireEvent.click(link);
     expect(window.location.pathname).toBe('/dedicated/conjur/security-audit');
     expect(await screen.findByRole('heading', { name: 'Conjur pattern explorer' })).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveFocus();
     fireEvent.click(builtIn);
     fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Tool' }), { target: { value: 'cyberark-conjur-v9/conjur' } });
+    fireEvent.click(document.querySelector('.tool-explorer > summary')!);
+    fireEvent.click(screen.getByRole('button', { name: /^Conjur conjur/ }));
     expect(window.location.pathname).toBe('/tasks');
     expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeInTheDocument();
     const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
@@ -308,6 +312,9 @@ describe('command preview and retry workflows', () => {
   test('task catalog filters CLIs without duplicating sidebar navigation', async () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
+      if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: ['alpha', 'beta'].map((id) => ({
+        packId: id, packName: id === 'alpha' ? 'Alpha' : 'Beta', packVersion: '1.0.0', toolId: id, status: 'ready',
+      })) }));
       if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [
         { packId: 'alpha', packName: 'Alpha', commandId: 'inspect', name: 'Inspect alpha', toolId: 'alpha',
           inputs: [{ id: 'query', type: 'string', label: 'Query', required: true, validation: {} }] },
@@ -318,10 +325,11 @@ describe('command preview and retry workflows', () => {
     render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: 'Query' }), { target: { value: 'old input' } });
     expect(screen.queryByRole('navigation', { name: 'Task categories' })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Tool' }), { target: { value: 'beta/beta' } });
+    fireEvent.click(document.querySelector('.tool-explorer > summary')!);
+    fireEvent.click(screen.getByRole('button', { name: /^Beta beta/ }));
     expect(screen.getByRole('heading', { name: 'Inspect beta' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Query' })).not.toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Tool' })).toHaveValue('beta/beta');
+    expect(screen.getByRole('button', { name: /^Beta beta/ })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Showing Beta tasks')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show all CLIs' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
@@ -606,6 +614,9 @@ describe('command preview and retry workflows', () => {
     const createBodies: unknown[] = [];
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = requestPath(input);
+      if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: ['alpha', 'beta'].map((id) => ({
+        packId: id, packName: id === 'alpha' ? 'Alpha' : 'Beta', packVersion: '1.0.0', toolId: id, status: 'ready',
+      })) }));
       if (path === '/api/v1/tasks') return Promise.resolve(response(200, { tasks: [
         { packId: 'alpha', packName: 'Alpha', commandId: 'inspect', name: 'Inspect alpha', toolId: 'alpha',
           inputs: [{ id: 'query', type: 'string', label: 'Query', required: true, validation: {} }] },
@@ -624,7 +635,8 @@ describe('command preview and retry workflows', () => {
     fireEvent.change(await screen.findByRole('textbox', { name: 'Query' }), { target: { value: 'original' } });
     fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
     const retry = await screen.findByRole('button', { name: 'Retry with inputs' });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Tool' }), { target: { value: 'beta/beta' } });
+    fireEvent.click(document.querySelector('.tool-explorer > summary')!);
+    fireEvent.click(screen.getByRole('button', { name: /^Beta beta/ }));
     fireEvent.click(retry);
     await waitFor(() => expect(createBodies).toHaveLength(2));
     expect(screen.getByRole('heading', { name: 'Inspect alpha' })).toBeInTheDocument();

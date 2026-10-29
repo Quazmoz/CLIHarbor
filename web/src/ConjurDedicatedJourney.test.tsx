@@ -66,7 +66,7 @@ test('Access Explorer permission shortcuts stay dedicated and complete a selecte
   const writes = backend.bodies('POST /api/v1/runs').filter((body) => (body as { commandId: string }).commandId === 'secret-permit');
   expect(writes).toEqual([{ packId: PACK, commandId: 'secret-permit', values: { 'policy-branch': 'apps', 'variable-id': 'db/password', 'role-kind': 'group', 'role-id': '/admins', privileges: 'read, execute', 'dry-run': false }, approval: { id: 'b'.repeat(32) } }]);
   fireEvent.click(screen.getByRole('tab', { name: 'Secrets' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Update value' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Update value/ }));
   expect(await screen.findByRole('region', { name: 'Dedicated Conjur action' })).toBeInTheDocument();
   await waitFor(() => expect(screen.getByRole('combobox', { name: 'variable-id' })).toBeEnabled());
   expect(window.location.pathname).toBe('/dedicated/conjur');

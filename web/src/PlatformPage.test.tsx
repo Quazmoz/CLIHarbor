@@ -28,9 +28,9 @@ const permissions: Task[] = [
 
 const openTab = (name: string) => fireEvent.click(screen.getByRole('tab', { name }));
 
-test('Conjur workspace leads with environment context and keyboard-navigable workflow tabs', () => {
+test('Conjur workspace leads with environment context and keyboard-navigable workflow tabs', async () => {
   render(<PlatformPage platform={platform} tasks={tasks} onOpenFeature={vi.fn()} onOpenDiagnostics={() => {}} onOpenTask={vi.fn()} />);
-  const env = screen.getByLabelText('Conjur environment');
+  const env = await screen.findByLabelText('Conjur environment');
   // CLI readiness is never presented as a verified vendor session.
   expect(within(env).getByText('Not verified')).toBeInTheDocument();
   expect(within(env).getByRole('button', { name: 'Check identity' })).toBeEnabled();
@@ -45,16 +45,17 @@ test('Conjur workspace leads with environment context and keyboard-navigable wor
   expect(screen.queryByRole('tabpanel', { name: 'Secrets' })).not.toBeInTheDocument();
 });
 
-test('Conjur permission actions prioritize reviewed grant, revoke and inspection without executing', () => {
+test('Conjur permission actions prioritize reviewed grant, revoke and inspection without executing', async () => {
   const onOpenTask = vi.fn();
   const onOpenFeature = vi.fn();
   render(<PlatformPage platform={platform} tasks={[...tasks, ...permissions]}
     onOpenFeature={onOpenFeature} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
+  await screen.findByRole('tab', { name: 'Access' });
   openTab('Access');
   const actions = screen.getByRole('group', { name: 'Conjur permission management' });
-  const grant = within(actions).getByRole('button', { name: 'Grant permission' });
-  const revoke = within(actions).getByRole('button', { name: 'Revoke permission' });
-  const change = within(actions).getByRole('button', { name: 'Inspect access' });
+  const grant = within(actions).getByRole('button', { name: /^Grant permission/ });
+  const revoke = within(actions).getByRole('button', { name: /^Revoke permission/ });
+  const change = within(actions).getByRole('button', { name: /^Inspect access/ });
   expect(grant).toBeEnabled();
   expect(revoke).toBeEnabled();
   expect(change).toBeEnabled();
@@ -66,7 +67,7 @@ test('Conjur permission actions prioritize reviewed grant, revoke and inspection
   expect(onOpenFeature).toHaveBeenCalledExactlyOnceWith('access-explorer');
 });
 
-test('Conjur permission changes remain unavailable when CLI is missing or tasks are not approved', () => {
+test('Conjur permission changes remain unavailable when CLI is missing or tasks are not approved', async () => {
   const onOpenTask = vi.fn();
   const onOpenFeature = vi.fn();
   const mismatched: Task[] = [
@@ -75,11 +76,12 @@ test('Conjur permission changes remain unavailable when CLI is missing or tasks 
   ];
   const view = render(<PlatformPage platform={platform} tasks={mismatched}
     onOpenFeature={onOpenFeature} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
+  await screen.findByRole('tab', { name: 'Access' });
   openTab('Access');
   let actions = screen.getByRole('group', { name: 'Conjur permission management' });
-  expect(within(actions).getByRole('button', { name: 'Grant permission' })).toBeDisabled();
-  expect(within(actions).getByRole('button', { name: 'Revoke permission' })).toBeDisabled();
-  expect(within(actions).getByRole('button', { name: 'Inspect access' })).toBeEnabled();
+  expect(within(actions).getByRole('button', { name: /^Grant permission/ })).toBeDisabled();
+  expect(within(actions).getByRole('button', { name: /^Revoke permission/ })).toBeDisabled();
+  expect(within(actions).getByRole('button', { name: /^Inspect access/ })).toBeEnabled();
   view.rerender(<PlatformPage platform={{ ...platform, ready: false }} tasks={permissions}
     onOpenFeature={onOpenFeature} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
   actions = screen.getByRole('group', { name: 'Conjur permission management' });
@@ -94,22 +96,21 @@ test('Conjur permission changes remain unavailable when CLI is missing or tasks 
   expect(onOpenFeature).not.toHaveBeenCalled();
 });
 
-test('Conjur workflows only show backend-advertised tasks owned by this platform, each in one place', () => {
+test('Conjur workflows only show backend-advertised tasks owned by this platform, each in one place', async () => {
   const onOpenTask = vi.fn();
   render(<PlatformPage platform={platform} tasks={tasks} onOpenFeature={() => {}} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
-  expect(screen.getByRole('button', { name: 'Delete variable' })).toHaveTextContent('Destructive · approval required');
-  // aria-label replaces the content, so the risk must reach screen readers as the description.
-  expect(screen.getByRole('button', { name: 'Delete variable' })).toHaveAccessibleDescription(/Destructive · approval required/);
+  expect(await screen.findByRole('button', { name: /^Delete variable/ })).toHaveTextContent('Destructive · approval required');
+  expect(screen.getByRole('button', { name: /^Delete variable/ })).toHaveAccessibleDescription(/Destructive · approval required/);
   expect(screen.queryByText('Spoof task')).not.toBeInTheDocument();
   openTab('Access');
   const inspection = screen.getByRole('group', { name: 'Access inspection' });
-  fireEvent.click(within(inspection).getByRole('button', { name: 'List role members' }));
+  fireEvent.click(within(inspection).getByRole('button', { name: /^List role members/ }));
   openTab('Tools');
   const toolbox = screen.getByRole('group', { name: 'Conjur toolbox' });
   // Browsing variables has one canonical home under Secrets.
   expect(within(toolbox).queryByRole('button', { name: 'Browse secret variable IDs' })).not.toBeInTheDocument();
   expect(within(toolbox).queryByRole('button', { name: /All approved tasks|Diagnostics/ })).not.toBeInTheDocument();
-  fireEvent.click(within(toolbox).getByRole('button', { name: 'List policies' }));
+  fireEvent.click(within(toolbox).getByRole('button', { name: /^List policies/ }));
   expect(onOpenTask).not.toHaveBeenCalled();
   expect(screen.getByRole('combobox', { name: 'Conjur action' })).toHaveValue('list-policies');
 });
@@ -333,10 +334,10 @@ test('Conjur Secrets tab exposes all four guarded CRUD operations', () => {
       commandId: 'secret-set-value', name: 'Update value', risk: 'change', inputs: [] }]}
     onOpenFeature={() => {}} onOpenDiagnostics={() => {}} onOpenTask={onOpenTask} />);
   const crud = screen.getByRole('group', { name: 'Conjur secret management' });
-  expect(within(crud).getByRole('button', { name: 'Create secret' })).toBeDisabled();
-  fireEvent.click(within(crud).getByRole('button', { name: 'Browse variables' }));
-  fireEvent.click(within(crud).getByRole('button', { name: 'Update value' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Delete variable' }));
+  expect(within(crud).getByRole('button', { name: /^Create secret/ })).toBeDisabled();
+  fireEvent.click(within(crud).getByRole('button', { name: /^Browse variables/ }));
+  fireEvent.click(within(crud).getByRole('button', { name: /^Update value/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Delete variable/ }));
   expect(onOpenTask).not.toHaveBeenCalled();
   expect(screen.getByRole('combobox', { name: 'Conjur action' })).toHaveValue('secret-delete');
 });

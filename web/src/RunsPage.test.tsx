@@ -413,7 +413,7 @@ describe('RunsPage', () => {
 
     render(<RunsPage tasks={tasks} />);
 
-    expect(await screen.findByRole('heading', { name: 'Recent runs' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Execution History' })).toBeInTheDocument();
     expect(screen.getByText('Inspect resources')).toBeInTheDocument();
     expect(screen.getByText('Older task')).toBeInTheDocument();
     expect(screen.queryByText(secretMarker)).not.toBeInTheDocument();

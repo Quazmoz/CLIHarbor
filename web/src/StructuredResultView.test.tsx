@@ -112,10 +112,10 @@ describe('StructuredResultView', () => {
 
     render(<StructuredResultView fields={fields} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Alpha value' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy value: Alpha' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('alpha-value'));
     expect(await screen.findByText('Copied Alpha.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Copy Missing value' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Copy value: Missing' })).toBeDisabled();
   });
 
   test('shows a normalized JSON inspection view without adding raw process output', () => {

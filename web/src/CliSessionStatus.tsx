@@ -29,20 +29,22 @@ export function CliSessionStatus({ tools, checks, onOpenSignIn, tasks = [], onCh
     return { tool, check, busy, label, symbol, signedIn: label === 'Signed in' };
   });
   const signedIn = sessions.filter((session) => session.signedIn);
+  const sessionLabel = signedIn.length > 0 ? signedIn.length + ' signed in' : 'CLI sessions';
 
   return (
     <details className="cli-sessions" onKeyDown={(event) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && event.currentTarget.open) {
+        event.stopPropagation();
         event.currentTarget.open = false;
         event.currentTarget.querySelector('summary')?.focus();
       }
     }} onBlur={(event) => {
       if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
     }}>
-      <summary aria-label={'CLI sign-in status, ' + signedIn.length + ' verified'}
+      <summary aria-label={'CLI sign-in status, ' + signedIn.length + ' verified, ' + sessionLabel}
         title={signedIn.length > 0 ? 'Verified: ' + signedIn.map(({ tool }) => tool.toolId).join(', ') : 'View CLI sign-in status'}>
         <span className={'cli-session-dot' + (signedIn.length > 0 ? ' cli-session-dot--signed-in' : '')} aria-hidden="true" />
-        <span aria-live="polite" aria-atomic="true">{signedIn.length > 0 ? signedIn.length + ' signed in' : 'CLI sessions'}</span>
+        <span aria-live="polite" aria-atomic="true">{sessionLabel}</span>
         <span aria-hidden="true">⌄</span>
       </summary>
       <div className="cli-sessions-panel">
