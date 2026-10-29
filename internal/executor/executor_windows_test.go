@@ -67,7 +67,7 @@ func TestRunWindowsTimeoutTerminatesDescendant(t *testing.T) {
 	t.Setenv(helperEnv, "1")
 	observer := &windowsDescendantObserver{}
 	executor := New(Config{
-		Timeout:   150 * time.Millisecond,
+		Timeout:   2 * time.Second,
 		WaitDelay: 100 * time.Millisecond,
 		NewRunID:  func() (string, error) { return "test-run", nil },
 	})

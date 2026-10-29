@@ -140,16 +140,16 @@ if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
 # running. On Windows, the current executable must be stopped before Go can
 # replace it; failed npm/typecheck/lint/tests must not take a healthy app down.
 Write-Host 'CLIHarbor: validating and rebuilding frontend (npm ci, typecheck, lint, tests, Vite, embed)...'
-$LASTEXITCODE = 0
+$global:LASTEXITCODE = 0
 try {
     & go run ./tools/task web-build
 } catch {
-    if ($LASTEXITCODE -ne 0) {
-        throw "CLIHarbor frontend validation failed (exit code $LASTEXITCODE). Review the 'task:' error above; existing CLIHarbor was not stopped."
+    if ($global:LASTEXITCODE -ne 0) {
+        throw "CLIHarbor frontend validation failed (exit code $global:LASTEXITCODE). Review the 'task:' error above; existing CLIHarbor was not stopped."
     }
     throw "CLIHarbor frontend validation could not start Go: $($_.Exception.Message)"
 }
-$buildExit = $LASTEXITCODE
+$buildExit = $global:LASTEXITCODE
 if ($buildExit -ne 0) {
     throw "CLIHarbor frontend validation failed (exit code $buildExit). Review the 'task:' error above; run 'go run ./tools/task web-build' to reproduce. Existing CLIHarbor was not stopped."
 }
@@ -159,16 +159,16 @@ if ($buildExit -ne 0) {
 # but does not overwrite a running Windows executable or its checksum.
 $stagedExe = Join-Path $bin '.cliharbor-dev-next.exe'
 Write-Host 'CLIHarbor: compiling replacement executable before stopping the running instance...'
-$LASTEXITCODE = 0
+$global:LASTEXITCODE = 0
 try {
     & go run ./tools/task go-build-staged
 } catch {
-    if ($LASTEXITCODE -ne 0) {
-        throw "CLIHarbor staged Go compilation failed (exit code $LASTEXITCODE); the running instance was not stopped."
+    if ($global:LASTEXITCODE -ne 0) {
+        throw "CLIHarbor staged Go compilation failed (exit code $global:LASTEXITCODE); the running instance was not stopped."
     }
     throw "CLIHarbor staged Go compilation could not start: $($_.Exception.Message)"
 }
-$buildExit = $LASTEXITCODE
+$buildExit = $global:LASTEXITCODE
 if ($buildExit -ne 0) {
     throw "CLIHarbor staged Go compilation failed (exit code $buildExit); the running instance was not stopped."
 }

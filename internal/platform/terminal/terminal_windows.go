@@ -190,7 +190,7 @@ func launchHiddenPlatform(executable string, args []string) error {
 		if waitErr != nil {
 			return fmt.Errorf("vendor login exited before authentication")
 		}
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(time.Second):
 	}
 	return nil
 }
