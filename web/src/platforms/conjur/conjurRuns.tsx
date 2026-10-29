@@ -1,9 +1,9 @@
 // Shared plumbing for guided Conjur workflows: approved-run completion, plan
 // validation and the read-only inventory that feeds role/policy dropdowns.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Task } from '../../api/tasks';
 import {
-  createRun, decodeRunOutput, fetchRun, subscribeRunEvents,
+  cancelRun, createRun, decodeRunOutput, fetchRun, subscribeRunEvents,
   type RunPreview, type RunSnapshot,
 } from '../../api/runs';
 import { parseConjurIDs } from './ConjurAccessExplorer';
@@ -46,7 +46,8 @@ export function successful(snapshot: RunSnapshot, command: string): boolean {
 
 // Every mutation must have authoritative terminal evidence before a dependent
 // mutation may start. A dropped event stream is reconciled once, never replayed.
-export async function completedRun(snapshot: RunSnapshot): Promise<RunSnapshot> {
+export async function completedRun(snapshot: RunSnapshot, signal?: AbortSignal): Promise<RunSnapshot> {
+  signal?.throwIfAborted();
   if (snapshot.status !== 'running') return snapshot;
   return new Promise((resolve, reject) => {
     let done = false;
@@ -59,11 +60,13 @@ export async function completedRun(snapshot: RunSnapshot): Promise<RunSnapshot> 
       done = true;
       clearTimeout(timeout);
       if (reconcileTimeout !== undefined) clearTimeout(reconcileTimeout);
+      signal?.removeEventListener('abort', aborted);
       controller?.abort();
       close();
       if (result instanceof Error) reject(result);
       else resolve(result);
     };
+    const aborted = () => finish(new DOMException('Aborted', 'AbortError'));
     const reconcile = () => {
       // SSE completion/error and the deadline can race. Fetch the retained
       // snapshot at most once, with an independent network deadline.
@@ -78,6 +81,7 @@ export async function completedRun(snapshot: RunSnapshot): Promise<RunSnapshot> 
       }).catch(() => finish(new Error('Run outcome is unknown. Check Runs before retrying.')));
     };
     const timeout = setTimeout(reconcile, MAX_RUN_MS);
+    signal?.addEventListener('abort', aborted, { once: true });
     close = subscribeRunEvents(snapshot.runId, () => {}, () => {
       // Stream completion is only a signal: its payload omits retained stdout.
       // Fetch the authoritative terminal snapshot before any dependent mutation.
@@ -88,11 +92,20 @@ export async function completedRun(snapshot: RunSnapshot): Promise<RunSnapshot> 
 }
 
 /** Runs one approved read-only command to completion and returns its stdout. */
-export async function runRead(csrfToken: string, commandId: string, values: Record<string, unknown>): Promise<string> {
-  const snapshot = await completedRun(await createRun(csrfToken, { packId: PACK, commandId, values }));
-  if (!successful(snapshot, commandId)) throw new Error('Conjur could not complete the read-only query. Check Runs for details.');
-  if (snapshot.structured?.status === 'invalid') throw new Error('Conjur read output did not pass the reviewed output schema.');
-  return decodeRunOutput(snapshot, 'stdout.chunk');
+export async function runRead(csrfToken: string, commandId: string, values: Record<string, unknown>, signal?: AbortSignal): Promise<string> {
+  signal?.throwIfAborted();
+  let accepted: RunSnapshot | undefined;
+  try {
+    accepted = await createRun(csrfToken, { packId: PACK, commandId, values }, signal);
+    const snapshot = await completedRun(accepted, signal);
+    if (!successful(snapshot, commandId)) throw new Error('Conjur could not complete the read-only query. Check Runs for details.');
+    if (snapshot.structured?.status === 'invalid') throw new Error('Conjur read output did not pass the reviewed output schema.');
+    return decodeRunOutput(snapshot, 'stdout.chunk');
+  } catch (error) {
+    // Cancel only a known read; mutation completion remains independent of navigation.
+    if (signal?.aborted && accepted?.status === 'running') void cancelRun(csrfToken, accepted.runId).catch(() => {});
+    throw error;
+  }
 }
 
 // Carry only the generated run ID to the UI, never untrusted vendor output.
@@ -120,12 +133,12 @@ export async function variableExists(csrfToken: string, fullID: string, account:
 }
 
 /** Local IDs (account and kind stripped) of visible resources of one kind. */
-export async function listIDs(csrfToken: string, account: string, kind: InventoryKind): Promise<string[]> {
+export async function listIDs(csrfToken: string, account: string, kind: InventoryKind, signal?: AbortSignal): Promise<string[]> {
   const prefix = account + ':' + kind + ':';
   const ids: string[] = [];
   for (let page = 0; page < MAX_PAGES; page++) {
     const entries = parseConjurIDs(await runRead(csrfToken, 'list-resources',
-      { kind, limit: String(PAGE), ...(page ? { offset: page * PAGE } : {}) }), PAGE, account);
+      { kind, limit: String(PAGE), ...(page ? { offset: page * PAGE } : {}) }, signal), PAGE, account);
     ids.push(...entries.filter((id) => id.startsWith(prefix)).map((id) => id.slice(prefix.length)));
     if (entries.length < PAGE) break;
   }
@@ -139,36 +152,38 @@ export async function listIDs(csrfToken: string, account: string, kind: Inventor
  */
 export function useConjurInventory(csrfToken: string, account: string | undefined, tasks: Task[],
   kinds: readonly InventoryKind[]) {
-  const [inventory, setInventory] = useState<Inventory | null>(null);
-  const [state, setState] = useState<'idle' | 'loading' | 'failed'>('idle');
-  const loading = useRef(false);
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => { alive.current = false; };
-  }, []);
   const available = Boolean(account) && tasks.some((task) => task.packId === PACK && task.toolId === TOOL &&
     task.commandId === 'list-resources' && task.risk === 'read');
+  const scope = useMemo(() => ({ available, account, csrfToken, kinds }), [available, account, csrfToken, kinds]);
+  const [result, setResult] = useState<{
+    scope: typeof scope; inventory: Inventory | null; state: 'idle' | 'loading' | 'failed';
+  } | null>(null);
+  const loading = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    loading.current?.abort();
+    loading.current = null;
+  }, [scope]);
 
   const load = useCallback(async () => {
-    if (!available || !account || loading.current) return;
-    loading.current = true;
-    setInventory(null);
-    setState('loading');
+    if (!scope.available || !scope.account || loading.current) return;
+    const controller = new AbortController();
+    loading.current = controller;
+    setResult({ scope, inventory: null, state: 'loading' });
     try {
       const loaded: Inventory = {};
-      for (const kind of kinds) {
-        if (!alive.current) return;
-        loaded[kind] = await listIDs(csrfToken, account, kind);
+      for (const kind of scope.kinds) {
+        controller.signal.throwIfAborted();
+        loaded[kind] = await listIDs(scope.csrfToken, scope.account, kind, controller.signal);
       }
-      if (alive.current) { setInventory(loaded); setState('idle'); }
+      if (!controller.signal.aborted) setResult({ scope, inventory: loaded, state: 'idle' });
     } catch {
-      if (alive.current) setState('failed');
+      if (!controller.signal.aborted) setResult({ scope, inventory: null, state: 'failed' });
     } finally {
-      loading.current = false;
+      if (loading.current === controller) loading.current = null;
     }
-  }, [available, account, csrfToken, kinds]);
-  return { inventory, state, load };
+  }, [scope]);
+  return { inventory: result?.scope === scope ? result.inventory : null,
+    state: result?.scope === scope ? result.state : 'idle' as const, load };
 }
 
 export function InventoryStatus({ state, disabled, onRetry }: {

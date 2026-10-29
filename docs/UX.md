@@ -495,6 +495,13 @@ and clears stale options; manual entry remains explicit for IDs outside the
 first 500 visible IDs per kind, new LDAP names, service IDs and issuer IDs
 without reviewed inventory commands. CLI authorization remains authoritative.
 
+Leaving a guided form or changing its inventory context stops further dropdown
+pages and resource-kind queries, closes its read stream and requests cancellation
+of a known running inventory read. Late responses cannot restore abandoned
+options or unlock a newer load. A lost start acknowledgement may leave a bounded
+read running without a known run ID; Execution History retains its evidence.
+Approved mutations retain their separate completion and reconciliation lifecycle.
+
 Manual ID entry receives keyboard focus when selected. A saved role remains
 visible as **not currently listed** when inventory is unavailable or changes;
 the browser must never display a default while submitting a different role.
