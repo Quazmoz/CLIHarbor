@@ -163,7 +163,31 @@ describe('Conjur API backend connection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Replace CLI API endpoint' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Vendor authentication is not currently available.');
     expect(invalidate).toHaveBeenCalledTimes(1);
-    expect(refresh).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/endpoint saved and verified/i)).not.toBeInTheDocument();
+  });
+
+  test.each(['success', 'lost acknowledgement'])('refreshes shell capabilities after an abandoned write: %s', async (outcome) => {
+    const refresh = vi.fn();
+    let finish!: () => void;
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') return new Promise<Response>((resolve, reject) => {
+        finish = () => outcome === 'success'
+          ? resolve(new Response(null, { status: 204 }))
+          : reject(new TypeError('lost vendor configuration acknowledgement'));
+      });
+      return Promise.resolve(response({ environment: 'saas', applianceUrl: old, account: 'conjur', configurable: true }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const view = render(<ConjurBackendConnection status={status} tool={tool} ready onToolsChanged={refresh} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Change API endpoint' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Secrets Manager API URL' }), { target: { value: next } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /replace the existing/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Replace CLI API endpoint' }));
+    view.unmount();
+    await act(async () => finish());
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.map(([, init]) => init?.method)).toEqual(['GET', 'POST']);
     expect(screen.queryByText(/endpoint saved and verified/i)).not.toBeInTheDocument();
   });
 
@@ -324,7 +348,7 @@ describe('Conjur API backend connection', () => {
     expect(reads).toBe(2);
     expect(writes).toBe(1);
     expect(invalidate).toHaveBeenCalledTimes(2);
-    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 
   test('does not offer reconfiguration for an unsupported externally managed mode', async () => {

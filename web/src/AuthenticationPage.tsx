@@ -231,8 +231,20 @@ function VendorSessionCard({
     initialCheck !== undefined && initialCheck.kind !== 'checking' ? initialCheck : { kind: 'unchecked' },
   );
   const checkingRef = useRef(false);
+  const cancellationRef = useRef(false);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const [cancelRequested, setCancelRequested] = useState(false);
+  const [cancelFailure, setCancelFailure] = useState<AppErrorDetail | null>(null);
   const lastRequestedCheck = useRef<number | undefined>(undefined);
   const setCheck = (next: AuthenticationCheck) => {
+    if (next.kind !== 'checking') {
+      if (document.activeElement === cancelButtonRef.current || (cancellationRef.current && document.activeElement === document.body)) {
+        document.getElementById(headingID)?.focus();
+      }
+      cancellationRef.current = false;
+      setCancelRequested(false);
+      setCancelFailure(null);
+    }
     checkingRef.current = next.kind === 'checking';
     setLocalCheck(next);
     onCheckChange?.(tool, next);
@@ -480,36 +492,37 @@ function VendorSessionCard({
   }, [requestedCheck]);
 
   const cancelCheck = async () => {
-    if (check.kind !== 'checking' || check.runId === undefined || activeRunRef.current !== check.runId) {
+    if (check.kind !== 'checking' || check.runId === undefined || activeRunRef.current !== check.runId || cancellationRef.current) {
       return;
     }
     const runId = check.runId;
-    const cancellationAttempt = attemptRef.current + 1;
-    attemptRef.current = cancellationAttempt;
-    closeStreamRef.current?.();
-    closeStreamRef.current = null;
-    activeRunRef.current = null;
+    const attempt = attemptRef.current;
+    cancellationRef.current = true;
+    setCancelRequested(true);
+    setCancelFailure(null);
     try {
       const snapshot = await cancelRun(status.csrfToken, runId);
-      if (attemptRef.current !== cancellationAttempt) {
+      if (attemptRef.current !== attempt || activeRunRef.current !== runId) {
         return;
       }
       // The check may have finished before the cancel landed; report its real outcome.
       if (snapshot.status !== 'running') {
         evidenceFromSnapshot(snapshot, stdoutRef, stderrRef, decodersRef);
-        finishAttempt(cancellationAttempt, snapshot.status, snapshot.exitCode, snapshot.failure);
+        finishAttempt(attempt, snapshot.status, snapshot.exitCode, snapshot.failure);
         return;
       }
-      setCheck({ kind: 'cancelled', checkedAt: new Date().toISOString() });
+      // Acceptance is not completion. Keep the existing stream until it reports
+      // the actual terminal outcome, including a check that finished before cancellation.
     } catch (error) {
-      if (attemptRef.current !== cancellationAttempt) {
+      if (attemptRef.current !== attempt || activeRunRef.current !== runId) {
         return;
       }
-      setCheck({
-        kind: 'failed',
-        checkedAt: new Date().toISOString(),
-        failure: normalizeError(error).detail,
-      });
+      if (document.activeElement === document.body || document.activeElement === cancelButtonRef.current) {
+        document.getElementById(headingID)?.focus();
+      }
+      cancellationRef.current = false;
+      setCancelRequested(false);
+      setCancelFailure(normalizeError(error).detail);
     }
   };
 
@@ -537,9 +550,10 @@ function VendorSessionCard({
     primaryClass = 'auth-state--attention';
     primarySymbol = '!';
   } else if (check.kind === 'checking') {
-    primaryHeading = 'Checking session';
-    primaryDetail =
-      'CLIHarbor is running the pack-declared read-only session check through the normal trusted execution path.';
+    primaryHeading = cancelRequested ? 'Stopping session check' : 'Checking session';
+    primaryDetail = cancelRequested
+      ? 'Cancellation has been requested. Waiting for the run to report its final status.'
+      : 'CLIHarbor is running the pack-declared read-only session check through the normal trusted execution path.';
     primaryClass = 'auth-state--checking';
     primarySymbol = '…';
   } else if (check.kind === 'authenticated') {
@@ -627,6 +641,12 @@ function VendorSessionCard({
 
       <WorkingStatus active={busy} track={false} title="Updating CLI sign-in or connection…" />
 
+      {cancelFailure && <div className="credential-login-error" role="alert">
+        <strong>Cancellation could not be confirmed.</strong>
+        <span>{cancelFailure.message}</span>
+        <span>The check may still be running. Retry cancellation or wait for its final result.</span>
+      </div>}
+
       {signIn !== undefined
         ? signIn.render(context)
         : toolView.ready && (
@@ -646,8 +666,9 @@ function VendorSessionCard({
           </button>
         )}
         {check.kind === 'checking' && check.runId !== undefined && (
-          <button type="button" className="secondary-button" onClick={() => void cancelCheck()}>
-            Cancel check
+          <button ref={cancelButtonRef} type="button" className="secondary-button" disabled={cancelRequested}
+            aria-busy={cancelRequested} onClick={() => void cancelCheck()}>
+            {cancelRequested ? 'Cancellation requested' : 'Cancel check'}
           </button>
         )}
         {(check.kind === 'authenticated' || (toolView.ready && tool.sessionCheck === undefined)) && (

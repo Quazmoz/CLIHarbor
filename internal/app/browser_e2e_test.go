@@ -151,6 +151,10 @@ case "${1:-}" in
     printf '[]\n'
     ;;
   whoami)
+    if [ -f "$CLIHARBOR_E2E_CONJUR_CHECK_DELAY" ]; then
+      printf 'fixture session check waiting\n' >&2
+      sleep 20
+    fi
     if [ -s "$CLIHARBOR_E2E_CONJUR_NETRC" ] &&
        grep -q 'alice' "$CLIHARBOR_E2E_CONJUR_NETRC" &&
        grep -q 'e2e-api-key' "$CLIHARBOR_E2E_CONJUR_NETRC"; then
@@ -190,6 +194,7 @@ esac
 	t.Setenv("CLIHARBOR_E2E_CONJUR_SECRET", secret)
 	t.Setenv("CLIHARBOR_E2E_CONJUR_CERT", certPath)
 	t.Setenv("CLIHARBOR_E2E_CONJUR_NETRC", netrcPath)
+	t.Setenv("CLIHARBOR_E2E_CONJUR_CHECK_DELAY", filepath.Join(tempDir, "delay-session-check"))
 }
 
 func TestProductionEmbeddedBrowserE2E(t *testing.T) {

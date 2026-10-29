@@ -4,7 +4,7 @@ import { AuthenticationPage } from './AuthenticationPage';
 import { CliSessionStatus } from './CliSessionStatus';
 import { OperationActivityProvider } from './OperationActivity';
 import { conjurSignIn } from './platforms/conjur/ConjurSignIn';
-import { defaultStatus, FakeEventSource, installFakeBackend } from './test/fakeBackend';
+import { defaultStatus, FakeEventSource, installFakeBackend, jsonResponse } from './test/fakeBackend';
 import type { ToolDiagnostic } from './api/tools';
 import type { Task } from './api/tasks';
 
@@ -103,4 +103,72 @@ test('connection controls remain disabled while an explicit session check owns t
     runId: run.runId, sequence: 0, status: 'exited', exitCode: 0,
   }));
   expect(settings.getByRole('button', { name: 'Change API endpoint' })).toBeEnabled();
+});
+
+test('an accepted cancellation keeps the session check pending until its real terminal result', async () => {
+  let finish!: (response: Response) => void;
+  const running = { ...run, status: 'running', exitCode: undefined };
+  const backend = installFakeBackend({
+    'POST /api/v1/runs': { status: 202, body: running },
+    ['POST /api/v1/runs/' + run.runId + '/cancel']: () => new Promise((resolve) => { finish = resolve; }),
+  });
+  render(page());
+  fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
+  const cancel = await screen.findByRole('button', { name: 'Cancel check' });
+  cancel.focus();
+  fireEvent.click(cancel);
+  fireEvent.click(cancel);
+  expect(screen.getByRole('button', { name: 'Cancellation requested' })).toBeDisabled();
+  expect(screen.getByRole('heading', { name: 'Stopping session check' })).toBeVisible();
+  await act(async () => finish(jsonResponse(202, running)));
+  expect(FakeEventSource.latest!.closed).toBe(false);
+  expect(screen.queryByRole('heading', { name: 'Authentication check cancelled' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Checking session…' })).toBeDisabled();
+  await act(async () => FakeEventSource.latest!.emit('run-complete', {
+    runId: run.runId, sequence: 0, status: 'cancelled',
+  }));
+  expect(screen.getByRole('heading', { name: 'Authentication check cancelled' })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Conjur' })).toHaveFocus();
+  expect(backend.calls('POST /api/v1/runs')).toHaveLength(1);
+  expect(backend.calls('POST /api/v1/runs/' + run.runId + '/cancel')).toHaveLength(1);
+});
+
+test('a lost cancellation acknowledgement preserves live verification and offers cancellation recovery', async () => {
+  const backend = installFakeBackend({
+    'POST /api/v1/runs': { status: 202, body: { ...run, status: 'running', exitCode: undefined } },
+    ['POST /api/v1/runs/' + run.runId + '/cancel']: () => { throw new TypeError('lost cancellation response'); },
+  });
+  render(page());
+  fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
+  const cancel = await screen.findByRole('button', { name: 'Cancel check' });
+  cancel.focus();
+  fireEvent.click(cancel);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Cancellation could not be confirmed');
+  expect(screen.getByRole('heading', { name: 'Conjur' })).toHaveFocus();
+  expect(screen.getByRole('button', { name: 'Cancel check' })).toBeEnabled();
+  expect(FakeEventSource.latest!.closed).toBe(false);
+  await act(async () => FakeEventSource.latest!.emit('run-complete', {
+    runId: run.runId, sequence: 0, status: 'exited', exitCode: 0,
+  }));
+  expect(screen.getByRole('heading', { name: 'Authenticated' })).toBeVisible();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(backend.calls('POST /api/v1/runs')).toHaveLength(1);
+  expect(backend.calls('POST /api/v1/runs/' + run.runId + '/cancel')).toHaveLength(1);
+});
+
+test('streamed completion wins over a late cancellation acknowledgement', async () => {
+  let finish!: (response: Response) => void;
+  installFakeBackend({
+    'POST /api/v1/runs': { status: 202, body: { ...run, status: 'running', exitCode: undefined } },
+    ['POST /api/v1/runs/' + run.runId + '/cancel']: () => new Promise((resolve) => { finish = resolve; }),
+  });
+  render(page());
+  fireEvent.click(screen.getByRole('button', { name: 'Check session' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Cancel check' }));
+  await act(async () => FakeEventSource.latest!.emit('run-complete', {
+    runId: run.runId, sequence: 0, status: 'exited', exitCode: 0,
+  }));
+  await act(async () => finish(jsonResponse(202, { ...run, status: 'cancelled', exitCode: undefined })));
+  expect(screen.getByRole('heading', { name: 'Authenticated' })).toBeVisible();
+  expect(changed).toHaveBeenLastCalledWith(tool, expect.objectContaining({ kind: 'authenticated' }));
 });

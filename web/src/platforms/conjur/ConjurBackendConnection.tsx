@@ -109,7 +109,6 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
         setEditing(false);
         setConfirmed(false);
         setSaveError('The CLI did not report the requested endpoint. Inspect the official Conjur configuration.');
-        onToolsChanged?.();
         return;
       }
       setConnection(updated);
@@ -117,7 +116,6 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
       setEditing(false);
       setConfirmed(false);
       setSaved(true);
-      onToolsChanged?.();
     } catch (error) {
       // A request can time out after vendor init committed its configuration.
       // Hide previously read endpoint/approval evidence until an authoritative
@@ -131,6 +129,9 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
         setLoadError(true);
       }
     } finally {
+      // A vendor write can finish after this form unmounts, or before a lost
+      // acknowledgement. Refresh shell capabilities even when local readback stops.
+      onToolsChanged?.();
       endChange();
       saveInFlightRef.current = false;
       if (mountedRef.current) setSaving(false);

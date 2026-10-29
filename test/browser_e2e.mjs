@@ -15,7 +15,8 @@ if (!bootstrapURL) {
 const conjurURL = process.env.CLIHARBOR_E2E_CONJUR_URL;
 const conjurIdentity = process.env.CLIHARBOR_E2E_CONJUR_IDENTITY;
 const conjurSecret = process.env.CLIHARBOR_E2E_CONJUR_SECRET;
-if (!conjurURL || !conjurIdentity || !conjurSecret) {
+const conjurCheckDelay = process.env.CLIHARBOR_E2E_CONJUR_CHECK_DELAY;
+if (!conjurURL || !conjurIdentity || !conjurSecret || !conjurCheckDelay) {
   throw new Error('missing hermetic Conjur browser E2E configuration');
 }
 if (typeof WebSocket !== 'function') {
@@ -846,6 +847,58 @@ async function main() {
     '}))()');
     assert.equal(credentialState.passwordValue, '', 'password input must be cleared after the login attempt');
     assert.equal(credentialState.connectionInputs, 0, 'successful setup must not leave connection inputs active');
+
+    stage('session cancellation preserves live evidence and restores keyboard focus');
+    await writeFile(conjurCheckDelay, 'wait', { mode: 0o600 });
+    await page.evaluate(`(() => {
+      const nativeFetch = window.fetch;
+      const NativeEventSource = window.EventSource;
+      window.__cliharborCancelFetch = nativeFetch;
+      window.__cliharborCancelSource = NativeEventSource;
+      window.__cliharborCancelStarts = 0;
+      window.__cliharborCancelRequests = 0;
+      window.fetch = async (...args) => {
+        if (args[0] === '/api/v1/runs' && args[1]?.method === 'POST') window.__cliharborCancelStarts++;
+        const response = await nativeFetch(...args);
+        if (String(args[0]).endsWith('/cancel') && args[1]?.method === 'POST') {
+          window.__cliharborCancelRequests++;
+          return new Promise((resolve) => { window.__cliharborReleaseCancel = () => resolve(response); });
+        }
+        return response;
+      };
+      window.EventSource = function(...args) {
+        const source = new NativeEventSource(...args);
+        const add = source.addEventListener.bind(source);
+        source.addEventListener = (type, listener, ...options) => add(type, type === 'run-complete'
+          ? (event) => { window.__cliharborReleaseCheck = () => listener.call(source, event); }
+          : listener, ...options);
+        return source;
+      };
+    })()`);
+    const cancellableCheckRequest = page.waitEvent('Network.requestWillBeSent', isConjurSessionCheckRequest);
+    await clickButton(page, 'Re-check session');
+    await cancellableCheckRequest;
+    await waitJS(page, 'cancellable declared CLI session check', 'Array.from(document.querySelectorAll("button")).some((button) => button.textContent.trim() === "Cancel check")');
+    await page.evaluate('Array.from(document.querySelectorAll("button")).find((button) => button.textContent.trim() === "Cancel check").focus()');
+    await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 });
+    await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await waitJS(page, 'real cancellation and terminal evidence held for the race', 'typeof window.__cliharborReleaseCancel === "function" && typeof window.__cliharborReleaseCheck === "function"');
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      assert.equal(await page.evaluate('document.body.innerText.includes("Stopping session check") && !document.body.innerText.includes("Authentication check cancelled") && Array.from(document.querySelectorAll("button")).find((button) => button.textContent.trim() === "Cancellation requested")?.disabled && document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true);
+      await capture('session-cancellation-' + width);
+    }
+    await page.evaluate('window.__cliharborReleaseCheck(); true');
+    await waitJS(page, 'stream completion restores session-card focus', 'document.body.innerText.includes("Authentication check cancelled") && document.activeElement?.id === "vendor-session-cyberark-conjur-v9__conjur"');
+    await page.evaluate('window.__cliharborReleaseCancel(); true');
+    assert.equal(await page.evaluate('window.__cliharborCancelStarts === 1 && window.__cliharborCancelRequests === 1 && !document.body.innerText.includes("Authenticated")'), true, 'late cancellation response must preserve the streamed outcome without another check');
+    await page.evaluate('window.fetch = window.__cliharborCancelFetch; window.EventSource = window.__cliharborCancelSource; true');
+    await rm(conjurCheckDelay, { force: true });
+    const restoredSession = page.waitEvent('Network.requestWillBeSent', isConjurSessionCheckRequest);
+    await clickButton(page, 'Re-check session');
+    await restoredSession;
+    await waitJS(page, 'explicit session re-check after cancellation', 'document.body.innerText.includes("Authenticated")');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
 
     stage('top-right CLI session status across navigation and narrow layouts');
     await waitJS(page, 'verified sign-in indicator', 'document.querySelector(".cli-sessions:not(.operation-activity) summary")?.textContent.includes("1 signed in")');
