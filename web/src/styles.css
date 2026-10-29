@@ -3755,9 +3755,9 @@ button[aria-busy="true"]:disabled { opacity: 1; cursor: progress; }
   margin: 0.85rem 0; padding: 0.85rem; border: 1px solid var(--info-border); border-radius: var(--radius-sm);
   background: var(--surface-inset); overflow-wrap: anywhere;
 }
-.operation-context div { min-width: 0; }
+.panel .operation-context > div { display: grid; gap: 0.25rem; min-width: 0; padding-top: 0; border-top: 0; }
 .operation-context dt { color: var(--text-muted); font-size: 0.75rem; }
-.operation-context dd { margin: 0.25rem 0 0; color: var(--text-strong); font-size: 0.85rem; }
+.operation-context dd { min-width: 0; margin: 0.25rem 0 0; color: var(--text-strong); font-size: 0.85rem; text-align: left; }
 .operation-result { margin: 1rem 0; padding: 1rem; border: 1px solid var(--positive-border); border-left-width: 4px; border-radius: var(--radius-md); background: var(--positive-surface); overflow-wrap: anywhere; }
 .operation-result--warning { border-color: var(--warning-border); background: var(--warning-surface); }
 .operation-result h4 { margin: 0 0 0.65rem; color: var(--positive-text); }

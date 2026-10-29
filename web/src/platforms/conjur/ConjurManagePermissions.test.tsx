@@ -174,6 +174,24 @@ test('a data-policy grant previews the relative variable and absolute role', asy
   });
 });
 
+test('reads IDs with spaces through an exact list search, never the CLI path that encodes spaces as +', async () => {
+  const id = 'data/vault/Operating System-svc/password';
+  const record = { ...resource, id: 'dev:variable:' + id, owner: 'dev:policy:data', policy: 'dev:policy:data' };
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId !== 'list-resources' ? run(request.commandId)
+    : request.values.search ? run('list-resources', [{ ...record, id: 'dev:variable:' + id + '-old' }, record])
+      : run('list-resources', lists[request.values.kind as string]));
+  render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
+  const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
+  fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
+  chooseVariable(region, id);
+  fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
+  expect(await within(region).findByRole('table')).toHaveTextContent('apps/web');
+  const requests = vi.mocked(createRun).mock.calls.map(([, request]) => request);
+  expect(requests.some((request) => request.commandId === 'resource-show')).toBe(false);
+  expect(requests).toContainEqual(expect.objectContaining({ commandId: 'list-resources',
+    values: { kind: 'variable', search: id, limit: '100', inspect: true } }));
+});
+
 test('does not offer an unsafe revoke when the granting policy is unrelated', async () => {
   vi.mocked(createRun).mockImplementation(async (_, request) =>
     request.commandId === 'list-resources' ? run('list-resources', lists[request.values.kind as string])

@@ -260,7 +260,13 @@ export function ConjurAccessExplorer({ tasks, csrfToken, onOpenTask, onOpenSignI
     setResourceID(id);
     void inspect(async (signal, account) => {
       if (!validConjurID(id, account)) throw new Error('Resource ID is not in the configured Conjur account.');
-      if (!parseExists(await runRead('resource-exists', { 'resource-id': id }, signal))) {
+      const [, kind, local] = /^[^:]+:([a-z_]+):(.+)$/u.exec(id)!;
+      // The CLI path-encodes spaces as '+'; an exact query-string search avoids it.
+      const visible = local.includes(' ')
+        ? local.length <= 512 && parseConjurIDs(await runRead('list-resources',
+          { kind, search: local, limit: '100' }, signal), 100, account).includes(id)
+        : parseExists(await runRead('resource-exists', { 'resource-id': id }, signal));
+      if (!visible) {
         throw new Error('Conjur did not confirm that the resource exists or is visible.');
       }
       return { type: 'resource', id, metadata: metadataFromID(id) };

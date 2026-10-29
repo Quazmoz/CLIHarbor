@@ -8,7 +8,7 @@ import { useMutationActivity, useMutationPending } from '../../OperationActivity
 import { ConjurIDSelect } from './ConjurIDSelect';
 import {
   GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, RoleOptions,
-  approvalsFresh, completedRun, matchingPlans, runRead, safeMessage, successful,
+  approvalsFresh, completedRun, findVariable, matchingPlans, needsSearchLookup, runRead, safeMessage, successful,
   splitRole, supportedTask, useConjurInventory,
 } from './conjurRuns';
 
@@ -127,7 +127,10 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   }
 
   async function readAccess(id: string) {
-    const loaded = parseVariableAccess(await runRead(csrfToken, 'resource-show', { 'resource-id': account + ':variable:' + id }), account!, id);
+    const output = needsSearchLookup(id) ? await findVariable(csrfToken, account!, id, true)
+      : await runRead(csrfToken, 'resource-show', { 'resource-id': account + ':variable:' + id });
+    if (output === null) throw new Error('Conjur did not return this variable. Check the ID and your access.');
+    const loaded = parseVariableAccess(output, account!, id);
     if (alive.current) { setAccess(loaded); setShown(id); }
   }
 

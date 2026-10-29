@@ -6,7 +6,7 @@ import {
   cancelRun, createRun, decodeRunOutput, fetchRun, subscribeRunEvents,
   type RunPreview, type RunSnapshot,
 } from '../../api/runs';
-import { parseConjurIDs } from './ConjurAccessExplorer';
+import { parseConjurIDs, parseConjurObject } from './ConjurAccessExplorer';
 
 export const PACK = 'cyberark-conjur-v9';
 export const TOOL = 'conjur';
@@ -118,8 +118,41 @@ export class ExistenceCheckFailure extends Error {
   }
 }
 
+// conjur-api-go QueryEscapes resource IDs into the URL path, so a space reaches
+// Conjur as '+' and `resource show`/`exists` report 404. `list --search` sends
+// the ID as a query parameter, where spaces survive.
+export const needsSearchLookup = (id: string) => id.includes(' ');
+
+/**
+ * Exact variable lookup through the approved list task. Returns the matching ID,
+ * or its record as JSON when inspecting; null when a complete page lacks it.
+ */
+export async function findVariable(csrfToken: string, account: string, id: string, inspect: boolean, signal?: AbortSignal): Promise<string | null> {
+  if (id.length > 512) throw new Error('Conjur variable IDs with spaces longer than 512 characters cannot be looked up.');
+  const fullID = account + ':variable:' + id;
+  const output = await runRead(csrfToken, 'list-resources',
+    { kind: 'variable', search: id, limit: String(PAGE), ...(inspect ? { inspect: true } : {}) }, signal);
+  let entries: unknown[];
+  if (inspect) {
+    // Scan the whole response for duplicate keys before trusting any record.
+    const records = parseConjurObject('{"r":' + output + '}').r;
+    if (!Array.isArray(records)) throw new Error('Conjur returned an unexpected resource list.');
+    entries = records;
+  } else {
+    entries = parseConjurIDs(output, PAGE, account);
+  }
+  const match = entries.find((entry) => inspect
+    ? typeof entry === 'object' && entry !== null && (entry as Record<string, unknown>).id === fullID
+    : entry === fullID);
+  if (match !== undefined) return inspect ? JSON.stringify(match) : fullID;
+  if (entries.length < PAGE) return null;
+  throw new Error('Conjur search returned too many matches to confirm this variable.');
+}
+
 /** Mutation preflights require the reviewed parser's evidence, never raw JSON. */
 export async function variableExists(csrfToken: string, fullID: string, account: string): Promise<boolean> {
+  // Search sees only visible variables; resource exists also counts hidden ones.
+  if (needsSearchLookup(fullID)) return await findVariable(csrfToken, account, fullID, false) !== null;
   const snapshot = await completedRun(await createRun(csrfToken, {
     packId: PACK, commandId: 'resource-exists',
     values: { 'resource-id': account + ':variable:' + fullID },

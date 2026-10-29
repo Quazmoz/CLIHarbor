@@ -308,6 +308,13 @@ Role IDs are sent absolute (`/id`), but the policy YAML variable reference
 must be relative to the policy branch (for example, variable
 `data/vault/app/password` under policy `data` becomes `vault/app/password`).
 The guided UI refuses cross-branch references it cannot express safely.
+The pinned `conjur-api-go` (v0.15.10, unfixed on upstream `main`) query-escapes
+resource IDs into the URL path, so `resource show`/`resource exists` turn a
+space into `+` and report 404. For variable IDs containing spaces, the guided
+forms and access explorer instead use the reviewed `list-resources` task with an
+exact `--search` (plus `--inspect` for permissions) and accept only an exact ID
+match. A full search page without a match fails closed; search sees only
+variables visible to the current identity, so a hidden variable reads as absent.
 Every change is one explicitly approved run bound to the displayed account
 and endpoint, and permissions are re-read from Conjur afterwards. Inherited access through role membership is
 not listed.
