@@ -958,10 +958,12 @@ describe('AuthenticationPage', () => {
       credentialLogin: { method: 'conjur-vendor-login' },
     };
     let sessionChecks = 0;
+    let finishLaunch!: (response: Response) => void;
+    const listeners = vi.spyOn(window, 'addEventListener');
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = requestPath(input);
       if (path === '/api/v1/auth/configure') return Promise.resolve(configuredVendorConnection());
-      if (path === '/api/v1/auth/interactive') return Promise.resolve(new Response(null, { status: 204 }));
+      if (path === '/api/v1/auth/interactive') return new Promise<Response>((resolve) => { finishLaunch = resolve; });
       if (path === '/api/v1/runs') {
         sessionChecks += 1;
         return Promise.resolve(response(202, {
@@ -975,6 +977,9 @@ describe('AuthenticationPage', () => {
 
     renderAuth([whoamiTask], [vendorTool]);
     fireEvent.click(screen.getByRole('button', { name: 'Start official Conjur sign-in' }));
+    const focusDuringLaunch = listeners.mock.calls.find(([type]) => type === 'focus')?.[1] as EventListener;
+    expect(focusDuringLaunch).toBeTypeOf('function');
+    await act(async () => finishLaunch(new Response(null, { status: 204 })));
     expect(await screen.findByText('Official Conjur sign-in started.')).toBeInTheDocument();
 
     fireEvent.focus(window);
@@ -982,7 +987,9 @@ describe('AuthenticationPage', () => {
     expect(screen.getByText('Official Conjur sign-in started.')).toBeInTheDocument();
 
     fireEvent.blur(window);
-    fireEvent.focus(window);
+    // A focus event can reach the launch-time listener after acknowledgement
+    // renders, before passive effects replace that listener. It needs current state.
+    await act(async () => focusDuringLaunch(new Event('focus')));
     expect(await screen.findByRole('heading', { name: 'Authenticated' })).toBeInTheDocument();
     expect(sessionChecks).toBe(1);
 

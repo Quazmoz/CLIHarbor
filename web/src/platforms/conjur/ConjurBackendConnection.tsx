@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { configureCredentialConnection, getVendorConnection, type VendorConnection } from '../../api/authentication';
 import { normalizeError } from '../../api/errors';
 import type { SignInContext } from '../../AuthenticationPage';
+import { useMutationActivity } from '../../OperationActivity';
 
 // Vendor setup, not a web bookmark: this updates the official Conjur CLI's
 // .conjurrc using a narrowly validated, fixed-argument vendor init command.
@@ -11,7 +12,7 @@ export function normalizeConjurSaaSAPIURL(input: string): string | null {
   return match ? `https://${match[1]}/api` : null;
 }
 
-type Props = Pick<SignInContext, 'status' | 'tool' | 'ready' | 'onToolsChanged' | 'invalidateSession'>;
+type Props = Pick<SignInContext, 'status' | 'tool' | 'ready' | 'onToolsChanged' | 'invalidateSession' | 'busy'> & { headingID?: string };
 
 export function ConjurBackendConnection(props: Props) {
   // Remount on a new vendor capability snapshot: no previous tenant state,
@@ -25,7 +26,7 @@ export function ConjurBackendConnection(props: Props) {
   return <ConjurBackendConnectionForm key={contextKey} {...props} />;
 }
 
-function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, invalidateSession }: Props) {
+function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, invalidateSession, busy, headingID }: Props) {
   const [connection, setConnection] = useState<VendorConnection | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -37,6 +38,9 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
   const [readRevision, setReadRevision] = useState(0);
   const saveInFlightRef = useRef(false);
   const mountedRef = useRef(true);
+  const beginChange = useMutationActivity();
+  const panelRef = useRef<HTMLElement>(null);
+  const disabled = saving || busy;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -62,15 +66,20 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
     return () => controller.abort();
   }, [ready, tool.packId, tool.toolId, tool.packVersion, readRevision]);
 
+  useEffect(() => {
+    if (loadError || (readRevision > 0 && connection !== null)) panelRef.current?.focus();
+  }, [loadError, readRevision, connection]);
+
   if (!ready) return null;
   const existingURL = connection?.environment === 'saas' ? connection.applianceUrl : '';
   const normalizedURL = normalizeConjurSaaSAPIURL(endpoint);
   const replacing = existingURL !== '';
   const canSave = connection?.configurable === true && normalizedURL !== null &&
-    normalizedURL !== existingURL && (!replacing || confirmed) && !saving;
+    normalizedURL !== existingURL && (!replacing || confirmed) && !disabled;
   const save = async () => {
     if (!canSave || normalizedURL === null || !connection || saveInFlightRef.current) return;
     saveInFlightRef.current = true;
+    const endChange = beginChange('Configuring Conjur connection…', headingID);
     setSaving(true);
     setSaveError(null);
     setSaved(false);
@@ -122,18 +131,21 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
         setLoadError(true);
       }
     } finally {
+      endChange();
       saveInFlightRef.current = false;
       if (mountedRef.current) setSaving(false);
     }
   };
 
   return (
-    <section className="credential-login-form" aria-label="Conjur API backend configuration">
+    <section ref={panelRef} tabIndex={-1} className="credential-login-form" aria-label="Conjur API backend configuration"
+      aria-busy={connection === null && !loadError}>
       <p className="credential-login-help">
         This is the API server used by the official Conjur CLI, not your CyberArk Identity login webpage.
         For a SaaS tenant, use <code>https://companyname.secretsmgr.cyberark.cloud</code>.
         Your CLI writes its connection settings to its normal configuration file.
       </p>
+      {connection === null && !loadError && <p role="status">Reading CLI configuration…</p>}
       {connection && (
         <div className="auth-tool-meta">
           <p>Current API endpoint: <strong>{connection.applianceUrl || 'Not configured'}</strong></p>
@@ -144,7 +156,7 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
         <div className="credential-login-error" role="alert">
           <p>Unable to read the current vendor configuration. The active endpoint is unverified; review Diagnostics before retrying a change.</p>
           {saveError && <p>{saveError}</p>}
-          <button type="button" className="secondary-button" disabled={saving}
+          <button type="button" className="secondary-button" disabled={disabled}
             onClick={() => {
               invalidateSession?.();
               // Vendor configuration may have changed even if the write
@@ -165,7 +177,7 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
       {saved && <p role="status">Conjur API endpoint saved and verified. Sign in again and check the session before running tasks.</p>}
       {!loadError && saveError && <p className="credential-login-error" role="alert">{saveError}</p>}
       {connection?.configurable && !editing && (
-        <button type="button" className="secondary-button" onClick={() => { setEditing(true); setSaved(false); setSaveError(null); }}>
+        <button type="button" className="secondary-button" disabled={disabled} onClick={() => { setEditing(true); setSaved(false); setSaveError(null); }}>
           Change API endpoint
         </button>
       )}
@@ -175,7 +187,7 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
             <span>Secrets Manager API URL</span>
             <input type="url" name="conjur-saas-api-url" value={endpoint}
               placeholder="https://companyname.secretsmgr.cyberark.cloud" maxLength={2048}
-              autoComplete="off" spellCheck={false} disabled={saving}
+              autoComplete="off" spellCheck={false} disabled={disabled}
               aria-invalid={endpoint.length > 0 && normalizedURL === null}
               onChange={(event) => { setEndpoint(event.target.value); setConfirmed(false); setSaveError(null); }} required />
           </label>
@@ -184,14 +196,14 @@ function ConjurBackendConnectionForm({ status, tool, ready, onToolsChanged, inva
           )}
           {replacing && (
             <label className="field">
-              <input type="checkbox" checked={confirmed} disabled={saving}
+              <input type="checkbox" checked={confirmed} disabled={disabled}
                 onChange={(event) => setConfirmed(event.target.checked)} />
               <span>I understand that this will replace the existing vendor CLI connection. I will sign in again to verify the new tenant.</span>
             </label>
           )}
           <div className="credential-login-actions">
             <button type="submit" disabled={!canSave}>{saving ? 'Configuring API endpoint…' : replacing ? 'Replace CLI API endpoint' : 'Configure CLI API endpoint'}</button>
-            {replacing && <button type="button" className="secondary-button" disabled={saving}
+            {replacing && <button type="button" className="secondary-button" disabled={disabled}
               onClick={() => { setEditing(false); setEndpoint(existingURL); setConfirmed(false); setSaveError(null); }}>Cancel</button>}
           </div>
         </form>

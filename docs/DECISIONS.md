@@ -949,6 +949,8 @@ Add four vendor-verified, page-bounded read-only inventory commands (variables, 
 
 **Verification:** `internal/server/recover_test.go`, `web/src/api/http.test.ts`; full `go test -race -shuffle=on ./...` and the Vitest suite on Linux. Native Windows acceptance has not been run for this change.
 
+**2026-10-29 refinement:** `GET /api/v1/auth/configure` now uses the same 15-second read deadline, including its response body. Tracing `CredentialLoginService.Connection` verified that it reads local configuration under the existing fail-fast authentication gate and starts no command or login. A stalled read can therefore expose an explicit reread without abandoning a mutation. POST configuration/login/install/run requests remain outside this deadline. This supersedes only the GET exception above.
+
 ## ADR-040: Guarded local Terraform state removal through the official CLI
 
 **Date:** 2026-10-23

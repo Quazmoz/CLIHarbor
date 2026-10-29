@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ConjurBackendConnection, normalizeConjurSaaSAPIURL } from './ConjurBackendConnection';
 import type { RuntimeStatus } from '../../api/status';
 import type { ToolDiagnostic } from '../../api/tools';
+import { READ_TIMEOUTS } from '../../api/http';
 
 const status: RuntimeStatus = {
   name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf-connection',
@@ -23,6 +24,29 @@ function response(body: unknown, statusCode = 200): Response {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Conjur API backend connection', () => {
+  test('announces a stalled configuration read, exposes recovery, and restores focus after retry', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ConjurBackendConnection status={status} tool={tool} ready />);
+    expect(screen.getByRole('status')).toHaveTextContent('Reading CLI configuration…');
+    await act(async () => vi.advanceTimersByTimeAsync(READ_TIMEOUTS.fast));
+    vi.useRealTimers();
+    const panel = screen.getByRole('region', { name: 'Conjur API backend configuration' });
+    expect(panel).toHaveFocus();
+    expect(screen.getByRole('alert')).toHaveTextContent('active endpoint is unverified');
+    fetchMock.mockImplementation(async () => response({ environment: 'saas', applianceUrl: next, account: 'conjur', configurable: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry reading CLI configuration' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Reading CLI configuration…');
+    expect(await screen.findByText(next)).toBeVisible();
+    expect(panel).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Change API endpoint' })).toBeEnabled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.every(([, init]) => init?.method === 'GET')).toBe(true);
+  });
+
   test('accepts only direct CyberArk Secrets Manager SaaS API tenant URLs', () => {
     expect(normalizeConjurSaaSAPIURL('https://companyname.secretsmgr.cyberark.cloud'))
       .toBe('https://companyname.secretsmgr.cyberark.cloud/api');

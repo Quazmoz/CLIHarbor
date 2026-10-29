@@ -28,7 +28,7 @@ export function OperationActivityProvider({ children }: { children: ReactNode })
   const remoteRunning = useCallback((running: boolean) => { remote.current = running; }, []);
   const confirmNavigation = useCallback((path: string, from = window.location.pathname) => {
     if (!Object.values(current.current).some((item) => item.mutation && item.path === from && item.path !== path)) return true;
-    return window.confirm('A change is still in progress. The current CLI step may finish, but later guided steps stop if you leave. Inspect Execution History before retrying. Leave this page?');
+    return window.confirm('A change is still in progress. The current CLI step may finish, but later guided steps stop if you leave. Inspect the target and available execution evidence before retrying. Leave this page?');
   }, []);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -134,7 +134,8 @@ export function OperationActivity({ tasks, onOpen }: { tasks: Task[]; onOpen: (p
         <ul>
           {localWork.map((item, index) => {
             return <li key={index}><button type="button" className="secondary-button" onClick={(event) => {
-              const leftWorkflow = item.mutation && item.anchor && document.getElementById(item.anchor) === null;
+              // Sign-in requests have no run-history entry; their remounted card retains the busy guard.
+              const leftWorkflow = item.mutation && item.path !== '/authentication' && item.anchor && document.getElementById(item.anchor) === null;
               onOpen(leftWorkflow ? '/runs' : item.path, undefined, leftWorkflow ? undefined : item.anchor);
               event.currentTarget.closest('details')?.removeAttribute('open');
             }}>{item.title} · {item.mutation ? 'View operation' : 'Open workflow'}</button></li>;

@@ -69,6 +69,8 @@ describe('run output decoding', () => {
 });
 
 describe('run stream lifecycle', () => {
+  const closers: (() => void)[] = [];
+  afterEach(() => { closers.splice(0).forEach((close) => close()); vi.useRealTimers(); });
   const event = (sequence: number) => ({ runId, sequence, type: 'stdout.chunk', timestamp, dataBase64: btoa('output') });
   const subscribe = (afterSequence = 0) => {
     vi.stubGlobal('EventSource', FakeEventSource);
@@ -76,8 +78,47 @@ describe('run stream lifecycle', () => {
     const onComplete = vi.fn();
     const onError = vi.fn();
     const close = subscribeRunEvents(runId, onEvent, onComplete, onError, undefined, afterSequence);
+    closers.push(close);
     return { source: FakeEventSource.latest, onEvent, onComplete, onError, close };
   };
+
+  test.each([false, true])('reconciles a silent stream once, whether it opened or not: open=%s', async (opened) => {
+    vi.useFakeTimers();
+    const { source, onError, onEvent, onComplete } = subscribe();
+    if (opened) source.onopen?.();
+    await vi.advanceTimersByTimeAsync(45_000);
+    expect(source.close).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ detail: expect.objectContaining({ code: 'stream_disconnected' }) }));
+    source.emit('run-event', event(1));
+    source.emit('run-complete', { runId, sequence: 0, status: 'exited', exitCode: 0 });
+    await vi.advanceTimersByTimeAsync(45_000);
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  test('heartbeats keep quiet commands connected without changing the evidence cursor', async () => {
+    vi.useFakeTimers();
+    const { source, onEvent, onComplete, onError } = subscribe(2);
+    for (let i = 0; i < 5; i++) {
+      await vi.advanceTimersByTimeAsync(15_000);
+      source.emit('heartbeat', {});
+    }
+    expect(onError).not.toHaveBeenCalled();
+    expect(onEvent).not.toHaveBeenCalled();
+    source.emit('run-complete', { runId, sequence: 2, status: 'exited', exitCode: 0 });
+    expect(onComplete).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  test('unsubscribing releases the silent-stream deadline', async () => {
+    vi.useFakeTimers();
+    const { close, onError } = subscribe();
+    close();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(45_000);
+    expect(onError).not.toHaveBeenCalled();
+  });
 
   test('skips snapshot overlap and repeated/out-of-order events, and accepts completion at the last cursor', () => {
     const { source, onEvent, onComplete, onError } = subscribe(2);

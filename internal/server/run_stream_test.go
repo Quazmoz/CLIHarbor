@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +16,20 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/structured"
 )
+
+type heartbeatRecorder struct{ *httptest.ResponseRecorder }
+
+func (heartbeatRecorder) SetWriteDeadline(time.Time) error { return nil }
+
+func TestSSEHeartbeatIsObservableWithoutAdvancingEvidenceCursor(t *testing.T) {
+	w := heartbeatRecorder{httptest.NewRecorder()}
+	if err := writeSSEHeartbeat(w, http.NewResponseController(w)); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.Body.String(); got != "event: heartbeat\ndata: {}\n\n" || !w.Flushed {
+		t.Fatalf("heartbeat must be a flushed event with no run cursor: %q", got)
+	}
+}
 
 type constrainedWriteListener struct {
 	net.Listener

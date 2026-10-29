@@ -419,6 +419,10 @@ The current task/run UI implements semantic labels, visible focus, field-linked 
 
 Route changes update the browser title and move focus to main content, including browser back/forward navigation. Search result counts have a targeted live announcement and Clear returns focus to search. Native controls use the dark color scheme, and task-row focus outlines remain visible outside their borders.
 
+Successful runtime retries restore focus to main content after the error controls disappear. Conjur configuration read failures announce the unverified endpoint and focus their recovery panel; successful rereads keep focus in that panel. Pending sign-in and connection requests disable conflicting controls across navigation and show shared progress without implying a verified session. A silent live stream reaches retained-evidence recovery after 45 seconds; reconnecting never starts another command.
+
+Expanded credential/settings panels constrain their grid width and wrap long endpoint text, so configuration errors and retry controls remain reachable at 320 px. The body has no fixed minimum width: classic vertical scrollbars must be allowed to consume part of that viewport without forcing horizontal scrolling.
+
 ## 16. Responsive behavior
 
 Primary target is enterprise Windows laptops. Support narrow browser windows without horizontal layout failure. Production browser E2E explicitly exercises the task workflow at 1440, 1024, 768, 390, and 320 CSS pixels. The catalog grid constrains its column so long tool labels cannot widen forms on small screens. Large result tables may scroll within their result region rather than forcing page-wide overflow.

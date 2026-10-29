@@ -59,7 +59,6 @@
 
 body {
   margin: 0;
-  min-width: 320px;
   min-height: 100vh;
   background: var(--bg);
 }
@@ -1525,6 +1524,8 @@ footer p {
 
 .credential-login-form {
   display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
   gap: var(--space-4);
   margin-top: var(--space-4);
   border: 1px solid var(--border-strong);

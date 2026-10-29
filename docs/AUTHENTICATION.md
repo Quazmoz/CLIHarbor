@@ -103,6 +103,8 @@ The top-right **CLI sessions** disclosure beside **Sign in** shows each vendor-s
 
 Direct refresh/navigation is supported for `/authentication`, `/tasks`, and `/diagnostics` through an explicit server-side application-route allowlist. Unknown paths still fail closed.
 
+Conjur sign-in and connection requests share the existing operation-activity guard. While a request is pending, sibling sign-in, connection and session-check controls (including the header check) are disabled with visible status feedback. The guard survives leaving and returning to the page until the original request settles. Leaving does not undo an accepted vendor request; a late password response cannot start a session-check command through an abandoned card. Return and explicitly check the session before relying on its state.
+
 Each checkable CLI also has **Check session** in the top-right dropdown. This explicit action opens and focuses its card on the universal page and runs the same declared check; it does not create a second execution implementation. Unavailable tools, missing approved check tasks, and tools without a safe check remain disabled. One-use UI requests are consumed once, including under React StrictMode, and normal later navigation does not trigger another check. Opening the menu alone never executes a command.
 
 ## Reviewed Conjur password bridge
@@ -219,6 +221,7 @@ See [Supported CLI catalog](CLI_CATALOG.md).
 The dedicated Conjur sign-in page now presents **Conjur API connection**, displaying the effective vendor `appliance_url`, account, and environment as read through `conjur-api-go`. It does not create a browser-only Identity portal bookmark or store configuration in localStorage.
 
 - `GET /api/v1/auth/configure` is authenticated, read-only, and returns only sanitized non-secret endpoint/account/environment plus whether safe in-app SaaS configuration is supported.
+- This read uses the existing 15-second browser deadline through the full response body. Settings show reading progress, an announced failure and **Retry reading CLI configuration**; retries only read vendor configuration. Configuration writes and sign-in requests remain outside the client read deadline.
 - First-run SaaS setup allows a single HTTPS `https://<tenant>.secretsmgr.cyberark.cloud` URL; the backend invokes the identity-verified vendor CLI with fixed `init saas --url <url>` arguments. The vendor persists `.conjurrc`, selects `cloud` authentication and its canonical account, and normalizes the effective endpoint to `/api`.
 - Already configured SaaS-to-SaaS changes require an explicit browser acknowledgement plus the previous exact SaaS URL. The backend checks current configuration under the existing single-flight gate, refuses stale expected URLs, environment overrides, read-only storage, and other auth modes, and only then uses the vendor `--force` argument to replace the approved SaaS config. No password/MFA enters this API.
 - After initialization, the backend reloads the authoritative vendor config and requires exact endpoint/account/mode matches. A vendor timeout after durable write is reconciled against readback; inconsistent state is reported as unavailable rather than falsely saved.

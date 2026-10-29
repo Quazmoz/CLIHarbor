@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { configureCredentialConnection, launchInteractiveLogin, loginWithCredentials } from '../../api/authentication';
 import { normalizeError, type AppErrorDetail } from '../../api/errors';
 import type { ToolDiagnostic } from '../../api/tools';
 import type { SignInContext, ToolSignIn } from '../../AuthenticationPage';
 import { ConjurBackendConnection } from './ConjurBackendConnection';
+import { useMutationActivity } from '../../OperationActivity';
 
 // Dedicated Conjur sign-in (ADR-034, ADR-038): the login box holds only the
 // password form or the official vendor-login launcher. Choosing the backend
@@ -23,7 +24,7 @@ function FailureAlert({ failure }: { failure: AppErrorDetail | null }) {
   );
 }
 
-function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession, invalidateSession, openSettings, settingsOpen }: SignInContext) {
+function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession, invalidateSession, openSettings, settingsOpen, busy }: SignInContext) {
   const checking = checkKind === 'checking';
   const [identity, setIdentity] = useState('');
   const [secret, setSecret] = useState('');
@@ -31,6 +32,8 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
   const [failure, setFailure] = useState<AppErrorDetail | null>(null);
   const [vendorLoginOpened, setVendorLoginOpened] = useState(false);
   const vendorLoginLeftPageRef = useRef(false);
+  const beginChange = useMutationActivity();
+  const disabled = submitting || checking || busy;
 
   // A verified session ends the "sign-in started" notice (and its focus re-check).
   // Adjusted during render, per React guidance, rather than in an effect.
@@ -41,11 +44,12 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
   }
 
   const submitCredentialLogin = async () => {
-    if (tool.credentialLogin?.method !== 'conjur-password' || needsSetup(tool) || !ready || submitting || checking) return;
+    if (tool.credentialLogin?.method !== 'conjur-password' || needsSetup(tool) || !ready || disabled) return;
     const trimmedIdentity = identity.trim();
     if (trimmedIdentity.length === 0 || secret.length === 0) return;
 
     invalidateSession?.();
+    const endChange = beginChange('Signing in to Conjur…', headingID);
     setSubmitting(true);
     setFailure(null);
     try {
@@ -60,14 +64,16 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
     } catch (error) {
       setFailure(normalizeError(error).detail);
     } finally {
+      endChange();
       setSecret('');
       setSubmitting(false);
     }
   };
 
   const launchVendorLogin = async () => {
-    if (tool.credentialLogin?.method !== 'conjur-vendor-login' || !ready || submitting || checking) return;
+    if (tool.credentialLogin?.method !== 'conjur-vendor-login' || !ready || disabled) return;
     invalidateSession?.();
+    const endChange = beginChange('Starting Conjur sign-in…', headingID);
     setSubmitting(true);
     setFailure(null);
     setVendorLoginOpened(false);
@@ -78,6 +84,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
     } catch (error) {
       setFailure(normalizeError(error).detail);
     } finally {
+      endChange();
       setSubmitting(false);
     }
   };
@@ -85,31 +92,32 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
   // A vendor console may steal focus before the launch API responds. Track
   // departure while the request is in flight, but verify only after the
   // backend confirms that the vendor-owned login process was launched.
+  const recheckOnReturn = useEffectEvent(() => {
+    if (!vendorLoginOpened || !vendorLoginLeftPageRef.current || checking || document.visibilityState === 'hidden') return;
+    vendorLoginLeftPageRef.current = false;
+    setVendorLoginOpened(false);
+    void verifySession();
+  });
   useEffect(() => {
     if (!submitting && !vendorLoginOpened) return undefined;
     if (document.visibilityState === 'hidden') vendorLoginLeftPageRef.current = true;
 
     const markAway = () => { vendorLoginLeftPageRef.current = true; };
-    const recheckOnReturn = () => {
-      if (!vendorLoginOpened || !vendorLoginLeftPageRef.current || checking || document.visibilityState === 'hidden') return;
-      vendorLoginLeftPageRef.current = false;
-      setVendorLoginOpened(false);
-      void verifySession();
-    };
+    const onFocus = () => recheckOnReturn();
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') markAway();
       else recheckOnReturn();
     };
 
     window.addEventListener('blur', markAway);
-    window.addEventListener('focus', recheckOnReturn);
+    window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.removeEventListener('blur', markAway);
-      window.removeEventListener('focus', recheckOnReturn);
+      window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [submitting, vendorLoginOpened, checking, verifySession]);
+  }, [submitting, vendorLoginOpened]);
 
   if (!ready) return null;
 
@@ -142,19 +150,19 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
           <label className="field">
             <span>Identity</span>
             <input type="text" name="vendor-identity" value={identity} maxLength={256} autoComplete="username"
-              spellCheck={false} aria-describedby={headingID + '-credential-help'} disabled={submitting || checking}
+              spellCheck={false} aria-describedby={headingID + '-credential-help'} disabled={disabled}
               onChange={(event) => { setIdentity(event.target.value); setFailure(null); }} required />
           </label>
           <label className="field">
             <span>Password</span>
             <input type="password" name="vendor-secret" value={secret} maxLength={4096} autoComplete="current-password"
-              spellCheck={false} aria-describedby={headingID + '-credential-help'} disabled={submitting || checking}
+              spellCheck={false} aria-describedby={headingID + '-credential-help'} disabled={disabled}
               onChange={(event) => { setSecret(event.target.value); setFailure(null); }} required />
           </label>
         </div>
         <FailureAlert failure={failure} />
         <div className="credential-login-actions">
-          <button type="submit" disabled={submitting || checking || identity.trim().length === 0 || secret.length === 0}>
+          <button type="submit" disabled={disabled || identity.trim().length === 0 || secret.length === 0}>
             {submitting ? 'Signing in…' : 'Sign in and verify'}
           </button>
         </div>
@@ -176,7 +184,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
         </div>
       )}
       <div className="credential-login-actions">
-        <button type="button" disabled={submitting || checking} onClick={() => void launchVendorLogin()}>
+        <button type="button" disabled={disabled} onClick={() => void launchVendorLogin()}>
           {submitting ? 'Starting Conjur sign-in…' : vendorLoginOpened ? 'Start Conjur sign-in again' : 'Start official Conjur sign-in'}
         </button>
       </div>
@@ -186,7 +194,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
 
 // First-run self-hosted connection. No password is collected here; once the
 // runtime reports the connection configured, the login box shows the form.
-function SelfHostedConnectionForm({ status, tool, headingID, checkKind, onToolsChanged }: SignInContext) {
+function SelfHostedConnectionForm({ status, tool, headingID, checkKind, onToolsChanged, invalidateSession, busy }: SignInContext) {
   const [applianceURL, setApplianceURL] = useState('');
   const [account, setAccount] = useState('');
   const [authnType, setAuthnType] = useState<'authn' | 'ldap'>('authn');
@@ -194,13 +202,16 @@ function SelfHostedConnectionForm({ status, tool, headingID, checkKind, onToolsC
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<AppErrorDetail | null>(null);
   const [saved, setSaved] = useState(false);
-  const disabled = submitting || checkKind === 'checking';
+  const disabled = submitting || busy || checkKind === 'checking';
+  const beginChange = useMutationActivity();
   const incomplete = applianceURL.trim().length === 0 || account.trim().length === 0 ||
     (authnType === 'ldap' && serviceID.trim().length === 0);
   const helpID = headingID + '-connection-help';
 
   const submit = async () => {
     if (disabled || incomplete) return;
+    invalidateSession?.();
+    const endChange = beginChange('Configuring Conjur connection…', headingID);
     setSubmitting(true);
     setFailure(null);
     try {
@@ -219,6 +230,7 @@ function SelfHostedConnectionForm({ status, tool, headingID, checkKind, onToolsC
     } catch (error) {
       setFailure(normalizeError(error).detail);
     } finally {
+      endChange();
       setSubmitting(false);
     }
   };
@@ -269,16 +281,17 @@ function SelfHostedConnectionForm({ status, tool, headingID, checkKind, onToolsC
 
 function ConjurSettings(context: SignInContext) {
   const [deployment, setDeployment] = useState<'self-hosted' | 'saas'>('self-hosted');
-  const { status, tool, ready, onToolsChanged, invalidateSession, headingID } = context;
+  const { status, tool, ready, onToolsChanged, invalidateSession, headingID, busy, checkKind } = context;
   if (!ready) return <p className="credential-login-help">Backend settings are available once the Conjur CLI is ready.</p>;
   const backend = <ConjurBackendConnection status={status} tool={tool} ready={ready}
-    onToolsChanged={onToolsChanged} invalidateSession={invalidateSession} />;
+    onToolsChanged={onToolsChanged} invalidateSession={invalidateSession} headingID={headingID}
+    busy={busy || checkKind === 'checking'} />;
 
   return (
     <>
       {needsSetup(tool) ? (
         <>
-          <fieldset className="auth-choice">
+          <fieldset className="auth-choice" disabled={busy}>
             <legend>Conjur backend</legend>
             <label>
               <input type="radio" name={headingID + '-deployment'} checked={deployment === 'self-hosted'}

@@ -702,8 +702,10 @@ function WorkspaceApp() {
   useEffect(() => {
     if (state.kind === 'error') {
       runtimeErrorRef.current?.focus();
+    } else if (state.kind === 'ready' && runtimeAttempt > 0) {
+      mainRef.current?.focus({ preventScroll: true });
     }
-  }, [state]);
+  }, [state.kind, runtimeAttempt]);
 
   useEffect(() => {
     if (taskFailure === null) {

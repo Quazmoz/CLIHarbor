@@ -436,7 +436,7 @@ func writeSSEHeartbeat(w http.ResponseWriter, controller *http.ResponseControlle
 	if err := controller.SetWriteDeadline(time.Now().Add(sseWriteTimeout)); err != nil {
 		return err
 	}
-	if _, err := io.WriteString(w, ": keepalive\n\n"); err != nil {
+	if _, err := io.WriteString(w, "event: heartbeat\ndata: {}\n\n"); err != nil {
 		return err
 	}
 	if err := controller.Flush(); err != nil {

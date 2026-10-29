@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { getVendorConnection, loginWithCredentials } from './authentication';
+import { READ_TIMEOUTS } from './http';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -107,5 +108,20 @@ describe('getVendorConnection', () => {
     ))));
 
     await expect(getVendorConnection()).resolves.toEqual(response);
+  });
+
+  test.each([false, true])('bounds a stalled configuration read, including its body: headers=%s', async (headers) => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn((_input: string, init: RequestInit) => {
+      const stalled = () => new Promise<never>((_resolve, reject) => {
+        init.signal!.addEventListener('abort', () => reject(init.signal!.reason), { once: true });
+      });
+      return headers ? Promise.resolve(Object.assign(new Response('{}'), { arrayBuffer: stalled })) : stalled();
+    }));
+    const assertion = expect(getVendorConnection()).rejects.toMatchObject({ detail: { code: 'request_timeout', retryable: true } });
+    await vi.advanceTimersByTimeAsync(READ_TIMEOUTS.fast);
+    await assertion;
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
   });
 });

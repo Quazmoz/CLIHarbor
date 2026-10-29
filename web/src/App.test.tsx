@@ -207,6 +207,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Inspect after retry' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Run command' })).toBeEnabled();
     expect(backend.calls('/api/v1/tools')).toHaveLength(1);
+    expect(screen.getByRole('main')).toHaveFocus();
   });
 
   test('keeps a lost start acknowledgement unconfirmed and directs recovery to history without resubmitting', async () => {

@@ -1,4 +1,5 @@
 import { clientError, errorFromResponse } from './errors';
+import { fetchWithDeadline, READ_TIMEOUTS } from './http';
 
 export interface CredentialConfigurationRequest {
   packId: string;
@@ -29,12 +30,12 @@ function containsAsciiControl(value: string): boolean {
 }
 
 export async function getVendorConnection(signal?: AbortSignal): Promise<VendorConnection> {
-  const response = await fetch('/api/v1/auth/configure', {
+  const response = await fetchWithDeadline('/api/v1/auth/configure', {
     method: 'GET',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
     signal,
-  });
+  }, READ_TIMEOUTS.fast);
   if (!response.ok) throw await errorFromResponse(response);
   const data: unknown = await response.json();
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw clientError('invalid_response');

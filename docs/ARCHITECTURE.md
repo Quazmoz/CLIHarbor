@@ -296,6 +296,8 @@ The run manager owns bounded in-memory state; there is no persisted run database
 
 SSE observes manager state rather than owning execution. Disconnect/reconnect does not recreate or cancel a run. Replay and stream concurrency are bounded.
 
+Quiet streams send a named `heartbeat` event every 15 seconds without advancing the execution-evidence cursor. The browser closes a stream after 45 seconds without a new run event or heartbeat and uses the existing retained-run reconciliation path. Opening or reopening an empty connection does not reset this deadline. Evidence already displayed remains available; retry reconnects to the same run rather than executing it again.
+
 Structured parsing happens only after the authoritative process exits successfully and cannot change executable selection, argv, lifecycle, run ID/status or exit code. Secret-bearing commands remain outside the current normal browser execution envelope.
 
 ## 16. Real Conjur 9.x vertical slice

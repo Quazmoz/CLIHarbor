@@ -5,6 +5,8 @@ import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
 import { describeToolReadiness } from './operatorLanguage';
 import { ToolIcon } from './ToolIcon';
+import { useMutationPending } from './OperationActivity';
+import { WorkingStatus } from './WorkingStatus';
 import {
   cancelRun,
   createRun,
@@ -66,6 +68,7 @@ export interface SignInContext {
   /** Open this CLI's settings panel, e.g. when a backend must be configured first. */
   openSettings: () => void;
   settingsOpen: boolean;
+  busy?: boolean;
 }
 
 /**
@@ -236,6 +239,7 @@ function VendorSessionCard({
   };
   const [settingsOpen, setSettingsOpen] = useState(() => signIn?.needsSetup?.(tool) === true);
   const attemptRef = useRef(0);
+  const mountedRef = useRef(false);
   const activeRunRef = useRef<string | null>(null);
   const closeStreamRef = useRef<(() => void) | null>(null);
   const stdoutRef = useRef('');
@@ -265,21 +269,23 @@ function VendorSessionCard({
   const label = tool.packName || tool.toolId;
   // IDs are [a-z0-9-], so '__' keeps pack a-b/tool c and pack a/tool b-c apart.
   const headingID = 'vendor-session-' + tool.packId + '__' + tool.toolId;
+  const busy = useMutationPending(headingID);
 
   const clearAbandonedCheck = useEffectEvent(() => {
     if (checkingRef.current) onCheckChange?.(tool, { kind: 'unchecked' });
   });
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
       attemptRef.current += 1;
       closeStreamRef.current?.();
       closeStreamRef.current = null;
       activeRunRef.current = null;
       // Abandoned checks cannot leave a permanent "Checking" badge in the shell.
       clearAbandonedCheck();
-    },
-    [],
-  );
+    };
+  }, []);
 
   const finishAttempt = (
     attempt: number,
@@ -391,7 +397,7 @@ function VendorSessionCard({
   };
 
   const startCheck = async () => {
-    if (!canCheck || checkingRef.current || sessionTask === undefined) {
+    if (!mountedRef.current || !canCheck || checkingRef.current || sessionTask === undefined) {
       return;
     }
 
@@ -459,7 +465,7 @@ function VendorSessionCard({
   const checkOnRequest = useEffectEvent(() => {
     onQuickCheckHandled?.();
     document.getElementById(headingID)?.focus();
-    void startCheck();
+    if (!busy) void startCheck();
   });
   useEffect(() => {
     if (requestedCheck === undefined || requestedCheck === lastRequestedCheck.current) return;
@@ -578,7 +584,7 @@ function VendorSessionCard({
       setCheck({ kind: 'unchecked' });
     },
     openSettings: () => setSettingsOpen(true),
-    settingsOpen,
+    settingsOpen, busy,
   };
 
   return (
@@ -590,7 +596,7 @@ function VendorSessionCard({
           <p>{tool.toolId}{tool.version ? ' ' + tool.version : ''} · <span>{toolView.statusText}</span></p>
         </div>
         <button type="button" className="icon-button auth-settings-toggle" aria-label={label + ' settings'}
-          aria-expanded={settingsOpen} aria-controls={settingsID} onClick={() => setSettingsOpen((open) => !open)}>
+          aria-expanded={settingsOpen} aria-controls={settingsID} disabled={busy} onClick={() => setSettingsOpen((open) => !open)}>
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
@@ -619,6 +625,8 @@ function VendorSessionCard({
         </dl>
       )}
 
+      <WorkingStatus active={busy} track={false} title="Updating CLI sign-in or connection…" />
+
       {signIn !== undefined
         ? signIn.render(context)
         : toolView.ready && (
@@ -629,7 +637,7 @@ function VendorSessionCard({
 
       <div className="auth-actions">
         {tool.sessionCheck !== undefined && (
-          <button type="button" disabled={!canCheck || check.kind === 'checking'} onClick={() => void startCheck()}>
+          <button type="button" disabled={!canCheck || busy || check.kind === 'checking'} onClick={() => void startCheck()}>
             {check.kind === 'checking'
               ? 'Checking session…'
               : check.kind === 'unchecked'

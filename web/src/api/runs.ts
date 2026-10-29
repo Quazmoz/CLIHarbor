@@ -645,9 +645,19 @@ export function subscribeRunEvents(
   let failures = 0;
   let closed = false;
   let lastSequence = afterSequence;
+  // The runtime sends a heartbeat every 15s, including for quiet commands.
+  // A silent socket must reach the same reconciliation path as a disconnect.
+  let idleTimer = setTimeout(() => failClosed(clientError('stream_disconnected')), 45_000);
+  const markAlive = () => {
+    if (closed) return;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => failClosed(clientError('stream_disconnected')), 45_000);
+  };
 
   const failClosed = (error: unknown) => {
+    if (closed) return;
     closed = true;
+    clearTimeout(idleTimer);
     source.close();
     onError(error instanceof Error && error.name === 'AppError' ? (error as AppError) : clientError('invalid_response'));
   };
@@ -664,6 +674,7 @@ export function subscribeRunEvents(
       onEvent(event);
       lastSequence = event.sequence;
       failures = 0;
+      markAlive();
     } catch (error) {
       failClosed(error);
     }
@@ -678,12 +689,14 @@ export function subscribeRunEvents(
       onError(error instanceof Error && error.name === 'AppError' ? (error as AppError) : clientError('invalid_response'));
     } finally {
       closed = true;
+      clearTimeout(idleTimer);
       source.close();
     }
   };
 
   source.addEventListener('run-event', handleEvent);
   source.addEventListener('run-complete', handleComplete);
+  source.addEventListener('heartbeat', markAlive);
   source.onopen = () => {
     if (closed) return;
     // Opening a connection is not evidence of progress; empty reconnects must
@@ -699,13 +712,12 @@ export function subscribeRunEvents(
     if (source.readyState !== 2 && failures < maxStreamFailures) {
       return;
     }
-    closed = true;
-    source.close();
-    onError(clientError('stream_disconnected'));
+    failClosed(clientError('stream_disconnected'));
   };
 
   return () => {
     closed = true;
+    clearTimeout(idleTimer);
     source.close();
   };
 }

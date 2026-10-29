@@ -545,12 +545,32 @@ async function main() {
     assert.equal(await page.evaluate('document.querySelector(".primary-nav").innerText.includes("Built-in CLIs")'), false);
     assert.equal(await page.evaluate('document.querySelector(".overview-metrics, #overview-workspace-heading") === null'), true);
     await page.evaluate('document.querySelector(".section-switcher a").focus()');
-    await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
     await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
     await waitJS(page, 'keyboard built-in navigation', 'location.pathname === "/dedicated" && document.activeElement?.id === "main-content"');
     await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Overview").click()');
     await waitJS(page, 'return to overview', 'location.pathname === "/" && document.querySelector("#overview-heading") !== null');
     await capture('overview');
+
+    stage('unavailable startup recovers with keyboard focus');
+    await page.call('Network.setBlockedURLs', { urls: [baseURL + '/api/v1/status'] });
+    await navigate(page, baseURL + '/');
+    await waitJS(page, 'focused startup error', 'document.activeElement?.classList.contains("error-panel") && document.body.innerText.includes("Runtime status unavailable")');
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      assert.equal(await page.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth && Array.from(document.querySelectorAll("button")).some((button) => button.textContent.trim() === "Retry status check" && !button.disabled)'), true);
+      await capture('startup-recovery-' + width);
+    }
+    await page.call('Network.setBlockedURLs', { urls: [] });
+    await page.evaluate('Array.from(document.querySelectorAll("button")).find((button) => button.textContent.trim() === "Retry status check").focus()');
+    await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
+    await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await waitJS(page, 'startup retry restores main focus', `(() => {
+      if (document.querySelector('#overview-heading') && document.activeElement?.id === 'main-content') return true;
+      throw new Error(JSON.stringify({ focus: document.activeElement?.tagName + '#' + document.activeElement?.id,
+        error: document.querySelector('.error-code')?.textContent, heading: document.querySelector('main h2')?.textContent }));
+    })()`);
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
 
     stage('quick task navigation is a modal, not an execution shortcut');
     assert.equal(await page.evaluate('(() => {' +
@@ -720,6 +740,48 @@ async function main() {
         '!Array.from(document.querySelectorAll("input")).some((input) => input.closest("label")?.textContent?.trim().startsWith("Conjur server URL"))',
     );
 
+    stage('stalled vendor configuration read exposes an accessible retry');
+    await page.evaluate(`(() => {
+      window.__cliharborReadFetch = window.fetch;
+      window.fetch = (...args) => {
+        if (args[0] === '/api/v1/auth/configure' && args[1]?.method === 'GET') {
+          return new Promise((_resolve, reject) => args[1].signal.addEventListener('abort', () => reject(args[1].signal.reason), { once: true }));
+        }
+        return window.__cliharborReadFetch(...args);
+      };
+      document.querySelector('.auth-settings-toggle').click();
+    })()`);
+    await waitJS(page, 'visible configuration read progress', 'document.body.innerText.includes("Reading CLI configuration…")');
+    await waitJS(page, 'focused configuration read failure', 'document.activeElement?.getAttribute("aria-label") === "Conjur API backend configuration" && document.body.innerText.includes("Retry reading CLI configuration")', 20000);
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      await page.evaluate('document.querySelector(".credential-login-error").scrollIntoView({ block: "center" }); true');
+      await capture('configuration-recovery-' + width);
+      assert.deepEqual(await page.evaluate(`(() => ({
+        fits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        alert: document.querySelector('.credential-login-error[role=alert]') !== null,
+        overflow: Array.from(document.querySelectorAll('main *')).filter((element) => element.getBoundingClientRect().right > document.documentElement.clientWidth + 1).map((element) => element.tagName + '.' + element.className).slice(0, 8)
+      }))()`), { fits: true, alert: true, overflow: [] }, 'configuration recovery must fit at ' + width + 'px');
+    }
+    await page.evaluate('window.fetch = window.__cliharborReadFetch; true');
+    await clickButton(page, 'Retry reading CLI configuration');
+    await waitJS(page, 'configuration read retry restores focus', 'document.body.innerText.includes("Current API endpoint:") && document.activeElement?.getAttribute("aria-label") === "Conjur API backend configuration"');
+    await page.evaluate('document.querySelector(".auth-settings-toggle").click(); true');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+
+    stage('abandoned password response does not verify a session in the background');
+    await page.evaluate(`(() => {
+      window.__cliharborLoginFetch = window.fetch;
+      window.__cliharborLoginChecks = 0;
+      window.fetch = async (...args) => {
+        if (args[0] === '/api/v1/runs' && args[1]?.method === 'POST') window.__cliharborLoginChecks++;
+        const response = await window.__cliharborLoginFetch(...args);
+        if (args[0] === '/api/v1/auth/login' && args[1]?.method === 'POST') {
+          return new Promise((resolve) => { window.__cliharborReleaseLogin = () => resolve(response); });
+        }
+        return response;
+      };
+    })()`);
     const loginRequestPromise = page.waitEvent(
       'Network.requestWillBeSent',
       (params) =>
@@ -739,6 +801,32 @@ async function main() {
       secret: conjurSecret,
     });
     assert.equal(await waitHTTPStatus(page, loginRequest.requestId), 204, 'credential login should succeed');
+
+    await waitJS(page, 'login response held after the real credential exchange', 'typeof window.__cliharborReleaseLogin === "function"');
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      assert.equal(await page.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth && document.querySelector(".auth-settings-toggle").disabled && document.querySelector(".cli-session-check").disabled && Array.from(document.querySelectorAll(".auth-actions button")).find((button) => button.textContent.trim() === "Check session").disabled'), true);
+      await capture('authentication-pending-' + width);
+    }
+    await page.evaluate(`(() => {
+      const originalConfirm = window.confirm;
+      window.__cliharborLoginWarned = false;
+      window.confirm = () => { window.__cliharborLoginWarned = true; return true; };
+      document.querySelector('.section-switcher a[href="/tools"]').click();
+      window.confirm = originalConfirm;
+    })()`);
+    await waitJS(page, 'left pending sign-in', 'location.pathname === "/tools"');
+    assert.equal(await page.evaluate('window.__cliharborLoginWarned'), true, 'leaving a pending sign-in must preserve the mutation navigation warning');
+    await page.evaluate('document.querySelector(".operation-activity summary").click(); true');
+    await clickButton(page, 'Signing in to Conjur… · View operation');
+    await waitJS(page, 'remounted sign-in remains locked', 'location.pathname === "/authentication" && document.querySelector("input[name=vendor-identity]")?.disabled');
+    await page.evaluate('window.__cliharborReleaseLogin(); true');
+    await waitJS(page, 'abandoned response clears busy state', 'document.querySelector("input[name=vendor-identity]")?.disabled === false');
+    assert.equal(await page.evaluate('window.__cliharborLoginChecks'), 0, 'an abandoned login must not execute a session check');
+    assert.equal(await page.evaluate('document.body.innerText.includes("Authentication not verified")'), true);
+    await page.evaluate('window.fetch = window.__cliharborLoginFetch; true');
+    await clickButton(page, 'Check session');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
 
     const sessionCheckRequest = await sessionCheckPromise;
     assert.equal(
@@ -1402,12 +1490,17 @@ async function main() {
     await waitJS(page, 'task discovery after task discovery runs',
       "location.pathname === '/tasks' && Array.from(document.querySelectorAll('button[data-task-action=select]')).some((element) => element.dataset.taskKey === 'integration/wait')");
 
-    stage('sse failure reconciliation and cancellation');
+    stage('silent sse reconciliation and cancellation');
     const eventSourceTrackerInstalled = await page.evaluate('(() => {' +
       'if (window.__cliharborNativeEventSource) return true;' +
       'const NativeEventSource = window.EventSource;' +
       'window.__cliharborNativeEventSource = NativeEventSource;' +
       'window.__cliharborE2ESources = [];' +
+      'window.__cliharborNativeTimer = window.setTimeout;' +
+      'window.setTimeout = (callback, ms, ...args) => {' +
+        'if (ms === 45000) window.__cliharborIdleDeadline = callback;' +
+        'return window.__cliharborNativeTimer(callback, ms, ...args);' +
+      '};' +
       'function TrackedEventSource(...args) {' +
         'const source = new NativeEventSource(...args);' +
         'window.__cliharborE2ESources.push(source);' +
@@ -1480,14 +1573,17 @@ async function main() {
     const forcedStreamFailure = await page.evaluate('(() => {' +
       'const sources = window.__cliharborE2ESources ?? [];' +
       'const source = sources[sources.length - 1];' +
-      'if (!source) return false;' +
+      'if (!source || typeof window.__cliharborIdleDeadline !== "function") return false;' +
       'source.close();' +
-      'for (let index = 0; index < 5; index += 1) source.dispatchEvent(new Event("error"));' +
+      // Expire the real subscriber's timer after silencing its native socket.
+      // Unit tests verify the 45s duration; keep the 30s fixture cancellable here.
+      'window.__cliharborIdleDeadline();' +
+      'window.setTimeout = window.__cliharborNativeTimer;' +
       'return true;' +
     '})()');
     assert.equal(forcedStreamFailure, true, 'tracked live EventSource should be interruptible by the harness');
 
-    await waitJS(page, 'bounded EventSource retry exhaustion',
+    await waitJS(page, 'silent EventSource deadline exposes recovery',
       'Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Retry live stream")',
       5000);
     assert.equal((await reconciliationRequest).request.url, baseURL + '/api/v1/runs/' + waitRunID);
