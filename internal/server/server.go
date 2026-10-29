@@ -17,6 +17,7 @@ import (
 
 	"github.com/Quazmoz/CLIHarbor/internal/apperror"
 	"github.com/Quazmoz/CLIHarbor/internal/audittrail"
+	"github.com/Quazmoz/CLIHarbor/internal/diagnostics"
 )
 
 const (
@@ -46,6 +47,7 @@ type Config struct {
 	Audit                      interface{ List() []audittrail.Entry }
 	Tasks                      TaskService
 	Tools                      ToolService
+	Diagnostics                func() diagnostics.Bundle
 	CredentialLogin            CredentialLoginService
 	CredentialInteractiveLogin CredentialInteractiveLoginService
 	CredentialConfiguration    CredentialConfigurationService
@@ -77,6 +79,7 @@ type Server struct {
 	audit                      interface{ List() []audittrail.Entry }
 	tasks                      TaskService
 	tools                      ToolService
+	diagnostics                func() diagnostics.Bundle
 	credentialLogin            CredentialLoginService
 	credentialInteractiveLogin CredentialInteractiveLoginService
 	credentialConfiguration    CredentialConfigurationService
@@ -149,6 +152,7 @@ func New(config Config) (*Server, error) {
 		audit:                      config.Audit,
 		tasks:                      config.Tasks,
 		tools:                      config.Tools,
+		diagnostics:                config.Diagnostics,
 		credentialLogin:            config.CredentialLogin,
 		credentialInteractiveLogin: config.CredentialInteractiveLogin,
 		credentialConfiguration:    config.CredentialConfiguration,
@@ -166,6 +170,9 @@ func New(config Config) (*Server, error) {
 	mux.HandleFunc("/bootstrap", s.handleBootstrap)
 	mux.HandleFunc("/bootstrap/", http.NotFound)
 	mux.Handle("/api/v1/status", s.requireSession(http.HandlerFunc(s.handleStatus)))
+	if s.diagnostics != nil {
+		mux.Handle("/api/v1/diagnostics", s.requireSession(http.HandlerFunc(s.handleDiagnostics)))
+	}
 	if s.runs != nil {
 		mux.Handle("/api/v1/runs/preview", s.requireSession(http.HandlerFunc(s.handleRunPreview)))
 		mux.Handle("/api/v1/runs", s.requireSession(http.HandlerFunc(s.handleRuns)))

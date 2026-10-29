@@ -82,3 +82,24 @@ func TestDiagnosticBundleIsStableAcrossIrrelevantEnvironmentChanges(t *testing.T
 		t.Fatal("irrelevant environment changed deterministic diagnostics payload")
 	}
 }
+
+func TestDiagnosticBundleSortsPrefixPackIDsByCompositeToolKey(t *testing.T) {
+	registry, err := packs.NewRegistry([]packs.LoadedPack{
+		{Pack: packs.Pack{Metadata: packs.Metadata{ID: "demo", Version: "1.0.0"}}},
+		{Pack: packs.Pack{Metadata: packs.Metadata{ID: "demo-alt", Version: "1.0.0"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := RuntimeState{Registry: registry, Discovery: discovery.NewSnapshot([]discovery.ToolState{
+		{PackID: "demo", PackVersion: "1.0.0", ToolID: "fixture", Status: discovery.StatusMissing},
+		{PackID: "demo-alt", PackVersion: "1.0.0", ToolID: "fixture", Status: discovery.StatusMissing},
+	})}
+	bundle := buildDiagnosticBundle(Options{}, state, hostinfo.Info{OS: "windows", Architecture: "amd64"})
+	if _, err := diagnostics.MarshalBundle(bundle); err != nil {
+		t.Fatalf("prefix pack IDs must remain exportable: %v", err)
+	}
+	if bundle.Tools[0].PackID != "demo-alt" || bundle.Tools[1].PackID != "demo" {
+		t.Fatalf("unexpected diagnostic ordering: %+v", bundle.Tools)
+	}
+}

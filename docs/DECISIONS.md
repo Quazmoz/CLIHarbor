@@ -360,6 +360,15 @@ The bundle is constructed only from approved bounded metadata fields: build/runt
 
 The serialization contains no timestamp and no maps, validates stable ordering, is globally size bounded, and is written through private same-directory staging plus atomic/no-replace activation. Existing/symlink/non-regular targets fail closed; Windows also rejects a reparse-point export parent at the checked boundary. The command does not upload or transmit the file.
 
+**2026-10-29 browser refinement:** Diagnostics may explicitly prepare the same
+allowlisted format through an authenticated, GET-only loopback endpoint, then
+preview/copy/download it locally with a checksum. Preparation reads a locked
+catalog snapshot and performs no discovery probe, task, sign-in or installation.
+The shared schema and byte limits remain authoritative; frontend validation also
+requires the canonical JSON representation before export. Browser downloads use
+browser/OS destination and permission behavior rather than the CLI's filesystem
+writer. This adds no automatic collection, remote upload or report import path.
+
 ### Alternatives considered
 
 1. Scrape `doctor`, logs, environment, and filesystem state then regex-redact secrets.

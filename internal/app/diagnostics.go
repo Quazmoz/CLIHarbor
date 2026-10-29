@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"sort"
 
 	"github.com/Quazmoz/CLIHarbor/internal/diagnostics"
 	"github.com/Quazmoz/CLIHarbor/internal/hostinfo"
@@ -69,6 +70,11 @@ func buildDiagnosticBundle(options Options, state RuntimeState, host hostinfo.In
 			CandidateCount: len(tool.Candidates),
 		})
 	}
+	// Discovery sorts a tuple; the diagnostic format sorts the composite key.
+	// A pack ID that prefixes another (demo, demo-alt) changes that ordering.
+	sort.Slice(bundle.Tools, func(i, j int) bool {
+		return bundle.Tools[i].PackID+"/"+bundle.Tools[i].ToolID < bundle.Tools[j].PackID+"/"+bundle.Tools[j].ToolID
+	})
 	return bundle
 }
 

@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Quazmoz/CLIHarbor/internal/diagnostics"
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
+	"github.com/Quazmoz/CLIHarbor/internal/hostinfo"
 	"github.com/Quazmoz/CLIHarbor/internal/packs"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
@@ -217,6 +219,13 @@ func TestManagedInstallQualifiesAndPublishesTasksWithoutRestart(t *testing.T) {
 	}
 	if len(catalog.ListTasks()) == 0 || catalog.ListTools()[0].Status != "ready" {
 		t.Fatal("qualified tool did not populate catalog")
+	}
+	catalog.mu.RLock()
+	reportState := RuntimeState{Registry: registry, Discovery: catalog.discovery}
+	catalog.mu.RUnlock()
+	report := buildDiagnosticBundle(Options{}, reportState, hostinfo.Current())
+	if err := diagnostics.Validate(report); err != nil || report.Health.ToolsReady != 1 || report.Tools[0].Status != "ready" {
+		t.Fatalf("support diagnostics did not reflect live activation: %+v, %v", report.Health, err)
 	}
 	if _, err := manager.Preview(runs.Request{PackID: fixture.ref.PackID, CommandID: "wait"}); err != nil {
 		t.Fatalf("activated task cannot be planned: %v", err)

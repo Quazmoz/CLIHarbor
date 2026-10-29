@@ -37,6 +37,7 @@ import { TaskSwitcher } from './TaskSwitcher';
 import { ToolExplorer } from './ToolExplorer';
 import { ExecutionPreflight } from './ExecutionPreflight';
 import { OutputExplorer } from './OutputExplorer';
+import { SupportDiagnostics } from './SupportDiagnostics';
 import { runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
   loadTaskPreferences,
@@ -1467,6 +1468,7 @@ function WorkspaceApp() {
               onInstallRoot={(key, value) => setToolInstallRoots((current) => ({ ...current, [key]: value }))}
               onOpenTasks={(key) => { changeTaskCategory(key); navigate('tasks'); }}
               onOpenAuthentication={() => navigate('authentication')} />
+            {route === 'diagnostics' && <SupportDiagnostics />}
           </>
         )}
 

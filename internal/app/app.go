@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/audittrail"
+	"github.com/Quazmoz/CLIHarbor/internal/diagnostics"
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
+	"github.com/Quazmoz/CLIHarbor/internal/hostinfo"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
@@ -118,13 +120,21 @@ func Run(ctx context.Context, options Options) error {
 		catalog.refresh(runtimeState.Registry, snapshot)
 		return nil
 	}
+	host := hostinfo.Current()
 	s, err := server.New(server.Config{
-		Version:                    options.Version,
-		Frontend:                   frontend,
-		Runs:                       runManager,
-		Audit:                      audit,
-		Tasks:                      catalog,
-		Tools:                      catalog,
+		Version:  options.Version,
+		Frontend: frontend,
+		Runs:     runManager,
+		Audit:    audit,
+		Tasks:    catalog,
+		Tools:    catalog,
+		Diagnostics: func() diagnostics.Bundle {
+			catalog.mu.RLock()
+			state := runtimeState
+			state.Discovery = catalog.discovery
+			catalog.mu.RUnlock()
+			return buildDiagnosticBundle(options, state, host)
+		},
 		CredentialLogin:            credentialLogin,
 		CredentialInteractiveLogin: credentialLogin,
 		CredentialConfiguration:    credentialLogin,

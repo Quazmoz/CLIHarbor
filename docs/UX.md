@@ -409,6 +409,16 @@ Settings should include a clear statement that the server is listening only on l
 
 ## 14. `doctor` experience
 
+Diagnostics includes **Support diagnostics** with an explicit **Prepare
+diagnostics** action. Preparing only reads current metadata; no command runs.
+The resulting JSON can be reviewed in a keyboard-accessible disclosure, copied
+or downloaded locally with its SHA-256. It is a snapshot: use **Refresh
+diagnostics** after setup changes. The panel describes included/excluded data,
+announces preparation and completion, handles clipboard/download failures, and
+keeps a previous report readable after a refresh failure while disabling stale
+export. Leaving aborts an outstanding read. No automatic upload or browser
+storage is introduced.
+
 A CLI command such as `cliharbor doctor` should diagnose:
 
 - OS/platform;

@@ -261,6 +261,11 @@ CLIHarbor shall provide privacy-preserving allowlisted diagnostics and Phase 0 e
 
 `doctor` may provide richer local-only path evidence and shall not automatically download dependencies.
 
+Diagnostics also offers an explicit, reviewable local support-report download.
+It reuses the existing bounded `cliharbor.diagnostics/v1` metadata allowlist,
+reads the current catalog without launching a CLI, and excludes vendor endpoints,
+credentials, paths, command inputs/output and browser session material.
+
 ## 9. Security and privacy requirements
 
 See `SECURITY.md` for the threat model. Product-level requirements include:

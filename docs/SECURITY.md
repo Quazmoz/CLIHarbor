@@ -449,6 +449,18 @@ Never place in normal logs/diagnostics/evidence:
 
 Support diagnostics are constructed from approved allowlisted metadata rather than filesystem/log scraping.
 
+The Diagnostics page prepares the existing `cliharbor.diagnostics/v1` report only
+on request through the authenticated, exact Host/Origin-protected GET endpoint.
+The endpoint accepts no query options, paths, commands or extra data selectors,
+and validates the shared allowlist and 64 KiB serialized bound before responding.
+The browser rejects unknown fields, invalid tokens/counts, duplicate or
+noncanonical JSON and invalid ordering. Preview/copy/download contain the same
+validated metadata; their checksum covers the exact download bytes. A failed
+refresh retains its previous preview but disables export until a successful
+reread. Browser download location, duplicate filenames and file permissions are
+owned by the browser/OS, independently of the CLI export's private no-clobber
+filesystem writer. Neither transport uploads reports or grants execution authority.
+
 `doctor` is local troubleshooting output and may contain executable paths; it should not be shared blindly.
 
 Managed-tool bootstrap errors shown during normal startup use reviewed sanitized operator text. Raw network/path errors are not copied into the browser-facing diagnostic contract.

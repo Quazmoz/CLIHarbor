@@ -13,12 +13,13 @@ type taskCatalog struct {
 	mu                        sync.RWMutex
 	tasks                     []server.Task
 	tools                     []server.ToolDiagnostic
+	discovery                 discovery.Snapshot
 	credentialLoginCapability func() (string, string, server.CredentialLoginCapability, bool)
 	taskAvailability          func(string, string) bool
 }
 
 func newTaskCatalog(registry *packs.Registry, snapshot discovery.Snapshot) *taskCatalog {
-	catalog := &taskCatalog{}
+	catalog := &taskCatalog{discovery: snapshot}
 	if registry == nil {
 		return catalog
 	}
@@ -251,6 +252,7 @@ func (c *taskCatalog) refresh(registry *packs.Registry, snapshot discovery.Snaps
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.tasks, c.tools = next.tasks, next.tools
+	c.discovery = snapshot
 }
 
 func cloneInt64Pointer(value *int64) *int64 {

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
@@ -1691,6 +1692,39 @@ async function main() {
     assert.equal(historyCancelled.body.events.filter((event) => event.type === 'run.started').length, 1);
     await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Command Builder").click()');
     await waitJS(page, 'return after history cancellation', 'location.pathname === "/tasks" && document.querySelector(".run-panel h2")?.textContent.trim() === "Cancelled"');
+
+    stage('review and download support diagnostics without execution or credential leakage');
+    const beforeDiagnostics = await fetchJSON(page, '/api/v1/runs');
+    await page.evaluate('document.querySelector(\'.primary-nav a[href="/diagnostics"]\').click()');
+    await waitJS(page, 'support diagnostics action', 'document.querySelector("#support-diagnostics-heading") !== null');
+    await clickButton(page, 'Prepare diagnostics');
+    await waitJS(page, 'prepared support report', 'document.querySelector(".support-diagnostics").textContent.includes("Diagnostics ready to review.")');
+    await page.evaluate('document.querySelector(".support-diagnostics summary").click(); true');
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      await page.evaluate('document.querySelector(".support-diagnostics").scrollIntoView({ block: "start" }); true');
+      assert.equal(await page.evaluate('(() => { const root = document.documentElement; const box = document.querySelector(".support-diagnostics").getBoundingClientRect(); return box.left >= 0 && box.right <= root.clientWidth && root.scrollWidth <= root.clientWidth; })()'), true, 'support preview must fit at ' + width + 'px');
+      await capture('support-diagnostics-' + width);
+    }
+    const supportPath = path.join(chrome.userDataDir, 'support-reports');
+    await mkdir(supportPath, { recursive: true });
+    await page.call('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: supportPath });
+    await clickButton(page, 'Download diagnostics');
+    const diagnosticJSON = await poll('local support download', () => readFile(path.join(supportPath, 'cliharbor-diagnostics.json'), 'utf8'));
+    assert.equal(await page.evaluate(`document.querySelector('pre[aria-label="Diagnostic JSON"]').textContent`), diagnosticJSON);
+    assert.equal(await page.evaluate('document.querySelector(".diagnostic-digest").textContent'), createHash('sha256').update(diagnosticJSON).digest('hex'));
+    const diagnosticBundle = JSON.parse(diagnosticJSON);
+    assert.equal(diagnosticBundle.schemaVersion, 'cliharbor.diagnostics/v1');
+    assert.deepEqual(Object.keys(diagnosticBundle).sort(), ['cliharbor', 'configuration', 'health', 'packs', 'runtime', 'schemaVersion', 'tools']);
+    assert.equal(diagnosticBundle.health.toolsReady, diagnosticBundle.tools.filter((tool) => tool.status === 'ready').length);
+    for (const forbidden of [conjurURL, conjurIdentity, conjurSecret, parsedBootstrap.searchParams.get('token'), 'comparison-after', '"argv":', '"path":', '"stdout":', '"stderr":']) {
+      if (forbidden) assert.equal(diagnosticJSON.includes(forbidden), false, 'support report must exclude private runtime evidence');
+    }
+    const afterDiagnostics = await fetchJSON(page, '/api/v1/runs');
+    assert.deepEqual(afterDiagnostics.body.runs.map((run) => run.runId), beforeDiagnostics.body.runs.map((run) => run.runId), 'preparing and downloading diagnostics cannot start another run');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    await page.evaluate('document.querySelector(\'.primary-nav a[href="/tasks"]\').click()');
+    await waitJS(page, 'return after support download', 'location.pathname === "/tasks"');
 
     stage('retained run eviction');
     const eviction = await page.evaluate('(async () => {' +

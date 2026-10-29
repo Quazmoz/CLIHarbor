@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Quazmoz/CLIHarbor/internal/diagnostics"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 )
@@ -123,6 +124,25 @@ func TestRunHTTPAPIExecutesTypedFixtureThroughAuthenticatedBoundary(t *testing.T
 	}
 	if got := seenTools["integration-alt/alternate"]; got != "ready@3.4.5" {
 		t.Fatalf("alternate tool diagnostic = %q, want ready@3.4.5", got)
+	}
+	diagnosticResponse, err := client.Get(baseURL + "/api/v1/diagnostics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	diagnosticBody, err := io.ReadAll(diagnosticResponse.Body)
+	diagnosticResponse.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report diagnostics.Bundle
+	if diagnosticResponse.StatusCode != http.StatusOK || json.Unmarshal(diagnosticBody, &report) != nil || diagnostics.Validate(report) != nil ||
+		report.CLIHarbor.Version != fixture.options.Version || report.Health.ToolsReady != 2 {
+		t.Fatalf("invalid running-app diagnostics: %d %s", diagnosticResponse.StatusCode, diagnosticBody)
+	}
+	for _, forbidden := range []string{fixture.executable, status.CSRFToken, parsedBootstrap.Query().Get("token"), `"argv":`, `"stdout":`, `"stderr":`, `"message":`, `"path":`} {
+		if forbidden != "" && bytes.Contains(diagnosticBody, []byte(forbidden)) {
+			t.Fatalf("support report leaked forbidden runtime evidence %q", forbidden)
+		}
 	}
 
 	taskResponse, err := client.Get(baseURL + "/api/v1/tasks")

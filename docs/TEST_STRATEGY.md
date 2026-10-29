@@ -555,6 +555,19 @@ Regression coverage must prove:
 
 ## Privacy-preserving diagnostic export verification
 
+Browser support-report coverage adds authenticated GET-only and exact
+Host/Origin checks, query rejection before provider access, byte-identical CLI
+serialization/checksum headers, fail-closed invalid/oversized metadata and a
+real application API export. A regression covers pack-ID prefixes: discovery's
+tuple ordering differs from diagnostics' composite `pack/tool` key ordering.
+Browser tests cover strict schema/canonical-JSON validation, no automatic read,
+single-flight preparation, exact preview/copy/download bytes and digest input,
+stale/abandoned reads, clipboard/download failure and late copy feedback.
+Production Chrome downloads the real report, verifies its SHA-256 and absence
+of fixture credentials/paths/output, checks no new runs, and inspects the
+expanded preview at desktop and 320 px widths. Native Windows remains a separate
+acceptance gate.
+
 Regression coverage for `cliharbor.diagnostics/v1` must prove:
 
 - identical approved state serializes to identical JSON bytes with stable pack/tool ordering;

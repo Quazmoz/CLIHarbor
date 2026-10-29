@@ -187,6 +187,7 @@ GET  /bootstrap?token=<one-time-secret>
 GET  /api/v1/status
 GET  /api/v1/tasks
 GET  /api/v1/tools
+GET  /api/v1/diagnostics
 POST /api/v1/tools/install
 POST /api/v1/runs
 GET  /api/v1/runs/{runId}
@@ -329,6 +330,16 @@ The real first-party Conjur pack is compiled into the executable rather than cop
 Phase 0 evidence remains inert and never promotes captured help/output into command authority automatically.
 
 ## 18. Diagnostics and privacy
+
+The authenticated, GET-only `/api/v1/diagnostics` route reuses the CLI diagnostic
+builder and serializer against an immutable catalog snapshot captured under the
+catalog lock. It does not probe, install, authenticate or execute. Validation and
+the 64 KiB bound run before any report bytes are written; a response header
+records SHA-256 over those exact bytes. The browser explicitly prepares a report,
+validates the fixed schema and canonical serialization, and computes SHA-256 over
+the reviewed local download. No report is automatically fetched, persisted or
+uploaded. Live installation/refresh updates the catalog snapshot for the next
+preparation without changing previously prepared report bytes.
 
 Support diagnostics are allowlisted metadata rather than filesystem/environment scraping. Normal diagnostics exclude command output, argv, executable/candidate paths, PATH/environment values, browser secrets, credentials and managed-download raw errors.
 

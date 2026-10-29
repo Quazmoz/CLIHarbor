@@ -1169,6 +1169,10 @@ main:focus { outline: none; }
 .output-line-number { flex: 0 0 4ch; color: var(--text-muted); text-align: right; user-select: none; }
 .output-search-line > span:last-child { min-width: 0; }
 .run-history-task-action { margin-block: 0.8rem; }
+.support-diagnostics { margin-top: var(--space-4); min-width: 0; }
+.support-diagnostics .result-export-actions { flex-wrap: wrap; }
+.support-diagnostics pre { max-height: 24rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diagnostic-digest { overflow-wrap: anywhere; }
 
 .tool-diagnostics {
   margin-top: var(--space-4);
