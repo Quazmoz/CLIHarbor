@@ -40,6 +40,18 @@ The read deadline includes complete success and error bodies, not just headers. 
 
 The Conjur sign-in adapter requires a currently matching executable identity at operation time, not merely an earlier healthy discovery snapshot. Regression tests cover a replaced executable, configuration drift between password exchange and its response, sanitized unavailability when context changes, and deterministic single-flight rejection of overlapping logins. All authentication and connection setup remain behind the same backend authorization and vendor credential-storage boundaries.
 
+### Conjur workflow wording acceptance
+
+Conjur workflow wording acceptance covers named creation fieldsets, field-linked
+invalid-input guidance, neutral **No additional grant** wording, readable
+privilege choices with exact unchanged request values, inert unknown privilege
+names, and focus on newly prepared creation/revoke approvals. The collapsed
+onboarding guide links official references and cannot start tasks. The embedded
+Chrome harness opens the real guided creation form and checks field grouping,
+hidden value input, privilege options and page-wide overflow at 1366/320 px,
+alongside the existing approval/run/readback flow. Its Conjur service and CLI
+are isolated fixtures; native Windows and live-tenant acceptance are separate.
+
 ### Generated frontend authority
 
 `web/` is the authoritative frontend source. Production generation compares the complete, fingerprinted `web/dist` output with `internal/webui/static`: byte-identical trees are left in place, while changed trees are staged and fully replaced so obsolete content-hashed assets are removed rather than accumulated. Staging directories are unique per build; transient Windows rename/sharing failures receive bounded retries, and a failed activation attempts to restore the previously active tree before the restart helper can stop an existing process. The repository-owned `verify-web-sync` gate uses Git status scoped to the embedded tree and rejects tracked modifications/deletions **and** untracked generated files. `go run ./tools/task check` runs this gate immediately after the production frontend build/synchronization, and CI invokes the same repository-owned check on both Linux and Windows. Regression coverage verifies whole-tree replacement across changing content hashes, no-op identity on byte-identical repeats, redirected destination rejection, Windows transient rename error classification, plus tracked/untracked drift detection. The generator also writes `web-source.sha256`, a deterministic SHA-256 digest of the frontend source/package inputs under `web/` (excluding `dist`, `node_modules`, and generated test output). Verification checks this marker **before** inspecting Git status, catching a committed source-only update even on a clean checkout. Regression coverage includes source/lockfile changes, generated-directory exclusion, symlink rejection, and a clean two-commit drift fixture. The fingerprint alone does not verify that Vite actually rebuilt the JavaScript, so use the complete pinned-toolchain `web-build` task and inspect the emitted bundle before qualification.

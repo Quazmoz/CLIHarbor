@@ -28,6 +28,29 @@ const permissions: Task[] = [
 
 const openTab = (name: string) => fireEvent.click(screen.getByRole('tab', { name }));
 
+test('Conjur onboarding explains the journey and opens official references without executing a task', async () => {
+  const onOpenFeature = vi.fn();
+  const backend = installFakeBackend({
+    'GET /api/v1/conjur/secret-audit': {
+      body: { available: false, state: 'idle', total: 0, processed: 0, inspected: 0, findings: [], failures: [] },
+    },
+  });
+  render(<PlatformPage platform={platform} tasks={tasks} onOpenFeature={onOpenFeature}
+    onOpenDiagnostics={() => {}} onOpenTask={vi.fn()} />);
+  const guide = await screen.findByText('New to Conjur? Start here');
+  expect(guide.closest('details')).not.toHaveAttribute('open');
+  fireEvent.click(guide);
+  expect(guide.closest('details')).toHaveAttribute('open');
+  expect(screen.getByText('Connect and check your session.')).toBeVisible();
+  for (const link of screen.getAllByRole('link', { name: /opens in a new tab/ })) {
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noreferrer');
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Check identity' }));
+  expect(onOpenFeature).toHaveBeenCalledExactlyOnceWith('sign-in');
+  expect(backend.calls('POST /api/v1/runs')).toHaveLength(0);
+});
+
 test('Conjur workspace leads with environment context and keyboard-navigable workflow tabs', async () => {
   render(<PlatformPage platform={platform} tasks={tasks} onOpenFeature={vi.fn()} onOpenDiagnostics={() => {}} onOpenTask={vi.fn()} />);
   const env = await screen.findByLabelText('Conjur environment');

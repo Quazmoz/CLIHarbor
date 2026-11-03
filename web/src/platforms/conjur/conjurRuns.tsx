@@ -14,6 +14,14 @@ export const MAX_RUN_MS = 60_000;
 const MAX_RECONCILE_MS = 10_000;
 // The reviewed secret-permit / secret-deny privilege enum.
 export const PRIVILEGES = ['read, execute', 'read', 'execute', 'update', 'read, execute, update'];
+// Presentation only: keep the reviewed privilege tokens unchanged in requests.
+export const PRIVILEGE_LABELS = new Map([
+  ['read, execute', 'View metadata and retrieve value (read, execute)'],
+  ['read', 'View metadata (read)'],
+  ['execute', 'Retrieve value (execute)'],
+  ['update', 'Set value (update)'],
+  ['read, execute, update', 'View metadata, retrieve and set value (read, execute, update)'],
+]);
 export const ROLE_KINDS = ['policy', 'group', 'host', 'layer', 'user'] as const;
 export const GRANTEE_KINDS = ['group', 'host', 'layer', 'user'] as const;
 export type InventoryKind = typeof ROLE_KINDS[number] | 'variable' | 'webservice' | 'host_factory';

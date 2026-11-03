@@ -192,6 +192,17 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
         </div>
       </dl>
       {!ready && <p role="status" className="conjur-setup-notice"><strong>Setup needed.</strong> Check tool readiness before using these workflows.</p>}
+      <details className="conjur-guide">
+        <summary>New to Conjur? Start here</summary>
+        <ol>
+          <li><strong>Connect and check your session.</strong> Open Sign in to confirm the Conjur server, account and CLI identity before working.</li>
+          <li><strong>Choose your task.</strong> Use Secrets to manage variables, Access to inspect or change permissions, and Audit to search IDs or review execution evidence.</li>
+          <li><strong>Review changes before applying them.</strong> Check the target and environment in every approval. Opening a task does not change Conjur.</li>
+        </ol>
+        <p>A <strong>variable</strong> is the named resource that holds a secret’s value and versions. A <strong>policy branch</strong> is where it is defined. <strong>Roles</strong>, such as users, hosts, groups and layers, can receive access.</p>
+        <p>Official references: <a href="https://www.conjur.org/get-started/" target="_blank" rel="noreferrer">CyberArk Conjur quick start (opens in a new tab)</a>
+          {' · '}<a href="https://github.com/cyberark/conjur-cli-go/tree/v9.3.1" target="_blank" rel="noreferrer">Conjur CLI 9.3.1 reference (opens in a new tab)</a></p>
+      </details>
       <label className="field conjur-action-selector"><span>Conjur action</span>
         <select value={choice} disabled={!ready || !csrfToken || workspaceBusy} onChange={(event) => openTask(platform.packId + '/' + event.target.value)}>
           <option value="">Choose a Conjur action</option>
@@ -212,7 +223,7 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
       <div {...panel('secrets')}>
         <header className="conjur-panel-heading">
           <h3>Secret variables</h3>
-          <p>Create, browse, and update variable IDs. Stored values are never displayed.</p>
+          <p>Create a secret variable, find its ID, or save a new value. Stored values are never displayed.</p>
         </header>
         <div className="conjur-action-list" role="group" aria-label="Conjur secret management">
           {csrfToken ? (
@@ -226,7 +237,7 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
               contextKey={discoveryKey + '/' + (target?.applianceUrl ?? '') + '/' + (target?.account ?? '')} />
           ) : <Action title="Create secret" detail="Requires a verified browser session." available={false} onOpen={() => {}} />}
           {taskAction('list-variables', 'read', 'Browse variables', 'Find visible variable IDs without exposing their stored values.')}
-          {taskAction('secret-set-value', 'change', 'Update value', 'Rotate or replace an existing value through secure stdin.')}
+          {taskAction('secret-set-value', 'change', 'Update value', 'Store a new value version in Conjur. Update the credential in its source system separately.')}
         </div>
         <h4 className="conjur-danger-heading">Destructive</h4>
         <div className="conjur-action-list">
@@ -237,11 +248,11 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
       <div {...panel('access')}>
         <header className="conjur-panel-heading">
           <h3>Access &amp; permissions</h3>
-          <p>Inspect what Conjur reports first, then grant or revoke with a separate approval. Nothing is swapped automatically.</p>
+          <p>Inspect resources and role relationships, or choose a variable to review its grants and change permissions.</p>
         </header>
         <div className="conjur-action-list" role="group" aria-label="Conjur permission management">
           <Action title="Inspect access" risk="read" available={ready && hasFeature('access-explorer')}
-            detail="Browse resources and roles with bounded, read-only inventory and labeled permission relationships."
+            detail="Browse resources, role members and permission relationships without making changes."
             onOpen={() => onOpenFeature('access-explorer')} />
           {csrfToken && (
             <ConjurManagePermissions key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '') + '/' + (permissionRequest?.sequence ?? 0)}
@@ -269,7 +280,7 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
             detail="Match variable IDs and metadata against custom patterns. Secret-value matching is opt-in."
             onOpen={() => onOpenFeature('security-audit')} />
           {onOpenRuns && <Action title="Run history & mutation audit" available
-            detail="Every run CLIHarbor started, with approvals and outcomes." onOpen={onOpenRuns} />}
+            detail="Retained execution evidence and the local record of approved changes." onOpen={onOpenRuns} />}
         </div>
       </div>
 

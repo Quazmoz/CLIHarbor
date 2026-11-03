@@ -204,7 +204,7 @@ class CDP {
         return Promise.resolve(event.params ?? {});
       }
     }
-    return new Promise((resolve, reject) => {
+    const result = new Promise((resolve, reject) => {
       const waiter = { method, predicate, resolve, reject, timer: undefined };
       waiter.timer = setTimeout(() => {
         const index = this.waiters.indexOf(waiter);
@@ -218,6 +218,10 @@ class CDP {
       }, timeoutMs);
       this.waiters.push(waiter);
     });
+    // A failed assertion can leave a future event unawaited during teardown.
+    // Keep that rejection from masking the assertion; awaiting it still fails.
+    result.catch(() => {});
+    return result;
   }
 
   async evaluate(expression, timeoutMs = 15000) {
@@ -478,7 +482,7 @@ async function setTextInput(page, label, value) {
 
 async function clickButton(page, text) {
   const expression = '(() => {' +
-    'const button = Array.from(document.querySelectorAll("button")).find((element) => element.getClientRects().length > 0 && (element.getAttribute("aria-label") === ' + JSON.stringify(text) + ' || element.textContent?.trim() === ' + JSON.stringify(text) + '));' +
+    'const button = Array.from(document.querySelectorAll("button")).find((element) => element.getClientRects().length > 0 && (element.getAttribute("aria-label") === ' + JSON.stringify(text) + ' || element.textContent?.trim() === ' + JSON.stringify(text) + ' || (element.matches(".conjur-action") && element.querySelector("strong")?.textContent === ' + JSON.stringify(text) + ')));' +
     'if (!button || button.disabled) return false;' +
     'button.click();' +
     'return true;' +
@@ -539,11 +543,11 @@ async function main() {
     const shell = await page.evaluate('(() => ({' +
       'sidebarOnLeft: document.querySelector(".sidebar").getBoundingClientRect().width > 0 && document.querySelector(".sidebar").getBoundingClientRect().right <= document.querySelector("main").getBoundingClientRect().left,' +
       'hasHeaderSections: ["Built-in CLIs", "Other CLIs"].every((label) => Array.from(document.querySelectorAll(".section-switcher a")).some((link) => link.textContent?.includes(label))),' +
-      'groups: Array.from(document.querySelectorAll(".primary-nav .nav-group-label")).map((element) => element.textContent)' +
+      'groups: Array.from(document.querySelectorAll(".primary-nav .nav-subgroup-label")).map((element) => element.textContent)' +
     '}))()');
     assert.equal(shell.sidebarOnLeft, true, 'desktop navigation must be a left sidebar');
     assert.equal(shell.hasHeaderSections, true, 'header must distinguish built-in integrations from other CLIs');
-    assert.deepEqual(shell.groups, ['CLI workspace']);
+    assert.deepEqual(shell.groups, ['Work', 'Set up & manage']);
     assert.equal(await page.evaluate('document.querySelector(".primary-nav").innerText.includes("Built-in CLIs")'), false);
     assert.equal(await page.evaluate('document.querySelector(".overview-metrics, #overview-workspace-heading") === null'), true);
     await page.evaluate('document.querySelector(".section-switcher a").focus()');
@@ -608,41 +612,28 @@ async function main() {
       'location.pathname === "/tasks" && document.querySelector(".task-context-header h4")?.textContent?.includes("Inspect fixture argv") && document.querySelector(".task-switcher") === null');
     assert.equal(await page.evaluate('document.querySelector(".run-panel h2")?.textContent === "Succeeded"'), false,
       'quick switcher must not execute a task');
-    stage('native dropdown appearance and selection remain safe at narrow width');
+    stage('one Tool Explorer filters tasks across narrow and desktop widths');
     await page.call('Emulation.setDeviceMetricsOverride', { width: 320, height: 844, deviceScaleFactor: 1, mobile: false });
-    const selectAppearance = await page.evaluate('(() => {' +
-      'const select = document.querySelector(".task-category-filter select");' +
-      'if (!select) return null;' +
-      'const style = getComputedStyle(select); const box = select.getBoundingClientRect();' +
-      'const probe = document.createElement("select"); probe.size = 4; document.body.append(probe);' +
-      'const listboxAppearance = getComputedStyle(probe).appearance; probe.remove();' +
-      'return { tag: select.tagName, appearance: style.appearance, image: style.backgroundImage,' +
-        'fits: box.left >= 0 && box.right <= innerWidth, listboxAppearance };' +
-    '})()');
-    assert.ok(selectAppearance, 'tool filter must expose a native select');
-    assert.equal(selectAppearance.tag, 'SELECT', 'tool filter must preserve the native select element');
-    assert.equal(selectAppearance.appearance, 'none', 'the native select trigger must receive the shared chevron styling');
-    assert.equal(selectAppearance.image.startsWith('url('), true, 'native select must display its local chevron');
-    assert.equal(selectAppearance.fits, true, 'dropdown must fit a 320px viewport');
-    assert.notEqual(selectAppearance.listboxAppearance, 'none', 'sized native listboxes must not inherit dropdown styling');
-    const nextFilter = await page.evaluate('(() => {' +
-      'const select = document.querySelector(".task-category-filter select");' +
-      'const next = Array.from(select.options).find((option) => option.value && option.value !== select.value);' +
-      'if (!next) return null;' +
-      'window.__cliharborTaskBefore = document.querySelector(".task-context-header h4")?.textContent ?? "";' +
-      'Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(select, next.value);' +
-      'select.dispatchEvent(new Event("change", { bubbles: true })); return next.value;' +
-    '})()');
-    assert.ok(nextFilter, 'fixture must expose a second tool to exercise selection');
-    await waitJS(page, 'native select remains wired to task filtering',
-      // React owns the filter: the controlled value sticks and App's change
-      // handler moves the active task to the newly filtered tool. (Element
-      // identity is not a contract; React may legitimately reuse the node.)
-      'document.querySelector(".task-category-filter select")?.value === ' + JSON.stringify(nextFilter) + ' && ' +
-        '(document.querySelector(".task-context-header h4")?.textContent ?? "") !== window.__cliharborTaskBefore');
+    await page.evaluate('document.querySelector(".tool-explorer").open = true');
+    await waitJS(page, 'Tool Explorer opens', 'document.querySelector(".tool-explorer-item[aria-pressed]")?.getClientRects().length > 0');
+    assert.equal(await page.evaluate('document.querySelectorAll(".tool-explorer").length'), 1, 'Tool Explorer is the single tool picker');
+    assert.equal(await page.evaluate('document.querySelector(".task-category-filter select") === null'), true, 'the removed tool dropdown must not compete with Tool Explorer');
+    const nextTool = await page.evaluate(`(() => {
+      const buttons = Array.from(document.querySelectorAll('.tool-explorer-item[aria-pressed]'));
+      if (buttons.length < 2) return null;
+      const button = buttons.at(-1);
+      const name = button.textContent;
+      button.click(); return name;
+    })()`);
+    assert.ok(nextTool, 'fixture must expose a second tool to exercise selection');
+    for (const width of [320, 1366]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      await waitJS(page, 'Tool Explorer retains its selected tool at ' + width,
+        'Array.from(document.querySelectorAll(".tool-explorer-item")).some((button) => button.textContent === ' + JSON.stringify(nextTool) + ' && button.getAttribute("aria-pressed") === "true")');
+      assert.equal(await page.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, 'tool picker must fit at ' + width + 'px');
+    }
     assert.equal(await page.evaluate('document.querySelector(".run-panel h2")?.textContent === "Succeeded"'), false,
-      'changing a task filter must never execute a task');
-    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+      'changing the tool filter must never execute a task');
     await navigate(page, baseURL + '/');
     await waitJS(page, 'overview restored after quick switcher',
       'location.pathname === "/" && document.querySelector("#overview-heading") !== null');
@@ -810,6 +801,7 @@ async function main() {
       assert.equal(await page.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth && document.querySelector(".auth-settings-toggle").disabled && document.querySelector(".cli-session-check").disabled && Array.from(document.querySelectorAll(".auth-actions button")).find((button) => button.textContent.trim() === "Check session").disabled'), true);
       await capture('authentication-pending-' + width);
     }
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
     await page.evaluate(`(() => {
       const originalConfirm = window.confirm;
       window.__cliharborLoginWarned = false;
@@ -907,11 +899,15 @@ async function main() {
     await waitJS(page, 'verified session retained on Tasks', 'location.pathname === "/tasks" && document.querySelector(".cli-sessions:not(.operation-activity) summary")?.textContent.includes("1 signed in")');
     for (const width of [1366, 320]) {
       await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      if (width <= 760) {
+        await clickButton(page, 'More');
+        await waitJS(page, 'mobile header menu opens', 'document.querySelector(".topbar-overflow-toggle").getAttribute("aria-expanded") === "true"');
+      }
       await page.evaluate('document.querySelector(".cli-sessions:not(.operation-activity) summary").click()');
       await waitJS(page, 'session disclosure open', 'document.querySelector(".cli-sessions:not(.operation-activity)").open');
       const sessionPanel = await page.evaluate('(() => {' +
         'const panel = document.querySelector(".cli-sessions:not(.operation-activity) .cli-sessions-panel"); const bounds = panel.getBoundingClientRect();' +
-        'return { fits: bounds.left >= 0 && bounds.right <= window.innerWidth && document.documentElement.scrollWidth <= window.innerWidth,' +
+        'return { fits: bounds.width > 0 && bounds.left >= 0 && bounds.right <= document.documentElement.clientWidth && document.documentElement.scrollWidth <= document.documentElement.clientWidth,' +
         'hasCLI: panel.innerText.includes("conjur"), hasStatus: panel.innerText.includes("Signed in"), hasTime: panel.querySelector("time") !== null };' +
       '})()');
       assert.deepEqual(sessionPanel, { fits: true, hasCLI: true, hasStatus: true, hasTime: true }, 'session panel must identify verified CLIs and fit at ' + width + 'px');
@@ -933,6 +929,38 @@ async function main() {
     const quickSession = await quickSessionRequest;
     assert.deepEqual(JSON.parse(quickSession.request.postData), { packId: 'cyberark-conjur-v9', commandId: 'whoami', values: {} });
     await waitJS(page, 'quick session re-verified', 'document.body.innerText.includes("Authenticated") && document.querySelector(".cli-sessions:not(.operation-activity) summary").textContent.includes("1 signed in")');
+
+    stage('Conjur creation guidance and privilege wording at desktop and narrow widths');
+    await navigate(page, baseURL + '/dedicated/conjur');
+    await waitJS(page, 'Conjur create action ready', 'Array.from(document.querySelectorAll(".conjur-action")).some((button) => button.querySelector("strong")?.textContent === "Create secret" && !button.disabled)');
+    assert.equal(await page.evaluate(`(() => {
+      const select = document.querySelector('.conjur-action-selector select');
+      const probe = document.createElement('select'); probe.size = 4; document.body.append(probe);
+      const listboxAppearance = getComputedStyle(probe).appearance; probe.remove();
+      return select?.tagName === 'SELECT' && getComputedStyle(select).appearance === 'none' &&
+        getComputedStyle(select).backgroundImage.includes('linear-gradient(') && listboxAppearance !== 'none';
+    })()`), true, 'Conjur actions retain a styled native select without changing native listboxes');
+    await page.evaluate('document.querySelector(".conjur-guide").open = true');
+    await clickButton(page, 'Create secret');
+    await waitJS(page, 'creation inventory loaded', 'Array.from(document.querySelectorAll(".conjur-create-secret option")).some((option) => option.value === "group:operators")');
+    await page.evaluate(`(() => {
+      const form = document.querySelector('.conjur-create-secret form');
+      const select = Array.from(form.querySelectorAll('select')).find((control) => control.closest('label')?.textContent.startsWith('Accessible by'));
+      select.value = 'group:operators'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await setTextInput(page, 'New variable ID', 'db/password');
+    await setTextInput(page, 'Initial secret value', 'browser-creation-only-fixture');
+    assert.deepEqual(await page.evaluate('Array.from(document.querySelectorAll(".conjur-create-secret legend")).map((legend) => legend.textContent)'),
+      ['1. Choose a location', '2. Choose ownership and access', '3. Enter the initial value']);
+    assert.equal(await page.evaluate('document.querySelector(".conjur-create-secret form").innerText.includes("browser-creation-only-fixture")'), false, 'creation must keep the input value out of visible guidance');
+    assert.equal(await page.evaluate('Array.from(document.querySelectorAll(".conjur-create-secret option")).some((option) => option.value === "execute" && option.textContent === "Retrieve value (execute)")'), true);
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      await page.evaluate('document.querySelector(".conjur-create-secret form").scrollIntoView({ block: "start" }); true');
+      assert.equal(await page.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, 'guided secret creation must fit at ' + width + 'px');
+      await capture('conjur-create-guidance-' + width);
+    }
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
 
     stage('Conjur permissions stay dedicated with verified dropdowns and approval');
     await navigate(page, baseURL + '/dedicated/conjur/access-explorer');
@@ -983,7 +1011,7 @@ async function main() {
     assert.equal(await page.evaluate('location.pathname'), '/dedicated/conjur');
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
     await clickButton(page, 'Secrets');
-    await waitJS(page, 'secret maintenance ready after permission readback', 'Array.from(document.querySelectorAll("button")).some((button) => button.getAttribute("aria-label") === "Update value" && button.getClientRects().length > 0 && !button.disabled)');
+    await waitJS(page, 'secret maintenance ready after permission readback', 'Array.from(document.querySelectorAll(".conjur-action")).some((button) => button.querySelector("strong")?.textContent === "Update value" && button.getClientRects().length > 0 && !button.disabled)');
     await clickButton(page, 'Update value');
     await waitJS(page, 'dedicated update action', 'document.querySelector(".conjur-task-panel")?.textContent.includes("Set secret value") && document.querySelector(".conjur-task-panel input[type=password]") !== null');
     assert.equal(await page.evaluate('location.pathname'), '/dedicated/conjur');
@@ -1039,10 +1067,11 @@ async function main() {
 
     stage('tool category filtering');
     await page.evaluate('Array.from(document.querySelectorAll(".tool-explorer-item")).find((button) => button.textContent.includes("fixture")).click()');
-    await waitJS(page, 'fixture category', 'document.querySelector(".task-category-filter select").value === "integration/fixture" && document.querySelector(".task-discovery").open');
+    await page.evaluate('document.querySelector(".task-discovery").open = true');
+    await waitJS(page, 'fixture category', 'Array.from(document.querySelectorAll(".tool-explorer-item")).some((button) => button.textContent.includes("fixture") && button.getAttribute("aria-pressed") === "true") && document.querySelector(".task-discovery").open');
     assert.equal(await page.evaluate('Array.from(document.querySelectorAll("[data-task-action=select]")).every((button) => button.dataset.taskKey.startsWith("integration/"))'), true, 'category rows must belong to the selected tool');
     await page.evaluate('document.querySelector(".tool-explorer-all").click()');
-    await waitJS(page, 'all tool categories restored', 'document.querySelector(".task-category-filter select").value === "" && document.querySelector(".task-catalog-selection").textContent.includes("4 available")');
+    await waitJS(page, 'all tool categories restored', 'document.querySelector(".tool-explorer-all").getAttribute("aria-pressed") === "true" && document.querySelector(".task-scope-banner") === null');
 
     stage('responsive operator workflow widths');
     for (const width of [1440, 1024, 768, 390, 320]) {
@@ -1060,15 +1089,18 @@ async function main() {
       );
       const selectors = await page.evaluate('(() => ({' +
         'explorer: document.querySelector(".tool-explorer").getBoundingClientRect().width > 0,' +
-        'compact: document.querySelector(".task-category-filter").getBoundingClientRect().width > 0' +
+        'count: document.querySelectorAll(".tool-explorer").length, compact: document.querySelector(".task-category-filter") !== null' +
       '}))()');
-      assert.equal(selectors.explorer, width >= 1100, 'desktop Explorer visibility at ' + width);
-      assert.equal(selectors.compact, width < 1100, 'compact selector visibility at ' + width);
+      assert.equal(selectors.explorer, true, 'Tool Explorer remains visible at ' + width);
+      assert.equal(selectors.count, 1, 'one Tool Explorer at ' + width);
+      assert.equal(selectors.compact, false, 'no duplicate tool picker at ' + width);
       if (width === 1024) {
-        await page.evaluate('(() => { const select = document.querySelector(".task-category-filter select"); select.value = "integration/fixture"; select.dispatchEvent(new Event("change", { bubbles: true })); })()');
-        await waitJS(page, 'compact filter applies shared scope', 'document.querySelector(".task-category-filter select").value === "integration/fixture" && document.querySelector(".task-scope-banner") !== null');
+        await page.evaluate('document.querySelector(".tool-explorer").open = true');
+        await waitJS(page, 'narrow Tool Explorer expands', 'document.querySelector(".tool-explorer-item").getClientRects().length > 0');
+        await page.evaluate('Array.from(document.querySelectorAll(".tool-explorer-item")).find((button) => button.textContent.includes("fixture")).click()');
+        await waitJS(page, 'narrow tool filter applies shared scope', 'Array.from(document.querySelectorAll(".tool-explorer-item")).some((button) => button.textContent.includes("fixture") && button.getAttribute("aria-pressed") === "true") && document.querySelector(".task-scope-banner") !== null');
       }
-      if (width < 1024) assert.equal(await page.evaluate('document.querySelector(".task-category-filter select").value'), 'integration/fixture');
+      if (width < 1024) assert.equal(await page.evaluate('Array.from(document.querySelectorAll(".tool-explorer-item")).some((button) => button.textContent.includes("fixture") && button.getAttribute("aria-pressed") === "true")'), true);
       if (width <= 390) {
         assert.equal(await page.evaluate('document.querySelector(".sidebar").getBoundingClientRect().width === 0'), true, 'mobile sidebar starts collapsed');
         await clickButton(page, 'Menu');
@@ -1812,6 +1844,9 @@ async function main() {
 
     stage('complete');
     console.log('CLIHarbor production browser E2E passed');
+  } catch (error) {
+    await capture('failure').catch(() => {});
+    throw error;
   } finally {
     for (const page of pages) {
       page.close();

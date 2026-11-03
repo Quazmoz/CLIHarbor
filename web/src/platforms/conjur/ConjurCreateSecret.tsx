@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { Task } from '../../api/tasks';
 import { createRun, previewRun, type RunPreview } from '../../api/runs';
 import { normalizeConjurSaaSAPIURL } from './ConjurBackendConnection';
@@ -6,7 +6,7 @@ import { WorkingStatus } from '../../WorkingStatus';
 import { ExecutionContext, OperationResult, type OperationOutcome } from '../../OperationResult';
 import { useMutationActivity, useMutationPending } from '../../OperationActivity';
 import {
-  GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, ROLE_KINDS, RoleOptions,
+  GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, PRIVILEGE_LABELS, ROLE_KINDS, RoleOptions,
   approvalsFresh, completedRun, matchingPlans, safeMessage as sharedSafeMessage, splitRole, successful,
   supportedTask, useConjurInventory, variableExists as exists, ExistenceCheckFailure,
 } from './conjurRuns';
@@ -69,6 +69,7 @@ function safeMessage(error: unknown): string {
 
 export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contextKey, onOpenRuns, onInspectTarget, onManageAccess, initial, initiallyOpen = false }: Props) {
   const beginMutation = useMutationActivity();
+  const helpID = useId();
   // SaaS tenants cannot load policy into root; their secrets live under data.
   // The parent remounts this form when the endpoint changes.
   const saas = Boolean(endpoint && normalizeConjurSaaSAPIURL(endpoint));
@@ -77,6 +78,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   const [variable, setVariable] = useState(initial?.['variable-id'] ?? '');
   const [value, setValue] = useState('');
   const [plan, setPlan] = useState<Plan | null>(null);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (plan) reviewHeading.current?.focus(); }, [plan]);
   const [approved, setApproved] = useState(false);
   const [operation, setOperation] = useState<'review' | 'create' | null>(null);
   const pendingMutation = useMutationPending('conjur-secret-work-progress');
@@ -116,8 +119,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   const saasRoot = saas && branch === 'root';
   // The resource-exists task limits the account-prefixed resource ID to 2048 characters.
   const resourceIDTooLong = Boolean(fullID && account && (account + ':variable:' + fullID).length > 2048);
-  const inputReady = Boolean(fullID) && !saasRoot && !resourceIDTooLong && value.length >= 1 && value.length <= 4096 &&
-    !/[\r\n\p{Cc}\p{Cf}]/u.test(value);
+  const valueValid = value.length >= 1 && value.length <= 4096 && !/[\r\n\p{Cc}\p{Cf}]/u.test(value);
+  const inputReady = Boolean(fullID) && !saasRoot && !resourceIDTooLong && valueValid;
   const reviewed = plan !== null && plan.branch === branch && plan.variable === variable &&
     plan.fullID === fullID && plan.contextKey === contextKey && plan.owner === owner &&
     plan.grantee === grantee && plan.privileges === privileges;
@@ -183,7 +186,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     // Refuse stale reviews before mutating anything; preserve input for a fresh review.
     // An optional grant that still lapses later is reported as recoverable partial completion.
     if (!approvalsFresh([plan.create, plan.set, ...(plan.permit ? [plan.permit] : [])])) {
-      setError('The reviewed approvals are too close to expiry. Review both changes again before proceeding.');
+      setError('The approvals are about to expire. Review all changes again before creating the secret.');
       setPlan(null);
       setApproved(false);
       return;
@@ -294,7 +297,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
         <span className="conjur-action-text">
           <strong>{operation === 'create' || pendingMutation ? 'Creating secret…' : operation === 'review' ? 'Reviewing secret…' : 'Create secret'}</strong>
           <span>{allowed
-            ? 'Choose where the variable lives, who owns it and who can access it, then enter its initial value, using approved Conjur commands.'
+            ? 'Choose a location and access, enter a value, then review and approve creation.'
             : 'Unavailable until Conjur and the approved commands are ready.'}</span>
         </span>
         <span className="task-risk-badge task-risk-badge--change">Explicit approval</span>
@@ -303,70 +306,85 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
         <form className="conjur-create-form" onSubmit={(event) => void review(event)} autoComplete="off">
           <ExecutionContext fields={[{ label: 'Account', value: account ?? 'Unavailable' }, { label: 'Backend', value: endpoint ?? 'Unavailable' }]}
             target={fullID ?? 'Choose a valid variable ID'} />
-          <p>Provide the destination and secret value once. No change runs until you review and approve every operation; review checks existence using an approved read-only command. This is not an atomic Conjur transaction.</p>
+          <p>Create a named variable, store its first value, and optionally grant access. Review checks whether the variable already exists; changes start only after your approval.</p>
           <InventoryStatus state={inventoryState} disabled={busy} onRetry={() => void loadInventory()} />
-          {inventory ? (
-            <label>Parent policy
-              <select value={branch} disabled={busy} onChange={(event) => changed(() => setBranch(event.target.value))}>
-                {branchOptions.map((id) => <option key={id} value={id}>{id}</option>)}
+          <fieldset className="conjur-form-step">
+            <legend>1. Choose a location</legend>
+            {inventory ? (
+              <label>Parent policy
+                <select value={branch} disabled={busy} aria-describedby={helpID + '-location'} onChange={(event) => changed(() => setBranch(event.target.value))}>
+                  {branchOptions.map((id) => <option key={id} value={id}>{id}</option>)}
+                </select>
+              </label>
+            ) : inventoryState === 'loading' ? (
+              <label>Parent policy
+                <select value="" disabled aria-busy="true">
+                  <option value="">Loading policies…</option>
+                </select>
+              </label>
+            ) : (
+              <label>Policy branch
+                <input required maxLength={512} value={branch} disabled={busy} spellCheck={false}
+                  aria-describedby={helpID + '-location'} aria-invalid={branch !== '' && branch !== 'root' && !PATH.test(branch)}
+                  onChange={(event) => changed(() => setBranch(event.target.value))} />
+              </label>
+            )}
+            <p id={helpID + '-location'} className="field-help">Choose an existing policy branch. {saas ? <>For SaaS, use <code>data</code> or a branch under it.</> : <>Use <code>root</code> for the top-level policy, or a path such as <code>apps</code>.</>}</p>
+            {saasRoot && <p role="alert">Secrets Manager SaaS does not allow changes to the root policy. Use <code>data</code> or a branch under it.</p>}
+            <label>New variable ID (relative to branch)
+              <input required maxLength={2048} value={variable} disabled={busy} spellCheck={false}
+                aria-describedby={helpID + '-variable'} aria-invalid={variable !== '' && !PATH.test(variable)}
+                placeholder="db/password" onChange={(event) => changed(() => setVariable(event.target.value))} />
+            </label>
+            <p id={helpID + '-variable'} className="field-help">Enter the path beneath the selected branch. Use letters, numbers, underscores, dots or hyphens, with <code>/</code> between segments; start each segment with a letter, number or underscore.</p>
+            <p>Full variable ID: <code>{fullID ?? 'Enter a simple relative policy path and variable ID'}</code></p>
+            {resourceIDTooLong && <p role="alert">The complete Conjur resource ID exceeds the supported 2,048-character limit. Shorten the variable path.</p>}
+          </fieldset>
+          <fieldset className="conjur-form-step">
+            <legend>2. Choose ownership and access</legend>
+            <label>Owner
+              <select value={owner} disabled={busy || !inventory || !canOwn}
+                aria-busy={inventoryState === 'loading'}
+                onChange={(event) => changed(() => setOwner(event.target.value))}>
+                <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'Parent policy (Conjur default)'}</option>
+                <RoleOptions inventory={inventory} kinds={ROLE_KINDS} selected={owner} />
               </select>
             </label>
-          ) : inventoryState === 'loading' ? (
-            <label>Parent policy
-              <select value="" disabled aria-busy="true">
-                <option value="">Loading policies…</option>
+            <p className="field-help">The owner has all privileges, including retrieving and setting values. Keep the parent policy as owner unless you need a different owner.</p>
+            <label>Accessible by
+              <select value={grantee} disabled={busy || !inventory || !canPermit}
+                aria-busy={inventoryState === 'loading'}
+                onChange={(event) => changed(() => setGrantee(event.target.value))}>
+                <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'No additional grant'}</option>
+                <RoleOptions inventory={inventory} kinds={GRANTEE_KINDS} selected={grantee} />
               </select>
             </label>
-          ) : (
-            <label>Policy branch
-              <input required maxLength={512} value={branch} disabled={busy} spellCheck={false}
-                onChange={(event) => changed(() => setBranch(event.target.value))} />
+            <p className="field-help">Optionally grant privileges to an existing role. Existing ownership and role memberships may already provide access.</p>
+            {grantee && (
+              <label>Permissions
+                <select value={privileges} disabled={busy} aria-describedby={helpID + '-privileges'} onChange={(event) => changed(() => setPrivileges(event.target.value))}>
+                  {PRIVILEGES.map((privilege) => <option key={privilege} value={privilege}>{PRIVILEGE_LABELS.get(privilege)}</option>)}
+                </select>
+              </label>
+            )}
+            {grantee && <p id={helpID + '-privileges'} className="field-help">In Conjur, <code>read</code> views metadata, <code>execute</code> retrieves the value, and <code>update</code> sets a value. Grant only the privileges this role needs.</p>}
+          </fieldset>
+          <fieldset className="conjur-form-step">
+            <legend>3. Enter the initial value</legend>
+            <label>Initial secret value
+              <input required type="password" minLength={1} maxLength={4096} value={value}
+                disabled={busy} autoComplete="off" spellCheck={false}
+                aria-describedby={helpID + '-value'} aria-invalid={value !== '' && !valueValid}
+                onChange={(event) => changed(() => setValue(event.target.value))} />
             </label>
-          )}
-          {saasRoot && <p role="alert">Secrets Manager SaaS does not allow changes to the root policy. Use <code>data</code> or a branch under it.</p>}
-          <label>New variable ID (relative to branch)
-            <input required maxLength={2048} value={variable} disabled={busy} spellCheck={false}
-              placeholder="db/password" onChange={(event) => changed(() => setVariable(event.target.value))} />
-          </label>
-          <p>Full variable ID: <code>{fullID ?? 'Enter a simple relative policy path and variable ID'}</code></p>
-          {resourceIDTooLong && <p role="alert">The complete Conjur resource ID exceeds the supported 2,048-character limit. Shorten the variable path.</p>}
-          <label>Owner
-            <select value={owner} disabled={busy || !inventory || !canOwn}
-              aria-busy={inventoryState === 'loading'}
-              onChange={(event) => changed(() => setOwner(event.target.value))}>
-              <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'Parent policy (Conjur default)'}</option>
-              <RoleOptions inventory={inventory} kinds={ROLE_KINDS} selected={owner} />
-            </select>
-          </label>
-          <p>The owner holds every privilege on the variable, including reading and changing its value.</p>
-          <label>Accessible by
-            <select value={grantee} disabled={busy || !inventory || !canPermit}
-              aria-busy={inventoryState === 'loading'}
-              onChange={(event) => changed(() => setGrantee(event.target.value))}>
-              <option value="">{inventoryState === 'loading' ? 'Loading roles…' : 'Owner only (no additional grant)'}</option>
-              <RoleOptions inventory={inventory} kinds={GRANTEE_KINDS} selected={grantee} />
-            </select>
-          </label>
-          {grantee && (
-            <label>Permissions
-              <select value={privileges} disabled={busy} onChange={(event) => changed(() => setPrivileges(event.target.value))}>
-                {PRIVILEGES.map((privilege) => <option key={privilege} value={privilege}>{privilege}</option>)}
-              </select>
-            </label>
-          )}
-          {grantee && <p>read shows metadata, execute fetches the secret value, update changes the value.</p>}
-          <label>Initial secret value
-            <input required type="password" minLength={1} maxLength={4096} value={value}
-              disabled={busy} autoComplete="off" spellCheck={false}
-              onChange={(event) => changed(() => setValue(event.target.value))} />
-          </label>
-          <p>The value is sent over the protected local API and then to the vendor CLI on stdin. It is never displayed in the preview or stored in run history.</p>
+            <p id={helpID + '-value'} className="field-help">Use 1–4,096 characters on one line, without control or invisible formatting characters. The value stays hidden and is excluded from previews and run history.</p>
+          </fieldset>
           <button type="submit" disabled={!allowed || !inputReady || busy} aria-busy={busy}>
             {operation === 'review' ? 'Reviewing creation…' : operation === 'create' ? 'Creating secret…' : 'Review creation and value'}
           </button>
           {reviewed && plan && (
             <section className="mutation-approval" aria-label="Create secret approval">
-              <h4>Review {plan.permit ? 'all three' : 'both'} Conjur changes</h4>
+              <h4 ref={reviewHeading} tabIndex={-1}>Review {plan.permit ? 'all three' : 'both'} Conjur changes</h4>
               <p><strong>Target:</strong> <code>{plan.fullID}</code></p>
               {plan.create.context?.fields.map((field) => (
                 <p key={field.label}><strong>{field.label}:</strong> {field.value}</p>

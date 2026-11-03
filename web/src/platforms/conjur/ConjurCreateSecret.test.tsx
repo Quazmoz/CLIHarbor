@@ -24,7 +24,7 @@ const tasks: Task[] = [
   task('secret-create', 'change', [['policy-branch', 'string'], ['variable-id', 'string'], ['dry-run', 'boolean']]),
   task('secret-set-value', 'change', [['variable-id', 'string'], ['value', 'secret']]),
 ];
-const approval = { id: 'a'.repeat(32), mode: 'explicit' as const, expiresAt: '2026-11-01T00:00:00Z' };
+const approval = { id: 'a'.repeat(32), mode: 'explicit' as const, expiresAt: '2099-01-01T00:00:00Z' };
 const context = { fields: [{ label: 'Account', value: 'dev' }, { label: 'Endpoint', value: 'https://example.test' }] };
 const preview = (commandId: string): RunPreview => ({
   packId: PACK, commandId, toolId: 'conjur', executableName: 'conjur',
@@ -161,11 +161,33 @@ test('normalizes simple branch paths and rejects ambiguous identifiers', () => {
   expect(fullVariableID('apps', 'db\npassword')).toBeNull();
 });
 
+test('creation explains each step and links invalid inputs to guidance without sending a request', () => {
+  const region = setup();
+  for (const name of ['1. Choose a location', '2. Choose ownership and access', '3. Enter the initial value']) {
+    expect(within(region).getByRole('group', { name })).toBeInTheDocument();
+  }
+  const variable = within(region).getByRole('textbox', { name: /New variable ID/ });
+  fireEvent.change(variable, { target: { value: '../password' } });
+  expect(variable).toHaveAttribute('aria-invalid', 'true');
+  expect(variable).toHaveAccessibleDescription(/start each segment with a letter, number or underscore/);
+  fireEvent.change(variable, { target: { value: 'db/password' } });
+  expect(variable).toHaveAttribute('aria-invalid', 'false');
+  const value = within(region).getByLabelText('Initial secret value');
+  // A format character can arrive by paste even though the input is one line.
+  fireEvent.change(value, { target: { value: 'hidden\u200bformat' } });
+  expect(value).toHaveAttribute('aria-invalid', 'true');
+  expect(value).toHaveAccessibleDescription(/without control or invisible formatting characters/);
+  expect(within(region).getByRole('button', { name: 'Review creation and value' })).toBeDisabled();
+  expect(createRun).not.toHaveBeenCalled();
+  expect(previewRun).not.toHaveBeenCalled();
+});
+
 test('one form reviews two approved plans and executes them in sequence without revealing value', async () => {
   const region = setup();
   expect(createRun).not.toHaveBeenCalled();
   fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
   await waitFor(() => expect(previewRun).toHaveBeenCalledTimes(2));
+  expect(within(region).getByRole('heading', { name: 'Review both Conjur changes' })).toHaveFocus();
   expect(vi.mocked(createRun).mock.calls[0][1]).toMatchObject({
     commandId: 'resource-exists', values: { 'resource-id': 'dev:variable:apps/db/password' },
   });
@@ -402,6 +424,10 @@ test('dropdowns pick parent policy, owner and access, then run three approved st
   fireEvent.change(parent, { target: { value: 'apps' } });
   fireEvent.change(within(region).getByRole('combobox', { name: /^Owner/ }), { target: { value: 'group:admins' } });
   fireEvent.change(within(region).getByRole('combobox', { name: /^Accessible by/ }), { target: { value: 'host:apps/web' } });
+  const privileges = within(region).getByRole('combobox', { name: 'Permissions' });
+  expect(within(privileges).getByRole('option', { name: 'View metadata and retrieve value (read, execute)' })).toHaveValue('read, execute');
+  expect(within(privileges).getByRole('option', { name: 'View metadata (read)' })).toHaveValue('read');
+  expect(within(region).getByRole('option', { name: 'No additional grant' })).toHaveValue('');
   fireEvent.change(within(region).getByRole('textbox', { name: /New variable ID/ }), { target: { value: 'db/password' } });
   fireEvent.change(within(region).getByLabelText('Initial secret value'), { target: { value: 'never-store-me' } });
   fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));

@@ -55,6 +55,28 @@ auditing. `!deny` only revokes grants created in the same policy branch;
 permission changes are not presented as atomic. Secrets are never displayed
 by the regular variable-management surfaces.
 
+The collapsed **New to Conjur? Start here** guide explains connection/session
+checks, workflow selection, and approval in that order. It defines variables,
+policy branches and roles, and links to the official CyberArk quick start and
+the qualified Conjur CLI reference. Opening it executes nothing.
+
+Secret creation uses three labelled fieldsets: **Choose a location**, **Choose
+ownership and access**, and **Enter the initial value**. Field-linked guidance
+explains relative IDs, the complete resulting variable ID, SaaS `data` branches,
+and the guided form's single-line value limits. Invalid non-empty paths/values
+are marked invalid without echoing values. Successful review moves keyboard
+focus to the approval heading.
+
+Creation, permission management and policy templates use the same plain-language
+privilege labels, keeping exact `read`, `execute` and `update` tokens visible and
+unchanged in requests. `read` refers to metadata; `execute` retrieves a value;
+`update` sets one. **No additional grant** does not promise owner-exclusive
+access: ownership, memberships and other grants remain relevant. Permission
+inspection and revoke approvals explicitly explain that removing one grant
+does not establish that all access was removed. Unknown privileges remain inert
+text without a revoke action. Value-update guidance describes storing a new
+Conjur value version, with source-system credential changes handled separately.
+
 ## 2. Core navigation
 
 The left sidebar is reserved for the standard **CLI workspace** routes. **Built-in CLIs** appears only in the top bar alongside **Other CLIs**; it must never be duplicated in the left navigation:

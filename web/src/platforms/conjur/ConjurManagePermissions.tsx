@@ -7,7 +7,7 @@ import { ExecutionContext, OperationResult, type OperationOutcome } from '../../
 import { useMutationActivity, useMutationPending } from '../../OperationActivity';
 import { ConjurIDSelect } from './ConjurIDSelect';
 import {
-  GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, RoleOptions,
+  GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, PRIVILEGE_LABELS, RoleOptions,
   approvalsFresh, completedRun, findVariable, matchingPlans, needsSearchLookup, runRead, safeMessage, successful,
   splitRole, supportedTask, useConjurInventory,
 } from './conjurRuns';
@@ -81,6 +81,8 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
   const [manualRole, setManualRole] = useState(false);
   const [privileges, setPrivileges] = useState(PRIVILEGES[0]);
   const [change, setChange] = useState<Change | null>(null);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (change) reviewHeading.current?.focus(); }, [change]);
   const [approved, setApproved] = useState(false);
   const [stage, setStage] = useState('');
   const pendingMutation = useMutationPending('conjur-permission-work-progress');
@@ -237,7 +239,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
         <span className="conjur-action-text">
           <strong>Manage permissions</strong>
           <span>{allowed
-            ? 'See who can access a secret, then grant or revoke privileges from dropdowns of visible roles.'
+            ? 'Review explicit grants on a variable, then approve a grant or revoke. Inherited access needs separate inspection.'
             : 'Unavailable until Conjur and the approved commands are ready.'}</span>
         </span>
         <span className="task-risk-badge task-risk-badge--change">Approval required</span>
@@ -248,6 +250,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
             target={pending?.variable || shown || variable || 'Choose a secret variable ID'} />
           <InventoryStatus state={inventoryState} disabled={busy} onRetry={() => void loadInventory()} />
           <form onSubmit={show} autoComplete="off">
+            <h4>1. Choose a variable</h4>
             <ConjurIDSelect label="Secret variable ID" value={variable} disabled={busy} options={inventory?.variable ?? []}
               id={variableInputID}
               loading={inventoryState === 'loading'}
@@ -255,7 +258,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                 setVariable(value); setError(''); setAccess(null); setShown(''); setChange(null);
                 setApproved(false); setOutcome(''); setResult(null); setGrantee(''); setManualRole(false);
               }} />
-            <p className="field-help">Choose a visible variable or enter another ID. Inventory is bounded to 500 IDs per kind.</p>
+            <p className="field-help">Choose a visible variable or enter its full variable path, such as <code>apps/db/password</code>. This list shows up to 500 IDs.</p>
             <button type="submit" disabled={!variableValid || busy} aria-busy={busy}>
               {busy ? 'Working…' : 'Show current permissions'}
             </button>
@@ -263,7 +266,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
 
           {access && (
             <section className="conjur-permissions-current" aria-label="Current permissions">
-              <h4>Current permissions on <code>{shown}</code></h4>
+              <h4>2. Current permissions on <code>{shown}</code></h4>
               <p><strong>Owner:</strong> <code>{localID(access.owner)}</code> ({kindOf(access.owner)}) holds every privilege.
                 {' '}<strong>Defined in policy:</strong> <code>{localID(access.policy)}</code></p>
               {access.permissions.length === 0 ? <p>No explicit grants were returned. Inherited access is not shown.</p> : (
@@ -278,7 +281,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                       return (
                         <tr key={grant.role + '/' + grant.privilege + '/' + grant.policy}>
                           <td><code>{localID(grant.role)}</code> ({kindOf(grant.role)})</td>
-                          <td>{grant.privilege}</td>
+                          <td>{PRIVILEGE_LABELS.get(grant.privilege) ?? grant.privilege}</td>
                           <td><code>{localID(grant.policy)}</code></td>
                           <td>{revocable ? (
                             <button type="button" className="secondary-button" disabled={busy} aria-label={label}
@@ -292,7 +295,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                   </tbody>
                 </table></div>
               )}
-              <p>These are explicit grants on this variable. Access inherited through role membership is not listed.</p>
+              <p>These are explicit grants on this variable. Ownership and role memberships can also provide access. Revoking one grant does not guarantee that a role loses all access.</p>
 
               {canPermit && (
                 <form className="conjur-permissions-grant" onSubmit={(event) => {
@@ -301,6 +304,7 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                   const role = account + ':' + grantee;
                   review('secret-permit', 'Grant ' + privileges + ' to ' + localID(role), localID(access.policy), role, privileges);
                 }}>
+                  <h4>3. Choose a role and privileges to grant</h4>
                   <label>Grant access to
                     <select value={manualRole ? 'manual' : grantee} disabled={busy || inventoryState === 'loading'}
                       aria-busy={inventoryState === 'loading'} onChange={(event) => {
@@ -320,13 +324,13 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
                       onChange={(event) => { setGrantee(splitRole(grantee)[0] + ':' + event.target.value); setChange(null); setApproved(false); }} /></label>
                   </>}
                   <label>Privileges
-                    <select value={privileges} disabled={busy} onChange={(event) => {
+                    <select value={privileges} disabled={busy} aria-describedby={variableInputID + '-privileges'} onChange={(event) => {
                       setPrivileges(event.target.value); setChange(null); setApproved(false);
                     }}>
-                      {PRIVILEGES.map((privilege) => <option key={privilege} value={privilege}>{privilege}</option>)}
+                      {PRIVILEGES.map((privilege) => <option key={privilege} value={privilege}>{PRIVILEGE_LABELS.get(privilege)}</option>)}
                     </select>
                   </label>
-                  <p>read shows metadata, execute fetches the secret value, update changes the value.</p>
+                  <p id={variableInputID + '-privileges'} className="field-help">Grant only what this role needs. <code>read</code> views metadata, <code>execute</code> retrieves the value, and <code>update</code> sets a value. A grant adds privileges alongside existing access.</p>
                   <button type="submit" disabled={!validConjurID(account + ':' + grantee, account) || busy ||
                     policyRelativeVariableID(shown, localID(access.policy)) === null}>Review grant</button>
                 </form>
@@ -336,12 +340,14 @@ export function ConjurManagePermissions({ tasks, csrfToken, account, endpoint, c
 
           {pending && (
             <section className="mutation-approval" aria-label="Permission change approval">
-              <h4>Review: {pending.label}</h4>
+              <h4 ref={reviewHeading} tabIndex={-1}>Review: {pending.label}</h4>
+              <p><strong>Variable:</strong> <code>{pending.variable}</code></p>
               {pending.preview.context?.fields.map((field) => (
                 <p key={field.label}><strong>{field.label}:</strong> {field.value}</p>
               ))}
               <p><strong>Policy branch:</strong> <code>{String(pending.values['policy-branch'])}</code></p>
               <pre className="mutation-stdin">{pending.preview.stdin}</pre>
+              {pending.commandId === 'secret-deny' && <p>This removes only the selected grant from the policy branch shown above. Other grants and role memberships may still allow access.</p>}
               <label className="conjur-create-consent">
                 <input type="checkbox" checked={approved} onChange={(event) => setApproved(event.target.checked)} />
                 I approve this change to this exact variable and environment.

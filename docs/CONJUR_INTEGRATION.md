@@ -122,6 +122,25 @@ The trusted pack records fixed `--help` evidence probes for the root, `list`, `r
 
 Windows evaluation CI also runs the exact pinned v9.3.1 binary through the `list` help probe and requires the Stage 5 `--members-of`, `--permitted-roles`, and `--privilege` flags to remain present. This checks the reviewed release directly rather than relying only on historical documentation.
 
+### Workflow wording review — 2026-11-03
+
+The dedicated workspace's creation, access and value-update guidance was checked
+against official upstream material. This is a presentation change; it adds no
+pack commands, privilege tokens, execution authority or credential storage.
+
+| Guidance | Official evidence |
+| --- | --- |
+| Define the variable in a policy, then store its value separately | [CyberArk quick start](https://www.conjur.org/get-started/), [qualified policy commands](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/pkg/cmd/policy.go), [qualified variable commands](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/pkg/cmd/variable.go) |
+| Metadata visibility and value retrieval are distinct; value retrieval uses `execute`, value setting uses `update` | [CyberArk policy example](https://www.conjur.org/get-started/tutorials/cloud-foundry/), [official secrets controller](https://github.com/cyberark/conjur/blob/master/app/controllers/secrets_controller.rb) |
+| Store a new Conjur value version; separately change the credential in its source system | [Qualified variable set implementation](https://github.com/cyberark/conjur-cli-go/blob/v9.3.1/pkg/cmd/variable.go), [official secret-version handling](https://github.com/cyberark/conjur/blob/master/app/controllers/secrets_controller.rb) |
+
+No additional grant is described as an exclusive-access guarantee. Existing
+ownership, role membership and grants still apply; the permission table and
+revoke confirmation retain this distinction. The creation form's restricted
+path syntax and single-line value limit are CLIHarbor guided-form constraints,
+not claims about all identifiers or values supported by Conjur. Documentation
+and source checks do not qualify a live tenant or a native Windows executable.
+
 ## GUI migration workbench (preparation only)
 
 Open **Built-in CLIs → CyberArk Conjur → Migration playbooks & templates**.

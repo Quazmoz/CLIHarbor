@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import type { Task, TaskRisk } from '../../api/tasks';
+import { PRIVILEGES, PRIVILEGE_LABELS } from './conjurRuns';
 
 /**
  * Migration preparation is presentation-only. The authoritative task catalog
@@ -335,11 +336,7 @@ export function ConjurMigrationWorkbench({ tasks, packId, toolId, onOpenTask }: 
               </label>
               <label>Privileges
                 <select value={draft.privileges} onChange={(e) => update('privileges', e.target.value as Privileges)}>
-                  <option value="read, execute">Read and execute</option>
-                  <option value="read">Read metadata</option>
-                  <option value="execute">Execute</option>
-                  <option value="update">Update</option>
-                  <option value="read, execute, update">Read, execute and update</option>
+                  {PRIVILEGES.map((privilege) => <option key={privilege} value={privilege}>{PRIVILEGE_LABELS.get(privilege)}</option>)}
                 </select>
               </label>
             </>

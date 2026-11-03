@@ -102,10 +102,13 @@ test('shows current grants, revokes from the granting branch and grants from dro
   fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
   const table = await within(region).findByRole('table');
   expect(within(table).getByText('apps/web')).toBeInTheDocument();
+  expect(within(table).getByText('Retrieve value (execute)')).toBeInTheDocument();
   expect(within(region).queryByText('never-rendered')).not.toBeInTheDocument();
 
   fireEvent.click(within(table).getByRole('button', { name: 'Revoke execute from apps/web' }));
   await within(region).findByRole('region', { name: 'Permission change approval' });
+  expect(within(region).getByRole('heading', { name: 'Review: Revoke execute from apps/web' })).toHaveFocus();
+  expect(within(region).getByText(/Other grants and role memberships may still allow access/)).toBeInTheDocument();
   expect(vi.mocked(previewRun).mock.calls[0][1]).toMatchObject({ commandId: 'secret-deny', values: {
     'policy-branch': 'root', 'variable-id': 'apps/db/password', 'role-kind': 'host', 'role-id': '/apps/web', privileges: 'execute',
   } });
@@ -136,6 +139,21 @@ test('resource descriptions with cross-account or malformed grants fail closed',
     expect(() => parseVariableAccess(JSON.stringify({ ...resource, permissions }), 'dev', 'apps/db/password')).toThrow(/unexpected/);
   }
   expect(() => parseVariableAccess('[]', 'dev', 'apps/db/password')).toThrow(/unexpected/);
+});
+
+test('unknown privilege names remain inert text and never become revoke actions', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) => request.commandId === 'resource-show'
+    ? run('resource-show', { ...resource, permissions: [{ ...resource.permissions[0], privilege: 'constructor' }] })
+    : run('list-resources', lists[request.values.kind as string]));
+  render(<ConjurManagePermissions tasks={tasks} csrfToken="csrf" account="dev" endpoint="https://example.test" contextKey="k" />);
+  const region = screen.getByRole('region', { name: 'Manage Conjur secret permissions' });
+  fireEvent.click(within(region).getByRole('button', { name: /Manage permissions/ }));
+  chooseVariable(region, 'apps/db/password');
+  fireEvent.click(within(region).getByRole('button', { name: 'Show current permissions' }));
+  const table = await within(region).findByRole('table');
+  expect(within(table).getByText('constructor')).toBeInTheDocument();
+  expect(within(table).queryByRole('button', { name: /Revoke/ })).not.toBeInTheDocument();
+  expect(previewRun).not.toHaveBeenCalled();
 });
 
 test('policy YAML uses a branch-relative resource ID, including the SaaS data branch', () => {
