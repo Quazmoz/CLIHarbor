@@ -9,7 +9,7 @@ startup and can use the same catalog.
 | CLI | Pinned download | Managed installation platforms |
 | --- | --- | --- |
 | CyberArk Conjur | 9.3.1 (`9.3.1-7207d6a` CLI version) | Windows amd64; macOS amd64 and arm64 |
-| CyberArk Idira PAM (`idsec`) | Existing approved v0.13.x installation | Discovery only; no managed installation; read-only Safes/accounts metadata (unqualified candidate) |
+| CyberArk Idira PAM (`idsec`) | Existing approved v0.13.x or v0.14.x installation | Discovery only; no managed installation; read-only Safes/accounts metadata (unqualified candidate) |
 | Kubernetes kubectl | 1.35.3 | Windows, macOS, Linux: amd64 and arm64 |
 | GitHub CLI | 2.101.0 | Windows and macOS: amd64 and arm64 |
 | Docker CLI | Existing installation | Discovery only; use an approved Docker setup with a working engine |
@@ -18,7 +18,7 @@ startup and can use the same catalog.
 | HashiCorp Vault | Existing installation | Discovery only; executables exceed the 512 MiB portable-install bound |
 | HashiCorp Terraform | Official HashiCorp download link (manual current-user setup) | Discovery; offline help; approved-project configuration fmt checks and local-state address inventory (no mutations) |
 
-Idira PAM intentionally omits managed-download metadata despite the upstream v0.13.0 release: the Windows ZIP has an official archive digest, but no independently reviewed embedded executable hash and organization approval. See [Idira PAM](IDIRA_PAM.md).
+Idira PAM intentionally omits managed-download metadata despite the upstream v0.13.0–v0.14.1 releases: the Windows ZIPs have official archive digests, but no independently reviewed embedded executable hash and organization approval. See [Idira PAM](IDIRA_PAM.md).
 
 Other platform combinations show installation guidance rather than an Install
 button. Conjur's existing Windows-only automatic setup remains separate;

@@ -23,7 +23,28 @@ Official sources:
 - https://github.com/cyberark/idsec-sdk-golang/blob/v0.13.0/pkg/services/pcloud/accounts/actions/idsec_pcloud_accounts_actions_schemas.go
 - https://github.com/cyberark/idsec-sdk-golang/blob/v0.13.0/pkg/services/pcloud/safes/actions/idsec_pcloud_safes_actions_schemas.go
 
-Supported reviewed CLI version range: `>=0.13.0-0 <0.14.0-0`.
+Supported reviewed CLI version range: `>=0.13.0-0 <0.15.0-0` (pack 0.2.0).
+
+### v0.14 requalification — 2026-11-04
+
+Pack 0.2.0 admits idsec v0.14.x after source review of
+[v0.13.0…v0.14.1](https://github.com/cyberark/idsec-cli-golang/compare/v0.13.0...v0.14.1)
+(v0.14.1, commit `0f7669998bf331c829470d5dbb614ca5cbfee903`, built on
+`idsec-sdk-golang` [v0.14.0](https://github.com/cyberark/idsec-sdk-golang/compare/v0.13.0...v0.14.0)).
+Nothing the pack invokes or parses changed:
+
+| Contract | v0.14 evidence |
+| --- | --- |
+| `version --silent`, `status --query`, `status --quiet` exit codes | version/status actions and `docs/commands/status.md` unchanged |
+| `pcloud safes list-by` / `pcloud accounts list-by` flags and fields | both action schema files, filters, models and `ListBy` unchanged; the accounts change affects only `get-by-name` (new optional `--safe-name`), which is not exposed |
+| stdout carries only results | improved: failures, warnings, retry notices and the SDK logger moved from stdout to stderr, which CLIHarbor already quarantines |
+| failure exit status | improved: a failed exec action now exits non-zero instead of possibly 0, so CLIHarbor reports failure metadata instead of rejecting malformed stdout |
+
+New root-level service aliases and shell completion do not change the explicit
+argv CLIHarbor sends. The v0.14.1 Windows AMD64 archive SHA-256 is
+`f0f16de7fa94b9bb35e67cf8734d3339eca910b696a1d89d3936cf69f6b69209`
+(archive digest only, as above). v0.15+ stays refused until reviewed. This is
+source review; live-tenant and native Windows acceptance of v0.14 remain gates.
 The version probe is `idsec version --silent`. The initial pass only
 discovers **approved existing** installations; no automatic Idsec download,
 update, installation, or privileged installer is available. The upstream

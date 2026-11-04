@@ -141,7 +141,7 @@ The built-in catalog currently includes nine CLIs. Only compatible, identity-ver
 | CLI | Available workflows | Setup |
 | --- | --- | --- |
 | CyberArk Conjur | Identity, resource/role inventory, access exploration, approved variable/permission changes, regex explorer | Existing installation or reviewed Windows/macOS download; vendor sign-in |
-| Idira PAM (`idsec`) | Bounded, read-only Safe/account metadata and session checks; candidate pending Windows/tenant acceptance | Approved existing v0.13.x installation; vendor-owned setup/login |
+| Idira PAM (`idsec`) | Bounded, read-only Safe/account metadata and session checks; candidate pending Windows/tenant acceptance | Approved existing v0.13.x or v0.14.x installation; vendor-owned setup/login |
 | Docker | Context, narrow inventory, disk usage, one-shot resource statistics | Approved CLI and accessible engine |
 | Kubernetes kubectl | Context, metadata inventory, optional Metrics API snapshots | Existing installation or reviewed download; configured cluster access |
 | GitHub CLI | Bounded repository, issue, PR, workflow, and run metadata; local version | Existing installation or reviewed download; vendor session for service tasks |

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Masterminds/semver/v3"
 	packassets "github.com/Quazmoz/CLIHarbor/packs"
 )
 
@@ -41,10 +42,20 @@ func TestIdiraPAMPackIsVerifiedReadOnly(t *testing.T) {
 			t.Fatalf("Idira help probe %q = %#v, expected %q", id, probe, expectedArgs)
 		}
 	}
-	if tool.VersionConstraint != ">=0.13.0-0 <0.14.0-0" ||
+	if tool.VersionConstraint != ">=0.13.0-0 <0.15.0-0" ||
 		tool.SessionCheck == nil || tool.SessionCheck.CommandID != "session-status" ||
 		tool.Install != nil {
 		t.Fatalf("PAM compatibility, auth or installation authority changed: %#v", tool)
+	}
+	// Reviewed upstream releases only: v0.14 was requalified; v0.15 must stay refused.
+	constraint, err := semver.NewConstraint(tool.VersionConstraint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for version, admitted := range map[string]bool{"0.12.2": false, "0.13.0": true, "0.14.1": true, "0.14.1-0f76699": true, "0.15.0": false, "0.15.0-rc1": false} {
+		if constraint.Check(semver.MustParse(version)) != admitted {
+			t.Fatalf("idsec %s admitted=%v", version, !admitted)
+		}
 	}
 	for id, command := range pack.Commands {
 		if command.Risk != RiskRead || command.Output.Sensitivity.ContainsSecrets ||

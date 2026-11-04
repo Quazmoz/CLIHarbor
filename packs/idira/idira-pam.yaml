@@ -3,8 +3,8 @@ kind: CliPack
 metadata:
   id: cyberark-idira-pam
   name: Idira PAM
-  version: 0.1.0
-  description: Reviewed CyberArk idsec v0.13 Privilege Cloud session and bounded non-secret inventory workflows.
+  version: 0.2.0
+  description: Reviewed CyberArk idsec v0.13–v0.14 Privilege Cloud session and bounded non-secret inventory workflows.
 runtime:
   platforms: [windows, linux, darwin]
   tools:
@@ -14,7 +14,7 @@ runtime:
         args: [version, --silent]
         parser: semver-text
         timeoutMillis: 2000
-      versionConstraint: ">=0.13.0-0 <0.14.0-0"
+      versionConstraint: ">=0.13.0-0 <0.15.0-0"
       helpProbes:
         cli-version:
           args: [version, --help]
