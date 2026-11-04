@@ -634,7 +634,11 @@ password entry and consent. Entry defaults to a masked single-line field; a
 **Multi-line value** checkbox (private key, certificate or JSON key file) swaps it
 for a text area and says plainly that this field is shown on screen. Switching
 clears the field. Help text gives the 16,384-byte limit and says an older receiver
-refuses multi-line values without storing them. A multi-line reveal appears in a
+refuses multi-line values without storing them. PEM text (`-----BEGIN …-----`)
+in the masked field is refused with an explanation, because password inputs strip
+its line breaks. A receiver's refusal says nothing was stored and how to retry,
+naming an older CLIHarbor when the value was multi-line. Receive instructions tell
+the recipient to ask for **Multi-line value** for keys, certificates and JSON files. A multi-line reveal appears in a
 read-only text area with the same one-minute, hide and explicit-copy rules. Submission clears the input before acknowledgement;
 ambiguous results require checking with the other person, never automatic replay.
 In-flight operations use existing activity/navigation and remount guards. No secret

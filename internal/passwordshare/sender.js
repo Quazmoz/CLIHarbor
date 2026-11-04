@@ -45,6 +45,10 @@
     if (new TextEncoder().encode(value).length > 16384 || /(?![\t\n])[\p{Cc}\p{Cf}]/u.test(value)) {
       report('Use up to 16,384 bytes, without control or invisible formatting characters other than line breaks and tabs.', 'error'); return;
     }
+    // Password inputs drop line breaks on paste, so PEM armour here means a corrupted key.
+    if (!multiline.checked && /-----BEGIN [A-Z0-9 ]+-----/.test(value)) {
+      report('This looks like a key or certificate, and the masked field removed its line breaks, so it would arrive damaged. Tick Multi-line value, then paste it again.', 'error'); return;
+    }
     busy = true;
     const invitationToken = token;
     forget(); clearTimeout(expiry);

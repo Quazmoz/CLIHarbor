@@ -98,6 +98,8 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
     }
   }
   const active = snapshot?.state === 'waiting' || snapshot?.state === 'received';
+  // Password inputs drop line breaks on paste, so PEM armour here means a corrupted key.
+  const flattenedKey = !multiline && /-----BEGIN [A-Z0-9 ]+-----/u.test(password);
   const selectedAddress = snapshot?.addresses.includes(address) ? address : snapshot?.addresses[0] ?? '';
   const currentInvitation = invitation && invitation.id === snapshot?.id && snapshot?.state === 'waiting' ? invitation.value : '';
   const changeTab = (next: 'receive' | 'send') => {
@@ -145,7 +147,7 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
           <h3>2. Share and wait</h3>
           <p>{snapshot.mode === 'browser'
             ? 'Send the invitation link to the sender. They open it in a browser that trusts this computer’s certificate, then enter the password.'
-            : 'Send the invitation to the sender. They paste it into Password sharing → Send a password in their CLIHarbor.'}</p>
+            : 'Send the invitation to the sender. They paste it into Password sharing → Send a password in their CLIHarbor.'} For a private key, certificate or JSON key file, ask them to tick Multi-line value.</p>
           <dl><div><dt>Receiving address</dt><dd><code>{hostOf(snapshot.origin)}</code></dd></div>
             {snapshot.mode !== 'browser' && <div><dt>Certificate fingerprint (SHA-256)</dt><dd><code>{grouped(snapshot.fingerprint)}</code></dd></div>}
             <div><dt>Expires</dt><dd><time dateTime={snapshot.expiresAt}>{new Date(snapshot.expiresAt!).toLocaleTimeString()}</time> · {timeLeft(snapshot.expiresAt, now)}</dd></div></dl>
@@ -185,11 +187,19 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
         </form>
         {destination && <form onSubmit={(event) => {
           event.preventDefault();
-          if (!confirmed || !acceptablePassword(password)) return;
+          if (!confirmed || !acceptablePassword(password) || flattenedKey) return;
           void act('Sending password…', async () => {
             const value = password; const link = outgoing;
             setPassword(''); setOutgoing(''); setDestination(null); setConfirmed(false);
-            await sendPassword(csrfToken, link, value);
+            try { await sendPassword(csrfToken, link, value); }
+            catch (caught) {
+              // The receiver refuses a value before storing it, so this outcome is definitive.
+              if (normalizeError(caught).detail.code !== 'invalid_request') throw caught;
+              if (alive.current) setError('The recipient’s CLIHarbor did not accept this value, and nothing was stored. ' +
+                (value.includes('\n') ? 'An older CLIHarbor accepts only single-line passwords; ask the recipient to update before sending a multi-line value. ' : '') +
+                'To try again, paste the same invitation while the recipient still sees it waiting, or ask for a new one.');
+              return;
+            }
             if (alive.current) setNotice('Password delivered. The recipient can reveal it once in CLIHarbor.');
           });
         }}>
@@ -204,7 +214,8 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
             ? <textarea ref={passwordInput} required maxLength={MAX_PASSWORD_BYTES} rows={8} value={password} disabled={busy} autoComplete="off" spellCheck={false} aria-describedby="sharing-password-help" onChange={(e) => setPassword(e.target.value)} />
             : <input ref={passwordInput} type="password" required maxLength={MAX_PASSWORD_BYTES} value={password} disabled={busy} autoComplete="off" spellCheck={false} aria-describedby="sharing-password-help" onChange={(e) => setPassword(e.target.value)} />}</label>
           <p id="sharing-password-help">{multiline ? 'Line breaks and tabs are kept. An older CLIHarbor receiver refuses multi-line values, and nothing is stored.' : 'Masked, single line.'} Up to 16,384 bytes, without other control or invisible formatting characters. The password and invitation clear from this page as soon as you send.</p>
-          <button type="submit" disabled={busy || !confirmed || !acceptablePassword(password)}>Send password once</button>
+          {flattenedKey && <p role="alert">This looks like a key or certificate, and the masked field removed its line breaks, so it would arrive damaged. Tick Multi-line value above, then paste it again.</p>}
+          <button type="submit" disabled={busy || !confirmed || !acceptablePassword(password) || flattenedKey}>Send password once</button>
         </form>}
       </>}
       <div id="password-sharing-actions" tabIndex={-1} aria-live="polite" role="status">{busy ? 'Working… Keep this page open; do not submit again.' : notice}</div>

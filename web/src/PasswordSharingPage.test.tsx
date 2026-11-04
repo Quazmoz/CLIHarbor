@@ -205,3 +205,35 @@ test('a revealed multi-line value appears in a read-only text area and clears on
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   }
 });
+
+test('a key pasted into the masked field is caught before its stripped line breaks are sent', async () => {
+  installFakeBackend({ [root]: { body: idle },
+    ['POST '+root+'/inspect']: { body: { origin: waiting.origin, fingerprint: waiting.fingerprint } } });
+  mount();
+  fireEvent.click(screen.getByRole('tab', { name: 'Send a password' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Recipient’s invitation' }), { target: { value: invitation } });
+  fireEvent.click(screen.getByRole('button', { name: 'Check receiving address' }));
+  // Browsers sanitize password inputs by removing line breaks.
+  fireEvent.change(await screen.findByLabelText('Password to send'), { target: { value: pem.replaceAll('\n', '') } });
+  fireEvent.click(screen.getByRole('checkbox', { name: /I verified this address/ }));
+  expect(screen.getByRole('alert')).toHaveTextContent(/removed its line breaks.*Multi-line value/);
+  expect(screen.getByRole('button', { name: 'Send password once' })).toBeDisabled();
+});
+
+test('a receiver that refuses a multi-line value explains that nothing was stored and what to do next', async () => {
+  installFakeBackend({ [root]: { body: idle },
+    ['POST '+root+'/inspect']: { body: { origin: waiting.origin, fingerprint: waiting.fingerprint } },
+    ['POST '+root+'/send']: { status: 400, body: { error: { code: 'invalid_request', category: 'validation', message: 'The request was not accepted.', retryable: false } } } });
+  mount();
+  fireEvent.click(screen.getByRole('tab', { name: 'Send a password' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Recipient’s invitation' }), { target: { value: invitation } });
+  fireEvent.click(screen.getByRole('button', { name: 'Check receiving address' }));
+  fireEvent.click(await screen.findByRole('checkbox', { name: /Multi-line value/ }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Password to send' }), { target: { value: pem } });
+  fireEvent.click(screen.getByRole('checkbox', { name: /I verified this address/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Send password once' }));
+  const alert = await screen.findByRole('alert');
+  expect(alert).toHaveTextContent(/nothing was stored/);
+  expect(alert).toHaveTextContent(/older CLIHarbor/);
+  expect(alert).not.toHaveTextContent(/Review the task/);
+});

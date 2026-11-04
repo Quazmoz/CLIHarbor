@@ -5,41 +5,133 @@ no credential vault or cloud relay. The command/authentication server stays on
 loopback. A separate TLS 1.3 receiver opens only when the local operator creates
 an invitation, on one selected RFC 1918 IPv4 interface. It expires in five minutes.
 
-## Another CLIHarbor instance
+## Before you start
 
-Open **Password sharing** on both computers. The recipient selects a LAN address
-and **CLIHarbor** as the sender type, creates an invitation, then shares it through
-a trusted channel. The sender chooses **Send a password**, pastes the
-invitation and checks the address/fingerprint with the recipient before entering
-the password and approving the transfer. Temporary ECDSA certificate/key material
-is generated in memory; the sender checks its exact SHA-256 public-key fingerprint,
-IP subject alternative name and validity. No trust store is changed.
+- Both computers must be on the same local network and able to reach a private
+  IPv4 address (10.x, 172.16–31.x or 192.168.x). A firewall, VPN or
+  client-isolated Wi-Fi can block the connection; CLIHarbor does not change them.
+- Arrange a trusted way to talk to the other person, such as a phone call or
+  being in the same room. You will read the receiving address (and, between two
+  CLIHarbor apps, the fingerprint) to each other over it.
+- The invitation lasts five minutes and accepts one value. Have the value ready
+  before the recipient creates it.
+- What you can send: one password, or one multi-line secret such as a PEM private
+  key, a certificate or certificate chain, an SSH private key or a JSON
+  service-account key file. Limit: 16,384 bytes (16 KiB).
 
-## Browser sender on the LAN
+## Between two CLIHarbor apps
 
-Start the receiving app with both `--share-tls-cert <PEM>` and
-`--share-tls-key <PEM>`, then select **From a web browser**. The operator owns
-these files; CLIHarbor reads but does not copy or persist them. The certificate
-must include the selected IP in its IP subject alternative names, stay valid
-through the invitation lifetime, and already be trusted by the sender's device
-through the approved organization trust process. Do not bypass certificate
-warnings. Without certificate/key configuration browser invitations are disabled.
+Recipient:
 
-For a built executable, launch with your approved PEM files:
+1. Open **Password sharing** → **Receive a password**.
+2. Choose **Your LAN address** (the address the sender can reach) and
+   **From their CLIHarbor**, then **Create five-minute invitation**.
+3. **Copy invitation** and send it to the sender over a trusted channel. Anyone
+   holding it can submit a value, so treat it as a secret.
+4. Read the sender the **Receiving address** and **Certificate fingerprint**.
+5. Wait for "A password was received." Confirm with the sender that it was them,
+   then **Reveal received password once** (see [Receiving](#receiving-the-value)).
+
+Sender:
+
+1. Open **Password sharing** → **Send a password**.
+2. Paste the invitation and choose **Check receiving address**.
+3. Compare the address and fingerprint with what the recipient reads you. Both
+   must match exactly; if not, stop and ask for a new invitation.
+4. Tick the confirmation box. For a key, certificate or JSON key file, tick
+   **Multi-line value** (see [below](#sending-a-key-certificate-or-json-key-file)).
+5. Enter or paste the value and choose **Send password once**. The value and
+   invitation clear from the page as soon as you send.
+
+The sender's CLIHarbor checks the receiver's exact temporary SHA-256 public-key
+fingerprint, IP subject alternative name and certificate validity. The temporary
+ECDSA certificate and key exist only in the recipient's memory. No trust store is
+changed.
+
+## From a web browser (sender without CLIHarbor)
+
+The recipient's CLIHarbor must be started with an operator-provided certificate
+and key:
 
 ```text
 cliharbor serve --share-tls-cert receiver-cert.pem --share-tls-key receiver-key.pem
 ```
 
-The sender opens the invitation, confirms the address with the recipient and
-submits one password. The sender page has no CLIHarbor command, authentication,
-session or reveal endpoints. The recipient uses **Reveal received password once**
-in their own authenticated local workspace. Clipboard copy is an explicit action.
+The operator owns these files; CLIHarbor reads but does not copy or persist them.
+The certificate must include the receiving IP address in its IP subject
+alternative names, stay valid for the invitation's five minutes, and already be
+trusted on the sender's device through the organization's approved process.
+Without both flags, **From a web browser** stays disabled. An IP certificate may
+need renewing when DHCP changes the address.
 
-An IP certificate may need to be renewed when DHCP changes the receiving address.
+Recipient: follow the steps above, but choose **From a web browser**, send the
+invitation link, and read the sender only the **Receiving address** (a browser
+cannot show the fingerprint).
+
+Sender:
+
+1. Open the whole link in a browser on the same network. The page removes the
+   secret part from the address bar straight away. If you reload, open the
+   original link again.
+2. Check that the **Receiving computer** address matches what the recipient reads
+   you, and that the browser shows a secure connection. **If the browser shows a
+   certificate warning, stop.** Do not bypass it; tell the recipient.
+3. For a key, certificate or JSON key file, tick **Multi-line value**.
+4. Enter or paste the value, tick the confirmation box and choose
+   **Send password once**.
+
+The sender page has no CLIHarbor command, authentication, session or reveal
+endpoints.
+
+## Sending a key, certificate or JSON key file
+
+- Tick **Multi-line value** *before* pasting. The default masked field is a
+  password box, and browsers remove line breaks from anything pasted into one.
+  Both senders refuse PEM text (`-----BEGIN …-----`) pasted into the masked field
+  for that reason.
+- The multi-line field is **not masked**: its contents are visible on screen.
+  Check that nobody can see your screen, and that screen sharing or recording is
+  off. Switching between the two fields clears what you typed.
+- Line breaks and tabs are kept. Windows line endings (CRLF) arrive as LF. Other
+  control characters and invisible formatting characters are refused.
+- Send one file per invitation. To send a key and its certificate, either paste
+  them together in one value (up to 16 KiB) or use two invitations.
+- An older CLIHarbor receiver accepts only single-line passwords. It refuses a
+  multi-line value without storing it; the recipient needs to update first.
+- A JSON key file can also be pasted into the masked field, because its line
+  breaks are only formatting, but the multi-line field keeps it exactly as written.
+
+## Receiving the value
+
+**Reveal received password once** shows the value one time only; it cannot be
+revealed again. A single-line value appears in a text field and a multi-line value
+in a read-only text area. Use **Copy received password** to copy it, then paste
+it where it is needed. The value clears from the page after one minute, when you
+hide or leave the page, or when you choose **Hide and clear password**. If it was
+revealed while the page was hidden, it is discarded; ask for a new transfer.
+
+CLIHarbor never saves the value to a file or offers it as a download. If you need
+it in a file (for example a private key), paste it into one yourself and set
+permissions as your organization requires. Clear your clipboard afterwards;
+clipboard managers can keep copies. Before relying on a key or certificate, check
+it with your usual tools (for example that the key matches its certificate).
+
+## What each message means
+
+| Message | What happened | What to do |
+| --- | --- | --- |
+| Password delivered / Password sent | The recipient's computer stored the value. | The recipient confirms with you, then reveals it once. |
+| Could not be reached securely. Nothing was sent. | No secure connection was made. | Check that the invitation is still waiting, both computers are on the same network, and no firewall, VPN or isolated Wi-Fi blocks it. Then send again. |
+| The computer at this address is not the one in the invitation. Nothing was sent. | The receiver's key, address or certificate dates did not match. | Do not retry with this invitation. Confirm the address over a trusted channel, check both clocks, and ask for a new invitation. |
+| This password invitation is no longer available | It expired, was cancelled or was already used. Nothing was stored. | Ask the recipient for a new invitation. |
+| Did not accept this value, and nothing was stored | The receiver refused the value: too large, a disallowed character, or a multi-line value sent to an older CLIHarbor. | Fix the value, or ask the recipient to update. Paste the same invitation again while it is still waiting, or ask for a new one. |
+| This looks like a key or certificate, and the masked field removed its line breaks | PEM text was pasted into the masked field. Nothing was sent. | Tick **Multi-line value** and paste it again. |
+| Delivery was not confirmed / could not be confirmed | The connection was made but the answer was lost. The recipient **may already have it**. | Do not resend automatically. Ask the recipient what their page shows. "A password was received" means it arrived. If it still says waiting, nothing was stored and you can send again with the same invitation. |
+| Browser certificate warning | The browser does not trust the receiver's certificate. | Stop. Do not bypass the warning. The recipient checks the certificate and its IP address. |
+
 IPv6, DNS names, public-IP/internet delivery and third-party transfer clients are
-outside this implementation. A firewall, VPN or client-isolated Wi-Fi may block
-connections. CLIHarbor never opens firewall rules, installs CAs or bypasses policy.
+outside this implementation. CLIHarbor never opens firewall rules, installs CAs
+or bypasses policy.
 
 ## Security contract
 

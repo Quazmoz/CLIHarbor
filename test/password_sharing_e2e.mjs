@@ -37,6 +37,13 @@ try {
   assert.equal(await page.evaluate('(async () => (await fetch("/api/v1/runs")).status)()'), 404, 'no remote command API');
   await page.evaluate('document.querySelector("#password").value = "masked-fixture"');
   assert.equal(await page.evaluate('document.body.innerText.includes("masked-fixture")'), false);
+  // A PEM pasted into the masked field loses its line breaks; the page refuses it.
+  await page.evaluate(`(() => {
+    document.querySelector('#password').value = '-----BEGIN PRIVATE KEY-----AAAA-----END PRIVATE KEY-----';
+    document.querySelector('#confirmed').checked = true;
+    document.querySelector('#send').requestSubmit();
+  })()`);
+  assert.equal(await page.evaluate('document.querySelector("#status").textContent.includes("removed its line breaks") && !document.querySelector("#submit").disabled'), true);
   // Switching to the visible multi-line field clears the masked value.
   await page.evaluate('document.querySelector("#multiline").click()');
   assert.equal(await page.evaluate(`(() => { const single = document.querySelector('#password'), multi = document.querySelector('#multiline-password');
