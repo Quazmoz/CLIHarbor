@@ -130,9 +130,10 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
             {snapshot?.addresses.length ? snapshot.addresses.map((ip) => <option key={ip}>{ip}</option>) : <option value="">No private LAN address available</option>}
           </select></label>
           <label>How will the sender send it?<select value={mode} disabled={busy || active} onChange={(e) => setMode(e.target.value as 'app' | 'browser')}>
-            <option value="app">From CLIHarbor on their computer</option>
-            <option value="browser" disabled={!snapshot?.browserAvailable}>From a web browser (no CLIHarbor needed)</option>
+            <option value="app">From their CLIHarbor</option>
+            <option value="browser" disabled={!snapshot?.browserAvailable}>From a web browser</option>
           </select></label>
+          <p className="field-help">A browser sender does not need CLIHarbor.</p>
           {!snapshot?.browserAvailable && <p className="field-help">Browser sending needs an HTTPS certificate configured at launch. It must cover this IP address and be trusted on the sender’s device. See Network setup and privacy below.</p>}
           {mode === 'browser' && <p className="field-help">The sender must have a trusted HTTPS connection. Never bypass certificate warnings. A certificate covering a different IP cannot be used.</p>}
           <button type="submit" disabled={busy || active || !selectedAddress || mode === 'browser' && !snapshot?.browserAvailable}>Create five-minute invitation</button>

@@ -31,7 +31,7 @@ test('creation is explicit and single-flight; browser mode stays disabled withou
     ['POST '+root+'/cancel']: () => { state = { ...waiting, state: 'cancelled' }; return { status: 204 }; } });
   mount();
   await screen.findByRole('option', { name: '192.168.10.2' });
-    expect(screen.getByRole('option', { name: 'From a web browser (no CLIHarbor needed)' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'From a web browser' })).toBeDisabled();
   const create = screen.getByRole('button', { name: 'Create five-minute invitation' });
   fireEvent.click(create); fireEvent.click(create);
   expect(backend.calls('POST '+root+'/create')).toHaveLength(1);

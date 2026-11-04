@@ -569,7 +569,7 @@ async function main() {
       assert.equal(await page.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, 'sharing workspace must fit at ' + width);
       await capture('password-sharing-' + width);
     }
-    await clickButton(page, 'Send from CLIHarbor');
+    await clickButton(page, 'Send a password');
     assert.equal(await page.evaluate('document.querySelector(".password-sharing-panel input[type=password]") === null'), true, 'password entry waits for invitation inspection');
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
     await navigate(page, baseURL + '/');

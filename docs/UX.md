@@ -616,7 +616,7 @@ When Terraform is loaded, Built-in CLIs includes a dedicated Terraform workspace
 
 **Password sharing** in Work opens Receive a password and Send a password tabs.
 Receive explicitly selects one private LAN interface and how the sender will send
-(from CLIHarbor, or from a trusted-HTTPS browser without CLIHarbor). Opening the page opens no LAN
+(from their CLIHarbor, or from a trusted-HTTPS web browser without CLIHarbor). Opening the page opens no LAN
 listener. Browser mode remains disabled until certificate/key configuration exists;
 its IP SAN and validity are checked when the invitation is created. A one-use,
 five-minute invitation shows the destination as `ip:port` (the same text the
