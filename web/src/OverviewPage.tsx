@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { Platform } from './api/platforms';
 import { fetchRuns, type RunSummary } from './api/runs';
 import type { Task } from './api/tasks';
 import type { ToolDiagnostic } from './api/tools';
@@ -9,14 +10,17 @@ import { taskIdentityKey, type TaskPreferences } from './taskPreferences';
 import { toolStatusLabel } from './ToolExplorer';
 import { ToolIcon } from './ToolIcon';
 
-export type OverviewDestination = 'authentication' | 'tasks' | 'runs' | 'tools' | 'diagnostics';
+export type OverviewDestination = 'authentication' | 'tasks' | 'runs' | 'tools' | 'diagnostics' | 'platforms';
 
 interface OverviewPageProps {
   tasks: Task[];
   tools: ToolDiagnostic[];
   preferences: TaskPreferences;
+  platforms?: Platform[];
   onNavigate: (destination: OverviewDestination) => void;
   onOpenTask: (taskKey: string) => void;
+  onOpenRun?: (runId: string) => void;
+  onOpenPlatform?: (platformID: string) => void;
 }
 
 function taskKey(task: Task): string {
@@ -82,8 +86,11 @@ export function OverviewPage({
   tasks,
   tools,
   preferences,
+  platforms = [],
   onNavigate,
   onOpenTask,
+  onOpenRun,
+  onOpenPlatform,
 }: OverviewPageProps) {
   const readyToolCount = tools.filter((tool) => tool.status === 'ready').length;
   const attentionTools = tools.filter((tool) => tool.status !== 'ready' && tool.status !== 'missing');
@@ -180,6 +187,26 @@ export function OverviewPage({
           </article>
         )}
 
+        {platforms.length > 0 && onOpenPlatform !== undefined && (
+          <article className="panel overview-card" aria-labelledby="overview-platforms-heading">
+            <div className="overview-card-heading">
+              <h2 id="overview-platforms-heading">Built-in CLIs</h2>
+              <button type="button" className="link-button" onClick={() => onNavigate('platforms')}>View all →</button>
+            </div>
+            <ul className="overview-tool-list">
+              {platforms.map((platform) => (
+                <li key={platform.id}>
+                  <button type="button" className="overview-tool-row" onClick={() => onOpenPlatform(platform.id)}>
+                    <span className="overview-tool-name"><ToolIcon tool={{ ...platform, packName: platform.name }} size="sm" /><strong>Open {platform.name}</strong></span>
+                    <span className={'overview-status overview-status--' + (platform.ready ? 'ready' : 'setup')}>{platform.ready ? 'Ready' : 'Needs setup'}</span>
+                    <Glyph d={ICONS.chevron} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </article>
+        )}
+
         <article className="panel overview-card" aria-labelledby="overview-runs-heading">
           <div className="overview-card-heading">
             <h2 id="overview-runs-heading">Execution History</h2>
@@ -201,7 +228,7 @@ export function OverviewPage({
                 const tool = tools.find((candidate) => taskToolKey(candidate) === taskToolKey(run));
                 return (
                   <li key={run.runId} className={'overview-timeline-item overview-timeline-item--' + tone}>
-                    <button type="button" onClick={() => onNavigate('runs')}>
+                    <button type="button" onClick={() => onOpenRun === undefined ? onNavigate('runs') : onOpenRun(run.runId)}>
                       <ToolIcon tool={{ packId: run.packId, packName: tool?.packName ?? '', toolId: run.toolId }} />
                       <span className="overview-timeline-copy">
                         <strong>{taskName(run, tasks)}</strong>

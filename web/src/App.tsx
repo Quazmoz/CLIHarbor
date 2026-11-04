@@ -367,6 +367,9 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'authentication', label: 'Sign in', group: 'Account', icon: '' },
 ];
 
+// Both shortcuts work everywhere; the hint shows the one this keyboard expects.
+const findShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl + K';
+
 function routeFromPath(pathname: string): AppRoute {
   switch (pathname) {
     case '/authentication':
@@ -1249,7 +1252,7 @@ function WorkspaceApp() {
           </svg>
           <span className="visually-hidden">Find task</span>
           <span className="quick-switch-hint" aria-hidden="true">Search tasks, tools, and commands…</span>
-          <kbd>Ctrl + K</kbd>
+          <kbd>{findShortcut}</kbd>
         </button>
         <div className={'topbar-overflow' + (overflowOpen ? ' topbar-overflow--open' : '')} onKeyDown={(event) => {
           if (event.key === 'Escape') {
@@ -1479,7 +1482,10 @@ function WorkspaceApp() {
             tasks={state.tasks}
             tools={state.tools}
             preferences={taskPreferences}
+            platforms={platforms}
             onNavigate={navigate}
+            onOpenRun={(runId) => navigate('runs', undefined, runId)}
+            onOpenPlatform={openPlatform}
             onOpenTask={(taskKey) => {
               setTaskToolFilter('');
               selectTaskByKey(taskKey, state.tasks);
@@ -1537,7 +1543,7 @@ function WorkspaceApp() {
                   <h2>Command Builder</h2>
                   <p>Configure, validate, and preview a command before execution.</p>
                 </div>
-                <p className="page-header-shortcuts"><kbd>/</kbd> search tasks <kbd>Ctrl K</kbd> find anywhere</p>
+                <p className="page-header-shortcuts"><kbd>/</kbd> search tasks <kbd>{findShortcut}</kbd> find anywhere</p>
               </header>
               {taskFilterLabel !== undefined && (
                 <div className="task-scope-banner" role="status">

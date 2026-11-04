@@ -88,6 +88,23 @@ describe('OverviewPage', () => {
     expect(screen.queryByRole('list', { name: 'Getting started' })).not.toBeInTheDocument();
   });
 
+  test('opens the exact retained run and built-in CLI homes directly', async () => {
+    installFakeBackend({ 'GET /api/v1/runs': { body: { runs: [
+      { runId: 'r1', packId: 'docker', commandId: 'containers', toolId: 'docker', status: 'exited', exitCode: 1 },
+    ] } } });
+    const navigate = vi.fn();
+    const openRun = vi.fn();
+    const openPlatform = vi.fn();
+    render(<OverviewPage tasks={tasks} tools={readyTools} preferences={preferences} onNavigate={navigate} onOpenTask={vi.fn()}
+      onOpenRun={openRun} onOpenPlatform={openPlatform}
+      platforms={[{ id: 'conjur', name: 'CyberArk Conjur', summary: '', packId: 'conjur', toolId: 'conjur', ready: true, features: [] }]} />);
+    fireEvent.click((await screen.findByText('Failed · exit 1')).closest('button')!);
+    expect(openRun).toHaveBeenCalledWith('r1');
+    fireEvent.click(screen.getByRole('button', { name: /Open CyberArk Conjur/ }));
+    expect(openPlatform).toHaveBeenCalledWith('conjur');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   test('keeps one next action and opens favorite or recent tasks directly', () => {
     const navigate = vi.fn();
     const openTask = vi.fn();
