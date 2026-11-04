@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -93,6 +94,10 @@ func TestAppTransferTLSOneUseAndNoStatusLeak(t *testing.T) {
 	}
 	if err := sender.Send(t.Context(), invite.URL, []byte("replacement")); !errors.Is(err, ErrUnconfirmed) {
 		t.Fatalf("replay = %v", err)
+	}
+	if conn, err := net.DialTimeout("tcp", strings.TrimPrefix(invite.Status.Origin, "https://"), time.Second); err == nil {
+		conn.Close()
+		t.Fatal("receiver kept accepting LAN connections after delivery")
 	}
 	receiver.mu.Lock()
 	original := receiver.password
@@ -433,5 +438,29 @@ func TestSenderDisablesRedirectsAndStopsOnShutdown(t *testing.T) {
 	s.Close()
 	if err := s.Send(t.Context(), link, []byte("closed-fixture")); !errors.Is(err, ErrUnavailable) {
 		t.Fatal("closed sender accepted work")
+	}
+}
+
+func TestDeadlineUsesWallClockAndVerifiedRefusalIsDefinitive(t *testing.T) {
+	receiver, sender := testService(t, false), testService(t, false)
+	invite := testInvitation(t, receiver, "app")
+	// A monotonic reading pauses during macOS/Linux suspend and would let an
+	// invitation outlive its displayed wall-clock deadline after sleep.
+	receiver.mu.Lock()
+	expires := receiver.expires
+	receiver.mu.Unlock()
+	if expires != expires.Round(0) {
+		t.Fatal("deadline carries a monotonic clock reading")
+	}
+	u, _ := url.Parse(invite.URL)
+	fields, _ := url.ParseQuery(u.Fragment)
+	other, _ := randomID(32)
+	fields.Set("token", other)
+	u.Fragment = fields.Encode()
+	if err := sender.Send(t.Context(), u.String(), []byte("refused-fixture")); !errors.Is(err, ErrGone) {
+		t.Fatalf("pinned refusal = %v", err)
+	}
+	if receiver.Status().State != "waiting" {
+		t.Fatal("wrong capability changed the invitation")
 	}
 }

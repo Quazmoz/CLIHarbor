@@ -614,13 +614,18 @@ When Terraform is loaded, Built-in CLIs includes a dedicated Terraform workspace
 
 ## One-time password sharing
 
-**Password sharing** in Work opens Receive a password and Send from CLIHarbor tabs.
-Receive explicitly selects one private LAN interface and whether the sender uses
-another app instance or a trusted-HTTPS browser. Opening the page opens no LAN
+**Password sharing** in Work opens Receive a password and Send a password tabs.
+Receive explicitly selects one private LAN interface and how the sender will send
+(from CLIHarbor, or from a trusted-HTTPS browser without CLIHarbor). Opening the page opens no LAN
 listener. Browser mode remains disabled until certificate/key configuration exists;
 its IP SAN and validity are checked when the invitation is created. A one-use,
-five-minute invitation shows the destination and certificate fingerprint for
-independent verification. A resumed page never recovers a lost private link.
+five-minute invitation shows the destination as `ip:port` (the same text the
+browser sender page shows), the remaining time and, for app senders only, the key
+fingerprint in four-character groups for reading aloud. Browser senders cannot
+compare that SPKI hash, so browser invitations rely on trusted HTTPS plus address
+confirmation instead. Each mode states what the sender does next. A resumed page
+never recovers a lost private link. A reveal that completes while the page is
+hidden is discarded with an explanation rather than rendered or dropped silently.
 
 The recipient explicitly reveals once; the displayed value clears in one minute,
 on page hiding or route exit. Copy is explicit and clipboard-retention limits are
@@ -629,5 +634,7 @@ password entry and consent. Submission clears the input before acknowledgement;
 ambiguous results require checking with the other person, never automatic replay.
 In-flight operations use existing activity/navigation and remount guards. No secret
 or invitation is written to preferences, task inputs, execution history or logs.
-The standalone HTTPS sender page has labelled native controls, a live status,
-strict CSP and no third-party code. See [Password sharing](PASSWORD_SHARING.md).
+The standalone HTTPS sender page numbers its steps, has labelled native controls,
+a live status that distinguishes sent, refused and unconfirmed outcomes, strict
+CSP and no third-party code. Reloading it after the fragment is removed explains
+that the full link must be opened again. See [Password sharing](PASSWORD_SHARING.md).

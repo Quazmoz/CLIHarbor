@@ -31,6 +31,7 @@ try {
       await writeFile(path.join(process.env.CLIHARBOR_E2E_SCREENSHOT_DIR, 'password-sender-' + width + '.png'), Buffer.from(screenshot.data, 'base64'));
     }
   }
+  assert.equal(await page.evaluate('(async () => (await fetch("/api/v1/runs")).status)()'), 404, 'no remote command API');
   await page.evaluate(`(() => {
     window.__passwordPosts = 0;
     const original = window.fetch;
@@ -42,14 +43,15 @@ try {
   assert.equal(await page.evaluate('document.body.innerText.includes("browser-wire-fixture")'), false);
   await page.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 });
   await page.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-  await wait('document.querySelector("#status").textContent.includes("Password delivered")');
+  await wait('document.querySelector("#status").textContent.includes("Password sent")');
   assert.equal(await page.evaluate('document.querySelector("#password").value === "" && document.querySelector("#submit").disabled && window.__passwordPosts === 1'), true);
   assert.equal(await page.evaluate('localStorage.length + sessionStorage.length'), 0, 'no browser persistence');
-  assert.equal(await page.evaluate('(async () => (await fetch("/api/v1/runs")).status)()'), 404, 'no remote command API');
-  const replay = await page.evaluate(`(async () => (await fetch('/deliver', { method: 'POST', headers: {
+  // The receiver stops accepting connections after delivery; a reused keep-alive
+  // connection still gets a 403.
+  const replay = await page.evaluate(`(async () => { try { return (await fetch('/deliver', { method: 'POST', headers: {
     Authorization: 'Bearer ' + ${JSON.stringify(fields.get('token'))}, 'Content-Type': 'text/plain'
-  }, body: 'replacement-fixture' })).status)()`);
-  assert.equal(replay, 403, 'invitation can accept only one submission');
+  }, body: 'replacement-fixture' })).status; } catch { return 'refused'; } })()`);
+  assert.ok(replay === 403 || replay === 'refused', 'invitation can accept only one submission: ' + replay);
   console.log('CLIHarbor password sender browser E2E passed');
 } finally {
   page.close(); await chrome.close();

@@ -103,5 +103,7 @@ func (s *Service) remote(id, origin, mode string, w http.ResponseWriter, r *http
 	s.password = append([]byte(nil), data...)
 	s.state = "received"
 	s.tokenHash = [32]byte{}
+	// Stop accepting LAN connections now; this response still completes.
+	_ = s.listener.Close()
 	w.WriteHeader(http.StatusNoContent)
 }

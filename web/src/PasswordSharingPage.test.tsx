@@ -31,7 +31,7 @@ test('creation is explicit and single-flight; browser mode stays disabled withou
     ['POST '+root+'/cancel']: () => { state = { ...waiting, state: 'cancelled' }; return { status: 204 }; } });
   mount();
   await screen.findByRole('option', { name: '192.168.10.2' });
-    expect(screen.getByRole('option', { name: 'Web browser' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'From a web browser (no CLIHarbor needed)' })).toBeDisabled();
   const create = screen.getByRole('button', { name: 'Create five-minute invitation' });
   fireEvent.click(create); fireEvent.click(create);
   expect(backend.calls('POST '+root+'/create')).toHaveLength(1);
@@ -75,12 +75,13 @@ test('sending verifies destination first, requires consent, clears input before 
     ['POST '+root+'/inspect']: { body: { origin: waiting.origin, fingerprint: waiting.fingerprint } },
     ['POST '+root+'/send']: () => pending });
   const view = mount();
-  fireEvent.click(screen.getByRole('tab', { name: 'Send from CLIHarbor' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Send a password' }));
   expect(screen.queryByLabelText('Password to send')).not.toBeInTheDocument();
   fireEvent.change(screen.getByRole('textbox', { name: 'Recipient’s invitation' }), { target: { value: invitation } });
   fireEvent.click(screen.getByRole('button', { name: 'Check receiving address' }));
   const password = await screen.findByLabelText('Password to send');
-  expect(screen.getByText(waiting.origin)).toBeInTheDocument();
+  expect(screen.getByText('192.168.10.2:44000')).toBeInTheDocument();
+  expect(screen.getByText('bbbb '.repeat(15) + 'bbbb')).toBeInTheDocument();
   fireEvent.change(password, { target: { value: 'send-fixture-value' } });
   expect(screen.getByRole('button', { name: 'Send password once' })).toBeDisabled();
   fireEvent.click(screen.getByRole('checkbox', { name: /I verified this address/ }));
@@ -100,4 +101,32 @@ test('unknown status fields and malformed state never become sharing capabilitie
   await expect(fetchSharingStatus()).rejects.toMatchObject({ detail: { code: 'invalid_response' } });
   backend.on({ [root]: { body: { ...idle, password: 'unexpected' } } });
   await expect(fetchSharingStatus()).rejects.toMatchObject({ detail: { code: 'invalid_response' } });
+});
+
+test('browser invitations hide the uncomparable key fingerprint; app invitations show it grouped', async () => {
+  const backend = installFakeBackend({ [root]: { body: { ...waiting, mode: 'browser' } } });
+  mount();
+  expect(await screen.findByText('192.168.10.2:44000')).toBeInTheDocument();
+  expect(screen.getByText(/open it in a browser that trusts/)).toBeInTheDocument();
+  expect(screen.queryByText(/Certificate fingerprint/)).not.toBeInTheDocument();
+  backend.on({ [root]: { body: waiting } });
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+  expect(await screen.findByText('bbbb '.repeat(15) + 'bbbb')).toBeInTheDocument();
+  expect(screen.getByText(/paste it into Password sharing/)).toBeInTheDocument();
+});
+
+test('a reveal that completes while the page is hidden is discarded with an explanation', async () => {
+  let finish!: (response: Response) => void;
+  const pending = new Promise<Response>((resolve) => { finish = resolve; });
+  installFakeBackend({ [root]: { body: { ...waiting, state: 'received' } }, ['POST '+root+'/reveal']: () => pending });
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Reveal received password once' }));
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+  try {
+    await act(async () => finish(new Response(JSON.stringify({ password: 'hidden-fixture-value' }), { status: 200 })));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/revealed while this page was hidden/);
+    expect(screen.queryByDisplayValue('hidden-fixture-value')).not.toBeInTheDocument();
+  } finally {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  }
 });

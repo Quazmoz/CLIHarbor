@@ -226,7 +226,7 @@ func (s *Service) Create(address, mode string) (Invitation, error) {
 			return Invitation{}, ErrUnavailable
 		}
 		cert = *s.certificate
-		if err := cert.Leaf.VerifyHostname(address); err != nil || s.now().Before(cert.Leaf.NotBefore) || !s.now().Add(TTL).Before(cert.Leaf.NotAfter) {
+		if err := cert.Leaf.VerifyHostname(address); err != nil || s.now().Before(cert.Leaf.NotBefore) || !s.now().Add(s.ttl).Before(cert.Leaf.NotAfter) {
 			return Invitation{}, ErrUnavailable
 		}
 	} else {
@@ -248,7 +248,10 @@ func (s *Service) Create(address, mode string) (Invitation, error) {
 		return Invitation{}, ErrUnavailable
 	}
 	s.state, s.id, s.mode = "waiting", id, mode
-	s.expires = s.now().Add(s.ttl)
+	// Compare the deadline on the wall clock: Go's monotonic clock pauses during
+	// macOS/Linux suspend, which would otherwise extend an invitation after sleep.
+	// The monotonic timer below still bounds a backwards wall-clock change.
+	s.expires = s.now().Add(s.ttl).Round(0)
 	origin := "https://" + listener.Addr().String()
 	s.origin = origin
 	s.fingerprint = fingerprint(cert.Leaf)
@@ -439,10 +442,16 @@ func (s *Service) Send(ctx context.Context, invitation string, password []byte) 
 		return ErrUnconfirmed
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusNoContent {
-		return ErrUnconfirmed
+	// The pinned receiver's refusals are definitive: nothing was stored.
+	switch response.StatusCode {
+	case http.StatusNoContent:
+		return nil
+	case http.StatusForbidden:
+		return ErrGone
+	case http.StatusBadRequest:
+		return ErrInvalid
 	}
-	return nil
+	return ErrUnconfirmed
 }
 
 // Bound open TLS connections, including clients that never finish a handshake.

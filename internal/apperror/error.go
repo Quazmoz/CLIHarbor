@@ -93,7 +93,7 @@ func DetailFor(code Code) Detail {
 	case CodePasswordShareBusy:
 		return Detail{Code: code, Category: CategoryCapacity, Message: "A password-sharing operation is already active.", Remediation: "Finish or cancel the existing invitation before starting another transfer."}
 	case CodePasswordShareGone:
-		return Detail{Code: code, Category: CategoryLifecycle, Message: "This password invitation is no longer available.", Remediation: "It may have expired, been cancelled, or already been revealed. Arrange a new invitation if needed."}
+		return Detail{Code: code, Category: CategoryLifecycle, Message: "This password invitation is no longer available.", Remediation: "It may have expired, been cancelled, or already been used. Start again with a fresh invitation if needed."}
 	case CodePasswordDeliveryUnconfirmed:
 		return Detail{Code: code, Category: CategoryLifecycle, Message: "Password delivery was not confirmed.", Remediation: "The recipient may already have received it. Check with them before arranging another transfer; do not automatically resend."}
 	case CodeResourceNotFound:

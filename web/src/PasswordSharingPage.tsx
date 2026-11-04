@@ -4,6 +4,15 @@ import { cancelInvitation, createInvitation, fetchSharingStatus, inspectInvitati
 import { normalizeError } from './api/errors';
 import { useMutationActivity, useMutationPending } from './OperationActivity';
 
+// People compare these aloud, so show the same host:port the browser sender sees
+// and break the fingerprint into short groups.
+const hostOf = (origin = '') => origin.replace(/^https:\/\//u, '');
+const grouped = (fingerprint = '') => fingerprint.match(/.{1,4}/gu)?.join(' ') ?? '';
+function timeLeft(expiresAt: string | undefined, now: number) {
+  const left = Date.parse(expiresAt ?? '') - now;
+  return !(left > 0) ? 'expiring now' : left <= 60_000 ? 'less than a minute left' : 'about ' + Math.ceil(left / 60_000) + ' minutes left';
+}
+
 export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
   const [tab, setTab] = useState<'receive' | 'send'>('receive');
   const [snapshot, setSnapshot] = useState<SharingStatus | null>(null);
@@ -19,6 +28,7 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
   const [error, setError] = useState('');
   const [readError, setReadError] = useState('');
   const [working, setWorking] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const begin = useMutationActivity();
   const pending = useMutationPending('password-sharing-actions');
   const busy = working || pending;
@@ -47,7 +57,7 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
   useEffect(() => {
     alive.current = true;
     void refresh();
-    const timer = setInterval(() => { if (read.current === null || read.current.signal.aborted) void refresh(); }, 2000);
+    const timer = setInterval(() => { setNow(Date.now()); if (read.current === null || read.current.signal.aborted) void refresh(); }, 2000);
     const visible = () => {
       if (document.visibilityState === 'hidden') {
         if (revealedInput.current) revealedInput.current.value = '';
@@ -94,7 +104,7 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
   };
   return <section className="password-sharing" aria-labelledby="password-sharing-heading">
     <div className="route-heading"><h2 id="password-sharing-heading">Password sharing</h2>
-      <p>Transfer one password over your local network. Invitations expire after five minutes; passwords are kept in memory and excluded from execution history.</p></div>
+      <p>Move one password directly between two computers on your local network, without email or chat. The recipient creates a five-minute invitation; the sender uses it once. Passwords stay in memory only and never enter run history.</p></div>
     <div role="tablist" aria-label="Password sharing" className="output-tabs" onKeyDown={(event) => {
       if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
         event.preventDefault(); const next = event.key === 'Home' ? 'receive' : event.key === 'End' ? 'send' : tab === 'receive' ? 'send' : 'receive';
@@ -103,12 +113,12 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
     }}>
       {(['receive', 'send'] as const).map((name) => <button key={name} id={'sharing-tab-' + name} type="button" role="tab"
         aria-selected={tab === name} aria-controls={'sharing-panel-' + name} tabIndex={tab === name ? 0 : -1}
-        disabled={busy} onClick={() => changeTab(name)}>{name === 'receive' ? 'Receive a password' : 'Send from CLIHarbor'}</button>)}
+        disabled={busy} onClick={() => changeTab(name)}>{name === 'receive' ? 'Receive a password' : 'Send a password'}</button>)}
     </div>
     <div className="panel password-sharing-panel" role="tabpanel" id={'sharing-panel-' + tab} aria-labelledby={'sharing-tab-' + tab}>
       {tab === 'receive' ? <>
         <h3>1. Create an invitation</h3>
-        <p>Select an address the sender can reach. The password receiver opens for five minutes when you create an invitation.</p>
+        <p>Choose the address of this computer that the sender can reach. A private receiver opens on that address for five minutes, only after you create the invitation.</p>
         <form onSubmit={(event) => {
           event.preventDefault();
           void act('Creating password invitation…', async () => {
@@ -119,9 +129,9 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
           <label>Your LAN address<select value={selectedAddress} disabled={busy || active} onChange={(e) => setAddress(e.target.value)}>
             {snapshot?.addresses.length ? snapshot.addresses.map((ip) => <option key={ip}>{ip}</option>) : <option value="">No private LAN address available</option>}
           </select></label>
-          <label>Sender uses<select value={mode} disabled={busy || active} onChange={(e) => setMode(e.target.value as 'app' | 'browser')}>
-            <option value="app">CLIHarbor</option>
-            <option value="browser" disabled={!snapshot?.browserAvailable}>Web browser</option>
+          <label>How will the sender send it?<select value={mode} disabled={busy || active} onChange={(e) => setMode(e.target.value as 'app' | 'browser')}>
+            <option value="app">From CLIHarbor on their computer</option>
+            <option value="browser" disabled={!snapshot?.browserAvailable}>From a web browser (no CLIHarbor needed)</option>
           </select></label>
           {!snapshot?.browserAvailable && <p className="field-help">Browser sending needs an HTTPS certificate configured at launch. It must cover this IP address and be trusted on the sender’s device. See Network setup and privacy below.</p>}
           {mode === 'browser' && <p className="field-help">The sender must have a trusted HTTPS connection. Never bypass certificate warnings. A certificate covering a different IP cannot be used.</p>}
@@ -130,16 +140,23 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
         {snapshot === null && <p role="status">Reading password-sharing status…</p>}
         {active && <section aria-label="Current password invitation">
           <h3>2. Share and wait</h3>
-          <dl><div><dt>Receiving address</dt><dd>{snapshot.origin}</dd></div><div><dt>Certificate fingerprint · SHA-256</dt><dd><code>{snapshot.fingerprint}</code></dd></div>
-            <div><dt>Expires</dt><dd><time dateTime={snapshot.expiresAt}>{new Date(snapshot.expiresAt!).toLocaleTimeString()}</time></dd></div></dl>
+          <p>{snapshot.mode === 'browser'
+            ? 'Send the invitation link to the sender. They open it in a browser that trusts this computer’s certificate, then enter the password.'
+            : 'Send the invitation to the sender. They paste it into Password sharing → Send a password in their CLIHarbor.'}</p>
+          <dl><div><dt>Receiving address</dt><dd><code>{hostOf(snapshot.origin)}</code></dd></div>
+            {snapshot.mode !== 'browser' && <div><dt>Certificate fingerprint (SHA-256)</dt><dd><code>{grouped(snapshot.fingerprint)}</code></dd></div>}
+            <div><dt>Expires</dt><dd><time dateTime={snapshot.expiresAt}>{new Date(snapshot.expiresAt!).toLocaleTimeString()}</time> · {timeLeft(snapshot.expiresAt, now)}</dd></div></dl>
           {currentInvitation ? <><label>One-use invitation<textarea ref={invitationInput} readOnly value={currentInvitation} rows={4} autoComplete="off" spellCheck={false} /></label>
             <button type="button" className="secondary-button" onClick={() => { void navigator.clipboard.writeText(currentInvitation).then(() => setNotice('Invitation copied. Share it over a trusted channel.'), () => setError('The invitation could not be copied. Select and copy it manually.')); }}>Copy invitation</button></>
             : snapshot.state === 'waiting' && <p>This tab no longer has the invitation link. Use the copy you already shared, or cancel this invitation before creating another.</p>}
-          <p>Verify the receiving address and fingerprint with the sender through a trusted channel. Anyone with the invitation can submit; it does not prove their identity.</p>
+          <p>{snapshot.mode === 'browser' ? 'Read the receiving address to the sender' : 'Read the receiving address and fingerprint to the sender'} by phone, in person or another trusted channel. Anyone holding the invitation can submit a password, so confirm with the sender before you use what arrives.</p>
           <p role="status">{snapshot.state === 'waiting' ? 'Waiting for one password…' : 'A password was received. Confirm with the sender, then reveal it once.'}</p>
           {snapshot.state === 'received' && <button type="button" disabled={busy} onClick={() => void act('Revealing received password…', async () => {
             const value = await revealPassword(csrfToken, snapshot.id!);
-            if (alive.current && document.visibilityState !== 'hidden') setIncoming(value);
+            if (!alive.current) return;
+            // Never render a secret into a hidden page; say so instead of dropping it silently.
+            if (document.visibilityState === 'hidden') setError('The password was revealed while this page was hidden, so it was discarded. Ask the sender for a new transfer.');
+            else setIncoming(value);
           })}>Reveal received password once</button>}
           <button type="button" className="secondary-button" disabled={busy} onClick={() => void act('Cancelling password invitation…', async () => {
             await cancelInvitation(csrfToken, snapshot.id!); if (alive.current) { setInvitation(null); setIncoming(''); }
@@ -153,7 +170,7 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
           <button type="button" className="secondary-button" onClick={() => setIncoming('')}>Hide and clear password</button>
         </section>}
       </> : <>
-        <h3>Send to another computer</h3><p>The recipient must use CLIHarbor. Ask them for a fresh invitation, then verify their receiving address and certificate fingerprint before entering a password.</p>
+        <h3>1. Paste the recipient’s invitation</h3><p>Ask the recipient to create an invitation in their CLIHarbor and send it to you. Nothing is sent until you check the destination and confirm.</p>
         <form onSubmit={(event: FormEvent) => { event.preventDefault(); void act('Checking password invitation…', async () => {
           const next = await inspectInvitation(csrfToken, outgoing); if (alive.current) { setDestination(next); setConfirmed(false); }
         }); }}>
@@ -171,10 +188,12 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
             if (alive.current) setNotice('Password delivered. The recipient can reveal it once in CLIHarbor.');
           });
         }}>
-          <dl><div><dt>Receiving address</dt><dd>{destination.origin}</dd></div><div><dt>Certificate fingerprint · SHA-256</dt><dd><code>{destination.fingerprint}</code></dd></div></dl>
+          <h3>2. Verify and send</h3>
+          <p>Ask the recipient to read you their receiving address and fingerprint. Both must match exactly.</p>
+          <dl><div><dt>Receiving address</dt><dd><code>{hostOf(destination.origin)}</code></dd></div><div><dt>Certificate fingerprint (SHA-256)</dt><dd><code>{grouped(destination.fingerprint)}</code></dd></div></dl>
           <label className="sharing-consent"><input type="checkbox" required checked={confirmed} disabled={busy} onChange={(e) => setConfirmed(e.target.checked)} />I verified this address and fingerprint with the recipient.</label>
           <label>Password to send<input ref={passwordInput} type="password" required maxLength={4096} value={password} disabled={busy} autoComplete="off" spellCheck={false} aria-describedby="sharing-password-help" onChange={(e) => setPassword(e.target.value)} /></label>
-          <p id="sharing-password-help">One line, up to 4,096 UTF-8 bytes, without control or invisible formatting characters. The password and invitation clear on submission.</p>
+          <p id="sharing-password-help">Single line, up to 4,096 bytes, without control or invisible formatting characters. The password and invitation clear from this page as soon as you send.</p>
           <button type="submit" disabled={busy || !confirmed || !password || new TextEncoder().encode(password).length > 4096 || /[\p{Cc}\p{Cf}]/u.test(password)}>Send password once</button>
         </form>}
       </>}

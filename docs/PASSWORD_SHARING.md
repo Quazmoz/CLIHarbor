@@ -9,7 +9,7 @@ an invitation, on one selected RFC 1918 IPv4 interface. It expires in five minut
 
 Open **Password sharing** on both computers. The recipient selects a LAN address
 and **CLIHarbor** as the sender type, creates an invitation, then shares it through
-a trusted channel. The sender chooses **Send from CLIHarbor**, pastes the
+a trusted channel. The sender chooses **Send a password**, pastes the
 invitation and checks the address/fingerprint with the recipient before entering
 the password and approving the transfer. Temporary ECDSA certificate/key material
 is generated in memory; the sender checks its exact SHA-256 public-key fingerprint,
@@ -18,7 +18,7 @@ IP subject alternative name and validity. No trust store is changed.
 ## Browser sender on the LAN
 
 Start the receiving app with both `--share-tls-cert <PEM>` and
-`--share-tls-key <PEM>`, then select **Web browser**. The operator owns
+`--share-tls-key <PEM>`, then select **From a web browser**. The operator owns
 these files; CLIHarbor reads but does not copy or persist them. The certificate
 must include the selected IP in its IP subject alternative names, stay valid
 through the invitation lifetime, and already be trusted by the sender's device
@@ -52,10 +52,16 @@ connections. CLIHarbor never opens firewall rules, installs CAs or bypasses poli
   retained. The deadline clears the receiver buffer without requiring UI polling.
   Cancel, reveal and shutdown also clear it. The revealed UI value clears after
   one minute and on hiding/leaving the page. The original deadline still applies
-  if the password arrives just before expiry.
+  if the password arrives just before expiry. The deadline is compared on the
+  wall clock, because Go's monotonic clock pauses during macOS/Linux suspend; the
+  monotonic timer still bounds a backwards wall-clock change.
+- The LAN listener stops accepting connections as soon as one password is stored;
+  the in-flight response still completes.
 - Local create, inspect, send, cancel and reveal are session/Origin/CSRF-protected
   POSTs. Reveal consumes the value once. A lost acknowledgement can mean a send
-  or reveal already happened; no mutation is automatically retried.
+  or reveal already happened; no mutation is automatically retried. A refusal
+  (403/400) from the pinned or trusted receiver is definitive — nothing was
+  stored — and is reported as such rather than as unconfirmed.
 - The LAN receiver has fixed static paths and one `POST /deliver`, exact Host and
   Origin validation, no cookies/CORS, no plaintext fallback, strict body/header
   limits, eight concurrent TLS connections and finite handshake/read/idle timeouts.
