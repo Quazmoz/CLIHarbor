@@ -130,3 +130,26 @@ test('a reveal that completes while the page is hidden is discarded with an expl
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   }
 });
+
+test('definitive send refusals say nothing was sent instead of reporting an unconfirmed delivery', async () => {
+  const refusals = [
+    { code: 'password_receiver_mismatch', category: 'security', message: 'The computer at this address is not the one in the invitation. Nothing was sent.', remediation: 'Do not retry with this invitation.', retryable: false },
+    { code: 'password_delivery_unreachable', category: 'lifecycle', message: 'The recipient’s computer could not be reached securely. Nothing was sent.', remediation: 'Check with the recipient.', retryable: true },
+  ];
+  for (const error of refusals) {
+    const backend = installFakeBackend({ [root]: { body: idle },
+      ['POST '+root+'/inspect']: { body: { origin: waiting.origin, fingerprint: waiting.fingerprint } },
+      ['POST '+root+'/send']: { status: 502, body: { error } } });
+    const view = mount();
+    fireEvent.click(screen.getByRole('tab', { name: 'Send a password' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Recipient’s invitation' }), { target: { value: invitation } });
+    fireEvent.click(screen.getByRole('button', { name: 'Check receiving address' }));
+    fireEvent.change(await screen.findByLabelText('Password to send'), { target: { value: 'refused-fixture-value' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /I verified this address/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send password once' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(error.message);
+    expect(screen.queryByText(/not confirmed/u)).not.toBeInTheDocument();
+    expect(backend.calls('POST '+root+'/send')).toHaveLength(1);
+    view.unmount();
+  }
+});

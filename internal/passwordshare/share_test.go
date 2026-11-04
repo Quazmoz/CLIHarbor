@@ -92,7 +92,8 @@ func TestAppTransferTLSOneUseAndNoStatusLeak(t *testing.T) {
 	if strings.Contains(string(metadata), password) || strings.Contains(string(metadata), "token=") || strings.Contains(string(metadata), invite.URL) {
 		t.Fatal("status leaked secret material")
 	}
-	if err := sender.Send(t.Context(), invite.URL, []byte("replacement")); !errors.Is(err, ErrUnconfirmed) {
+	// The listener closed on delivery, so a replay never connects: definitively unsent.
+	if err := sender.Send(t.Context(), invite.URL, []byte("replacement")); !errors.Is(err, ErrUnreachable) {
 		t.Fatalf("replay = %v", err)
 	}
 	if conn, err := net.DialTimeout("tcp", strings.TrimPrefix(invite.Status.Origin, "https://"), time.Second); err == nil {
@@ -270,7 +271,7 @@ func TestPinnedTLSRefusesWrongKeyNameExpiryAndDowngradeBeforeBody(t *testing.T) 
 				certIP = "192.168.1.2"
 			}
 			if kind == "expired" {
-				now = now.Add(-time.Hour)
+				now = now.Add(-3 * clockSkew)
 			}
 			cert, err := temporaryCertificate(certIP, now)
 			if err != nil {
@@ -289,7 +290,11 @@ func TestPinnedTLSRefusesWrongKeyNameExpiryAndDowngradeBeforeBody(t *testing.T) 
 				pin = strings.Repeat("0", 64)
 			}
 			link := peer.URL + "/#" + url.Values{"v": {"1"}, "mode": {"app"}, "token": {token}, "pin": {pin}}.Encode()
-			if err := s.Send(context.Background(), link, []byte("must-not-transmit")); !errors.Is(err, ErrUnconfirmed) {
+			want := ErrMismatch
+			if kind == "tls12" {
+				want = ErrUnreachable
+			}
+			if err := s.Send(context.Background(), link, []byte("must-not-transmit")); !errors.Is(err, want) {
 				t.Fatalf("TLS refusal = %v", err)
 			}
 			if calls.Load() != 0 {
@@ -462,5 +467,48 @@ func TestDeadlineUsesWallClockAndVerifiedRefusalIsDefinitive(t *testing.T) {
 	}
 	if receiver.Status().State != "waiting" {
 		t.Fatal("wrong capability changed the invitation")
+	}
+}
+
+func TestUnreachableAndClockSkewedSends(t *testing.T) {
+	receiver, sender := testService(t, false), testService(t, false)
+	invite := testInvitation(t, receiver, "app")
+	closed, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed.Close()
+	u, _ := url.Parse(invite.URL)
+	u.Host = closed.Addr().String()
+	if err := sender.Send(t.Context(), u.String(), []byte("unreachable-fixture")); !errors.Is(err, ErrUnreachable) {
+		t.Fatalf("refused connection = %v", err)
+	}
+	// Two laptops are rarely in exact sync; ten minutes must not break app transfers.
+	sender.now = func() time.Time { return time.Now().Add(-10 * time.Minute) }
+	if err := sender.Send(t.Context(), invite.URL, []byte("skew-fixture")); err != nil {
+		t.Fatalf("skewed sender = %v", err)
+	}
+}
+
+func TestWallClockExpiryAfterSuspendWithoutUI(t *testing.T) {
+	s := testService(t, false)
+	s.ttl = 10 * time.Second
+	testInvitation(t, s, "app")
+	// Simulate waking from sleep: the wall clock jumped, the monotonic clock did not.
+	s.mu.Lock()
+	s.now = func() time.Time { return time.Now().Add(time.Hour) }
+	s.mu.Unlock()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		s.mu.Lock()
+		state, listener := s.state, s.listener
+		s.mu.Unlock()
+		if state == "expired" && listener == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("receiver still %s after the wall-clock deadline passed", state)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

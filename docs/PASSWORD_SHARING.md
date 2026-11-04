@@ -53,15 +53,21 @@ connections. CLIHarbor never opens firewall rules, installs CAs or bypasses poli
   Cancel, reveal and shutdown also clear it. The revealed UI value clears after
   one minute and on hiding/leaving the page. The original deadline still applies
   if the password arrives just before expiry. The deadline is compared on the
-  wall clock, because Go's monotonic clock pauses during macOS/Linux suspend; the
-  monotonic timer still bounds a backwards wall-clock change.
+  wall clock, because Go's monotonic clock pauses during macOS/Linux suspend. The
+  receiver re-checks it every few seconds (TTL/60), so after a laptop wakes the
+  buffer and listener close within seconds without UI polling; elapsed monotonic
+  time still bounds a backwards wall-clock change.
 - The LAN listener stops accepting connections as soon as one password is stored;
   the in-flight response still completes.
 - Local create, inspect, send, cancel and reveal are session/Origin/CSRF-protected
   POSTs. Reveal consumes the value once. A lost acknowledgement can mean a send
   or reveal already happened; no mutation is automatically retried. A refusal
   (403/400) from the pinned or trusted receiver is definitive — nothing was
-  stored — and is reported as such rather than as unconfirmed.
+  stored — and is reported as such rather than as unconfirmed. So is an app send
+  that fails before a verified TLS connection exists: an unreachable address
+  (firewall, expired or already-used invitation) reports that nothing was sent,
+  and a key, IP or validity mismatch reports that the receiver did not match the
+  invitation. Only failures after the connection is established are unconfirmed.
 - The LAN receiver has fixed static paths and one `POST /deliver`, exact Host and
   Origin validation, no cookies/CORS, no plaintext fallback, strict body/header
   limits, eight concurrent TLS connections and finite handshake/read/idle timeouts.
@@ -69,7 +75,10 @@ connections. CLIHarbor never opens firewall rules, installs CAs or bypasses poli
   bounded body. Old requests cannot write into a new invitation.
 - App sending accepts only literal private IPv4 HTTPS targets and `/deliver`,
   verifies the pinned key, certificate lifetime and IP SAN, and disables proxies
-  and redirects. There is no arbitrary browser-chosen HTTP method or proxy API.
+  and redirects. Temporary receiver certificates are valid one hour either side
+  of the invitation so ordinary clock differences between two computers do not
+  break transfers; the exact ephemeral-key pin and five-minute receiver deadline
+  are what bound the transfer. There is no arbitrary browser-chosen HTTP method or proxy API.
 - Passwords/invitations do not enter argv, subprocesses, logs, runs, preferences,
   diagnostics or intentional disk storage. Buffer clearing is best effort:
   managed memory, OS swap, extensions, screenshots and clipboard managers may

@@ -21,6 +21,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/netip"
 	"net/url"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -42,7 +44,14 @@ var (
 	ErrBusy        = errors.New("a password-sharing operation is already active")
 	ErrGone        = errors.New("this invitation is no longer available")
 	ErrUnconfirmed = errors.New("delivery is unconfirmed; check with the recipient before sending again")
+	// Both refusals happen before a connection exists, so no password bytes left.
+	ErrUnreachable = errors.New("could not connect securely to the recipient; nothing was sent")
+	ErrMismatch    = errors.New("the receiver did not match the invitation; nothing was sent")
 )
+
+// Temporary app certificates tolerate this much clock difference between the two
+// computers; the receiver's own deadline and listener still bound the transfer.
+const clockSkew = time.Hour
 
 type Status struct {
 	State            string     `json:"state"`
@@ -260,13 +269,25 @@ func (s *Service) Create(address, mode string) (Invitation, error) {
 		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 5 * time.Second,
 		MaxHeaderBytes: 4096, ErrorLog: log.New(io.Discard, "", 0)}
 	s.server, s.listener = server, listener
-	s.timer = time.AfterFunc(s.ttl, func() {
+	// Runtime timers pause during suspend, so one ttl-long timer would keep the
+	// buffer and listener alive long after a laptop wakes. Re-check the wall-clock
+	// deadline every ttl/60 (5 seconds by default); the monotonic elapsed time
+	// still bounds a backwards wall-clock change.
+	started := time.Now()
+	var expire func()
+	expire = func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		if s.id == id && (s.state == "waiting" || s.state == "received") {
-			s.finishLocked("expired")
+		if s.id != id || (s.state != "waiting" && s.state != "received") {
+			return
 		}
-	})
+		if left := s.expires.Sub(s.now()); left > 0 && time.Since(started) < s.ttl {
+			s.timer = time.AfterFunc(min(left, s.ttl/60), expire)
+			return
+		}
+		s.finishLocked("expired")
+	}
+	s.timer = time.AfterFunc(s.ttl/60, expire)
 	go func() {
 		err := server.Serve(tls.NewListener(&boundedListener{Listener: listener, slots: make(chan struct{}, 8)},
 			&tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{cert}, NextProtos: []string{"http/1.1"}}))
@@ -339,7 +360,7 @@ func temporaryCertificate(address string, now time.Time) (tls.Certificate, error
 		return tls.Certificate{}, err
 	}
 	template := &x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: "CLIHarbor temporary password receiver"},
-		NotBefore: now.Add(-time.Minute), NotAfter: now.Add(TTL + time.Minute),
+		NotBefore: now.Add(-clockSkew), NotAfter: now.Add(TTL + clockSkew),
 		IPAddresses: []net.IP{net.ParseIP(address)}, KeyUsage: x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
 	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
@@ -411,26 +432,35 @@ func (s *Service) Send(ctx context.Context, invitation string, password []byte) 
 	// Certificate pinning replaces PKI only for an explicitly supplied invitation.
 	// VerifyConnection always checks the exact key, target IP and validity period;
 	// there is no unverified-TLS or HTTP fallback.
+	var connected, mismatched atomic.Bool
 	transport := &http.Transport{Proxy: nil, DisableKeepAlives: true, MaxResponseHeaderBytes: 4096,
 		TLSHandshakeTimeout: 5 * time.Second, ResponseHeaderTimeout: 5 * time.Second,
 		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS13, InsecureSkipVerify: true, // verified below
 			VerifyConnection: func(state tls.ConnectionState) error {
 				if len(state.PeerCertificates) == 0 {
-					return ErrUnavailable
+					mismatched.Store(true)
+					return ErrMismatch
 				}
 				cert := state.PeerCertificates[0]
 				actual := fingerprint(cert)
 				if subtle.ConstantTimeCompare([]byte(actual), []byte(pin)) != 1 {
-					return ErrUnavailable
+					mismatched.Store(true)
+					return ErrMismatch
 				}
 				roots := x509.NewCertPool()
 				roots.AddCert(cert)
-				_, err := cert.Verify(x509.VerifyOptions{Roots: roots, DNSName: u.Hostname(), CurrentTime: s.now(), KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}})
-				return err
+				if _, err := cert.Verify(x509.VerifyOptions{Roots: roots, DNSName: u.Hostname(), CurrentTime: s.now(), KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); err != nil {
+					mismatched.Store(true)
+					return ErrMismatch
+				}
+				return nil
 			}}}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	u.Path = "/deliver"
+	// GotConn fires only after TCP and the verified TLS handshake succeed. Before
+	// it, the request was never written, so the failure is definitive.
+	ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{GotConn: func(httptrace.GotConnInfo) { connected.Store(true) }})
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(password))
 	if err != nil {
 		return ErrInvalid
@@ -439,7 +469,13 @@ func (s *Service) Send(ctx context.Context, invitation string, password []byte) 
 	request.Header.Set("Content-Type", "text/plain; charset=utf-8")
 	response, err := client.Do(request)
 	if err != nil {
-		return ErrUnconfirmed
+		switch {
+		case connected.Load():
+			return ErrUnconfirmed
+		case mismatched.Load():
+			return ErrMismatch
+		}
+		return ErrUnreachable
 	}
 	defer response.Body.Close()
 	// The pinned receiver's refusals are definitive: nothing was stored.

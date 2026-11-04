@@ -35,6 +35,8 @@ const (
 	CodePasswordShareBusy           Code = "password_share_busy"
 	CodePasswordShareGone           Code = "password_share_gone"
 	CodePasswordDeliveryUnconfirmed Code = "password_delivery_unconfirmed"
+	CodePasswordDeliveryUnreachable Code = "password_delivery_unreachable"
+	CodePasswordReceiverMismatch    Code = "password_receiver_mismatch"
 	CodeResourceNotFound            Code = "resource_not_found"
 	CodeCommandBlocked              Code = "command_blocked"
 	CodeApprovalRequired            Code = "approval_required"
@@ -96,6 +98,10 @@ func DetailFor(code Code) Detail {
 		return Detail{Code: code, Category: CategoryLifecycle, Message: "This password invitation is no longer available.", Remediation: "It may have expired, been cancelled, or already been used. Start again with a fresh invitation if needed."}
 	case CodePasswordDeliveryUnconfirmed:
 		return Detail{Code: code, Category: CategoryLifecycle, Message: "Password delivery was not confirmed.", Remediation: "The recipient may already have received it. Check with them before arranging another transfer; do not automatically resend."}
+	case CodePasswordDeliveryUnreachable:
+		return Detail{Code: code, Category: CategoryLifecycle, Message: "The recipient's computer could not be reached securely. Nothing was sent.", Remediation: "The invitation may have expired or already been used, or a firewall, VPN or isolated Wi-Fi may be blocking the address. Check with the recipient, then send again if their invitation is still waiting.", Retryable: true}
+	case CodePasswordReceiverMismatch:
+		return Detail{Code: code, Category: CategorySecurity, Message: "The computer at this address is not the one in the invitation. Nothing was sent.", Remediation: "Do not retry with this invitation. Confirm the address with the recipient over a trusted channel and ask for a new invitation. If they just created one, check that both computers' clocks are correct."}
 	case CodeResourceNotFound:
 		return Detail{Code: code, Category: CategoryLifecycle, Message: "The requested local resource is unavailable.", Remediation: "Reload CLIHarbor and retry from the current task list."}
 	case CodeCommandBlocked:

@@ -117,6 +117,10 @@ func (s *Server) handlePasswordSharing(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, 410, apperror.CodePasswordShareGone)
 	case errors.Is(err, passwordshare.ErrUnconfirmed):
 		writeAPIError(w, 502, apperror.CodePasswordDeliveryUnconfirmed)
+	case errors.Is(err, passwordshare.ErrUnreachable):
+		writeAPIError(w, 502, apperror.CodePasswordDeliveryUnreachable)
+	case errors.Is(err, passwordshare.ErrMismatch):
+		writeAPIError(w, 502, apperror.CodePasswordReceiverMismatch)
 	default:
 		writeAPIError(w, 503, apperror.CodePasswordShareUnavailable)
 	}
