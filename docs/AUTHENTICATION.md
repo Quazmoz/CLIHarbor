@@ -232,3 +232,14 @@ The dedicated Conjur sign-in page now presents **Conjur API connection**, displa
 - The separately scoped first-run self-hosted `authn`/LDAP wizard is unchanged. Switching an existing non-SaaS profile to SaaS or replacing unsupported configuration modes is deliberately not offered.
 
 The short Identity hostname `companyname.cyberark.cloud` is an Identity **website**, not a Secrets Manager API endpoint. The corresponding Secrets Manager SaaS tenant endpoint uses `companyname.secretsmgr.cyberark.cloud`; neither example is employer-specific. Authoritative references: `cyberark/conjur-cli-go` `pkg/cmd/initcloud.go` and `cyberark/conjur-api-go`.
+
+
+## Password-transfer authorization
+
+Password sharing has its own transient capability, unrelated to vendor credentials
+and the local CLIHarbor session. Only the recipient's authenticated loopback UI
+may create/cancel/reveal; the isolated TLS LAN listener can only accept a single
+bounded value. App-to-app invitations authenticate the receiver by exact public-
+key fingerprint; browser invitations require sender-trusted HTTPS. The shared
+invitation is a bearer capability, not sender identity. No received password is
+automatically used to log in or configure Conjur. See [Password sharing](PASSWORD_SHARING.md).

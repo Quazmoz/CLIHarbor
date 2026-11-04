@@ -18,6 +18,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/apperror"
 	"github.com/Quazmoz/CLIHarbor/internal/audittrail"
 	"github.com/Quazmoz/CLIHarbor/internal/diagnostics"
+	"github.com/Quazmoz/CLIHarbor/internal/passwordshare"
 )
 
 const (
@@ -56,6 +57,7 @@ type Config struct {
 	SecretAudit                SecretAuditService
 	Platforms                  PlatformService
 	Terraform                  TerraformStateService
+	PasswordSharing            *passwordshare.Service
 	MaxEventStreams            int
 }
 
@@ -88,6 +90,7 @@ type Server struct {
 	secretAudit                SecretAuditService
 	platforms                  PlatformService
 	terraform                  TerraformStateService
+	passwordSharing            *passwordshare.Service
 	runStreamSlots             chan struct{}
 	streamCtx                  context.Context
 	streamCancel               context.CancelFunc
@@ -161,6 +164,7 @@ func New(config Config) (*Server, error) {
 		secretAudit:                config.SecretAudit,
 		platforms:                  config.Platforms,
 		terraform:                  config.Terraform,
+		passwordSharing:            config.PasswordSharing,
 		runStreamSlots:             make(chan struct{}, maxEventStreams),
 		streamCtx:                  streamCtx,
 		streamCancel:               streamCancel,
@@ -170,6 +174,10 @@ func New(config Config) (*Server, error) {
 	mux.HandleFunc("/bootstrap", s.handleBootstrap)
 	mux.HandleFunc("/bootstrap/", http.NotFound)
 	mux.Handle("/api/v1/status", s.requireSession(http.HandlerFunc(s.handleStatus)))
+	if s.passwordSharing != nil {
+		mux.Handle("/api/v1/password-sharing", s.requireSession(http.HandlerFunc(s.handlePasswordSharing)))
+		mux.Handle("/api/v1/password-sharing/", s.requireSession(http.HandlerFunc(s.handlePasswordSharing)))
+	}
 	if s.diagnostics != nil {
 		mux.Handle("/api/v1/diagnostics", s.requireSession(http.HandlerFunc(s.handleDiagnostics)))
 	}

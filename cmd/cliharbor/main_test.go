@@ -23,6 +23,19 @@ func TestParseToolOverrides(t *testing.T) {
 	}
 }
 
+func TestPasswordSharingTLSOptionsArePairedAndServeOnly(t *testing.T) {
+	for _, args := range [][]string{
+		{"serve", "--share-tls-cert", "fixture.pem"},
+		{"serve", "--share-tls-key", "fixture.pem"},
+		{"doctor", "--share-tls-cert", "fixture.pem", "--share-tls-key", "fixture.key"},
+		{"version", "--share-tls-cert", "fixture.pem", "--share-tls-key", "fixture.key"},
+	} {
+		if err := run(args); err == nil || !strings.Contains(err.Error(), "--share-tls-cert") {
+			t.Fatal("TLS option policy was bypassed")
+		}
+	}
+}
+
 func TestParseToolOverridesRejectsMalformedAndDuplicates(t *testing.T) {
 	for _, values := range [][]string{
 		{"missing-equals"},

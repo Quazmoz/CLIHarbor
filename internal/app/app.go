@@ -11,6 +11,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/diagnostics"
 	"github.com/Quazmoz/CLIHarbor/internal/discovery"
 	"github.com/Quazmoz/CLIHarbor/internal/hostinfo"
+	"github.com/Quazmoz/CLIHarbor/internal/passwordshare"
 	"github.com/Quazmoz/CLIHarbor/internal/platform/browser"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
@@ -38,6 +39,8 @@ type Options struct {
 	AutoProvisionTools bool
 	TerraformProjects  []string // Operator-approved local roots; browser cannot add roots.
 	AuditPath          string   // Tests or explicitly reviewed deployments may override local audit storage.
+	ShareTLSCert       string   // Operator-owned certificate/key; never copied into app storage.
+	ShareTLSKey        string
 	ToolProvisioner    toolbootstrap.Provisioner
 
 	// allowReservedPackFixturesForTest lets in-package tests load a local pack
@@ -76,6 +79,11 @@ func Run(ctx context.Context, options Options) error {
 		return fmt.Errorf("open mutation audit trail: %w", err)
 	}
 	defer audit.Close()
+	sharing, err := passwordshare.New(options.ShareTLSCert, options.ShareTLSKey)
+	if err != nil {
+		return fmt.Errorf("configure password-sharing TLS: invalid or unreadable certificate/key")
+	}
+	defer sharing.Close()
 	// Dedicated platforms layer vendor-specific behavior over the generic core.
 	conjurPlatform := conjur.New(ctx, runtimeState.Discovery)
 	terraformPlatform, err := terraform.New(options.TerraformProjects)
@@ -143,6 +151,7 @@ func Run(ctx context.Context, options Options) error {
 		SecretAudit:                conjurPlatform.Audit,
 		Platforms:                  dedicated,
 		Terraform:                  terraformPlatform,
+		PasswordSharing:            sharing,
 	})
 	if err != nil {
 		_ = shutdownRuns()

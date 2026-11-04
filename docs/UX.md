@@ -610,3 +610,24 @@ When Terraform is loaded, Built-in CLIs includes a dedicated Terraform workspace
 ### Checking newly installed CLIs (native Windows acceptance pending)
 
 **Check installation of &lt;CLI&gt;** is available for missing tools in Add a CLI and Diagnostics. It calls the existing authenticated `POST /api/v1/tools/refresh` with only reviewed pack/tool IDs and CSRF, then reloads tasks, tools and dedicated-platform readiness after successful qualification. The backend searches its process PATH and approved user fallback directories; the browser supplies no executable path, installer or command. Existing overrides, incompatible versions, ambiguous candidates and active runs cannot be replaced, and installation/refresh retain one backend mutex. Controls prevent concurrent submissions. PATH changes to the running process may still require relaunch from a fresh terminal. Native Windows PATH/fallback acceptance remains a release gate.
+
+
+## One-time password sharing
+
+**Password sharing** in Work opens Receive a password and Send from CLIHarbor tabs.
+Receive explicitly selects one private LAN interface and whether the sender uses
+another app instance or a trusted-HTTPS browser. Opening the page opens no LAN
+listener. Browser mode remains disabled until certificate/key configuration exists;
+its IP SAN and validity are checked when the invitation is created. A one-use,
+five-minute invitation shows the destination and certificate fingerprint for
+independent verification. A resumed page never recovers a lost private link.
+
+The recipient explicitly reveals once; the displayed value clears in one minute,
+on page hiding or route exit. Copy is explicit and clipboard-retention limits are
+visible. Send checks the invitation and displays the target/fingerprint before
+password entry and consent. Submission clears the input before acknowledgement;
+ambiguous results require checking with the other person, never automatic replay.
+In-flight operations use existing activity/navigation and remount guards. No secret
+or invitation is written to preferences, task inputs, execution history or logs.
+The standalone HTTPS sender page has labelled native controls, a live status,
+strict CSP and no third-party code. See [Password sharing](PASSWORD_SHARING.md).

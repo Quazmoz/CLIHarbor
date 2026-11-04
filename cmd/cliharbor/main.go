@@ -133,6 +133,8 @@ Options:
   --pack-dir <dir>          Add an explicit trusted pack directory.
   --tool-path <ref=path>    Pin pack/tool to an approved absolute executable path (repeatable).
   --terraform-project <dir>  Approve a local Terraform project root (repeatable, serve-only).
+  --share-tls-cert <file>   Operator-owned HTTPS certificate for browser password invitations (IP SAN required).
+  --share-tls-key <file>    Matching private key; both TLS options are required together (serve-only).
   --no-default-packs        Omit embedded first-party packs.
   --no-auto-setup           Disable current-user setup of missing first-party dependencies.
   --web-dev-url <url>       Development only: use a Vite origin on 127.0.0.1.
@@ -343,6 +345,8 @@ func run(args []string) error {
 	flags.Var(&packDirectory, "pack-dir", "explicit trusted directory containing pack YAML files")
 	exportPath := flags.String("export", "", "inventory-only sanitized Phase 0 evidence JSON destination")
 	noAutoSetup := flags.Bool("no-auto-setup", false, "serve-only: disable automatic current-user setup of missing first-party CLI dependencies")
+	shareTLSCert := flags.String("share-tls-cert", "", "serve-only: operator-owned certificate for LAN browser password invitations")
+	shareTLSKey := flags.String("share-tls-key", "", "serve-only: matching private key for LAN browser password invitations")
 	noDefaultPacks := flags.Bool("no-default-packs", false, "serve/doctor-only: do not load embedded first-party packs; use only explicitly supplied packs")
 	var terraformProjects stringList
 	flags.Var(&terraformProjects, "terraform-project", "serve-only approved local Terraform project root (repeatable)")
@@ -360,6 +364,9 @@ func run(args []string) error {
 	}
 	if command != "serve" && len(terraformProjects) > 0 {
 		return fmt.Errorf("--terraform-project is valid only with serve")
+	}
+	if (command != "serve" && (*shareTLSCert != "" || *shareTLSKey != "")) || ((*shareTLSCert == "") != (*shareTLSKey == "")) {
+		return fmt.Errorf("--share-tls-cert and --share-tls-key must be provided together and only with serve")
 	}
 	if command != "serve" && *webDevURL != "" {
 		return fmt.Errorf("--web-dev-url is valid only with serve")
@@ -393,6 +400,8 @@ func run(args []string) error {
 		PackDirectory:      packDirectory.value,
 		ToolOverrides:      overrides,
 		TerraformProjects:  append([]string(nil), terraformProjects...),
+		ShareTLSCert:       *shareTLSCert,
+		ShareTLSKey:        *shareTLSKey,
 		LoadDefaultPacks:   (command == "serve" || command == "doctor") && !*noDefaultPacks,
 		AutoProvisionTools: command == "serve" && !*noAutoSetup,
 	}

@@ -988,3 +988,42 @@ Add four vendor-verified, page-bounded read-only inventory commands (variables, 
 **Security/reliability:** Backend one-use approvals, destructive typed confirmation, executable identity, audit evidence, vendor context and vendor authorization remain authoritative. Edits invalidate draft approvals; secret prefills are excluded and write-only values clear on submission. Shared activity survives unmount and locks a remounted form until the original request settles. CLI/window-focus target refresh continues to reset stale forms. A completed command is distinguished from an unverified service outcome; no mutation is automatically replayed.
 
 **Verification:** Dedicated navigation and exact grant/readback acceptance, native dropdown/manual-entry interactions, context/approval/secret clearing tests, inherited generic form coverage, production embedded-browser checks and regenerated assets. Native Windows and real-tenant qualification remain separate release gates.
+
+
+## ADR-042 — Isolate explicitly requested LAN password transfers
+
+**Date:** 2026-11-04
+**Status:** Accepted for dev implementation; native Windows, two-device enterprise
+trust/firewall acceptance and independent security review remain required for release.
+
+**Context:** The user requested both CLIHarbor-to-CLIHarbor and browser-only LAN
+password submission, and explicitly requested pushing the source to dev. A LAN
+binding on the normal runtime would expose command and vendor-authentication
+surfaces; a generic run adapter would retain secret output as execution evidence.
+
+**Decision:** Use Go's standard TLS 1.3, x509 verification and crypto/rand, with no
+new cryptographic protocol, dependency, cloud service or persistent credential
+store. A dedicated receiver admits one explicit invitation on one private local
+IPv4 interface, for five minutes. A 256-bit bearer capability is transmitted via
+an invitation fragment and a submission Authorization header. App clients verify
+the exact pinned public key, IP SAN and certificate lifetime; browser clients use
+ordinary trusted HTTPS with an operator-owned certificate/key and IP SAN. The
+receiver accepts one bounded value, keeps it transiently, and exposes reveal only
+through the authenticated/CSRF-protected loopback API. A one-use reveal, expiry,
+cancellation and shutdown discard the buffer. A trusted channel and explicit
+address/key comparison are required; no sender identity is inferred.
+
+**Alternatives rejected:** exposing the command router on the LAN; plaintext HTTP
+with browser-side encryption served over an unauthenticated connection; browser
+certificate-warning bypasses; a new WebRTC/relay/cloud stack; invoking a transfer
+CLI through run history; home-grown PAKE/cryptography; persisting received values
+or automatically using them in Conjur. Certificate pinning is standard TLS peer
+verification, not a new encryption protocol. Generic packs and schema are unchanged.
+
+**Consequences:** App peers need CLIHarbor. Browser peers need trusted IP-SAN
+certificate provisioning outside this app. Only private IPv4, fixed paths and
+bounded payloads are supported. An intercepted bearer invitation permits a false
+submission; LAN denial of service and managed-memory/clipboard/OS copies remain
+explicit limits. No CA, firewall or credential-store changes occur. Native Windows
+and two-real-device qualification cannot be replaced by source merge or cross-build.
+See [Password sharing](PASSWORD_SHARING.md) for the complete contract and tests.

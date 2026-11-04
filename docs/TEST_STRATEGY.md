@@ -674,3 +674,23 @@ Navigation regressions cover top-bar integration destinations, the built-in CLI 
 - Audit quarantine refuses live, intact and unreadable journals, preserves corrupt bytes exactly and never replaces an existing preserved file.
 - Secret audit stops on transport loss and drops results after an endpoint change; the incremental run-output decoder matches a full decode.
 - Native Windows execution of these paths is part of WORK_LAPTOP_EVALUATION.md section 15; cross-compilation alone does not qualify them.
+
+
+## Password-sharing acceptance — ADR-042
+
+`internal/passwordshare` tests real TLS transfer and strict invitation parsing,
+wrong key/IP/expiry/TLS-version refusal before HTTP body delivery, one-use replay,
+parallel submissions, expiry without UI polling, cancellation and shutdown cleanup.
+Local server regressions enforce session/Origin/CSRF, strict JSON and sanitized
+errors. React regressions cover opt-in listener creation, browser capability gates,
+explicit address verification/consent, input clearing, reveal, no persistence and
+remount locks. The standalone Chrome test trusts only the fixture's exact key in
+a disposable profile, submits through the real HTTPS sender page, checks 320/1366px
+layout and consumes the unchanged value in Go. This fixture trust is not proof
+that a real sender trusts the organization's certificate. The production browser
+suite also checks the local sharing route without opening a LAN listener.
+
+Run `CLIHARBOR_BROWSER_E2E=1 go test ./internal/passwordshare -run TestPasswordSenderBrowserE2E`
+and the existing production app browser test after web-build. Native Windows
+private-interface, firewall, TLS trust and two-device acceptance remain required
+before beta/release. Never dispatch Actions without separate authorization.

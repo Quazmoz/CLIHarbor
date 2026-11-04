@@ -208,6 +208,7 @@ reviewed pack + verified executable + validated typed inputs
 - **Vendor-owned authentication:** CLIHarbor does not persist vendor passwords, MFA responses, API keys, or tokens. Narrow reviewed sign-in and write-only secret-input flows keep secrets out of task argv and run history. Ordinary task execution reuses vendor sessions.
 - **Deliberate changes:** mutating workflows require reviewed context and backend approval. Destructive actions add explicit target confirmation. Mutation journaling fails closed; automatic undo is unavailable.
 - **Faithful evidence:** runs have stable IDs, tool versions, timestamps, status, and exit codes; stdout/stderr stay separate and are rendered as untrusted text. Parser failure preserves raw evidence.
+- **One-time password sharing:** an explicitly created five-minute invitation opens a separate TLS receiver on one selected private LAN IPv4 address. Send from another CLIHarbor instance or a browser with a trusted HTTPS certificate. Passwords stay out of task history and intentional disk storage. See [setup and limits](docs/PASSWORD_SHARING.md).
 
 There is no cloud backend or telemetry by default. Wrapped CLIs still contact their configured services, and approved downloads still use the network. CLIHarbor is not a remote multi-user server, generic shell, or credential vault. See [Security](docs/SECURITY.md) and [Architecture](docs/ARCHITECTURE.md).
 
@@ -327,6 +328,7 @@ docs/                   product, security, integration, and operator guides
 | [Terraform integration](docs/TERRAFORM_INTEGRATION.md) | Approved roots, configuration checks, guarded state removal, and recovery |
 | [Docker](docs/DOCKER_INTEGRATION.md), [kubectl](docs/KUBECTL_INTEGRATION.md), [GitHub CLI](docs/GITHUB_INTEGRATION.md) | Reviewed read-only command scope |
 | [Mutation audit and recovery](docs/MUTATION_AUDIT.md) | Persistent audit metadata, integrity failures, and recovery limits |
+| [One-time password sharing](docs/PASSWORD_SHARING.md) | App-to-app and browser-to-app LAN transfer, certificate setup, and privacy limits |
 | [Work-laptop evaluation](docs/WORK_LAPTOP_EVALUATION.md) | Managed Windows and real-vendor acceptance |
 | [PRD](docs/PRD.md), [UX](docs/UX.md), [Roadmap](docs/ROADMAP.md) | Product intent, operator experience, and qualification work |
 | [Architecture](docs/ARCHITECTURE.md), [Decisions](docs/DECISIONS.md) | Component boundaries and accepted ADRs |

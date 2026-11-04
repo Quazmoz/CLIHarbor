@@ -10,6 +10,7 @@ export type AppErrorCategory =
   | 'internal';
 
 export type ServerErrorCode =
+	| 'password_share_unavailable' | 'password_share_busy' | 'password_share_gone' | 'password_delivery_unconfirmed'
   | 'invalid_request'
   | 'invalid_input'
   | 'request_too_large'
@@ -61,6 +62,7 @@ export class AppError extends Error {
 }
 
 const serverCodeCategories: Record<ServerErrorCode, AppErrorCategory> = {
+  password_share_unavailable: 'lifecycle', password_share_busy: 'capacity', password_share_gone: 'lifecycle', password_delivery_unconfirmed: 'lifecycle',
   invalid_request: 'validation',
   invalid_input: 'validation',
   request_too_large: 'validation',

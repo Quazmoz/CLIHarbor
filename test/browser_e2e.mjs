@@ -7,22 +7,14 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseDevToolsActivePort } from './browser_harness_helpers.mjs';
 
 const bootstrapURL = process.env.CLIHARBOR_E2E_BOOTSTRAP_URL;
-if (!bootstrapURL) {
-  throw new Error('missing CLIHARBOR_E2E_BOOTSTRAP_URL');
-}
 const conjurURL = process.env.CLIHARBOR_E2E_CONJUR_URL;
 const conjurIdentity = process.env.CLIHARBOR_E2E_CONJUR_IDENTITY;
 const conjurSecret = process.env.CLIHARBOR_E2E_CONJUR_SECRET;
 const conjurCheckDelay = process.env.CLIHARBOR_E2E_CONJUR_CHECK_DELAY;
-if (!conjurURL || !conjurIdentity || !conjurSecret || !conjurCheckDelay) {
-  throw new Error('missing hermetic Conjur browser E2E configuration');
-}
-if (typeof WebSocket !== 'function') {
-  throw new Error('this E2E harness requires the built-in WebSocket available in Node 24');
-}
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const stage = (name) => console.log('E2E stage: ' + name);
@@ -246,7 +238,7 @@ class CDP {
   }
 }
 
-class ChromeHarness {
+export class ChromeHarness {
   constructor(chrome, userDataDir, processHandle) {
     this.chrome = chrome;
     this.userDataDir = userDataDir;
@@ -261,14 +253,14 @@ class ChromeHarness {
     });
   }
 
-  static async start() {
+  static async start(options = {}) {
     const chrome = findChrome();
     const failures = [];
     const maxAttempts = 2;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        return await ChromeHarness.startAttempt(chrome);
+        return await ChromeHarness.startAttempt(chrome, options);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         failures.push('attempt ' + attempt + ': ' + message);
@@ -281,7 +273,7 @@ class ChromeHarness {
     throw new Error('Chrome failed to start after ' + maxAttempts + ' bounded attempts:\n' + failures.join('\n'));
   }
 
-  static async startAttempt(chrome) {
+  static async startAttempt(chrome, options = {}) {
     const userDataDir = await mkdtemp(path.join(os.tmpdir(), 'cliharbor-browser-e2e-'));
     const args = [
       '--headless=new',
@@ -298,6 +290,12 @@ class ChromeHarness {
       '--disable-sync',
       'about:blank',
     ];
+    if (options.trustedSPKI !== undefined) {
+      // Trust only this hermetic fixture key in this disposable test profile.
+      // No operating-system trust store or production TLS setting is changed.
+      if (!/^[A-Za-z0-9+/]{43}=$/.test(options.trustedSPKI)) throw new Error('invalid test certificate fingerprint');
+      args.splice(args.length - 1, 0, '--ignore-certificate-errors-spki-list=' + options.trustedSPKI);
+    }
     const processHandle = spawn(chrome, args, { stdio: ['ignore', 'ignore', 'pipe'] });
     const harness = new ChromeHarness(chrome, userDataDir, processHandle);
     processHandle.once('exit', (code, signal) => {
@@ -498,6 +496,10 @@ async function fetchJSON(page, relativeURL) {
 }
 
 async function main() {
+  if (!bootstrapURL || !conjurURL || !conjurIdentity || !conjurSecret || !conjurCheckDelay) {
+    throw new Error('missing hermetic browser E2E configuration');
+  }
+  if (typeof WebSocket !== 'function') throw new Error('browser E2E requires Node 24 WebSocket');
   const parsedBootstrap = new URL(bootstrapURL);
   const baseURL = parsedBootstrap.origin;
   const eventPath = (runID) => '/api/v1/runs/' + encodeURIComponent(runID) + '/events';
@@ -557,6 +559,21 @@ async function main() {
     await page.evaluate('Array.from(document.querySelectorAll(".primary-nav a")).find((link) => link.textContent.trim() === "Overview").click()');
     await waitJS(page, 'return to overview', 'location.pathname === "/" && document.querySelector("#overview-heading") !== null');
     await capture('overview');
+
+    stage('password-sharing workspace is opt-in and fits narrow screens');
+    await navigate(page, baseURL + '/password-sharing');
+    await waitJS(page, 'password-sharing workspace', 'document.querySelector("#password-sharing-heading") !== null && document.querySelector(".password-sharing-panel select") !== null');
+    assert.equal(await page.evaluate('document.querySelector(".password-sharing-panel option[value=browser]").disabled'), true, 'browser mode requires operator TLS configuration');
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      assert.equal(await page.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, 'sharing workspace must fit at ' + width);
+      await capture('password-sharing-' + width);
+    }
+    await clickButton(page, 'Send from CLIHarbor');
+    assert.equal(await page.evaluate('document.querySelector(".password-sharing-panel input[type=password]") === null'), true, 'password entry waits for invitation inspection');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    await navigate(page, baseURL + '/');
+    await waitJS(page, 'overview after sharing', 'document.querySelector("#overview-heading") !== null');
 
     stage('unavailable startup recovers with keyboard focus');
     await page.call('Network.setBlockedURLs', { urls: [baseURL + '/api/v1/status'] });
@@ -1861,7 +1878,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch((error) => {
   const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
   console.error(message);
   process.exitCode = 1;

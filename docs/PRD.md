@@ -347,3 +347,15 @@ current-user copy and see approved tasks populate without restarting. Other
 discovery states are never replaced. Initial managed choices are Conjur, kubectl,
 and GitHub CLI with explicit platform limits; Docker remains discovery-only.
 See [Supported CLI catalog](CLI_CATALOG.md) and ADR-031.
+
+
+### FR-14 One-time LAN password sharing (dev qualification)
+
+The explicitly requested Password sharing utility transports one password between
+CLIHarbor instances, or from a LAN browser with operator-configured trusted HTTPS.
+Invitations are five-minute, single-submission capabilities; received values are
+revealed once locally and never placed in runs, logs or intentional persistence.
+Only an explicit local action opens a separate private-IPv4 TLS receiver; command
+and authentication APIs remain on loopback. This narrow transient transport is
+not a credential store. See [Password sharing](PASSWORD_SHARING.md), ADR-042 and
+the outstanding native Windows/two-device acceptance gates.

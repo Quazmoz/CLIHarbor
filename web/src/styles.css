@@ -3802,6 +3802,30 @@ select:not([multiple]):not([size]):disabled {
 .conjur-permissions-form button[type="submit"] { justify-self: start; }
 .conjur-permission-unavailable { color: var(--text-muted); font-size: 0.8rem; }
 
+/* Password transfer is a separate local utility; secret controls never persist. */
+.password-sharing { max-width: 62rem; min-width: 0; }
+.password-sharing .output-tabs { flex-wrap: wrap; }
+.password-sharing-panel { display: grid; gap: 1rem; min-width: 0; }
+.password-sharing-panel h3 { margin: 0.3rem 0; color: var(--text-strong); }
+.password-sharing-panel p { margin: 0; line-height: 1.6; }
+.password-sharing-panel form, .password-sharing-panel section { display: grid; gap: 0.9rem; min-width: 0; }
+.password-sharing-panel section { border-top: 1px solid var(--border); padding-top: 1rem; }
+.password-sharing-panel label { display: grid; gap: 0.4rem; font-weight: 600; min-width: 0; }
+.password-sharing-panel input:not([type=checkbox]), .password-sharing-panel textarea, .password-sharing-panel select {
+  width: 100%; min-width: 0; max-width: 100%; padding: 0.7rem; border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); background-color: var(--surface-inset); color: var(--text-strong); font: inherit;
+}
+.password-sharing-panel textarea { resize: vertical; overflow-wrap: anywhere; }
+.password-sharing-panel dl { display: grid; gap: 0.75rem; margin: 0; min-width: 0; }
+.password-sharing-panel dt { font-weight: 600; }
+.password-sharing-panel dd { margin: 0.25rem 0 0; overflow-wrap: anywhere; }
+.password-sharing-panel button { justify-self: start; white-space: normal; }
+.password-sharing-panel .sharing-consent { display: flex; align-items: flex-start; gap: 0.6rem; }
+.sharing-consent input { flex-shrink: 0; margin-top: 0.35rem; }
+.sharing-limits { margin-top: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.sharing-limits summary { cursor: pointer; font-weight: 600; }
+.sharing-limits p { line-height: 1.6; overflow-wrap: anywhere; }
+
 /* Inventory-backed fields show CLI activity until the reviewed read completes. */
 .conjur-inventory-status {
   display: flex; align-items: center; gap: 0.65rem;

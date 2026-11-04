@@ -86,7 +86,7 @@ var dedicatedRoute = regexp.MustCompile(`^/dedicated/[a-z0-9-]{1,64}(/sign-in)?$
 
 func isApplicationRoute(path string) bool {
 	switch path {
-	case "/", "/authentication", "/tasks", "/runs", "/tools", "/diagnostics",
+	case "/", "/authentication", "/tasks", "/runs", "/password-sharing", "/tools", "/diagnostics",
 		"/secret-audit", "/conjur/security-audit", "/dedicated/conjur/security-audit", "/dedicated/conjur/access-explorer":
 		return true
 	default:

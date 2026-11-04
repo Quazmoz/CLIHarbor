@@ -461,3 +461,13 @@ CLI downloads through the existing portable provisioner, and additive live
 activation of missing tools. Conjur retains its existing automatic Windows
 bootstrap and gains the same explicit catalog activation path. Docker setup
 remains external. See [Supported CLI catalog](CLI_CATALOG.md) and ADR-031.
+
+
+## LAN password-sharing dev milestone
+
+Implemented source: isolated one-use TLS receiver, private-interface selection,
+app-to-app certificate-pinned sending, operator-configured browser sending,
+local one-use reveal/cancel, transient UI and security regressions. Production
+qualification still requires native Windows and two-device enterprise certificate/
+firewall acceptance plus independent security review. See ADR-042 and
+[Password sharing](PASSWORD_SHARING.md). No Actions dispatch is implicit.

@@ -605,3 +605,27 @@ Only startup-approved `--terraform-project` absolute local roots enter the Terra
 The previous generic `terraform state rm` task is removed from the trusted pack. The prior separate `-dry-run` task did **not** atomically authorize the subsequent mutation; generic CLIHarbor approvals must not be treated as an atomic local-state preview and filesystem identity guarantee. Re-enable only after a separate reviewed backend state machine enforces state identity, exact selected instances, TTL/one-use preview, locking, bounded cancellation and verifiable backup/reconciliation. Native Windows file-identity and reparse-path hardening remain acceptance gates, not assumed properties of the read-only parser.
 
 ADR-040 implements that separate backend state machine for startup-approved local state files. It runs the official CLI, verifies a pre-execution backup and the resulting state and Terraform backup, and reports ambiguous outcomes as `unverified` without automatic replay or restore. It does not enable the generic task or remote backend mutation. Backups contain full state and may contain secrets; they remain beside the original with private permissions where supported. Native Windows acceptance is still outstanding.
+
+
+## SI-12 — Explicit one-time LAN secret transport (ADR-042)
+
+The user-requested password-sharing feature is a separate reviewed design boundary
+for transient secrets. The normal command/authentication service remains loopback-
+only. A local authenticated CSRF-protected Create action may open a separate,
+five-minute TLS 1.3 receiver on one current private IPv4 interface. The remote
+handler has no CLI, vendor-login, application-session or reveal authority. A
+random 256-bit capability in the invitation fragment authorizes one bounded
+submission, consumed atomically. Possession does not identify a human sender.
+Only a separate local one-use POST can reveal the received value. No transfer
+is automatically retried or saved into Conjur.
+
+App-to-app TLS checks the exact invitation public-key fingerprint, certificate
+lifetime and IP SAN; browser senders require ordinary trusted HTTPS with an
+operator-provided certificate. No public-IP/DNS proxy, redirect, HTTP downgrade,
+CA installation, firewall modification or cloud relay is introduced. Bodies,
+headers, connections and deadlines are bounded. Passwords and capabilities stay
+out of run evidence, diagnostics, URLs sent to servers, logs and intentional
+persistence. Managed-memory/clipboard/OS copies cannot be guaranteed erased.
+See [Password sharing](PASSWORD_SHARING.md) for the threat model and remaining
+Windows, trusted-certificate and two-device qualification gates. This feature
+has not received independent security review or production release qualification.

@@ -281,3 +281,12 @@ expand Conjur's automatic bootstrap to other tools. See
 - **Implemented in dev source (qualification pending):** guarded local state removal through the official CLI, with mandatory dry run, snapshot-bound one-use approval, typed confirmation, locking, verified backups and outcome reconciliation (ADR-040). Real local-state acceptance passes on macOS, including a Homebrew symlinked executable; this does not qualify Windows or remote backends.
 - **Not implemented:** Terraform executable-backed state-list parity, provider-dependent validation, HCL semantic validation, plan execution, remote backend and Terraform-specific mutation history.
 - **Required for promotion:** pinned Go/Node test/build/lint/race checks, `web-build` and `verify-web-sync`, native Windows path and reparse-point acceptance, accessibility checks, malicious filesystem race tests, and independent mutation workflow qualification. No GitHub Actions dispatch is implicit.
+
+
+## One-time LAN password transport
+
+The two explicitly requested sender modes are implemented as dev source (ADR-042).
+Release qualification remains pending native Windows, actual two-device networking,
+enterprise browser trust and independent review. Internet relays, public addresses,
+DNS targets, third-party client compatibility, persistent inboxes and automatic
+Conjur actions are not part of this milestone. See [Password sharing](PASSWORD_SHARING.md).

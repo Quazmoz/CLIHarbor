@@ -435,3 +435,19 @@ Custom install locations are stored in a bounded (64 KiB) current-user JSON regi
 `internal/platforms/terraform` owns the approved local roots and read-only Terraform state-v4 address parser, separate from the generic pack executor. The process operator supplies one or more `--terraform-project` directories at launch; the browser only receives opaque project/state IDs and sanitized address metadata over session-protected `GET /api/v1/terraform/projects` and `GET /api/v1/terraform/resources?project=<id>&state=<id>`. These inventory routes accept no browser-provided path, arbitrary CLI argv or mutating action. The trusted Terraform pack retains version and fixed help-only commands; generic `state rm` remains removed. The frontend lives at `web/src/platforms/terraform`, rendered through the established dedicated platform registry. Its source requires regeneration of `internal/webui/static` before packaging; source-only changes are not a release artifact.
 
 ADR-040 adds that state-specific adapter through separate `/api/v1/terraform/state-removal/{preview,execute}` endpoints. It delegates to the identity-verified official CLI with fixed arguments, a mandatory dry run, an expiring one-use snapshot-bound approval, typed confirmation, local locking, verified backups and outcome reconciliation. The generic pack still cannot run `state rm`. Native Windows qualification remains blocked on actual path, reparse-point and locking acceptance.
+
+
+## Isolated password-sharing receiver — ADR-042
+
+`internal/passwordshare` owns a small in-memory one-invitation state machine,
+TLS 1.3 transport and static browser sender page. It imports no executor, pack,
+vendor, run-history or credential-storage code. Local session/Origin/CSRF-protected
+`/api/v1/password-sharing` metadata and fixed POST operations create, inspect,
+send, cancel and reveal. Only Create opens a separate listener on a freshly
+validated local RFC 1918 IPv4 address; it closes on cancel/reveal/expiry/shutdown.
+The LAN router has only three static sender files and one bounded submission
+route, never the application's router. App-to-app sending authenticates a
+short-lived TLS key through the invitation fingerprint. Browser mode requires an
+operator-owned certificate/key covering the IP and sender-device trust. A timer
+clears received memory without polling. See [the complete contract](PASSWORD_SHARING.md).
+Native Windows and real two-device trust/firewall qualification remain pending.

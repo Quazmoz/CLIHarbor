@@ -47,6 +47,7 @@ const PlatformPage = lazy(() => import('./PlatformPage').then((module) => ({ def
 const PlatformsPage = lazy(() => import('./PlatformPage').then((module) => ({ default: module.PlatformsPage })));
 const ToolsPage = lazy(() => import('./ToolsPage').then((module) => ({ default: module.ToolsPage })));
 const SupportDiagnostics = lazy(() => import('./SupportDiagnostics').then((module) => ({ default: module.SupportDiagnostics })));
+const PasswordSharingPage = lazy(() => import('./PasswordSharingPage').then((module) => ({ default: module.PasswordSharingPage })));
 const SecretAuditPage = lazy(() => import('./platforms/conjur/SecretAuditPage').then((module) => ({ default: module.SecretAuditPage })));
 const ConjurAccessExplorer = lazy(() => import('./platforms/conjur/ConjurAccessExplorer').then((module) => ({ default: module.ConjurAccessExplorer })));
 
@@ -317,13 +318,14 @@ function formatActivityTime(at: Date): string {
   return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
 }
 
-type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'secret-audit' | 'access-explorer' | 'tools' | 'diagnostics' | 'platforms' | 'platform';
+type AppRoute = 'overview' | 'authentication' | 'tasks' | 'runs' | 'password-sharing' | 'secret-audit' | 'access-explorer' | 'tools' | 'diagnostics' | 'platforms' | 'platform';
 
 const routePaths: Record<AppRoute, string> = {
   overview: '/',
   authentication: '/authentication',
   tasks: '/tasks',
   runs: '/runs',
+  'password-sharing': '/password-sharing',
   'secret-audit': '/dedicated/conjur/security-audit',
   'access-explorer': '/dedicated/conjur/access-explorer',
   tools: '/tools',
@@ -354,6 +356,7 @@ const navigationItems: Array<{ route: AppRoute; label: string; group: string; ic
   { route: 'overview', label: 'Overview', group: 'Workspace', icon: 'M3 11.5 12 4l9 7.5 M5.5 9.5V20h13V9.5 M10 20v-5h4v5' },
   { route: 'tasks', label: 'Command Builder', group: 'Workspace', icon: 'M4 4h16v16H4z m4 5 3 3-3 3 M13 15h3' },
   { route: 'runs', label: 'Execution History', group: 'Workspace', icon: 'M3 12a9 9 0 1 0 3-6 M3 3v6h6 M12 7v5l3 2' },
+  { route: 'password-sharing', label: 'Password sharing', group: 'Workspace', icon: 'M12 3v12 M7 8l5-5 5 5 M5 14v7h14v-7' },
   { route: 'tools', label: 'Add a CLI', group: 'Manage', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M17.5 14v7 M14 17.5h7' },
   { route: 'diagnostics', label: 'Diagnostics', group: 'Manage', icon: 'M3 12h4l3-8 4 16 3-8h4' },
   { route: 'secret-audit', label: 'Conjur security audit', group: 'Dedicated', icon: 'M14 3H5v18h14V8z M14 3v5h5 M8 12h7 M8 16h5' },
@@ -372,6 +375,8 @@ function routeFromPath(pathname: string): AppRoute {
       return 'tasks';
     case '/runs':
       return 'runs';
+    case '/password-sharing':
+      return 'password-sharing';
     case '/secret-audit':
     case '/conjur/security-audit':
     case routePaths['secret-audit']:
@@ -1395,6 +1400,8 @@ function WorkspaceApp() {
             onQuickCheckHandled={clearQuickCheck}
           />
         )}
+
+        {state.kind === 'ready' && route === 'password-sharing' && <PasswordSharingPage csrfToken={state.status.csrfToken} />}
 
       {state.kind === 'ready' && route === 'runs' && <RunsPage tasks={state.tasks} requestedRun={requestedRun}
         csrfToken={state.status.csrfToken} tasksLocked={starting || activeRunID !== null || Object.keys(local).length > 0}
