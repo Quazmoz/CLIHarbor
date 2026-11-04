@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { cancelInvitation, createInvitation, fetchSharingStatus, inspectInvitation, revealPassword, sendPassword,
+import { acceptablePassword, cancelInvitation, createInvitation, fetchSharingStatus, inspectInvitation, MAX_PASSWORD_BYTES, revealPassword, sendPassword,
   type Destination, type SharingStatus } from './api/passwordSharing';
 import { normalizeError } from './api/errors';
 import { useMutationActivity, useMutationPending } from './OperationActivity';
@@ -22,6 +22,7 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
   const [incoming, setIncoming] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [password, setPassword] = useState('');
+  const [multiline, setMultiline] = useState(false);
   const [destination, setDestination] = useState<Destination | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [notice, setNotice] = useState('');
@@ -35,8 +36,9 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
   const busyRef = useRef(false);
   const alive = useRef(true);
   const read = useRef<AbortController | null>(null);
-  const revealedInput = useRef<HTMLInputElement>(null);
-  const passwordInput = useRef<HTMLInputElement>(null);
+  // Each is either a single-line input or a multi-line text area; only value and focus are used.
+  const revealedInput = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const passwordInput = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const outgoingInput = useRef<HTMLTextAreaElement>(null);
   const invitationInput = useRef<HTMLTextAreaElement>(null);
   const refresh = useCallback(() => {
@@ -165,7 +167,9 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
         </section>}
         {snapshot && !active && snapshot.state !== 'idle' && <p role="status">{snapshot.state === 'revealed' ? 'The received password has been consumed. It cannot be revealed again.' : 'Invitation ' + snapshot.state + '. Create a new invitation if you need another transfer.'}</p>}
         {incoming && <section aria-label="Received password"><h3>3. Use the received password</h3>
-          <label>Received password<input ref={revealedInput} readOnly value={incoming} autoComplete="off" spellCheck={false} /></label>
+          <label>Received password{incoming.includes('\n')
+            ? <textarea ref={revealedInput} readOnly value={incoming} rows={8} autoComplete="off" spellCheck={false} />
+            : <input ref={revealedInput} readOnly value={incoming} autoComplete="off" spellCheck={false} />}</label>
           <p>Clears from this page after one minute or when you leave or hide it. Clipboard managers may retain a copied value.</p>
           <button type="button" onClick={() => { void navigator.clipboard.writeText(incoming).then(() => setNotice('Password copied. Clear your clipboard when finished.'), () => setError('The password could not be copied.')); }}>Copy received password</button>
           <button type="button" className="secondary-button" onClick={() => setIncoming('')}>Hide and clear password</button>
@@ -181,7 +185,7 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
         </form>
         {destination && <form onSubmit={(event) => {
           event.preventDefault();
-          if (!confirmed || !password || new TextEncoder().encode(password).length > 4096 || /[\p{Cc}\p{Cf}]/u.test(password)) return;
+          if (!confirmed || !acceptablePassword(password)) return;
           void act('Sending password…', async () => {
             const value = password; const link = outgoing;
             setPassword(''); setOutgoing(''); setDestination(null); setConfirmed(false);
@@ -193,9 +197,14 @@ export function PasswordSharingPage({ csrfToken }: { csrfToken: string }) {
           <p>Ask the recipient to read you their receiving address and fingerprint. Both must match exactly.</p>
           <dl><div><dt>Receiving address</dt><dd><code>{hostOf(destination.origin)}</code></dd></div><div><dt>Certificate fingerprint (SHA-256)</dt><dd><code>{grouped(destination.fingerprint)}</code></dd></div></dl>
           <label className="sharing-consent"><input type="checkbox" required checked={confirmed} disabled={busy} onChange={(e) => setConfirmed(e.target.checked)} />I verified this address and fingerprint with the recipient.</label>
-          <label>Password to send<input ref={passwordInput} type="password" required maxLength={4096} value={password} disabled={busy} autoComplete="off" spellCheck={false} aria-describedby="sharing-password-help" onChange={(e) => setPassword(e.target.value)} /></label>
-          <p id="sharing-password-help">Single line, up to 4,096 bytes, without control or invisible formatting characters. The password and invitation clear from this page as soon as you send.</p>
-          <button type="submit" disabled={busy || !confirmed || !password || new TextEncoder().encode(password).length > 4096 || /[\p{Cc}\p{Cf}]/u.test(password)}>Send password once</button>
+          <label className="sharing-consent"><input type="checkbox" checked={multiline} disabled={busy} aria-describedby="sharing-multiline-help"
+            onChange={(e) => { setMultiline(e.target.checked); setPassword(''); }} />Multi-line value, such as a private key, certificate or JSON key file</label>
+          <p id="sharing-multiline-help">The multi-line field is not masked: its text is shown on screen as you paste it. Make sure nobody else can see your screen. Switching clears the field.</p>
+          <label>Password to send{multiline
+            ? <textarea ref={passwordInput} required maxLength={MAX_PASSWORD_BYTES} rows={8} value={password} disabled={busy} autoComplete="off" spellCheck={false} aria-describedby="sharing-password-help" onChange={(e) => setPassword(e.target.value)} />
+            : <input ref={passwordInput} type="password" required maxLength={MAX_PASSWORD_BYTES} value={password} disabled={busy} autoComplete="off" spellCheck={false} aria-describedby="sharing-password-help" onChange={(e) => setPassword(e.target.value)} />}</label>
+          <p id="sharing-password-help">{multiline ? 'Line breaks and tabs are kept. An older CLIHarbor receiver refuses multi-line values, and nothing is stored.' : 'Masked, single line.'} Up to 16,384 bytes, without other control or invisible formatting characters. The password and invitation clear from this page as soon as you send.</p>
+          <button type="submit" disabled={busy || !confirmed || !acceptablePassword(password)}>Send password once</button>
         </form>}
       </>}
       <div id="password-sharing-actions" tabIndex={-1} aria-live="polite" role="status">{busy ? 'Working… Keep this page open; do not submit again.' : notice}</div>

@@ -630,11 +630,17 @@ hidden is discarded with an explanation rather than rendered or dropped silently
 The recipient explicitly reveals once; the displayed value clears in one minute,
 on page hiding or route exit. Copy is explicit and clipboard-retention limits are
 visible. Send checks the invitation and displays the target/fingerprint before
-password entry and consent. Submission clears the input before acknowledgement;
+password entry and consent. Entry defaults to a masked single-line field; a
+**Multi-line value** checkbox (private key, certificate or JSON key file) swaps it
+for a text area and says plainly that this field is shown on screen. Switching
+clears the field. Help text gives the 16,384-byte limit and says an older receiver
+refuses multi-line values without storing them. A multi-line reveal appears in a
+read-only text area with the same one-minute, hide and explicit-copy rules. Submission clears the input before acknowledgement;
 ambiguous results require checking with the other person, never automatic replay.
 In-flight operations use existing activity/navigation and remount guards. No secret
 or invitation is written to preferences, task inputs, execution history or logs.
-The standalone HTTPS sender page numbers its steps, has labelled native controls,
+The standalone HTTPS sender page numbers its steps, offers the same masked or
+multi-line choice, has labelled native controls,
 a live status that distinguishes sent, refused and unconfirmed outcomes, strict
 CSP and no third-party code. Reloading it after the fragment is removed explains
 that the full link must be opened again. See [Password sharing](PASSWORD_SHARING.md).

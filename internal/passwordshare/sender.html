@@ -6,8 +6,11 @@
 <ol><li>Ask the recipient to read you their receiving address by phone, in person or another trusted channel. It must match the address above.</li>
 <li>Check that your browser shows a secure connection. If it shows a certificate warning, stop and tell the recipient.</li>
 <li>Enter the password and send it.</li></ol>
-<form id="send" autocomplete="off"><label for="password">Password</label><input id="password" type="password" required maxlength="4096" autocomplete="off" spellcheck="false" aria-describedby="password-help" disabled>
-<p id="password-help">Single line, up to 4,096 bytes. Nothing is saved on this page or in CLIHarbor history.</p>
+<form id="send" autocomplete="off"><label class="consent"><input id="multiline" type="checkbox" aria-describedby="multiline-help" disabled>Multi-line value, such as a private key, certificate or JSON key file</label>
+<p id="multiline-help" class="help">The multi-line field is not masked: its text is shown on screen as you paste it. Make sure nobody else can see your screen. Switching clears the field.</p>
+<label for="password">Password</label><input id="password" type="password" required maxlength="16384" autocomplete="off" spellcheck="false" aria-describedby="password-help" disabled>
+<label for="multiline-password" hidden>Password (multi-line)</label><textarea id="multiline-password" rows="8" required maxlength="16384" autocomplete="off" spellcheck="false" aria-describedby="password-help" hidden disabled></textarea>
+<p id="password-help" class="help">Up to 16,384 bytes. Line breaks and tabs are kept in the multi-line field; an older CLIHarbor receiver refuses them, and nothing is stored. Nothing is saved on this page or in CLIHarbor history.</p>
 <label class="consent"><input id="confirmed" type="checkbox" required disabled>The recipient confirmed this receiving address with me.</label>
 <button id="submit" type="submit" disabled>Send password once</button></form>
 <p id="status" role="status" aria-live="polite"></p>

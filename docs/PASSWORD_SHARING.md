@@ -48,8 +48,21 @@ connections. CLIHarbor never opens firewall rules, installs CAs or bypasses poli
   The browser removes that fragment from its current history entry immediately.
   Treat invitations as secrets; anyone with one can submit, and possession does
   not prove the human sender's identity.
-- Only one invitation and one single-line UTF-8 password (1–4,096 bytes) may be
-  retained. The deadline clears the receiver buffer without requiring UI polling.
+- Only one invitation and one UTF-8 value of 1–16,384 bytes may be retained. The
+  value may be a single-line password or a multi-line secret such as a PEM private
+  key, certificate chain, SSH key or JSON service-account file. LF and tab are the
+  only control characters accepted; CRLF is normalized to LF in place (no second
+  copy) by both sender and receiver, and a lone CR, every other control or Unicode
+  format (Cf) character, invalid UTF-8 and empty values are refused. The receiver
+  alone decides: invitations stay protocol `v=1`, and an older receiver answers a
+  multi-line value with 400, which senders report as definitive (nothing stored).
+  16 KiB fits a 4096-bit RSA PEM key with a three-certificate chain (about 10 KiB)
+  or a cloud JSON key (about 2.5 KiB). The same limit applies in the Go receiver
+  and sender, the LAN body reader, the browser sender page and the app UI. The app
+  sends it inside JSON, where escaping at most doubles it (newline, tab, quote and
+  backslash become two bytes), so it stays inside the unchanged 64 KiB local body cap.
+  Multi-line entry is an explicit choice in both senders and is not masked; the
+  UI says so. A multi-line reveal is shown in a read-only text area. The deadline clears the receiver buffer without requiring UI polling.
   Cancel, reveal and shutdown also clear it. The revealed UI value clears after
   one minute and on hiding/leaving the page. The original deadline still applies
   if the password arrives just before expiry. The deadline is compared on the

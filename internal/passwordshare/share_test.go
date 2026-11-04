@@ -152,7 +152,7 @@ func TestBrowserTLSFixedRoutesAndOrigin(t *testing.T) {
 	if response.StatusCode != 403 || s.Status().State != "waiting" {
 		t.Fatal("foreign origin accepted or consumed invitation")
 	}
-	for _, bad := range [][]byte{nil, bytes.Repeat([]byte("a"), 4097), {0xff}, []byte("line\nbreak"), []byte("invisible\u200bformat")} {
+	for _, bad := range [][]byte{nil, bytes.Repeat([]byte("a"), MaxPasswordBytes+1), {0xff}, []byte("lone\rreturn"), []byte("invisible\u200bformat")} {
 		response = submit(t, client, invite, bad, invite.Status.Origin)
 		response.Body.Close()
 		if response.StatusCode != 400 || s.Status().State != "waiting" {
@@ -510,5 +510,69 @@ func TestWallClockExpiryAfterSuspendWithoutUI(t *testing.T) {
 			t.Fatalf("receiver still %s after the wall-clock deadline passed", state)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestMultiLineSecretsNormalizeAndOtherControlsStayRefused(t *testing.T) {
+	for value, want := range map[string]bool{
+		"line one\nline two": true, "tab\tseparated": true, "-----BEGIN KEY-----\r\nAAAA\r\n-----END KEY-----\r\n": true,
+		"lone\rreturn": false, "bell\a": false, "nul\x00": false, "zero​width": false, "\n": true, "": false,
+		strings.Repeat("k", MaxPasswordBytes): true, strings.Repeat("k", MaxPasswordBytes+1): false, "\xff": false,
+	} {
+		if _, ok := normalizePassword([]byte(value)); ok != want {
+			t.Errorf("%q accepted = %v", value, ok)
+		}
+	}
+	// A real chain-sized PEM transfer: CRLF is stored as LF, the receiver decides.
+	pemCRLF := "-----BEGIN PRIVATE KEY-----\r\n" + strings.Repeat(strings.Repeat("A", 64)+"\r\n", 150) + "-----END PRIVATE KEY-----\r\n"
+	receiver, sender := testService(t, false), testService(t, false)
+	invite := testInvitation(t, receiver, "app")
+	if err := sender.Send(t.Context(), invite.URL, []byte(pemCRLF)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := receiver.Take(invite.Status.ID)
+	defer clear(got)
+	if err != nil || string(got) != strings.ReplaceAll(pemCRLF, "\r\n", "\n") {
+		t.Fatal("multi-line value was not delivered with LF line breaks")
+	}
+	// Browser senders post raw bytes; the receiver normalizes and bounds them itself.
+	s := testService(t, true)
+	client := browserClient(t, s)
+	for _, test := range []struct {
+		body string
+		want int
+	}{{strings.Repeat("x", MaxPasswordBytes+1), 400}, {"bad\rbreak", 400}, {"a\r\nb\tc", 204}} {
+		browserInvite := testInvitation(t, s, "browser")
+		response := submit(t, client, browserInvite, []byte(test.body), browserInvite.Status.Origin)
+		response.Body.Close()
+		if response.StatusCode != test.want {
+			t.Fatalf("%q status = %d, want %d", test.body[:min(len(test.body), 12)], response.StatusCode, test.want)
+		}
+		if test.want == 204 {
+			if got, _ := s.Take(browserInvite.Status.ID); string(got) != "a\nb\tc" {
+				t.Fatal("browser value was not normalized")
+			}
+		} else if err := s.Cancel(browserInvite.Status.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// An older receiver still accepts only single-line passwords and answers 400.
+// The sender must report that as a definitive refusal, never as unconfirmed.
+func TestOlderReceiverRefusingMultiLineIsDefinitive(t *testing.T) {
+	peer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if body, _ := io.ReadAll(r.Body); bytes.ContainsRune(body, '\n') {
+			http.Error(w, "Use a single-line password of 1 to 4096 UTF-8 bytes.", 400)
+			return
+		}
+		w.WriteHeader(204)
+	}))
+	defer peer.Close()
+	peer.Config.ErrorLog = log.New(io.Discard, "", 0)
+	token, _ := randomID(32)
+	link := peer.URL + "/#" + url.Values{"v": {"1"}, "mode": {"app"}, "token": {token}, "pin": {fingerprint(peer.Certificate())}}.Encode()
+	if err := testService(t, false).Send(t.Context(), link, []byte("line one\nline two")); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("older receiver refusal = %v", err)
 	}
 }

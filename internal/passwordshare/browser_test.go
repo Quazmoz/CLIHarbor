@@ -32,7 +32,7 @@ func TestPasswordSenderBrowserE2E(t *testing.T) {
 	}
 	value, err := s.Take(invite.Status.ID)
 	defer clear(value)
-	if err != nil || string(value) != "browser-wire-fixture" {
+	if err != nil || string(value) != "browser-wire-fixture\nsecond line\tend" {
 		t.Fatal("browser delivery did not reach the receiver intact")
 	}
 }

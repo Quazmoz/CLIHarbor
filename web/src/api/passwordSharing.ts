@@ -13,6 +13,11 @@ export interface SharingStatus {
 }
 export interface Destination { origin: string; fingerprint: string }
 const endpoint = '/api/v1/password-sharing';
+// Mirrors the receiver: 1–16 KiB of UTF-8 whose only control characters are LF and
+// tab (text areas already report CRLF as LF), and no invisible format characters.
+export const MAX_PASSWORD_BYTES = 16384;
+export const acceptablePassword = (value: string) => value.length > 0 &&
+  new TextEncoder().encode(value).length <= MAX_PASSWORD_BYTES && !/(?![\t\n])[\p{Cc}\p{Cf}]/u.test(value);
 const states = new Set(['idle', 'waiting', 'received', 'revealed', 'expired', 'cancelled', 'unavailable', 'closed']);
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const fingerprint = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -56,7 +61,7 @@ export async function createInvitation(csrf: string, address: string, mode: 'app
 export async function cancelInvitation(csrf: string, id: string) { if ((await post(csrf, '/cancel', { id })).status !== 204) throw clientError('invalid_response'); }
 export async function revealPassword(csrf: string, id: string): Promise<string> {
   const data: unknown = await (await post(csrf, '/reveal', { id })).json();
-  if (!record(data) || typeof data.password !== 'string' || data.password.length < 1 || new TextEncoder().encode(data.password).length > 4096 || /[\p{Cc}\p{Cf}]/u.test(data.password)) throw clientError('invalid_response');
+  if (!record(data) || typeof data.password !== 'string' || !acceptablePassword(data.password)) throw clientError('invalid_response');
   return data.password;
 }
 export async function inspectInvitation(csrf: string, invitation: string): Promise<Destination> {

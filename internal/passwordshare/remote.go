@@ -89,8 +89,9 @@ func (s *Service) remote(id, origin, mode string, w http.ResponseWriter, r *http
 	}
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, MaxPasswordBytes))
 	defer clear(data)
-	if err != nil || !validPassword(data) {
-		http.Error(w, "Use a single-line password of 1 to 4096 UTF-8 bytes.", 400)
+	password, ok := normalizePassword(data)
+	if err != nil || !ok {
+		http.Error(w, "Use 1 to 16384 UTF-8 bytes; line breaks and tabs are the only control characters allowed.", 400)
 		return
 	}
 	s.mu.Lock()
@@ -100,7 +101,7 @@ func (s *Service) remote(id, origin, mode string, w http.ResponseWriter, r *http
 		http.Error(w, "Invitation unavailable.", 403)
 		return
 	}
-	s.password = append([]byte(nil), data...)
+	s.password = append([]byte(nil), password...)
 	s.state = "received"
 	s.tokenHash = [32]byte{}
 	// Stop accepting LAN connections now; this response still completes.

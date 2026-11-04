@@ -153,3 +153,55 @@ test('definitive send refusals say nothing was sent instead of reporting an unco
     view.unmount();
   }
 });
+
+const pem = '-----BEGIN PRIVATE KEY-----\nAAAA\tBBBB\n-----END PRIVATE KEY-----\n';
+
+test('multi-line sending is an explicit, visible-on-screen choice and keeps the receiver limits', async () => {
+  const storage = vi.spyOn(Storage.prototype, 'setItem');
+  const backend = installFakeBackend({ [root]: { body: idle },
+    ['POST '+root+'/inspect']: { body: { origin: waiting.origin, fingerprint: waiting.fingerprint } },
+    ['POST '+root+'/send']: { status: 204 } });
+  mount();
+  fireEvent.click(screen.getByRole('tab', { name: 'Send a password' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Recipient’s invitation' }), { target: { value: invitation } });
+  fireEvent.click(screen.getByRole('button', { name: 'Check receiving address' }));
+  const masked = await screen.findByLabelText('Password to send');
+  expect(masked).toHaveAttribute('type', 'password');
+  fireEvent.change(masked, { target: { value: 'typed-before-switching' } });
+  const multiline = screen.getByRole('checkbox', { name: /Multi-line value/ });
+  expect(multiline).toHaveAccessibleDescription(/shown on screen/);
+  fireEvent.click(multiline);
+  const area = screen.getByRole('textbox', { name: 'Password to send' });
+  expect(area.tagName).toBe('TEXTAREA');
+  expect(area).toHaveValue('');
+  fireEvent.click(screen.getByRole('checkbox', { name: /I verified this address/ }));
+  const send = screen.getByRole('button', { name: 'Send password once' });
+  for (const refused of ['bell\u0007', 'zero​width', 'x'.repeat(16385)]) {
+    fireEvent.change(area, { target: { value: refused } });
+    expect(send).toBeDisabled();
+  }
+  fireEvent.change(area, { target: { value: pem } });
+  fireEvent.click(send);
+  await waitFor(() => expect(backend.bodies('POST '+root+'/send')).toEqual([{ invitation, password: pem, confirmed: true }]));
+  expect(screen.queryByDisplayValue(/BEGIN PRIVATE KEY/)).not.toBeInTheDocument();
+  expect(storage).not.toHaveBeenCalled();
+  storage.mockRestore();
+});
+
+test('a revealed multi-line value appears in a read-only text area and clears on hiding', async () => {
+  installFakeBackend({ [root]: { body: { ...waiting, state: 'received' } }, ['POST '+root+'/reveal']: { body: { password: pem } } });
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Reveal received password once' }));
+  const value = await screen.findByRole('textbox', { name: 'Received password' });
+  expect(value.tagName).toBe('TEXTAREA');
+  expect(value).toHaveAttribute('readonly');
+  expect(value).toHaveValue(pem);
+  expect(value).toHaveFocus();
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+  try {
+    fireEvent(document, new Event('visibilitychange'));
+    expect(screen.queryByRole('textbox', { name: 'Received password' })).not.toBeInTheDocument();
+  } finally {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  }
+});

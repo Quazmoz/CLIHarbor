@@ -27,7 +27,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,7 +35,11 @@ import (
 )
 
 const TTL = 5 * time.Minute
-const MaxPasswordBytes = 4096
+
+// MaxPasswordBytes fits a 4096-bit RSA PEM key plus a three-certificate chain
+// (about 10 KiB) or a cloud service-account JSON key (about 2.5 KiB). JSON
+// escaping at most doubles it, which stays inside the local 64 KiB body cap.
+const MaxPasswordBytes = 16 << 10
 
 var (
 	ErrInvalid     = errors.New("invalid password-sharing request")
@@ -69,7 +72,7 @@ type Invitation struct {
 	URL    string `json:"invitation"`
 }
 
-// Service deliberately holds at most one invitation and one 4 KiB password.
+// Service deliberately holds at most one invitation and one 16 KiB value.
 // A timer erases the application buffer even when the local UI is closed.
 type Service struct {
 	mu                                   sync.Mutex
@@ -338,11 +341,22 @@ func (s *Service) Close() {
 	s.finishLocked("closed")
 }
 
-func validPassword(data []byte) bool {
-	if len(data) == 0 || len(data) > MaxPasswordBytes || !utf8.Valid(data) {
-		return false
+// normalizePassword rewrites CRLF to LF in place, so no second copy of the secret
+// exists, then accepts 1-16 KiB of UTF-8 whose only control characters are LF
+// and tab. A lone CR, any other control and every Cf character are refused.
+func normalizePassword(data []byte) ([]byte, bool) {
+	out := data[:0]
+	for i, b := range data {
+		if b != '\r' || i+1 == len(data) || data[i+1] != '\n' {
+			out = append(out, b)
+		}
 	}
-	return !strings.ContainsFunc(string(data), func(r rune) bool { return unicode.IsControl(r) || unicode.In(r, unicode.Cf) })
+	if len(out) == 0 || len(out) > MaxPasswordBytes || !utf8.Valid(out) {
+		return out, false
+	}
+	return out, !bytes.ContainsFunc(out, func(r rune) bool {
+		return r != '\n' && r != '\t' && (unicode.IsControl(r) || unicode.In(r, unicode.Cf))
+	})
 }
 
 func fingerprint(cert *x509.Certificate) string {
@@ -416,7 +430,8 @@ func (s *Service) Send(ctx context.Context, invitation string, password []byte) 
 	}
 	defer s.sendMu.Unlock()
 	u, token, pin, err := s.ParseInvitation(invitation)
-	if err != nil || !validPassword(password) {
+	password, ok := normalizePassword(password)
+	if err != nil || !ok {
 		return ErrInvalid
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)

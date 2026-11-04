@@ -1,8 +1,11 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -78,5 +81,22 @@ func TestPasswordSharingLocalBoundaryAndStrictRequests(t *testing.T) {
 	response.Body.Close()
 	if response.StatusCode != 200 || strings.Contains(string(body), "invitation") || strings.Contains(string(body), "password") {
 		t.Fatal("unsafe sharing status")
+	}
+}
+
+// The browser's JSON.stringify writes each newline, tab, quote or backslash as two
+// bytes, so the shared JSON body cap must hold a worst-case maximum-size value.
+func TestPasswordSendBodyCapFitsEscapedMaximumValue(t *testing.T) {
+	password := strings.Repeat("\n", passwordshare.MaxPasswordBytes)
+	body, _ := json.Marshal(map[string]any{"invitation": strings.Repeat("x", 1024), "password": password, "confirmed": true})
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/password-sharing/send", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	var decoded struct {
+		Invitation string `json:"invitation"`
+		Password   string `json:"password"`
+		Confirmed  bool   `json:"confirmed"`
+	}
+	if err := decodeStrictJSON(httptest.NewRecorder(), request, &decoded); err != nil || decoded.Password != password {
+		t.Fatalf("maximum escaped value refused: %v", err)
 	}
 }
