@@ -125,14 +125,6 @@ func (s *managedInstallLocationStore) Save(ref discovery.ToolRef, root string) e
 	}
 	current.Tools[ref.String()] = root
 
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
-		return err
-	}
-	if info, err := os.Lstat(s.path); err == nil {
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return os.ErrPermission
-		}
-	}
 	keys := make([]string, 0, len(current.Tools))
 	for key := range current.Tools {
 		keys = append(keys, key)
@@ -148,37 +140,7 @@ func (s *managedInstallLocationStore) Save(ref discovery.ToolRef, root string) e
 	}
 	data = append(data, '\n')
 
-	temp, err := os.CreateTemp(filepath.Dir(s.path), ".managed-install-locations-*.tmp")
-	if err != nil {
-		return err
-	}
-	tempPath := temp.Name()
-	keep := false
-	defer func() {
-		_ = temp.Close()
-		if !keep {
-			_ = os.Remove(tempPath)
-		}
-	}()
-	if err := temp.Chmod(0o600); err != nil {
-		return err
-	}
-	if _, err := temp.Write(data); err != nil {
-		return err
-	}
-	if err := temp.Sync(); err != nil {
-		return err
-	}
-	if err := temp.Close(); err != nil {
-		return err
-	}
-	// Never delete the previous registry on a failed replacement: an
-	// antivirus lock, permission error or filesystem failure must preserve it.
-	if err := os.Rename(tempPath, s.path); err != nil {
-		return err
-	}
-	keep = true
-	return nil
+	return writePrivateFileAtomic(s.path, ".managed-install-locations-*.tmp", data)
 }
 
 func parseManagedInstallRef(value string) (discovery.ToolRef, bool) {
@@ -260,4 +222,47 @@ func validateManagedInstallRoot(value, homeDir string) (string, bool) {
 		return "", false
 	}
 	return root, true
+}
+
+// writePrivateFileAtomic replaces a regular, non-symlink per-user state file
+// with an owner-only copy. A failed replacement never deletes the previous
+// file: an antivirus lock, permission error or filesystem failure preserves it.
+func writePrivateFileAtomic(path, tempPattern string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return os.ErrPermission
+		}
+	}
+	temp, err := os.CreateTemp(filepath.Dir(path), tempPattern)
+	if err != nil {
+		return err
+	}
+	tempPath := temp.Name()
+	keep := false
+	defer func() {
+		_ = temp.Close()
+		if !keep {
+			_ = os.Remove(tempPath)
+		}
+	}()
+	if err := temp.Chmod(0o600); err != nil {
+		return err
+	}
+	if _, err := temp.Write(data); err != nil {
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		return err
+	}
+	keep = true
+	return nil
 }

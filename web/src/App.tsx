@@ -35,6 +35,7 @@ import { OutputExplorer } from './OutputExplorer';
 import { runOutcomeHeading, runOutcomeTone } from './operatorLanguage';
 import {
   loadTaskPreferences,
+  loadRuntimeTaskPreferences,
   recordRecentTask,
   reconcileTaskPreferences,
   saveTaskPreferences,
@@ -639,6 +640,13 @@ function WorkspaceApp() {
         if (controller.signal.aborted) return;
         setPlatforms(loadedPlatforms);
         acceptRuntime(status, tasks, tools);
+        // Preferences never delay the workspace; apply them once the stored copy arrives.
+        void loadRuntimeTaskPreferences(status.csrfToken, controller.signal).then((loaded) => {
+          if (!loaded || controller.signal.aborted) return;
+          const stored = reconcileTaskPreferences(loadTaskPreferences(), tasks);
+          setTaskPreferences(stored);
+          saveTaskPreferences(stored);
+        });
       },
       (error: unknown) => {
         if (!controller.signal.aborted && !isAbort(error)) {
@@ -1764,7 +1772,7 @@ function WorkspaceApp() {
                           )}
                         </section>
 
-                        {mutationTask && <ExecutionContext fields={commandPreview?.context?.fields ?? (activeRunID ? run?.context?.fields : undefined) ?? [{ label: 'Environment', value: 'Review the change to verify the backend context.' }]}
+                        {(mutationTask || commandPreview?.context) && <ExecutionContext fields={commandPreview?.context?.fields ?? (activeRunID ? run?.context?.fields : undefined) ?? [{ label: 'Environment', value: 'Review the change to verify the backend context.' }]}
                           target={commandPreview?.impact?.target ?? (activeRunID ? run?.target : undefined)} />}
                         <div className="task-actions">
                           <button

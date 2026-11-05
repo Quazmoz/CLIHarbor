@@ -51,7 +51,9 @@ type Config struct {
 	Diagnostics                func() diagnostics.Bundle
 	CredentialLogin            CredentialLoginService
 	CredentialInteractiveLogin CredentialInteractiveLoginService
+	CredentialLogout           CredentialLogoutService
 	CredentialConfiguration    CredentialConfigurationService
+	TaskPreferences            TaskPreferencesStore
 	ToolInstaller              ToolInstallService
 	ToolRefresher              ToolRefreshService
 	SecretAudit                SecretAuditService
@@ -84,7 +86,9 @@ type Server struct {
 	diagnostics                func() diagnostics.Bundle
 	credentialLogin            CredentialLoginService
 	credentialInteractiveLogin CredentialInteractiveLoginService
+	credentialLogout           CredentialLogoutService
 	credentialConfiguration    CredentialConfigurationService
+	taskPreferences            TaskPreferencesStore
 	toolInstaller              ToolInstallService
 	toolRefresher              ToolRefreshService
 	secretAudit                SecretAuditService
@@ -158,6 +162,8 @@ func New(config Config) (*Server, error) {
 		diagnostics:                config.Diagnostics,
 		credentialLogin:            config.CredentialLogin,
 		credentialInteractiveLogin: config.CredentialInteractiveLogin,
+		credentialLogout:           config.CredentialLogout,
+		taskPreferences:            config.TaskPreferences,
 		credentialConfiguration:    config.CredentialConfiguration,
 		toolInstaller:              config.ToolInstaller,
 		toolRefresher:              config.ToolRefresher,
@@ -206,6 +212,12 @@ func New(config Config) (*Server, error) {
 	}
 	if s.credentialInteractiveLogin != nil {
 		mux.Handle("/api/v1/auth/interactive", s.requireSession(http.HandlerFunc(s.handleCredentialInteractiveLogin)))
+	}
+	if s.taskPreferences != nil {
+		mux.Handle("/api/v1/preferences", s.requireSession(http.HandlerFunc(s.handleTaskPreferences)))
+	}
+	if s.credentialLogout != nil {
+		mux.Handle("/api/v1/auth/logout", s.requireSession(http.HandlerFunc(s.handleCredentialLogout)))
 	}
 	if s.credentialConfiguration != nil {
 		mux.Handle("/api/v1/auth/configure", s.requireSession(http.HandlerFunc(s.handleCredentialConfiguration)))

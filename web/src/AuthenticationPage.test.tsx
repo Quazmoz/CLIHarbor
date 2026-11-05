@@ -631,6 +631,42 @@ describe('AuthenticationPage', () => {
     expect(password).toHaveValue('');
   });
 
+  test('signs out through the dedicated endpoint, then re-runs the session check', async () => {
+    const calls: string[] = [];
+    let logoutRequest: unknown;
+    let logoutHeaders: HeadersInit | undefined;
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      calls.push(path);
+      if (path === '/api/v1/auth/login') return Promise.resolve(new Response(null, { status: 204 }));
+      if (path === '/api/v1/auth/logout') {
+        logoutRequest = JSON.parse(String(init?.body));
+        logoutHeaders = init?.headers;
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      if (path === '/api/v1/runs') {
+        return Promise.resolve(response(202, {
+          runId: 'cccccccccccccccccccccccccccccccc', packId: 'cyberark-conjur-v9', commandId: 'whoami',
+          toolId: 'conjur', status: 'exited', exitCode: 0,
+        }));
+      }
+      return Promise.resolve(response(404, {}));
+    }));
+
+    renderAuth();
+    expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Identity' }), { target: { value: 'alice' } });
+    fireEvent.change(document.querySelector('input[type="password"]')!, { target: { value: 'pw' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in and verify' }));
+    await screen.findByRole('heading', { name: 'Authenticated' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(calls.filter((path) => path === '/api/v1/runs')).toHaveLength(2));
+    expect(logoutRequest).toEqual({ packId: 'cyberark-conjur-v9', toolId: 'conjur' });
+    expect(logoutHeaders).toMatchObject({ 'X-CLIHarbor-CSRF': status.csrfToken });
+    expect(calls.indexOf('/api/v1/auth/logout')).toBeLessThan(calls.lastIndexOf('/api/v1/runs'));
+  });
+
   test('does not render a credential form for vendor-session tools without a reviewed credential adapter', () => {
     vi.stubGlobal('fetch', vi.fn());
     const tool: ToolDiagnostic = {

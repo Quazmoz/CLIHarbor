@@ -111,12 +111,16 @@ Implemented:
 - Windows vendor-owned Conjur login launch for reviewed OIDC, JWT, and SaaS/cloud modes using the identity-verified executable plus fixed `login` argv: OIDC/JWT avoid an unnecessary console, while SaaS/cloud retains a vendor terminal for genuinely interactive challenges; no shell or credential capture;
 - the existing Conjur `whoami` check remains authoritative after either sign-in path.
 
+Implemented in dev source (real-tenant qualification pending):
+
+- Conjur **Sign out** through the reviewed upstream `conjur logout` (purges only the vendor-cached credentials; no server call), followed by the normal session check;
+- read-task previews show the reviewed execution context (Conjur Account/Endpoint/Authentication) where a platform resolver exists; the top-bar sign-in status shows the last verified sessions.
+
 Potential deliverables, only when justified by real operator needs:
 
 - broader vendor-specific auth-state detection where authoritative evidence exists;
-- session refresh/status display;
-- documented vendor logout;
-- explicit profile/context visibility;
+- sign-out for other vendors, each from its own documented logout command;
+- context resolvers for other tools (kubectl context, AWS profile/account) after their non-secret sources are reviewed;
 - additional vendor-owned login launchers after their exact authentication contracts are reviewed.
 
 The preferred architecture remains vendor-owned credentials/session storage. Generic browser password/MFA forms and embedded PTY remain deferred because they materially expand the security boundary.
@@ -158,7 +162,7 @@ Frontend confirmation alone is not an authorization boundary.
 
 ## Stage 7 — Secret-bearing workflows
 
-**Write-only secret input implemented** for Conjur `variable set` (stdin only, never echoed or retained; ADR-030). Secret **retrieval** remains deferred and requires a separate reviewed contract for:
+**Write-only secret input implemented** for Conjur `variable set` (stdin only, never echoed or retained; ADR-030). Secret **retrieval** remains unimplemented. Its contract is proposed in [ADR-043](DECISIONS.md#adr-043--conjur-secret-retrieval-contract) and awaits review; it covers:
 
 - reveal/copy UX;
 - no persistence by default;

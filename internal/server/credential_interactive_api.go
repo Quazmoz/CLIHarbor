@@ -24,6 +24,11 @@ type CredentialInteractiveLoginService interface {
 	LaunchInteractive(context.Context, CredentialInteractiveLoginRequest) error
 }
 
+// CredentialLogoutService removes the vendor-cached session for one tool.
+type CredentialLogoutService interface {
+	Logout(context.Context, CredentialInteractiveLoginRequest) error
+}
+
 type credentialInteractiveLoginRequestDTO struct {
 	PackID string `json:"packId"`
 	ToolID string `json:"toolId"`
@@ -86,4 +91,22 @@ func decodeCredentialInteractiveLoginRequest(w http.ResponseWriter, r *http.Requ
 		return zero, fmt.Errorf("invalid credential target")
 	}
 	return request, nil
+}
+
+func (s *Server) handleCredentialLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeMethodNotAllowed(w)
+		return
+	}
+	request, err := decodeCredentialInteractiveLoginRequest(w, r)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, apperror.CodeInvalidRequest)
+		return
+	}
+	if err := s.credentialLogout.Logout(r.Context(), CredentialInteractiveLoginRequest{PackID: request.PackID, ToolID: request.ToolID}); err != nil {
+		writeCredentialLoginError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

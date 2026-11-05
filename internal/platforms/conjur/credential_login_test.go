@@ -904,3 +904,36 @@ func TestConjurSaaSRefusesEnvironmentOverriddenConnection(t *testing.T) {
 		t.Fatalf("unexpected result for env override: %v", err)
 	}
 }
+
+func TestConjurLogoutRunsOnlyReviewedVendorLogoutThroughVerifiedExecutable(t *testing.T) {
+	snapshot := readyConjurSnapshotWithExecutable(t)
+	service := NewCredentialLoginService(snapshot)
+	var calls [][]string
+	service.runInit = func(_ context.Context, executable string, args []string) error {
+		calls = append(calls, append([]string{executable}, args...))
+		return nil
+	}
+	request := server.CredentialInteractiveLoginRequest{PackID: PackID, ToolID: ToolID}
+
+	if err := service.Logout(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 1 || calls[0][0] != snapshot.Tools()[0].Path || len(calls[0]) != 2 || calls[0][1] != "logout" {
+		t.Fatalf("logout invocations = %q, want exactly [<verified path> logout]", calls)
+	}
+
+	var loginErr *server.CredentialLoginError
+	if err := service.Logout(context.Background(), server.CredentialInteractiveLoginRequest{PackID: PackID, ToolID: "other"}); !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnsupported {
+		t.Fatalf("foreign tool error = %#v, want unsupported", err)
+	}
+
+	if err := os.WriteFile(snapshot.Tools()[0].Path, []byte("replaced"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Logout(context.Background(), request); !errors.As(err, &loginErr) || loginErr.Code != server.CredentialLoginUnavailable {
+		t.Fatalf("replaced executable error = %#v, want unavailable", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("logout ran %d times, want no run for a replaced executable", len(calls))
+	}
+}

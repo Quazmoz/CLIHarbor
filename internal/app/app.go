@@ -145,6 +145,8 @@ func Run(ctx context.Context, options Options) error {
 		},
 		CredentialLogin:            credentialLogin,
 		CredentialInteractiveLogin: credentialLogin,
+		CredentialLogout:           credentialLogin,
+		TaskPreferences:            newTaskPreferencesStore(),
 		CredentialConfiguration:    credentialLogin,
 		ToolInstaller:              toolInstaller,
 		ToolRefresher:              toolInstaller,

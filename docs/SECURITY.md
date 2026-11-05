@@ -525,9 +525,9 @@ A successful CI run proves the repository-controlled contract under CI environme
 
 Operation activity, step outcomes, reviewed execution context, and quick-session request state remain transient browser memory. Activity reads the existing metadata-only run endpoint and carries fixed workflow labels, destinations and opaque run IDs, never command inputs, stdin, stdout/stderr, credentials or executable paths. Navigation warnings are UX safeguards; backend approvals, executable identity and vendor authorization remain authoritative. An interrupted response is not proof that a mutation did not occur, and no recovery card automatically retries a mutation. Missing-tool refresh sends only approved pack/tool identity under the existing CSRF boundary; it cannot choose an executable or replace an already selected tool.
 
-Task discovery introduces one deliberately narrow browser-local persistence surface:
+Task discovery introduces one deliberately narrow per-user persistence surface. Each launch serves a new loopback origin, so browser storage cannot survive a restart. The runtime therefore stores the browser's preference document at `<UserConfigDir>/CLIHarbor/task-preferences.json`. That file is owner-only (0600), never read or replaced through a symlink, and replaced atomically. `GET/PUT /api/v1/preferences` sit behind the session cookie, and PUT also requires CSRF. The server accepts and returns only the exact versioned identity shape (at most 16 KiB, no duplicate or unknown keys, at most 128 entries per list, control-free 1–128 character IDs). Anything else on disk reads back as empty preferences. The browser never writes before it has read the stored copy, so a failed read cannot overwrite saved favorites:
 
-- storage key: `cliharbor.task-preferences.v1`;
+- document format: the same versioned JSON as the original `cliharbor.task-preferences.v1` browser key;
 - favorites: bounded task identities containing only `packId` and `commandId`;
 - recent tasks: at most eight deduplicated task identities, newest first.
 

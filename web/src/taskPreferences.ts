@@ -115,18 +115,49 @@ function parsePreferences(value: unknown): TaskPreferences | null {
   };
 }
 
-function browserStorage(): PreferenceStorage | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
+// Each launch serves a new loopback origin, so browser storage would forget
+// preferences on every restart. The runtime keeps the validated document in the
+// per-user config directory; this module reads and writes one in-memory copy.
+let runtimeCopy: string | null = null;
+let runtimeCSRFToken = '';
+let runtimeLoaded = false;
+
+/** Reads the stored copy; resolves false (and keeps writes local) when it cannot. */
+export async function loadRuntimeTaskPreferences(csrfToken: string, signal?: AbortSignal): Promise<boolean> {
+  runtimeCSRFToken = csrfToken;
+  runtimeLoaded = false;
   try {
-    return window.localStorage;
+    const response = await fetch('/api/v1/preferences', {
+      credentials: 'same-origin', headers: { Accept: 'application/json' }, signal,
+    });
+    if (!response.ok) return false;
+    runtimeCopy = await response.text();
+    runtimeLoaded = true;
+    return true;
   } catch {
-    return null;
+    // Preference persistence is optional. Runtime task authority is unaffected.
+    return false;
   }
 }
 
-export function loadTaskPreferences(storage: PreferenceStorage | null = browserStorage()): TaskPreferences {
+const runtimeStorage: PreferenceStorage = {
+  getItem: () => runtimeCopy,
+  setItem: (_key, value) => {
+    if (value === runtimeCopy) return;
+    runtimeCopy = value;
+    // Never replace the stored file before it has been read: a failed or slow
+    // read would otherwise overwrite saved favorites with an empty document.
+    if (!runtimeLoaded) return;
+    void fetch('/api/v1/preferences', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CLIHarbor-CSRF': runtimeCSRFToken },
+      body: value,
+    }).catch(() => undefined);
+  },
+};
+
+export function loadTaskPreferences(storage: PreferenceStorage | null = runtimeStorage): TaskPreferences {
   if (storage === null) {
     return emptyTaskPreferences();
   }
@@ -144,7 +175,7 @@ export function loadTaskPreferences(storage: PreferenceStorage | null = browserS
 
 export function saveTaskPreferences(
   preferences: TaskPreferences,
-  storage: PreferenceStorage | null = browserStorage(),
+  storage: PreferenceStorage | null = runtimeStorage,
 ): void {
   if (storage === null) {
     return;

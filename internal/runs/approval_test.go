@@ -289,3 +289,33 @@ func TestExecutionContextRejectsInvisibleOrBidirectionalDisplayText(t *testing.T
 		t.Fatalf("valid Unicode execution context rejected: %v", err)
 	}
 }
+
+// Reads show the reviewed target context when one resolves, but a failing
+// resolver must never block a read or issue an approval.
+func TestReadPreviewShowsContextBestEffortWithoutApproval(t *testing.T) {
+	registry, snapshot := managerFixture(t)
+	fail := false
+	manager := newTestManager(t, registry, snapshot, Config{
+		ResolveExecutionContext: func(planner.Plan) (ExecutionContext, error) {
+			if fail {
+				return ExecutionContext{}, errors.New("no resolver")
+			}
+			return ExecutionContext{Fields: []ExecutionContextField{{Label: "Account", Value: "account-a"}}}, nil
+		},
+	})
+	request := Request{PackID: "fixture", CommandID: "inspect", Values: map[string]json.RawMessage{"query": rawRunJSON(t, "x")}}
+
+	preview, err := manager.Preview(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.Context == nil || preview.Context.Fields[0].Value != "account-a" || preview.Approval != nil {
+		t.Fatalf("read preview = %#v, want context and no approval", preview)
+	}
+
+	fail = true
+	preview, err = manager.Preview(request)
+	if err != nil || preview.Context != nil {
+		t.Fatalf("read preview with failing resolver = %#v, %v; want no context and no error", preview, err)
+	}
+}

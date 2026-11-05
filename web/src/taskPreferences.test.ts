@@ -4,6 +4,7 @@ import {
   MAX_RECENT_TASKS,
   TASK_PREFERENCES_STORAGE_KEY,
   emptyTaskPreferences,
+  loadRuntimeTaskPreferences,
   loadTaskPreferences,
   recordRecentTask,
   reconcileTaskPreferences,
@@ -35,6 +36,36 @@ function memoryStorage(initial: string | null = null) {
 }
 
 describe('task preferences', () => {
+  test('persist through the runtime because each launch is a new browser origin', async () => {
+    const stored = '{"version":1,"favorites":[{"packId":"fixture","commandId":"inspect"}],"recent":[]}';
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      Promise.resolve(init?.method === 'PUT' ? new Response(null, { status: 204 }) : new Response(stored, { status: 200 })));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      fetchMock.mockImplementationOnce(() => Promise.resolve(new Response('unavailable', { status: 500 })));
+      expect(await loadRuntimeTaskPreferences('csrf-prefs')).toBe(false);
+      saveTaskPreferences(emptyTaskPreferences());
+      expect(fetchMock).toHaveBeenCalledTimes(1); // an unread store is never overwritten
+      fetchMock.mockClear();
+
+      expect(await loadRuntimeTaskPreferences('csrf-prefs')).toBe(true);
+      const loaded = loadTaskPreferences();
+      expect(loaded.favorites).toEqual([{ packId: 'fixture', commandId: 'inspect' }]);
+
+      saveTaskPreferences(loaded);
+      expect(fetchMock).toHaveBeenCalledTimes(1); // unchanged document: no write
+
+      saveTaskPreferences(emptyTaskPreferences());
+      const put = fetchMock.mock.calls[1]!;
+      expect(put[0]).toBe('/api/v1/preferences');
+      expect(put[1]).toMatchObject({ method: 'PUT', headers: { 'X-CLIHarbor-CSRF': 'csrf-prefs' } });
+      expect(JSON.parse(String(put[1]!.body))).toEqual({ version: 1, favorites: [], recent: [] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+
   test('round-trips only versioned task identities', () => {
     const storage = memoryStorage();
     const preferences = {

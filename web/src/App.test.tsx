@@ -150,7 +150,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Command Builder' })).toBeInTheDocument();
     expect(screen.getByText('No safe tasks are available.')).toBeInTheDocument();
     expect(screen.queryByText('runtime-only-csrf')).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(5); // Includes metadata-only activity read.
+    expect(fetchMock).toHaveBeenCalledTimes(6); // Includes metadata-only activity and task-preference reads.
   });
 
   test('shows a recoverable session-expired state for unauthenticated requests', async () => {
@@ -672,6 +672,38 @@ describe('App', () => {
       expect(screen.getByRole('heading', { name: 'stderr' })).toBeInTheDocument();
     }
     expect(backend.calls('POST /api/v1/runs')).toHaveLength(1);
+  });
+
+  test('shows the reviewed target context on a read-task preview', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = requestPath(input);
+      if (path === '/api/v1/status') {
+        return Promise.resolve(response(200, { name: 'CLIHarbor', version: 'dev', session: 'active', csrfToken: 'csrf' }));
+      }
+      if (path === '/api/v1/tools') return Promise.resolve(response(200, { tools: [] }));
+      if (path === '/api/v1/tasks') {
+        return Promise.resolve(response(200, { tasks: [{
+          packId: 'fixture', packName: 'Fixture', commandId: 'inspect', name: 'Inspect', toolId: 'fixture', risk: 'read', inputs: [],
+        }] }));
+      }
+      if (path === '/api/v1/runs/preview' && init?.method === 'POST') {
+        return Promise.resolve(response(200, {
+          packId: 'fixture', commandId: 'inspect', toolId: 'fixture', executableName: 'fixture', args: ['inspect'], risk: 'read',
+          context: { fields: [{ label: 'Account', value: 'account-a' }, { label: 'Endpoint', value: 'https://conjur.example.test' }] },
+        }));
+      }
+      return Promise.resolve(response(404, { error: 'not_found' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    expect(await screen.findByRole('button', { name: 'Validate' })).toBeEnabled();
+    expect(screen.queryByRole('definition', { name: /execution context/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Validate' }));
+
+    const context = await screen.findByLabelText('Execution context');
+    expect(context).toHaveTextContent('account-a');
+    expect(context).toHaveTextContent('https://conjur.example.test');
   });
 
   test('shows parser failure status while preserving raw output evidence', async () => {

@@ -366,6 +366,7 @@ describe('command preview and retry workflows', () => {
       if (base) return Promise.resolve(base);
       if (path === '/api/v1/runs' && init?.method !== 'POST') return Promise.resolve(response(200, { runs: [] }));
       if (path.endsWith('/cancel')) return pendingCancel;
+      if (path === '/api/v1/preferences') return Promise.resolve(response(404, {}));
       starts += 1;
       return Promise.resolve(response(202, {
         runId: starts === 1 ? firstID : secondID, packId: 'fixture', commandId: 'inspect', toolId: 'fixture', status: 'running',

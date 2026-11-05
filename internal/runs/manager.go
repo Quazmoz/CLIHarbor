@@ -355,6 +355,12 @@ func (m *Manager) Preview(request Request) (Preview, error) {
 		}
 		preview.Context = &context
 		preview.Approval = approval
+	} else if m.config.ResolveExecutionContext != nil {
+		// Reads show the target when a reviewed resolver exists; a missing or
+		// failing resolver never blocks a read and never issues an approval.
+		if context, err := m.config.ResolveExecutionContext(plan.Clone()); err == nil && validateExecutionContext(context) == nil {
+			preview.Context = &context
+		}
 	}
 	return preview, nil
 }

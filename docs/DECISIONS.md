@@ -1027,3 +1027,55 @@ submission; LAN denial of service and managed-memory/clipboard/OS copies remain
 explicit limits. No CA, firewall or credential-store changes occur. Native Windows
 and two-real-device qualification cannot be replaced by source merge or cross-build.
 See [Password sharing](PASSWORD_SHARING.md) for the complete contract and tests.
+
+
+## ADR-043 — Conjur secret retrieval contract
+
+**Date:** 2026-11-04
+**Status:** Proposed. Contract only; no retrieval code exists. Implementation starts
+after this contract is reviewed, and real-tenant plus native Windows acceptance
+remain release gates.
+
+**Context:** Stage 7 deferred reading secret values until a reviewed contract
+covered reveal/copy UX, persistence, redaction, clipboard/history behavior,
+retention, crash handling and context clarity. The generic planner/executor
+refuses secret-bearing output, and that must not change: run events are retained,
+replayed over SSE and visible in History.
+
+**Decision (proposed):**
+
+1. **Path.** A dedicated Conjur platform endpoint, never a pack command. It reuses
+   the regex explorer's existing `conjur-api-go` `RetrieveSecret` path with the
+   vendor-cached session, the same executable-identity gate as sign-in, and the
+   same variable-ID validation. The generic run manager, History, SSE replay and
+   the mutation audit journal never see the value.
+2. **One value per explicit action.** The operator selects one variable ID from
+   the existing inventory or types one, then chooses **Reveal**. No bulk, regex,
+   policy-wide or background retrieval. A reveal is never automatic or prefilled.
+3. **Context first.** The request carries the Account and Endpoint shown on screen
+   (the same fields `ResolveExecutionContext` returns). The backend re-resolves them
+   and refuses on mismatch, so the value always comes from the displayed target.
+4. **Transient display.** The value is bounded to 16 KiB and returned once in a
+   `Cache-Control: no-store` response under the session and CSRF guard. It renders
+   in the read-only text area the password-sharing receiver already uses (ADR-042),
+   hidden by default, and is cleared on **Hide**, on navigation, on visibility
+   loss, after 60 seconds, and on any context change. Backend buffers are zeroed.
+5. **Copy.** It's an explicit button that copies the value through
+   `navigator.clipboard.writeText`. CLIHarbor clears the clipboard after 30 seconds
+   only if it still holds that value. The UI states that OS clipboard history and
+   managers are outside CLIHarbor's control.
+6. **Evidence without the value.** Each attempt appends a metadata-only audit entry:
+   time, account, endpoint, variable ID, and outcome class. It never records value
+   bytes, length or hash. Diagnostics export and logs never include values. Vendor
+   error bodies are classified, not echoed.
+7. **Authorization stays with Conjur.** A 403 is shown as "not permitted", never as
+   "secret does not exist". CLIHarbor adds no allow-list of its own.
+
+**Alternatives rejected:** a `risk: read` pack command with `containsSecrets`, which
+would put the value in run events, replay and History; reveal through the CLI's
+stdout, which would retain the value in executor buffers; persisting reveals
+for convenience; and bulk export.
+
+**Open questions for review:** whether reveal also needs a typed confirmation
+(approval-style), whether the 60-second and 30-second timers suit operator practice, and whether
+the audit entry belongs in the mutation journal or in a separate access log.

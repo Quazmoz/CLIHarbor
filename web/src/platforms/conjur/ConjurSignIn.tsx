@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { configureCredentialConnection, launchInteractiveLogin, loginWithCredentials } from '../../api/authentication';
+import { configureCredentialConnection, launchInteractiveLogin, loginWithCredentials, logoutCredentials } from '../../api/authentication';
 import { normalizeError, type AppErrorDetail } from '../../api/errors';
 import type { ToolDiagnostic } from '../../api/tools';
 import type { SignInContext, ToolSignIn } from '../../AuthenticationPage';
@@ -89,6 +89,28 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
     }
   };
 
+  const signOut = async () => {
+    if (!ready || disabled) return;
+    invalidateSession?.();
+    const endChange = beginChange('Signing out of Conjur…', headingID);
+    setSubmitting(true);
+    setFailure(null);
+    setVendorLoginOpened(false);
+    try {
+      await logoutCredentials(status.csrfToken, { packId: tool.packId, toolId: tool.toolId });
+    } catch (error) {
+      setFailure(normalizeError(error).detail);
+    } finally {
+      endChange();
+      setSubmitting(false);
+    }
+    // Re-check either way: the session check, not this request, is authoritative.
+    await verifySession();
+  };
+  const signOutButton = checkKind === 'authenticated' && (
+    <button type="button" className="secondary-button" disabled={disabled} onClick={() => void signOut()}>Sign out</button>
+  );
+
   // A vendor console may steal focus before the launch API responds. Track
   // departure while the request is in flight, but verify only after the
   // backend confirms that the vendor-owned login process was launched.
@@ -165,6 +187,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
           <button type="submit" disabled={disabled || identity.trim().length === 0 || secret.length === 0}>
             {submitting ? 'Signing in…' : 'Sign in and verify'}
           </button>
+          {signOutButton}
         </div>
       </form>
     );
@@ -187,6 +210,7 @@ function ConjurSignIn({ status, tool, headingID, ready, checkKind, verifySession
         <button type="button" disabled={disabled} onClick={() => void launchVendorLogin()}>
           {submitting ? 'Starting Conjur sign-in…' : vendorLoginOpened ? 'Start Conjur sign-in again' : 'Start official Conjur sign-in'}
         </button>
+        {signOutButton}
       </div>
     </div>
   );

@@ -170,3 +170,51 @@ func TestCredentialInteractiveLoginSanitizesServiceFailure(t *testing.T) {
 		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusServiceUnavailable)
 	}
 }
+
+type fakeCredentialLogoutService struct {
+	calls []CredentialInteractiveLoginRequest
+}
+
+func (f *fakeCredentialLogoutService) Logout(_ context.Context, request CredentialInteractiveLoginRequest) error {
+	f.calls = append(f.calls, request)
+	return nil
+}
+
+func TestCredentialLogoutRequiresCSRFAndForwardsOnlyTargetIdentity(t *testing.T) {
+	service := &fakeCredentialLogoutService{}
+	s := newTestServer(t, Config{CredentialLogout: service})
+	client := sessionClient(t)
+	bootstrap(t, client, s)
+	csrf := fetchStatus(t, client, s).CSRFToken
+
+	post := func(body, token string) int {
+		request, err := http.NewRequest(http.MethodPost, s.BaseURL()+"/api/v1/auth/logout", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Origin", s.BaseURL())
+		if token != "" {
+			request.Header.Set(csrfHeaderName, token)
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		return response.StatusCode
+	}
+
+	if status := post(`{"packId":"cyberark-conjur-v9","toolId":"conjur"}`, ""); status != http.StatusForbidden {
+		t.Fatalf("missing CSRF status = %d, want 403", status)
+	}
+	if status := post(`{"packId":"cyberark-conjur-v9","toolId":"conjur","extra":1}`, csrf); status != http.StatusBadRequest {
+		t.Fatalf("unknown field status = %d, want 400", status)
+	}
+	if status := post(`{"packId":"cyberark-conjur-v9","toolId":"conjur"}`, csrf); status != http.StatusNoContent {
+		t.Fatalf("logout status = %d, want 204", status)
+	}
+	if len(service.calls) != 1 || service.calls[0] != (CredentialInteractiveLoginRequest{PackID: "cyberark-conjur-v9", ToolID: "conjur"}) {
+		t.Fatalf("service calls = %#v", service.calls)
+	}
+}

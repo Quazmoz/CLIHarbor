@@ -46,6 +46,8 @@ export function bootRoutes(overrides: { status?: Partial<RuntimeStatus>; tasks?:
     'GET /api/v1/tasks': { body: { tasks: overrides.tasks ?? [] } },
     'GET /api/v1/tools': { body: { tools: overrides.tools ?? [] } },
     'GET /api/v1/runs': { body: { runs: overrides.runs ?? [] } },
+    'GET /api/v1/preferences': { body: { version: 1, favorites: [], recent: [] } },
+    'PUT /api/v1/preferences': { status: 204 },
   };
 }
 

@@ -471,7 +471,8 @@ function parsePreview(value: unknown): RunPreview {
   if (mutation !== (parsedImpact !== undefined && parsedContext !== undefined && parsedApproval !== undefined)) {
     invalidResponse();
   }
-  if (!mutation && (parsedImpact !== undefined || parsedContext !== undefined || parsedApproval !== undefined)) {
+  // Reads may show reviewed target context, but never impact or an approval.
+  if (!mutation && (parsedImpact !== undefined || parsedApproval !== undefined)) {
     invalidResponse();
   }
 

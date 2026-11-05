@@ -406,6 +406,32 @@ func (s *CredentialLoginService) LaunchInteractive(ctx context.Context, request 
 	return nil
 }
 
+// Logout delegates to the reviewed upstream Conjur 9.x `logout` command, which
+// only purges the credentials the vendor cached for its configured account
+// (OS keystore or .netrc). It makes no server call and takes no input.
+func (s *CredentialLoginService) Logout(ctx context.Context, request server.CredentialInteractiveLoginRequest) error {
+	if s == nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.enabled || request.PackID != PackID || request.ToolID != ToolID {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnsupported}
+	}
+	if !s.acquireAuthGate() {
+		return &server.CredentialLoginError{Code: server.CredentialLoginBusy}
+	}
+	defer s.releaseAuthGate()
+	if !s.executableReady() {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+	// runInit is the same bounded fixed-argv runner used for connection setup.
+	if err := s.runInit(ctx, s.toolPath, []string{"logout"}); err != nil {
+		return &server.CredentialLoginError{Code: server.CredentialLoginUnavailable}
+	}
+	return nil
+}
+
 func (s *CredentialLoginService) activateTool(state discovery.ToolState) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -180,11 +180,13 @@ An embedded PTY remains deferred because it would introduce secret keystroke han
 
 ## Logout
 
-If/when logout is exposed, it must use a documented vendor command and accurately state its scope. CLIHarbor must never delete vendor keystore/session files directly as a substitute for vendor logout behavior.
+Logout must use a documented vendor command and accurately state its scope. CLIHarbor must never delete vendor keystore/session files directly as a substitute for vendor logout behavior.
+
+For Conjur, the Sign in page offers **Sign out** once the session check reports a verified session. `POST /api/v1/auth/logout` (session + CSRF, body `{packId, toolId}` only) runs the identity-verified executable with the fixed argv `logout`. Upstream Conjur 9.x (`pkg/cmd/logout.go` at v9.3.1) implements this as `conjurapi.PurgeCredentials` on the configured account: it removes the cached credentials from the OS keystore or `.netrc` and makes no server call, so it does not revoke tokens that other tools already hold. The page then re-runs the reviewed session check, which remains the authority on the resulting state. Sign-out shares sign-in's single-flight gate. Output is discarded and failures are classified as unavailable.
 
 ## Profiles and contexts
 
-Profile/tenant/account context should be explicit where the vendor CLI exposes it safely. CLIHarbor must not infer authorization from a displayed profile name. For future mutations, exact target/context will need to be bound into backend confirmation.
+Profile/tenant/account context should be explicit where the vendor CLI exposes it safely. CLIHarbor must not infer authorization from a displayed profile name. Changes bind exact target/context into backend approval. Read-task previews show the same reviewed context when a platform resolver exists (currently Conjur: Account, Endpoint, Authentication). It is display-only: a failing resolver never blocks a read or issues an approval.
 
 ## Failure behavior
 

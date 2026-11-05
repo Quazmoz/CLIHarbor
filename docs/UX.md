@@ -535,7 +535,7 @@ If default-browser launch fails, the terminal prints the one-time local bootstra
 
 The `/tasks` route provides client-side search across the backend-authorized task catalog, plus distinct **Favorites**, **Recently used**, and **All tasks** sections. Search covers task name/description, pack name/ID, tool ID, and command ID only; it does not inspect run output, task values, executable paths, argv, credentials, or arbitrary filesystem content.
 
-Favorites and recently used tasks are browser-local navigation preferences. The persisted structure is versioned and contains only bounded `packId` + `commandId` identities. It does **not** persist task form values, vendor credentials/session material, stdout/stderr, structured run results, failure text, argv, or executable paths.
+Favorites and recently used tasks are navigation preferences that the runtime keeps per user, so they survive restarts (each launch's new port would otherwise reset browser storage). The workspace never waits for them: they appear when the stored copy loads. The persisted structure is versioned and contains only bounded `packId` + `commandId` identities. It does **not** persist task form values, vendor credentials/session material, stdout/stderr, structured run results, failure text, argv, or executable paths.
 
 Browser persistence is treated as untrusted input. Malformed, oversized, or unavailable storage fails closed. Persisted identities are always reconciled against the current trusted backend catalog before display; stale identities are removed and never create execution authority. Recently used tasks are deduplicated, newest-first, and bounded to eight entries.
 
