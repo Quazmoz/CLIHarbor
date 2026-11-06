@@ -3273,6 +3273,8 @@ main:focus { outline: none; }
 @media (max-width: 700px) { .conjur-task-fields { grid-template-columns: minmax(0, 1fr); } }
 .conjur-create-form .conjur-create-consent { display: flex; gap: 0.65rem; align-items: flex-start; }
 .conjur-create-form .conjur-create-consent input { flex-shrink: 0; margin-top: 0.3rem; }
+.conjur-secret-reveal { display: grid; gap: 0.6rem; }
+.conjur-secret-reveal-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
 /* ---------------------------------------------------------------------------
  * Command Builder: tool explorer · builder · preflight, with output below.

@@ -306,7 +306,7 @@ start only on an explicit click, stay local, and report browser failures while
 retaining the visible result. No output, input, credential or query is added to
 browser storage. Run IDs also identify the download filenames.
 
-Do not add export to secret-bearing results without explicit classification and review. Copy behavior must also be revisited before any secret-bearing browser workflow is enabled.
+Do not add export to secret-bearing results without explicit classification and review. Copy behavior must also be revisited before any secret-bearing browser workflow is enabled. The one enabled exception, the Conjur **View secret versions** reveal (ADR-043), copies only on an explicit button and clears the clipboard after 30 seconds if it still holds the value; the UI warns that OS clipboard history is outside CLIHarbor's control.
 
 ### Terraform manual Windows setup and discovery recovery
 

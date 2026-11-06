@@ -57,6 +57,7 @@ type Config struct {
 	ToolInstaller              ToolInstallService
 	ToolRefresher              ToolRefreshService
 	SecretAudit                SecretAuditService
+	SecretRetrieval            SecretRetrievalService
 	Platforms                  PlatformService
 	Terraform                  TerraformStateService
 	PasswordSharing            *passwordshare.Service
@@ -92,6 +93,7 @@ type Server struct {
 	toolInstaller              ToolInstallService
 	toolRefresher              ToolRefreshService
 	secretAudit                SecretAuditService
+	secretRetrieval            SecretRetrievalService
 	platforms                  PlatformService
 	terraform                  TerraformStateService
 	passwordSharing            *passwordshare.Service
@@ -168,6 +170,7 @@ func New(config Config) (*Server, error) {
 		toolInstaller:              config.ToolInstaller,
 		toolRefresher:              config.ToolRefresher,
 		secretAudit:                config.SecretAudit,
+		secretRetrieval:            config.SecretRetrieval,
 		platforms:                  config.Platforms,
 		terraform:                  config.Terraform,
 		passwordSharing:            config.PasswordSharing,
@@ -224,6 +227,11 @@ func New(config Config) (*Server, error) {
 	}
 	if s.secretAudit != nil {
 		mux.Handle("/api/v1/conjur/secret-audit", s.requireSession(http.HandlerFunc(s.handleSecretAudit)))
+	}
+	if s.secretRetrieval != nil {
+		mux.Handle("/api/v1/conjur/secrets/versions", s.requireSession(http.HandlerFunc(s.handleSecretVersions)))
+		mux.Handle("/api/v1/conjur/secrets/reveal", s.requireSession(http.HandlerFunc(s.handleSecretReveal)))
+		mux.Handle("/api/v1/conjur/secrets/access-log", s.requireSession(http.HandlerFunc(s.handleSecretAccessLog)))
 	}
 	if s.platforms != nil {
 		mux.Handle("/api/v1/platforms", s.requireSession(http.HandlerFunc(s.handlePlatforms)))

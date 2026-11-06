@@ -151,6 +151,7 @@ func Run(ctx context.Context, options Options) error {
 		ToolInstaller:              toolInstaller,
 		ToolRefresher:              toolInstaller,
 		SecretAudit:                conjurPlatform.Audit,
+		SecretRetrieval:            conjurPlatform.Secrets,
 		Platforms:                  dedicated,
 		Terraform:                  terraformPlatform,
 		PasswordSharing:            sharing,

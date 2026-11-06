@@ -26,14 +26,16 @@ const (
 
 // Platform bundles the Conjur-specific services behind platforms.Platform.
 type Platform struct {
-	Login *CredentialLoginService
-	Audit *SecretAuditService
+	Login   *CredentialLoginService
+	Audit   *SecretAuditService
+	Secrets *SecretRetrievalService
 }
 
 func New(ctx context.Context, snapshot discovery.Snapshot) *Platform {
 	return &Platform{
-		Login: NewCredentialLoginService(snapshot),
-		Audit: NewSecretAuditService(ctx, snapshot),
+		Login:   NewCredentialLoginService(snapshot),
+		Audit:   NewSecretAuditService(ctx, snapshot),
+		Secrets: NewSecretRetrievalService(snapshot),
 	}
 }
 
@@ -41,7 +43,7 @@ func (p *Platform) Descriptor() server.Platform {
 	return server.Platform{
 		ID:      "conjur",
 		Name:    "CyberArk Conjur",
-		Summary: "Guided sign-in, approved inventory and access tools, approval-gated secret changes, and a metadata-first regex pattern explorer.",
+		Summary: "Guided sign-in, approved inventory and access tools, approval-gated secret changes, explicit one-at-a-time secret version reveal, and a metadata-first regex pattern explorer.",
 		PackID:  PackID,
 		ToolID:  ToolID,
 		Features: []server.PlatformFeature{
@@ -56,6 +58,7 @@ func (p *Platform) Descriptor() server.Platform {
 func (p *Platform) ActivateTool(state discovery.ToolState) {
 	p.Login.activateTool(state)
 	p.Audit.activate()
+	p.Secrets.activate()
 }
 
 func (p *Platform) TaskAvailable(packID, commandID string) bool {

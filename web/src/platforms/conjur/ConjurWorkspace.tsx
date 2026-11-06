@@ -6,6 +6,7 @@ import { fetchSecretAudit } from './secretAuditApi';
 import { ConjurCreateSecret } from './ConjurCreateSecret';
 import { ConjurManagePermissions } from './ConjurManagePermissions';
 import { ConjurMigrationWorkbench } from './ConjurMigrationWorkbench';
+import { ConjurSecretVersions } from './ConjurSecretVersions';
 import { ConjurTaskPanel } from './ConjurTaskPanel';
 import { useOperationActivity } from '../../OperationActivity';
 
@@ -223,7 +224,7 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
       <div {...panel('secrets')}>
         <header className="conjur-panel-heading">
           <h3>Secret variables</h3>
-          <p>Create a secret variable, find its ID, or save a new value. Stored values are never displayed.</p>
+          <p>Create a secret variable, find its ID, save a new value, or explicitly reveal the current or a previous version.</p>
         </header>
         <div className="conjur-action-list" role="group" aria-label="Conjur secret management">
           {csrfToken ? (
@@ -238,6 +239,9 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
           ) : <Action title="Create secret" detail="Requires a verified browser session." available={false} onOpen={() => {}} />}
           {taskAction('list-variables', 'read', 'Browse variables', 'Find visible variable IDs without exposing their stored values.')}
           {taskAction('secret-set-value', 'change', 'Update value', 'Store a new value version in Conjur. Update the credential in its source system separately.')}
+          {csrfToken && <ConjurSecretVersions key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
+            packId={platform.packId} toolId={platform.toolId} csrfToken={csrfToken} available={ready}
+            account={ready ? target?.account : undefined} endpoint={ready ? target?.applianceUrl : undefined} active={tab === 'secrets'} />}
         </div>
         <h4 className="conjur-danger-heading">Destructive</h4>
         <div className="conjur-action-list">

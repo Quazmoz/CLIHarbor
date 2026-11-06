@@ -161,9 +161,11 @@ Installing the pinned Conjur executable does not configure a Conjur account or c
 
 Pack metadata may classify output as secret-bearing, but the current planner/executor reject those plans.
 
-Secret retrieval, password/API-key rotation and comparable workflows are intentionally excluded from the Conjur browser pack.
+Secret retrieval through pack commands, password/API-key rotation and comparable workflows are intentionally excluded from the Conjur browser pack.
 
 The one exception that reads values is the Conjur security audit (ADR-028/ADR-033). It classifies references or bounded text/regex criteria in backend memory, returns only variable IDs and closed reason codes to the browser, and performs no mutation. The selected HTTPS backend URL must match vendor configuration before a client is created; browser input cannot redirect stored credentials or tokens. Scan text is ephemeral, validated, and excluded from snapshots, errors, logs and report exports. Non-UTF-8 values are reported as unchecked.
+
+The only path that returns a value to the browser is the dedicated Conjur secret reveal (ADR-043). It is a platform endpoint, never a pack command, so the run manager, History, SSE replay and the mutation journal never see values. Each reveal returns one current or retained previous version of one variable after an explicit acknowledged action, in a `no-store` response bounded to 16 KiB, only when the displayed account and HTTPS backend match vendor configuration. The browser hides the value by default and clears it after 60 seconds, on Hide, tab change, visibility loss and page unload; copy clears the clipboard after 30 seconds only if it still holds the value. A separate in-memory access log records metadata (time, target, variable ID, version, outcome) for every attempt, never value bytes, length or hash. Version listing returns metadata only.
 
 ### SI-7 — Structured output is data, never authority
 
@@ -300,7 +302,7 @@ CLI output is untrusted data. Production UI uses React escaping and a restrictiv
 
 ### T5 — Secret leakage through output
 
-The current browser executor rejects secret-bearing plans. Future secret workflows require a separate reveal/copy/redaction/persistence design.
+The current browser executor rejects secret-bearing plans. The Conjur secret reveal (ADR-043, see SI-6) is a separate reviewed platform contract, not executor output.
 
 ### T6 — Secret leakage through argv or retained browser state
 

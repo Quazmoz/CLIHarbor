@@ -162,7 +162,7 @@ Frontend confirmation alone is not an authorization boundary.
 
 ## Stage 7 — Secret-bearing workflows
 
-**Write-only secret input implemented** for Conjur `variable set` (stdin only, never echoed or retained; ADR-030). Secret **retrieval** remains unimplemented. Its contract is proposed in [ADR-043](DECISIONS.md#adr-043--conjur-secret-retrieval-contract) and awaits review; it covers:
+**Write-only secret input implemented** for Conjur `variable set` (stdin only, never echoed or retained; ADR-030). Secret **retrieval** of the current or a retained previous version of one Conjur variable is implemented through the dedicated, non-pack contract in [ADR-043](DECISIONS.md#adr-043--conjur-secret-retrieval-contract) (real-tenant and native Windows acceptance pending); it covers:
 
 - reveal/copy UX;
 - no persistence by default;
@@ -171,7 +171,7 @@ Frontend confirmation alone is not an authorization boundary.
 - output retention and crash handling;
 - authorization/context clarity.
 
-Until that contract exists, the planner/executor continue to reject secret-bearing browser tasks.
+The generic planner/executor continue to reject secret-bearing browser tasks.
 
 ## Stage 8 — Distribution hardening
 

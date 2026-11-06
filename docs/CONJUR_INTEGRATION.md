@@ -437,7 +437,7 @@ The upstream CLI contains more functionality than CLIHarbor currently grants bro
 
 ### Secret-bearing
 
-Variable/secret retrieval and authentication commands that can return credential material remain excluded because CLIHarbor's current executor refuses secret-bearing plans. Writing a value (`secret-set-value`) is write-only and returns no secret material.
+Variable/secret retrieval and authentication commands that can return credential material remain excluded from the pack because CLIHarbor's current executor refuses secret-bearing plans. Instead, the Secrets tab's **View secret versions** action lists a variable's retained versions and reveals the current or one previous value through the dedicated ADR-043 endpoint (acknowledged, hidden by default, cleared after 60 seconds, metadata-only access log). Writing a value (`secret-set-value`) is write-only and returns no secret material.
 
 ### Interactive authentication
 

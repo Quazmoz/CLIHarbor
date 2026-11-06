@@ -1032,8 +1032,8 @@ See [Password sharing](PASSWORD_SHARING.md) for the complete contract and tests.
 ## ADR-043 — Conjur secret retrieval contract
 
 **Date:** 2026-11-04
-**Status:** Proposed. Contract only; no retrieval code exists. Implementation starts
-after this contract is reviewed, and real-tenant plus native Windows acceptance
+**Status:** Accepted and implemented (2026-11-06) with the resolutions and version
+extension recorded at the end of this ADR. Real-tenant and native Windows acceptance
 remain release gates.
 
 **Context:** Stage 7 deferred reading secret values until a reviewed contract
@@ -1076,6 +1076,26 @@ would put the value in run events, replay and History; reveal through the CLI's
 stdout, which would retain the value in executor buffers; persisting reveals
 for convenience; and bulk export.
 
-**Open questions for review:** whether reveal also needs a typed confirmation
-(approval-style), whether the 60-second and 30-second timers suit operator practice, and whether
-the audit entry belongs in the mutation journal or in a separate access log.
+**Resolutions (2026-11-06):**
+
+- **Confirmation:** an explicit acknowledgement checkbox gates **Reveal**; no typed
+  confirmation. Each reveal is one request for one value.
+- **Timers:** 60 seconds on screen, 30 seconds for the conditional clipboard clear.
+- **Audit:** a separate in-memory access log (latest 200 attempts, lost on restart),
+  not the mutation journal. Entries carry time, account, endpoint, variable ID,
+  requested version (0 = current) and outcome class only.
+- **Previous versions:** the operator may list a variable's retained versions
+  (Conjur resource `secrets` metadata: version number and optional expiry, at most
+  100, strictly validated) and reveal the current value or one retained previous
+  version through `RetrieveSecretWithVersion`. Listing returns no values. Restoring
+  an old version as current is out of scope; operators can reveal and then use the
+  existing write-only **Update value** action.
+- **Endpoints:** `POST /api/v1/conjur/secrets/versions`, `POST /api/v1/conjur/secrets/reveal`
+  and `GET /api/v1/conjur/secrets/access-log`, all behind the session, Origin and CSRF
+  guard with `no-store`. Variable IDs are always sent fully qualified as
+  `account:variable:<id>`. Values over 16 KiB or not valid UTF-8 are refused, not
+  truncated. The UI also clears the value when the Secrets tab becomes inactive or the
+  page is hidden/unloaded, and discards a value that arrives while the page is hidden.
+
+Implementation: `internal/platforms/conjur/secret_retrieval.go`,
+`internal/server/conjur_secret_api.go`, `web/src/platforms/conjur/ConjurSecretVersions.tsx`.
