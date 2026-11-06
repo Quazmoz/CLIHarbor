@@ -45,6 +45,25 @@ async function selectVariable() {
   fireEvent.change(select, { target: { value: 'value:apps/db/password' } });
 }
 
+test('offers manual variable entry before inventory and reviews the entered ID', async () => {
+  render(<ConjurTaskPanel {...props} task={set} />);
+  const select = screen.getByRole('combobox', { name: 'variable-id' });
+  await within(select).findByRole('option', { name: 'apps/db/password' });
+  expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual([
+    'Choose an option', 'Enter another ID…', 'apps/db/password',
+  ]);
+  fireEvent.change(select, { target: { value: 'manual' } });
+  const manual = screen.getByRole('textbox', { name: 'variable-id — enter ID' });
+  expect(manual).toHaveFocus();
+  fireEvent.change(manual, { target: { value: 'apps/db/unlisted' } });
+  fireEvent.change(screen.getByLabelText(/^value/), { target: { value: 'fixture-value' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Review action' }));
+  await screen.findByRole('region', { name: 'Conjur action approval' });
+  expect(vi.mocked(previewRun).mock.calls.at(-1)?.[1]).toMatchObject({
+    commandId: 'secret-set-value', values: { 'variable-id': 'apps/db/unlisted', value: 'fixture-value' },
+  });
+});
+
 test('updates a selected secret with bound approval, clears its value during the request, and guards duplicate submits', async () => {
   render(<ConjurTaskPanel {...props} task={set} />);
   await selectVariable();

@@ -585,7 +585,8 @@ options or unlock a newer load. A lost start acknowledgement may leave a bounded
 read running without a known run ID; Execution History retains its evidence.
 Approved mutations retain their separate completion and reconciliation lifecycle.
 
-Manual ID entry receives keyboard focus when selected. A saved role remains
+**Enter another ID…** appears before inventory results in the dedicated ID
+selectors. Selecting it focuses the manual-entry field. A saved role remains
 visible as **not currently listed** when inventory is unavailable or changes;
 the browser must never display a default while submitting a different role.
 Choosing another variable clears the prior grantee and approval. Permission

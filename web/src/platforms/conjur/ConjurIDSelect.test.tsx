@@ -1,7 +1,19 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 import { ConjurIDSelect } from './ConjurIDSelect';
 import { RoleOptions } from './conjurRuns';
+
+test.each([true, false])('manual entry precedes inventory options when required is %s', (required) => {
+  render(<ConjurIDSelect label="Variable" value="" options={['apps/first', 'apps/second']}
+    required={required} onChange={vi.fn()} />);
+  const select = screen.getByRole('combobox', { name: 'Variable' });
+  expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual([
+    required ? 'Choose an option' : 'Not set', 'Enter another ID…', 'apps/first', 'apps/second',
+  ]);
+  expect(select).toHaveValue('');
+  if (required) expect(select).toBeInvalid();
+  else expect(select).toBeValid();
+});
 
 test('manual entry receives focus and validation errors belong to the editable input', () => {
   const props = { label: 'Variable', value: '', options: ['apps/password'], onChange: vi.fn() };

@@ -23,8 +23,8 @@ export function ConjurIDSelect({ label, value, options, onChange, disabled = fal
           onChange(event.target.value.startsWith('value:') ? event.target.value.slice(6) : '');
         }}>
         <option value="">{required ? 'Choose an option' : 'Not set'}</option>
-        {[...new Set(options)].map((option) => <option key={option} value={'value:' + option}>{option}</option>)}
         <option value="manual">Enter another ID…</option>
+        {[...new Set(options)].map((option) => <option key={option} value={'value:' + option}>{option}</option>)}
       </select>
     </label>
     {other && <label className="field"><span>{label} — enter ID</span>
