@@ -100,7 +100,7 @@ export function inputGuidance(input: TaskInput): string | undefined {
     if (validation.maxLength !== undefined) {
       parts.push('Use no more than ' + validation.maxLength + ' characters.');
     }
-    parts.push('Sent to the CLI on standard input only; never shown, logged, or saved.');
+    parts.push('Sent to the CLI on standard input only; excluded from previews, logs, and saved preferences.');
   } else if (input.type === 'string') {
     if (validation.minLength !== undefined && validation.maxLength !== undefined) {
       parts.push('Use ' + validation.minLength + '–' + validation.maxLength + ' characters.');

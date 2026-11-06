@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState, type ClipboardEvent, type ReactNode } from 'react';
 import type { Task, TaskInput } from './api/tasks';
 import { invalidInputError, type AppErrorDetail } from './api/errors';
 import { inputGuidance } from './operatorLanguage';
@@ -80,6 +81,79 @@ function FieldLabel({ input }: { input: TaskInput }) {
       </span>
     </span>
   );
+}
+
+const PEM_HEADER = /-----BEGIN [A-Z0-9 ]+-----/u;
+
+export function SecretValueControl({
+  id, label, value, onChange, required, disabled, minLength, maxLength, invalid = false, describedBy,
+}: {
+  id: string;
+  label: ReactNode;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+  minLength?: number;
+  maxLength?: number;
+  invalid?: boolean;
+  describedBy?: string;
+}) {
+  const [multiline, setMultiline] = useState(false);
+  const [pasteBlocked, setPasteBlocked] = useState(false);
+  const maskedInput = useRef<HTMLInputElement>(null);
+  const multilineInput = useRef<HTMLTextAreaElement>(null);
+  const tooLong = maxLength !== undefined && value.length > maxLength;
+  const lengthError = tooLong ? `Secret value exceeds the ${maxLength}-character limit. Nothing was truncated; shorten it before reviewing.` : '';
+
+  useEffect(() => {
+    const element = multiline ? multilineInput.current : maskedInput.current;
+    element?.setCustomValidity(lengthError);
+  }, [multiline, lengthError]);
+
+  const change = (next: string) => {
+    if (!multiline && PEM_HEADER.test(next)) {
+      setPasteBlocked(true);
+      onChange('');
+      return;
+    }
+    setPasteBlocked(false);
+    onChange(next);
+  };
+  const paste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const text = event.clipboardData.getData('text/plain');
+    if (/[\r\n]/u.test(text) || PEM_HEADER.test(text)) {
+      event.preventDefault();
+      setPasteBlocked(true);
+      onChange('');
+    }
+  };
+  const control = {
+    id, required, disabled, minLength, value, autoComplete: 'off', spellCheck: false,
+    'aria-invalid': invalid || tooLong,
+    'aria-describedby': [describedBy, tooLong ? id + '-length-error' : undefined].filter(Boolean).join(' ') || undefined,
+  };
+
+  return <>
+    <label className="checkbox-row secret-multiline-toggle">
+      <input type="checkbox" checked={multiline} disabled={disabled} aria-describedby={id + '-multiline-help'}
+        onChange={(event) => {
+          setMultiline(event.target.checked);
+          setPasteBlocked(false);
+          onChange('');
+        }} />
+      Multi-line value, such as a certificate, private key or JSON
+    </label>
+    <p id={id + '-multiline-help'} className="field-help">The multi-line field is shown on screen. Make sure nobody else can see it. Switching modes clears the value.</p>
+    <label className="field">
+      {label}
+      {multiline
+        ? <textarea {...control} ref={multilineInput} rows={8} onChange={(event) => change(event.target.value)} />
+        : <input {...control} ref={maskedInput} type="password" onPaste={paste} onChange={(event) => change(event.target.value)} />}
+    </label>
+    {pasteBlocked && <p role="alert">The masked field cannot preserve a multi-line value or certificate. The field was cleared; select Multi-line value and paste the original again.</p>}
+    {tooLong && <p id={id + '-length-error'} className="field-error" role="alert">{lengthError}</p>}
+  </>;
 }
 
 export function InputControl({
@@ -179,22 +253,33 @@ export function InputControl({
     );
   }
 
+  if (input.type === 'secret') {
+    return (
+      <div className="field-group">
+        <SecretValueControl id={domID} label={<FieldLabel input={input} />}
+          value={typeof value === 'string' ? value : ''} onChange={onChange}
+          required={input.required} minLength={validation.minLength} maxLength={validation.maxLength}
+          invalid={error !== undefined} describedBy={describedBy} />
+        {guidance && <p id={helpID} className="field-help">{guidance}</p>}
+        {error && <FieldFailure id={errorID} failure={error} />}
+      </div>
+    );
+  }
+
   return (
     <div className="field-group">
       <label className="field">
         <FieldLabel input={input} />
         <input
           id={domID}
-          type={input.type === 'integer' ? 'number' : input.type === 'secret' ? 'password' : 'text'}
-          autoComplete={input.type === 'secret' ? 'off' : undefined}
-          spellCheck={input.type === 'secret' ? false : undefined}
+          type={input.type === 'integer' ? 'number' : 'text'}
           required={input.required}
           value={typeof value === 'string' ? value : ''}
           step={input.type === 'integer' ? 1 : undefined}
           min={input.type === 'integer' ? validation.min : undefined}
           max={input.type === 'integer' ? validation.max : undefined}
-          minLength={input.type === 'string' || input.type === 'secret' ? validation.minLength : undefined}
-          maxLength={input.type === 'string' || input.type === 'secret' ? validation.maxLength : undefined}
+          minLength={input.type === 'string' ? validation.minLength : undefined}
+          maxLength={input.type === 'string' ? validation.maxLength : undefined}
           aria-invalid={error === undefined ? undefined : true}
           aria-describedby={describedBy}
           onChange={(event) => onChange(event.target.value)}

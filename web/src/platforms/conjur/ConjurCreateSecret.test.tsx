@@ -205,6 +205,83 @@ test('one form reviews two approved plans and executes them in sequence without 
   expect(within(region).getByLabelText('Initial secret value')).toHaveValue('');
 });
 
+test('preserves a certificate chain through creation and blocks multiline paste into the masked field', async () => {
+  const region = setup();
+  const chain = '-----BEGIN CERTIFICATE-----\nQ0VSVA==\n-----END CERTIFICATE-----\n' +
+    '-----BEGIN CERTIFICATE-----\nQ0VSVDI=\n-----END CERTIFICATE-----\n';
+  const masked = within(region).getByLabelText('Initial secret value');
+  expect(fireEvent.paste(masked, { clipboardData: { getData: () => chain.replace(/\n/gu, '\r\n') } })).toBe(false);
+  expect(masked).toHaveValue('');
+  expect(within(region).getByRole('alert')).toHaveTextContent(/multi-line/i);
+  expect(within(region).getByRole('button', { name: 'Review creation and value' })).toBeDisabled();
+
+  const multiline = within(region).getByRole('checkbox', { name: /Multi-line value/ });
+  expect(multiline).toHaveAccessibleDescription(/shown on screen/);
+  fireEvent.click(multiline);
+  const value = within(region).getByLabelText('Initial secret value');
+  expect(value.tagName).toBe('TEXTAREA');
+  fireEvent.change(value, { target: { value: chain.replace(/\n/gu, '\r\n') } });
+  expect(value).toHaveValue(chain);
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await waitFor(() => expect(previewRun).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(previewRun).mock.calls[1][1]).toMatchObject({
+    commandId: 'secret-set-value', values: { 'variable-id': 'apps/db/password', value: chain },
+  });
+  expect(within(region).queryByText(chain)).not.toBeInTheDocument();
+  fireEvent.click(within(region).getByRole('checkbox', { name: /I approve both changes/ }));
+  fireEvent.click(within(region).getByRole('button', { name: 'Create secret and store value' }));
+  await waitFor(() => expect(within(region).getByText(/initial value stored/)).toBeInTheDocument());
+  expect(vi.mocked(createRun).mock.calls[3][1]).toMatchObject({
+    commandId: 'secret-set-value', values: { 'variable-id': 'apps/db/password', value: chain },
+  });
+  expect(value).toHaveValue('');
+});
+
+test('rejects oversized multiline values without truncating them', () => {
+  const region = setup();
+  fireEvent.click(within(region).getByRole('checkbox', { name: /Multi-line value/ }));
+  const value = within(region).getByLabelText('Initial secret value');
+  fireEvent.change(value, { target: { value: 'A'.repeat(4096) } });
+  expect(within(region).getByRole('button', { name: 'Review creation and value' })).toBeEnabled();
+  fireEvent.change(value, { target: { value: 'A'.repeat(4097) } });
+  expect(value).toHaveValue('A'.repeat(4097));
+  expect(value).toBeInvalid();
+  expect(within(region).getByRole('alert')).toHaveTextContent(/4096/);
+  expect(within(region).getByRole('button', { name: 'Review creation and value' })).toBeDisabled();
+  expect(previewRun).not.toHaveBeenCalled();
+});
+
+test('rejects an already-flattened PEM and clears approvals when entry mode changes', async () => {
+  const region = setup();
+  const value = within(region).getByLabelText('Initial secret value');
+  fireEvent.change(value, { target: { value: '-----BEGIN CERTIFICATE----- Q0VSVA== -----END CERTIFICATE-----' } });
+  expect(value).toHaveValue('');
+  expect(within(region).getByRole('alert')).toHaveTextContent(/certificate/i);
+  expect(within(region).getByRole('button', { name: 'Review creation and value' })).toBeDisabled();
+
+  fireEvent.change(value, { target: { value: 'ordinary-password' } });
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await within(region).findByRole('heading', { name: 'Review both Conjur changes' });
+  fireEvent.click(within(region).getByRole('checkbox', { name: /Multi-line value/ }));
+  expect(within(region).queryByRole('heading', { name: 'Review both Conjur changes' })).not.toBeInTheDocument();
+  expect(within(region).getByLabelText('Initial secret value')).toHaveValue('');
+});
+
+test('closing the creation form clears multiline input and its approval', async () => {
+  const region = setup();
+  fireEvent.click(within(region).getByRole('checkbox', { name: /Multi-line value/ }));
+  fireEvent.change(within(region).getByLabelText('Initial secret value'), {
+    target: { value: '-----BEGIN CERTIFICATE-----\nQ0VSVA==\n-----END CERTIFICATE-----\n' },
+  });
+  fireEvent.click(within(region).getByRole('button', { name: 'Review creation and value' }));
+  await within(region).findByRole('heading', { name: 'Review both Conjur changes' });
+  fireEvent.click(within(region).getByRole('button', { name: /^Create secret/, expanded: true }));
+  fireEvent.click(within(region).getByRole('button', { name: /^Create secret/, expanded: false }));
+  expect(within(region).getByLabelText('Initial secret value')).toHaveValue('');
+  expect(within(region).getByLabelText('Initial secret value')).toHaveAttribute('type', 'password');
+  expect(within(region).queryByRole('heading', { name: 'Review both Conjur changes' })).not.toBeInTheDocument();
+});
+
 test('failure to store value stops workflow with explicit partial-completion guidance', async () => {
   vi.mocked(createRun).mockImplementation(async (_, request) =>
     snapshot(request.commandId, request.commandId !== 'secret-set-value'));

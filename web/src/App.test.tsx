@@ -1527,6 +1527,8 @@ describe('App routing', () => {
   test('sends a secret value once on approval and never echoes or retains it', async () => {
     vi.stubGlobal('EventSource', FakeEventSource);
     const submitted: unknown[] = [];
+    let finishStart!: (result: Response) => void;
+    const pendingStart = new Promise<Response>((resolve) => { finishStart = resolve; });
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = requestPath(input);
       if (path === '/api/v1/status') {
@@ -1578,9 +1580,7 @@ describe('App routing', () => {
       }
       if (path === '/api/v1/runs' && init?.method === 'POST') {
         submitted.push(JSON.parse(String(init.body)));
-        return Promise.resolve(
-          response(202, { runId: 'dddddddddddddddddddddddddddddddd', packId: 'cyberark-conjur-v9', commandId: 'secret-set-value', toolId: 'conjur', status: 'exited', exitCode: 0 }),
-        );
+        return pendingStart;
       }
       return Promise.resolve(response(404, {}));
     });
@@ -1588,8 +1588,24 @@ describe('App routing', () => {
 
     const { container } = render(<App />);
     fireEvent.change(await screen.findByRole('textbox', { name: 'Variable ID' }), { target: { value: 'apps/db/password' } });
-    const secretField = container.querySelector<HTMLInputElement>('input[type="password"]');
+    let secretField = container.querySelector<HTMLInputElement>('input[type="password"]');
     expect(secretField).not.toBeNull();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Multi-line value/ }));
+    fireEvent.change(screen.getByLabelText(/Secret value/), {
+      target: { value: '-----BEGIN CERTIFICATE-----\nQ0VSVA==\n-----END CERTIFICATE-----\n' },
+    });
+    fireEvent.click(screen.getByRole('link', { name: 'Execution History' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Command Builder' }));
+    secretField = container.querySelector<HTMLInputElement>('input[type="password"]');
+    expect(secretField).toHaveValue('');
+    fireEvent.click(screen.getByRole('checkbox', { name: /Multi-line value/ }));
+    fireEvent.change(screen.getByLabelText(/Secret value/), { target: { value: 'line one\nline two' } });
+    window.history.pushState({}, '', '/runs');
+    fireEvent.popState(window);
+    window.history.pushState({}, '', '/tasks');
+    fireEvent.popState(window);
+    secretField = container.querySelector<HTMLInputElement>('input[type="password"]');
+    expect(secretField).toHaveValue('');
     fireEvent.change(secretField!, { target: { value: 'hunter2' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Review change' }));
@@ -1607,7 +1623,8 @@ describe('App routing', () => {
       values: { 'variable-id': 'apps/db/password', value: 'hunter2' },
       approval: { id: 'cccccccccccccccccccccccccccccccc' },
     });
-    await waitFor(() => expect(secretField!.value).toBe(''));
+    expect(secretField!.value).toBe('');
+    await act(async () => finishStart(response(202, { runId: 'dddddddddddddddddddddddddddddddd', packId: 'cyberark-conjur-v9', commandId: 'secret-set-value', toolId: 'conjur', status: 'exited', exitCode: 0 })));
     expect(container.innerHTML).not.toContain('hunter2');
   });
 

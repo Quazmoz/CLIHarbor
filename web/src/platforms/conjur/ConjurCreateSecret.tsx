@@ -5,6 +5,7 @@ import { normalizeConjurSaaSAPIURL } from './ConjurBackendConnection';
 import { WorkingStatus } from '../../WorkingStatus';
 import { ExecutionContext, OperationResult, type OperationOutcome } from '../../OperationResult';
 import { useMutationActivity, useMutationPending } from '../../OperationActivity';
+import { SecretValueControl } from '../../taskForm';
 import {
   GRANTEE_KINDS, InventoryStatus, PACK, PERMISSION_INPUTS, PRIVILEGES, PRIVILEGE_LABELS, ROLE_KINDS, RoleOptions,
   approvalsFresh, completedRun, matchingPlans, safeMessage as sharedSafeMessage, splitRole, successful,
@@ -119,7 +120,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
   const saasRoot = saas && branch === 'root';
   // The resource-exists task limits the account-prefixed resource ID to 2048 characters.
   const resourceIDTooLong = Boolean(fullID && account && (account + ':variable:' + fullID).length > 2048);
-  const valueValid = value.length >= 1 && value.length <= 4096 && !/[\r\n\p{Cc}\p{Cf}]/u.test(value);
+  const invalidValueCharacters = /(?![\n\t])[\p{Cc}\p{Cf}]/u.test(value);
+  const valueValid = value.length >= 1 && value.length <= 4096 && !invalidValueCharacters;
   const inputReady = Boolean(fullID) && !saasRoot && !resourceIDTooLong && valueValid;
   const reviewed = plan !== null && plan.branch === branch && plan.variable === variable &&
     plan.fullID === fullID && plan.contextKey === contextKey && plan.owner === owner &&
@@ -199,7 +201,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
     setFailedCheckRunId('');
     setOutcome('');
     const secret = value;
-    // Clear React state and the password input before the first process starts.
+    // Clear React state and the secret input before the first process starts.
     setValue('');
     setApproved(false);
     setPlan(null);
@@ -291,7 +293,8 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
         aria-busy={busy}
         aria-expanded={open} onClick={() => {
           if (busy) return;
-          if (!open && !inventory) void loadInventory();
+          if (open) { setValue(''); setPlan(null); setApproved(false); }
+          else if (!inventory) void loadInventory();
           setOpen(!open);
         }}>
         <span className="conjur-action-text">
@@ -369,15 +372,13 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
             )}
             {grantee && <p id={helpID + '-privileges'} className="field-help">In Conjur, <code>read</code> views metadata, <code>execute</code> retrieves the value, and <code>update</code> sets a value. Grant only the privileges this role needs.</p>}
           </fieldset>
-          <fieldset className="conjur-form-step">
+          <fieldset className="conjur-form-step" disabled={busy}>
             <legend>3. Enter the initial value</legend>
-            <label>Initial secret value
-              <input required type="password" minLength={1} maxLength={4096} value={value}
-                disabled={busy} autoComplete="off" spellCheck={false}
-                aria-describedby={helpID + '-value'} aria-invalid={value !== '' && !valueValid}
-                onChange={(event) => changed(() => setValue(event.target.value))} />
-            </label>
-            <p id={helpID + '-value'} className="field-help">Use 1–4,096 characters on one line, without control or invisible formatting characters. The value stays hidden and is excluded from previews and run history.</p>
+            <SecretValueControl id={helpID + '-secret'} label="Initial secret value" required disabled={busy}
+              minLength={1} maxLength={4096} value={value} invalid={value !== '' && !valueValid}
+              describedBy={helpID + '-value'} onChange={(next) => changed(() => setValue(next))} />
+            <p id={helpID + '-value'} className="field-help">Use 1–4,096 characters, without control or invisible formatting characters other than line breaks and tabs. The value is excluded from previews and run history.</p>
+            {invalidValueCharacters && <p role="alert">Remove unsupported control or invisible formatting characters from the secret value.</p>}
           </fieldset>
           <button type="submit" disabled={!allowed || !inputReady || busy} aria-busy={busy}>
             {operation === 'review' ? 'Reviewing creation…' : operation === 'create' ? 'Creating secret…' : 'Review creation and value'}
@@ -391,7 +392,7 @@ export function ConjurCreateSecret({ tasks, csrfToken, account, endpoint, contex
               ))}
               <p><strong>1. Declare the variable{plan.owner ? ' with its owner' : ''}:</strong></p>
               <pre className="mutation-stdin">{plan.create.stdin}</pre>
-              <p><strong>2. Set initial value:</strong> secret passed on stdin, never shown.</p>
+              <p><strong>2. Set initial value:</strong> secret passed on stdin, excluded from this review and run history.</p>
               {plan.permit && <>
                 <p><strong>3. Grant access:</strong></p>
                 <pre className="mutation-stdin">{plan.permit.stdin}</pre>

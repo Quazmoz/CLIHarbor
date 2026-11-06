@@ -89,11 +89,12 @@ func TestSecretVersionsListsMetadataNewestFirst(t *testing.T) {
 }
 
 func TestSecretRevealReadsSelectedVersionAndLogsMetadataOnly(t *testing.T) {
-	client := &fakeSecretRetrievalClient{values: map[int]string{0: secretSentinel + "-current", 2: secretSentinel + "-v2"}}
+	currentValue := secretSentinel + "-current\n-----BEGIN CERTIFICATE-----\nQ0VSVA==\n-----END CERTIFICATE-----\n"
+	client := &fakeSecretRetrievalClient{values: map[int]string{0: currentValue, 2: secretSentinel + "-v2"}}
 	service := newTestSecretRetrieval(client)
 	current, _ := service.Reveal(retrievalRequest("app/db", 0))
 	previous, _ := service.Reveal(retrievalRequest("app/db", 2))
-	if current.Value != secretSentinel+"-current" || previous.Value != secretSentinel+"-v2" || previous.Version != 2 {
+	if current.Value != currentValue || previous.Value != secretSentinel+"-v2" || previous.Version != 2 {
 		t.Fatalf("reveal = %+v / %+v", current, previous)
 	}
 	if strings.Join(client.calls, ",") != "current acct:variable:app/db,version acct:variable:app/db" {

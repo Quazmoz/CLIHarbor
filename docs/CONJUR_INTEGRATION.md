@@ -286,11 +286,19 @@ short-lived and may expire between steps. The user must inspect vendor state
 before repairing or retrying; there is no automatic rollback or background
 replay. Navigating away before the second step prevents it from starting.
 
-Secret value entry is write-only, limited to 4,096 single-line characters,
-cleared from the form when execution begins, transmitted only through the
-existing local session/CSRF API and vendor stdin path, and excluded from
-previews, visible output and retry drafts. This does **not** guarantee that
-JavaScript or Go can zero all in-memory copies.
+Secret value entry is limited to 4,096 characters and defaults to a masked
+single-line field. Select **Multi-line value** before pasting a certificate,
+key or other multi-line value: this field is visible on screen, and switching
+modes clears the value. Multi-line and PEM pastes into the masked field are blocked.
+Oversized values are not silently truncated; they must be shortened before
+review. Text-area line endings are normalized to LF, and line breaks and tabs
+are otherwise preserved. Other control and invisible formatting characters are
+rejected by the guided form. Closing the creation form clears the value and
+approval; leaving the generic task page also clears its secret input. The value
+is cleared when execution begins,
+transmitted only through the local session/CSRF API and vendor stdin path, and
+excluded from previews, visible output and retry drafts. This does **not**
+guarantee that JavaScript or Go can zero all in-memory copies.
 
 These UI changes have not been exercised against a real enterprise Conjur
 backend; complete that acceptance test using organization-approved credentials
@@ -373,7 +381,7 @@ Select the task on the workbench, fill in the fields, select **Review change**, 
 - **Privileges**: `execute` lets a role fetch the value, `update` lets it change the value, and `read` lets it see the variable's metadata. An application normally needs `read, execute`.
 - **Revoke** removes only permissions granted by the same policy branch (Conjur scopes `!deny` to the loading policy). Revoke from the branch that granted the permission and confirm with **List permitted roles**.
 - **Validate only (dry run)** asks Conjur to validate the policy without applying it. Conjur supports this on self-hosted (non-SaaS) deployments only.
-- **Set secret value** takes the variable's full ID (for example `apps/myapp/db/password`). The value goes to `conjur variable set --file -` on stdin, so it never appears in the process list, the preview, run history, or the browser's retry state, and the field is cleared once the run starts. Values are limited to 4,096 characters on one line.
+- **Set secret value** takes the variable's full ID (for example `apps/myapp/db/password`). The value goes to `conjur variable set --file -` on stdin, so it never appears in the process list, the preview, run history, or the browser's retry state, and the field is cleared once the run starts. Values are limited to 4,096 characters; select the visible **Multi-line value** field for certificates and other multi-line text.
 - Templates are fixed: you cannot submit free-form policy. User-entered IDs are always quoted YAML scalars, so they cannot add statements, and the templates never create users or hosts, so no API keys are returned.
 
 To create a working secret: **Create secret variable**, **Set secret value**, then **Grant secret permission** (`read, execute`) to the consuming host or layer.

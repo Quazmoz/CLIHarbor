@@ -773,8 +773,15 @@ Operators need to create/delete Conjur variables, grant/revoke privileges on the
   - `yamlTemplate`: a trusted document with `{{input}}` placeholders. Strings and integers render as YAML double-quoted scalars; enum values must be plain words and render verbatim.
   - `input`: the raw value of the command's only `secret` input.
 - `secret` is a write-only input type. Pack validation allows it only as `stdin.input`.
-- The approval fingerprint includes stdin. The preview returns policy stdin but never secret stdin. The browser renders secrets as password fields, never keeps them in retry or preference state, and clears the field once a run starts.
+- The approval fingerprint includes stdin. The preview returns policy stdin but never secret stdin. The browser defaults to masked password fields, never keeps secrets in retry or preference state, and clears the field once a run starts.
 - The Conjur pack adds `secret-create`, `secret-delete` (destructive), `secret-permit`, `secret-deny` and `secret-set-value`. Each policy task has a dry-run switch.
+
+**2026-11-06 follow-up:** Secret entry remains masked by default, with an
+explicit, screen-visible multi-line mode for certificates and other text.
+Masked multi-line/PEM pastes are refused; oversized input is not truncated.
+Browser text areas normalize CRLF to LF, and the resulting value remains bound
+to the existing stdin approval. The Conjur pack's 4,096-character limit is
+unchanged.
 
 ### Alternatives considered
 

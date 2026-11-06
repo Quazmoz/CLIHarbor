@@ -602,6 +602,14 @@ replay. A successful generic action reports CLI completion, not an inferred
 service-state guarantee. Changing the discovered CLI or vendor target resets
 the forms, including when the operator returns from a terminal window.
 
+Conjur secret creation and value updates default to a masked single-line
+field. An explicit **Multi-line value** choice supports certificates, keys and
+other multi-line text, warns that entry is visible, and clears the value when
+switching modes. The masked field blocks multi-line or PEM pastes rather than
+silently flattening them. Values exceeding the existing 4,096-character Conjur
+limit remain in the field rather than being truncated and cannot be reviewed or submitted. The
+text area normalizes CRLF to LF; line breaks and tabs otherwise reach stdin.
+
 
 ## Terraform dedicated workspace (native Windows qualification pending)
 

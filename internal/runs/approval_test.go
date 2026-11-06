@@ -194,7 +194,7 @@ func TestManagerPreviewNeverEchoesSecretStdinAndApprovalBindsIt(t *testing.T) {
 		t.Fatalf("policy preview stdin = %q, err = %v", policy.Stdin, err)
 	}
 
-	secret := "correct horse battery staple"
+	secret := "-----BEGIN CERTIFICATE-----\nQ0VSVA==\n-----END CERTIFICATE-----\n"
 	values := map[string]json.RawMessage{"target": rawRunJSON(t, "db/password"), "value": rawRunJSON(t, secret)}
 	preview, err := manager.Preview(Request{PackID: "fixture", CommandID: "set-secret", Values: values})
 	if err != nil {
@@ -207,7 +207,7 @@ func TestManagerPreviewNeverEchoesSecretStdinAndApprovalBindsIt(t *testing.T) {
 
 	_, err = manager.Start(Request{
 		PackID: "fixture", CommandID: "set-secret",
-		Values:   map[string]json.RawMessage{"target": rawRunJSON(t, "db/password"), "value": rawRunJSON(t, "swapped")},
+		Values:   map[string]json.RawMessage{"target": rawRunJSON(t, "db/password"), "value": rawRunJSON(t, strings.Replace(secret, "\n", " ", 1))},
 		Approval: &ApprovalSubmission{ID: preview.Approval.ID},
 	})
 	assertRunCode(t, err, ErrApprovalRequired)

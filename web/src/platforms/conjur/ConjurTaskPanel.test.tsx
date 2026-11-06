@@ -66,6 +66,44 @@ test('updates a selected secret with bound approval, clears its value during the
   expect(screen.queryByText('write-only-fixture-sentinel')).not.toBeInTheDocument();
 });
 
+test('updates a secret with the exact multiline value and clears it after approval', async () => {
+  render(<ConjurTaskPanel {...props} task={set} />);
+  await selectVariable();
+  fireEvent.click(screen.getByRole('checkbox', { name: /Multi-line value/ }));
+  const secret = screen.getByLabelText(/^value/);
+  const chain = '-----BEGIN CERTIFICATE-----\nQ0VSVA==\n-----END CERTIFICATE-----\n';
+  expect(secret.tagName).toBe('TEXTAREA');
+  fireEvent.change(secret, { target: { value: chain } });
+  fireEvent.click(screen.getByRole('button', { name: 'Review action' }));
+  await screen.findByRole('region', { name: 'Conjur action approval' });
+  expect(vi.mocked(previewRun).mock.calls.at(-1)?.[1]).toMatchObject({
+    commandId: 'secret-set-value', values: { 'variable-id': 'apps/db/password', value: chain },
+  });
+  expect(screen.queryByText(chain)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox', { name: /I approve this exact action/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Approve and run' }));
+  await screen.findByText(/secret-set-value completed/);
+  expect(vi.mocked(createRun).mock.calls.at(-1)?.[1]).toMatchObject({
+    commandId: 'secret-set-value', values: { 'variable-id': 'apps/db/password', value: chain },
+  });
+  expect(secret).toHaveValue('');
+});
+
+test('refuses an oversized update without truncating or previewing it', async () => {
+  render(<ConjurTaskPanel {...props} task={set} />);
+  await selectVariable();
+  fireEvent.click(screen.getByRole('checkbox', { name: /Multi-line value/ }));
+  const secret = screen.getByLabelText(/^value/);
+  fireEvent.change(secret, { target: { value: 'A'.repeat(2049) } });
+  expect(secret).toHaveValue('A'.repeat(2049));
+  expect(secret).toBeInvalid();
+  expect(screen.getByRole('alert')).toHaveTextContent(/2048/);
+  fireEvent.click(screen.getByRole('button', { name: 'Review action' }));
+  expect(previewRun).not.toHaveBeenCalled();
+  fireEvent.change(secret, { target: { value: 'A'.repeat(2048) } });
+  expect(secret).toBeValid();
+});
+
 test('requires exact typed confirmation for deletion and consumes approval before execution', async () => {
   render(<ConjurTaskPanel {...props} task={remove} />);
   await selectVariable();

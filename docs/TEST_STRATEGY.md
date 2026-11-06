@@ -413,7 +413,10 @@ Desktop and 320px checks cover permission review and update-value selectors.
 typed destructive confirmation, context mismatch, approval invalidation and
 LDAP multi-selection. Existing permission tests keep granting-policy scoping,
 partial-result recovery, busy guards and delayed reads. Generic task tests also
-qualify the extracted shared typed controls. No real Conjur tenant or Windows
+qualify the extracted shared typed controls. Creation and update regressions
+cover multi-line certificate entry, blocked masked-field pastes, the exact
+4,096-character boundary, and preservation through planner and process stdin.
+No real Conjur tenant or Windows
 runtime acceptance is implied by these fixtures.
 
 Second-pass Conjur regressions reject parser-invalid existence/read output,

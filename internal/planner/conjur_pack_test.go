@@ -2,6 +2,7 @@ package planner
 
 import (
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"os"
 	"path/filepath"
@@ -263,12 +264,24 @@ func TestConjurSecretTasksSendExactPolicyOnStdin(t *testing.T) {
 		t.Fatalf("delete stdin = %q risk = %s", plan.Stdin, plan.Risk)
 	}
 
-	secret := "s3cr3t value\nwith newline"
+	secret := "-----BEGIN CERTIFICATE-----\r\nQ0VSVA==\r\n-----END CERTIFICATE-----\r\n" +
+		"-----BEGIN CERTIFICATE-----\nQ0VSVDI=\n-----END CERTIFICATE-----\n"
 	plan = build("secret-set-value", map[string]any{"variable-id": "apps/myapp/db/password", "value": secret})
 	if want := []string{"variable", "set", "--id", "apps/myapp/db/password", "--file", "-"}; !reflect.DeepEqual(plan.Args, want) {
 		t.Fatalf("set-value args = %#v, want %#v", plan.Args, want)
 	}
 	if plan.Stdin != secret || !plan.StdinSensitive {
 		t.Fatalf("set-value stdin sensitive = %v", plan.StdinSensitive)
+	}
+	remaining := []byte(plan.Stdin)
+	for i := 0; i < 2; i++ {
+		block, rest := pem.Decode(remaining)
+		if block == nil || block.Type != "CERTIFICATE" {
+			t.Fatal("set-value stdin is not a two-certificate PEM chain")
+		}
+		remaining = rest
+	}
+	if len(remaining) != 0 {
+		t.Fatal("unexpected data after the PEM chain")
 	}
 }

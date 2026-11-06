@@ -522,6 +522,15 @@ function WorkspaceApp() {
     return tasks.find((task) => `${task.packId}/${task.commandId}` === selectedTaskKey) ?? tasks[0];
   }, [selectedTaskKey, state, taskToolFilter]);
 
+  const clearTaskSecrets = useCallback(() => {
+    if (!selectedTask?.inputs.some((input) => input.type === 'secret')) return;
+    setFormValues((current) => withoutSecretValues(selectedTask, current));
+    previewRequestRef.current += 1;
+    setCommandPreview(null);
+    setApprovalConfirmation('');
+    setPreviewing(false);
+  }, [selectedTask]);
+
   const acceptRuntime = useCallback((status: RuntimeStatus, tasks: Task[], tools: ToolDiagnostic[]) => {
     setAuthenticationChecks({});
     setState({ kind: 'ready', status, tasks, tools });
@@ -667,14 +676,16 @@ function WorkspaceApp() {
       lastPathRef.current = window.location.pathname + window.location.search;
       setRequestedRun(requestedRunFromLocation());
       setNavigationOpen(false);
-      setRoute(routeFromPath(window.location.pathname));
+      const nextRoute = routeFromPath(window.location.pathname);
+      if (route === 'tasks' && nextRoute !== 'tasks') clearTaskSecrets();
+      setRoute(nextRoute);
       mainRef.current?.focus({ preventScroll: true });
       const pathPlatform = platformIDFromPath(window.location.pathname);
       if (pathPlatform !== '') setSelectedPlatformID(pathPlatform);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [confirmNavigation]);
+  }, [confirmNavigation, route, clearTaskSecrets]);
 
   useEffect(() => {
     const linkedPlatform = platforms.find((platform) => platform.id === platformIDFromPath(window.location.pathname));
@@ -850,6 +861,9 @@ function WorkspaceApp() {
       setTaskFailure(null);
     }
     setRunActionFailure(null);
+    if (task.inputs.some((input) => input.type === 'secret')) {
+      setFormValues((current) => withoutSecretValues(task, current));
+    }
     try {
       const snapshot = await createRun(state.status.csrfToken, request);
       displayedRunIDRef.current = snapshot.runId;
@@ -867,9 +881,6 @@ function WorkspaceApp() {
           request: withoutSecretRequestValues(task, request),
         },
       });
-      if (task.inputs.some((input) => input.type === 'secret')) {
-        setFormValues((current) => withoutSecretValues(task, current));
-      }
       setCancelRequested(false);
       setStreamAttempt(0);
       updateTaskPreferences((current) => recordRecentTask(current, task));
@@ -1131,6 +1142,7 @@ function WorkspaceApp() {
     const nextPath = pathname +
       (nextRoute === 'runs' && runId ? '?run=' + encodeURIComponent(runId) : '');
     if (!confirmNavigation(pathname)) return false;
+    if (route === 'tasks' && nextRoute !== 'tasks') clearTaskSecrets();
     if (window.location.pathname + window.location.search !== nextPath) {
       window.history.pushState({}, '', nextPath);
     }
@@ -1141,7 +1153,7 @@ function WorkspaceApp() {
     lastPathRef.current = nextPath;
     mainRef.current?.focus({ preventScroll: true });
     return true;
-  }, [activePlatformID, confirmNavigation]);
+  }, [activePlatformID, confirmNavigation, route, clearTaskSecrets]);
 
   const changeTaskCategory = (toolKey: string) => {
     if (starting || activeRunID !== null || state.kind !== 'ready' || toolKey === taskToolFilter) return;
@@ -1641,7 +1653,7 @@ function WorkspaceApp() {
                             <legend className="visually-hidden">Task inputs</legend>
                             {selectedTask.inputs.map((input) => (
                               <InputControl
-                                key={input.id}
+                                key={selectedTask.packId + '/' + selectedTask.commandId + '/' + input.id}
                                 input={input}
                                 value={formValues[input.id]}
                                 error={fieldFailureFor(input, taskFailure)}

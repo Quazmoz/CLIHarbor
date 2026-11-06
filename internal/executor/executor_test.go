@@ -62,6 +62,17 @@ func TestRunFeedsApprovedMutationStdinOnly(t *testing.T) {
 		t.Fatalf("mutation stdout = %q", got)
 	}
 
+	plan.Stdin = "-----BEGIN CERTIFICATE-----\r\nQ0VSVA==\r\n-----END CERTIFICATE-----\r\n" +
+		"-----BEGIN CERTIFICATE-----\nQ0VSVDI=\n-----END CERTIFICATE-----\n"
+	plan.StdinSensitive = true
+	collector = &eventCollector{}
+	if _, err := testExecutor(2*time.Second, 1<<20).Run(context.Background(), plan, collector); err != nil {
+		t.Fatalf("Run(secret mutation) error = %v", err)
+	}
+	if got := string(joinEventData(collector.Events(), EventStdout)); got != "stdin:"+plan.Stdin {
+		t.Fatal("secret mutation stdin did not preserve the certificate chain")
+	}
+
 	collector = &eventCollector{}
 	if _, err := testExecutor(2*time.Second, 1<<20).Run(context.Background(), helperPlan(t, "stdin"), collector); err != nil {
 		t.Fatalf("Run(read) error = %v", err)
