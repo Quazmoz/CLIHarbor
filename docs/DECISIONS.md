@@ -1106,3 +1106,42 @@ for convenience; and bulk export.
 
 Implementation: `internal/platforms/conjur/secret_retrieval.go`,
 `internal/server/conjur_secret_api.go`, `web/src/platforms/conjur/ConjurSecretVersions.tsx`.
+
+## ADR-044 — Restore a retained Conjur value through the existing approved write
+
+**Date:** 2026-11-12
+**Status:** Implemented in dev; native Windows and real-tenant acceptance pending.
+**Supersedes:** Only ADR-043's deferral of restoring a previous value as current.
+
+The user requested restoring credentials from the existing read-only version
+viewer. Compose the dedicated version read with the existing `secret-set-value`
+preview/run contract. No new vendor API, pack command, schema or dependency is
+needed. The official CLI writes the selected value as a **new current version**;
+historical versions are not edited, and the underlying service's credential is
+not reset. Conjur's own retention and execute/update authorization remain in force.
+
+Only an explicitly selected older version and a backend-advertised approved
+write task offer restoration. The operator acknowledges the source read, reviews
+the exact account/backend/fully qualified variable and source version, then
+separately approves the write. Retrieval and writing use the same account-qualified
+resource ID, including identifiers containing colons. The hidden value exists
+only in browser memory during review (at most 60 seconds) and the approved request;
+it is never prefilled into a form, trimmed, truncated, copied or persisted.
+Selection, target, consent, tab, visibility and navigation changes invalidate
+the review; abandoned reads cannot start a write. Existing 4,096-character write
+validation and expiring single-use, context/executable/stdin-bound approvals
+remain backend authority. Submission clears the browser's retained value.
+
+The existing reveal log records source-read metadata; the durable mutation journal
+records the normal write evidence. These are separate records, not a new durable
+source-version ledger. Only authoritative CLI completion is reported as command
+success. Lost acknowledgements or unsuccessful outcomes are unconfirmed and are
+never automatically replayed. Concurrent external writes are not locked or rolled
+back; a restore replaces the current value when the approved write executes.
+
+Verification covers exact multi-line bytes, colon-containing IDs, hidden values,
+approval/target mismatches, expiry, denied reads, abandoned responses, duplicate
+submission, remount guards and unknown outcomes. Embedded Chrome acceptance uses
+a synthetic historical read and real planner/approval/fixture-CLI stdin execution
+plus the real mutation journal at 1366/320 px. It does not qualify live credentials
+or native Windows. No GitHub Actions dispatch is implicit.

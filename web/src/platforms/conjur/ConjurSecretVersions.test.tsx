@@ -31,7 +31,7 @@ async function revealVersionTwo() {
   fireEvent.change(screen.getByRole('textbox', { name: 'Variable ID' }), { target: { value: ' apps/db ' } });
   fireEvent.click(screen.getByRole('button', { name: 'List versions' }));
   const select = await screen.findByRole('combobox', { name: 'Version' });
-  expect(screen.getByRole('option', { name: 'Version 3 (current)' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Version 3 (current when listed)' })).toBeInTheDocument();
   fireEvent.change(select, { target: { value: '2' } });
   const revealButton = screen.getByRole('button', { name: 'Reveal version 2' });
   expect(revealButton).toBeDisabled();

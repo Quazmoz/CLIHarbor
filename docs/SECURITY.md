@@ -270,6 +270,15 @@ Policy payloads come from a trusted pack template; user strings are rendered onl
 
 A `secret` input (Conjur `variable set`) is write-only: pack validation allows it only as stdin, never argv, so it is absent from the process list, invocation preview, approval preview, run history, diagnostics and browser retry/preference state. Command output (`Value added`) carries no secret material.
 
+Restoring a previous Conjur version (ADR-044) composes the dedicated acknowledged
+read with this existing approved write. The source and mutation use the same fully
+qualified account/variable ID. The returned value stays hidden in transient browser
+memory for at most 60 seconds of review and is cleared on invalidation/submission;
+backend input bounds, context/executable/stdin-bound one-use approval and the
+mutation journal remain mandatory. It never becomes a secret-returning pack task
+or an automatic retry. Restoration creates a new current Conjur value and does
+not reset the credential in another system or provide concurrency rollback.
+
 ## 5. Threats and mitigations
 
 ### T1 — Shell / argv injection

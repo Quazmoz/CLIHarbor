@@ -447,6 +447,18 @@ The upstream CLI contains more functionality than CLIHarbor currently grants bro
 
 Variable/secret retrieval and authentication commands that can return credential material remain excluded from the pack because CLIHarbor's current executor refuses secret-bearing plans. Instead, the Secrets tab's **View secret versions** action lists a variable's retained versions and reveals the current or one previous value through the dedicated ADR-043 endpoint (acknowledged, hidden by default, cleared after 60 seconds, metadata-only access log). Writing a value (`secret-set-value`) is write-only and returns no secret material.
 
+**Restore an older value:** select an older version, acknowledge its read, choose
+**Review restore of version N**, check the exact variable/account/backend, then
+approve **Restore version N**. CLIHarbor reuses the existing write-only task and
+its backend approval and mutation journal. The selected value is kept hidden,
+unchanged, and only temporarily in memory; it must pass the existing 4,096-character
+write limit. Conjur requires execute permission to retrieve it and update
+permission to store it. This creates a new current version; it does not reset the
+password/key in the consuming service or undo a concurrent external change.
+List versions again after completion. An unconfirmed result must be checked in
+Execution History and against the target before retrying. See ADR-044; real-tenant
+and native Windows acceptance remain pending.
+
 ### Interactive authentication
 
 The pack still does not expose `login` or `authenticate` commands. The separate reviewed adapter supports only password-style authn/LDAP handoff. OIDC, MFA/challenge, certificate and similar interactive flows remain vendor-owned; CLIHarbor does not synthesize keystrokes or pass credentials through argv.

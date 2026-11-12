@@ -681,6 +681,24 @@ Navigation regressions cover top-bar integration destinations, the built-in CLI 
 - Native Windows execution of these paths is part of WORK_LAPTOP_EVALUATION.md section 15; cross-compilation alone does not qualify them.
 
 
+## Conjur version restoration — ADR-044
+
+`ConjurRestoreSecretVersion.test.tsx` exercises the version viewer's real read
+client and approved-write composition: read acknowledgement, a separate mutation
+approval, exact multi-line value bytes, fully qualified colon-containing IDs,
+context/target/approval mismatches, no displayed value, no write after denied or
+abandoned reads, review expiry and invalidation, duplicate submission and lost
+write acknowledgements. The production Chrome harness mocks only the historical
+source read, then traverses the real planner, one-use approval, fixture CLI stdin,
+run completion and mutation journal; it checks exact received bytes, absence of
+the value from run/audit evidence, and 1366/320 px layout. These fixtures do not
+establish live-tenant credential behavior or native Windows acceptance.
+
+The browser harness isolates the runtime's HOME/XDG_CONFIG_HOME in a temporary
+directory; Chrome retains its own temporary browser profile. Favorite persistence
+is checked through the runtime preferences API, with exact identity-only fields,
+rather than expecting storage on a per-launch browser origin.
+
 ## Password-sharing acceptance — ADR-042
 
 `internal/passwordshare` tests real TLS transfer and strict invitation parsing,

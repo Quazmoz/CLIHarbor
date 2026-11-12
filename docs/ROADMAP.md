@@ -173,6 +173,11 @@ Frontend confirmation alone is not an authorization boundary.
 
 The generic planner/executor continue to reject secret-bearing browser tasks.
 
+Restoring a retained previous value as a new current Conjur version is implemented
+in dev through the existing dedicated read plus approved write-only task (ADR-044).
+It does not reset credentials in other systems. Native Windows and real-tenant
+qualification remain required.
+
 ## Stage 8 — Distribution hardening
 
 Potential deliverables:

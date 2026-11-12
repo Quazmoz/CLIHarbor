@@ -15,6 +15,7 @@ const conjurURL = process.env.CLIHARBOR_E2E_CONJUR_URL;
 const conjurIdentity = process.env.CLIHARBOR_E2E_CONJUR_IDENTITY;
 const conjurSecret = process.env.CLIHARBOR_E2E_CONJUR_SECRET;
 const conjurCheckDelay = process.env.CLIHARBOR_E2E_CONJUR_CHECK_DELAY;
+const conjurRestored = process.env.CLIHARBOR_E2E_CONJUR_RESTORED;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const stage = (name) => console.log('E2E stage: ' + name);
@@ -496,7 +497,7 @@ async function fetchJSON(page, relativeURL) {
 }
 
 async function main() {
-  if (!bootstrapURL || !conjurURL || !conjurIdentity || !conjurSecret || !conjurCheckDelay) {
+  if (!bootstrapURL || !conjurURL || !conjurIdentity || !conjurSecret || !conjurCheckDelay || !conjurRestored) {
     throw new Error('missing hermetic browser E2E configuration');
   }
   if (typeof WebSocket !== 'function') throw new Error('browser E2E requires Node 24 WebSocket');
@@ -1048,6 +1049,95 @@ async function main() {
     assert.equal(await page.evaluate('document.querySelector(".conjur-task-panel .mutation-approval").textContent.includes("browser-review-only-fixture")'), false, 'write-only value must stay out of the approved preview');
     assert.equal(await page.evaluate('location.pathname'), '/dedicated/conjur');
 
+    stage('restore a previous Conjur version through real approval, execution and audit');
+    await navigate(page, baseURL + '/dedicated/conjur');
+    await waitJS(page, 'secret version viewer ready', 'Array.from(document.querySelectorAll(".conjur-action")).some((button) => button.querySelector("strong")?.textContent === "View secret versions" && !button.disabled)');
+    const restoreValue = '  browser-restore-only-fixture\r\nsecond line\n尾  ';
+    // The source read is synthetic; planning, approval, stdin execution and the
+    // mutation journal use the real embedded runtime and isolated CLI fixture.
+    await page.evaluate(`(() => {
+      const nativeFetch = window.fetch.bind(window);
+      window.__restoreNativeFetch = nativeFetch;
+      window.__restoreReads = [];
+      window.__restoreWrites = 0;
+      window.fetch = async (input, init) => {
+        const url = new URL(typeof input === 'string' ? input : input.url, location.origin);
+        if (url.pathname === '/api/v1/conjur/secrets/versions') return new Response(JSON.stringify({
+          variableId: 'apps/db/password', versions: [{ version: 3 }, { version: 2 }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        if (url.pathname === '/api/v1/conjur/secrets/reveal') {
+          window.__restoreReads.push(JSON.parse(init.body));
+          return new Response(JSON.stringify({ variableId: 'apps/db/password', version: 2, value: ${JSON.stringify(restoreValue)} }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        const restoring = url.pathname === '/api/v1/runs' && init?.method === 'POST' &&
+          JSON.parse(init.body).commandId === 'secret-set-value';
+        if (restoring) window.__restoreWrites++;
+        const response = await nativeFetch(input, init);
+        if (restoring) window.__restoreRunID = (await response.clone().json()).runId;
+        return response;
+      };
+    })()`);
+    await clickButton(page, 'View secret versions');
+    await setTextInput(page, 'Variable ID', 'apps/db/password');
+    await clickButton(page, 'List versions');
+    await waitJS(page, 'retained versions loaded', `document.querySelector('[aria-label="Reveal Conjur secret version"] select option[value="2"]') !== null`);
+    await page.evaluate(`(() => {
+      const section = document.querySelector('[aria-label="Reveal Conjur secret version"]');
+      const select = section.querySelector('select'); select.value = '2'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await waitJS(page, 'restore action rendered', 'Array.from(document.querySelectorAll("button")).some((button) => button.textContent === "Review restore of version 2")');
+    assert.equal(await page.evaluate('window.__restoreReads.length'), 0, 'selecting a version must not read its value');
+    await page.evaluate(`document.querySelector('[aria-label="Reveal Conjur secret version"] input[type=checkbox]').click()`);
+    await clickButton(page, 'Review restore of version 2');
+    await waitJS(page, 'restore approval prepared', 'Array.from(document.querySelectorAll("h5")).some((heading) => heading.textContent === "Approve restoring version 2")');
+    assert.deepEqual(await page.evaluate('window.__restoreReads'), [{ packId: 'cyberark-conjur-v9', toolId: 'conjur', account: 'engineering',
+      applianceUrl: conjurURL, variableId: 'apps/db/password', version: 2 }]);
+    assert.equal(await page.evaluate('window.__restoreWrites'), 0, 'review must not execute a mutation');
+    assert.equal(await page.evaluate(`document.body.innerText.includes('browser-restore-only-fixture') ||
+      Array.from(document.querySelectorAll('input, textarea')).some((control) => control.value.includes('browser-restore-only-fixture'))`), false,
+      'restore must keep the previous value out of displayed text and form controls');
+    for (const width of [1366, 320]) {
+      await page.call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
+      await page.evaluate(`document.querySelector('[aria-label="Restore previous Conjur version"]').scrollIntoView({ block: 'start' }); true`);
+      assert.equal(await page.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, 'restore approval must fit at ' + width + 'px');
+      await capture('conjur-restore-' + width);
+    }
+    await page.evaluate(`document.querySelector('[aria-label="Restore previous Conjur version"] input[type=checkbox]').click()`);
+    await waitJS(page, 'restore approval enables the action', 'Array.from(document.querySelectorAll("button")).some((button) => button.textContent === "Restore version 2" && !button.disabled)');
+    await page.evaluate(`(() => {
+      const button = Array.from(document.querySelectorAll('button')).find((item) => item.textContent === 'Restore version 2');
+      button.click(); button.click();
+    })()`);
+    await waitJS(page, 'restore terminal outcome', 'document.body.textContent.includes("Restore command completed") || document.body.textContent.includes("Restore is unconfirmed")');
+    const restoreResult = await page.evaluate(`(async () => {
+      const run = window.__restoreRunID ? await (await fetch('/api/v1/runs/' + window.__restoreRunID)).json() : null;
+      return { completed: document.body.textContent.includes('Restore command completed'), run };
+    })()`);
+    assert.equal(restoreResult.completed, true, 'restore fixture outcome: ' + JSON.stringify({
+      runID: restoreResult.run?.runId, status: restoreResult.run?.status, exitCode: restoreResult.run?.exitCode,
+      failureCode: restoreResult.run?.failure?.code,
+      stderr: (restoreResult.run?.events ?? []).filter((event) => event.type === 'stderr.chunk')
+        .map((event) => Buffer.from(event.dataBase64, 'base64').toString('utf8')).join(''),
+    }));
+    assert.equal(await page.evaluate('window.__restoreWrites'), 1, 'duplicate clicks must produce one mutation');
+    assert.equal(await readFile(conjurRestored, 'utf8'), restoreValue, 'the approved CLI must receive the unchanged historical value on stdin');
+    const restoredEvidence = await page.evaluate(`(async () => {
+      const run = await (await fetch('/api/v1/runs/' + window.__restoreRunID)).json();
+      const audit = await (await fetch('/api/v1/audit')).json();
+      return { runID: window.__restoreRunID, run: JSON.stringify(run), audit: JSON.stringify(audit) };
+    })()`);
+    assert.ok(restoredEvidence.audit.includes(restoredEvidence.runID), 'the restore must have durable mutation evidence');
+    assert.equal(restoredEvidence.run.includes('browser-restore-only-fixture'), false, 'run metadata must exclude the previous secret value');
+    assert.equal(restoredEvidence.audit.includes('browser-restore-only-fixture'), false, 'mutation evidence must exclude the previous secret value');
+    const restoredRun = JSON.parse(restoredEvidence.run);
+    const streamText = (type) => Buffer.concat((restoredRun.events ?? []).filter((event) => event.type === type)
+      .map((event) => Buffer.from(event.dataBase64, 'base64'))).toString('utf8');
+    assert.equal(streamText('stdout.chunk'), 'Value added\n', 'stdout evidence must contain only the CLI acknowledgement');
+    assert.equal(streamText('stderr.chunk'), '', 'stderr must not contain historical value bytes');
+    await page.evaluate('window.fetch = window.__restoreNativeFetch; true');
+    await page.call('Emulation.setDeviceMetricsOverride', { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+
     stage('direct run history route');
     await navigate(page, baseURL + '/runs');
     await waitJS(page, 'runs route',
@@ -1144,13 +1234,20 @@ async function main() {
     assert.equal(favoriteInspect, true, 'fixture inspect task should be favoritable');
     await waitJS(page, 'favorite task row',
       'Boolean(document.querySelector("[data-task-section=favorites][data-task-action=select][data-task-key=\\\"integration/inspect\\\"]"))');
-    const preferenceStorage = await page.evaluate('(() => {' +
-      'const value = localStorage.getItem("cliharbor.task-preferences.v1") ?? "";' +
-      'return { value, keys: Object.keys(localStorage) };' +
-    '})()');
-    assert.ok(preferenceStorage.keys.includes('cliharbor.task-preferences.v1'));
-    assert.match(preferenceStorage.value, /integration/);
-    assert.match(preferenceStorage.value, /inspect/);
+    await waitJS(page, 'favorite persisted by the runtime', `(async () => {
+      const preferences = await (await fetch('/api/v1/preferences')).json();
+      return preferences.favorites.some((entry) => entry.packId === 'integration' && entry.commandId === 'inspect');
+    })()`);
+    const preferenceStorage = await page.evaluate(`(async () => ({
+      value: await (await fetch('/api/v1/preferences')).text(), keys: Object.keys(localStorage),
+    }))()`);
+    assert.equal(preferenceStorage.keys.includes('cliharbor.task-preferences.v1'), false, 'ephemeral browser storage must not own saved task preferences');
+    const savedPreferences = JSON.parse(preferenceStorage.value);
+    assert.equal(savedPreferences.version, 1);
+    assert.ok(savedPreferences.favorites.some((entry) => entry.packId === 'integration' && entry.commandId === 'inspect'));
+    for (const entry of [...savedPreferences.favorites, ...savedPreferences.recent]) {
+      assert.deepEqual(Object.keys(entry).sort(), ['commandId', 'packId'], 'stored preferences must contain only task identities');
+    }
     for (const forbidden of ['argv', 'executable', 'stdout', 'stderr', 'values']) {
       assert.equal(preferenceStorage.value.includes(forbidden), false, 'task preferences must stay identifier-only');
     }

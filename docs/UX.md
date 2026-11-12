@@ -612,6 +612,22 @@ limit remain in the field rather than being truncated and cannot be reviewed or 
 text area normalizes CRLF to LF; line breaks and tabs otherwise reach stdin.
 
 
+### Restoring a previous Conjur credential value
+
+In Conjur's **Secrets → View secret versions**, select a retained older version
+and acknowledge the read. **Review restore of version N** reads it without
+displaying it and prepares the existing approved write. The review shows the
+source version, account, backend, fully qualified variable and exact CLI argv;
+the value is absent. A separate approval checkbox enables **Restore version N**.
+The result is a new current Conjur value, not an edit of historical versions or
+a password reset in its source system. Existing write limits apply without
+trimming or truncation. Review clears within 60 seconds, on cancel, selection,
+target, consent or tab changes, visibility loss and navigation. An accepted write
+may finish after navigation; Activity and Execution History retain its evidence.
+An unknown outcome requires checking the target and history before another
+attempt. No automatic replay occurs. List versions again after completion to
+refresh the displayed metadata. See ADR-044.
+
 ## Terraform dedicated workspace (native Windows qualification pending)
 
 When Terraform is loaded, Built-in CLIs includes a dedicated Terraform workspace with Overview, Projects, Resources, State management, Configuration, Plans and History navigation. The approved project and local state lists come from a backend-only root allowlist; selecting another project clears the state, search filters, selected resource and any prior inventory. Resource tables, selectors and search show only addresses, types, modules and managed/data classification from bounded state-v4 metadata. Use native labelled select controls and a horizontally scrollable table for narrow viewports. No selection mutates state. Local state removal is a separate guarded operation with a CLI dry run, expiring one-use approval, typed confirmation, locking, verified backups and post-execution reconciliation (ADR-040). An unverified result never triggers replay. Provider-dependent validation, plan execution and Terraform-specific mutation history remain unavailable. Native Windows path/locking/reparse-point acceptance is still required.

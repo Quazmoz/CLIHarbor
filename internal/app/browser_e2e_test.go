@@ -150,6 +150,13 @@ case "${1:-}" in
     cat > "$CLIHARBOR_E2E_CONJUR_POLICY"
     printf '[]\n'
     ;;
+  variable)
+    [ "$#" -eq 6 ] && [ "$2" = "set" ] || exit 2
+    [ "$3" = "--id" ] && [ "$4" = "engineering:variable:apps/db/password" ] || exit 2
+    [ "$5" = "--file" ] && [ "$6" = "-" ] || exit 2
+    cat > "$CLIHARBOR_E2E_CONJUR_RESTORED"
+    printf 'Value added\n'
+    ;;
   whoami)
     if [ -f "$CLIHARBOR_E2E_CONJUR_CHECK_DELAY" ]; then
       printf 'fixture session check waiting\n' >&2
@@ -195,6 +202,7 @@ esac
 	t.Setenv("CLIHARBOR_E2E_CONJUR_CERT", certPath)
 	t.Setenv("CLIHARBOR_E2E_CONJUR_NETRC", netrcPath)
 	t.Setenv("CLIHARBOR_E2E_CONJUR_CHECK_DELAY", filepath.Join(tempDir, "delay-session-check"))
+	t.Setenv("CLIHARBOR_E2E_CONJUR_RESTORED", filepath.Join(tempDir, "restored-fixture-value"))
 }
 
 func TestProductionEmbeddedBrowserE2E(t *testing.T) {
@@ -204,6 +212,11 @@ func TestProductionEmbeddedBrowserE2E(t *testing.T) {
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
 		t.Skip("the real-browser Conjur fixture requires macOS or Linux")
 	}
+	// Runtime-backed browser preferences must never touch the operator's profile.
+	browserHome, browserConfigHome := os.Getenv("HOME"), os.Getenv("XDG_CONFIG_HOME")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
 	node, err := exec.LookPath("node")
 	if err != nil {
 		t.Fatal("node is required for the real-browser E2E harness")
@@ -262,7 +275,10 @@ func TestProductionEmbeddedBrowserE2E(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Second) // hosted macOS runners are ~2x slower
 	defer cancel()
 	cmd := exec.CommandContext(ctx, node, script)
-	cmd.Env = append(os.Environ(), "CLIHARBOR_E2E_BOOTSTRAP_URL="+bootstrapURL)
+	// Chrome owns a separate temporary user-data-dir; isolating runtime
+	// preferences does not require changing the browser's OS home.
+	cmd.Env = append(os.Environ(), "HOME="+browserHome, "XDG_CONFIG_HOME="+browserConfigHome,
+		"CLIHARBOR_E2E_BOOTSTRAP_URL="+bootstrapURL)
 	output, err := cmd.CombinedOutput()
 	text := strings.TrimSpace(string(output))
 	if len(text) > 8000 {

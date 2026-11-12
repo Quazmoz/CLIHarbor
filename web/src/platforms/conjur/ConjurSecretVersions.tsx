@@ -1,6 +1,10 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { normalizeError } from '../../api/errors';
 import { ExecutionContext } from '../../OperationResult';
+import type { Task } from '../../api/tasks';
+import { useMutationPending } from '../../OperationActivity';
+import { supportedTask } from './conjurRuns';
+import { ConjurRestoreSecretVersion, RESTORE_ACTIVITY } from './ConjurRestoreSecretVersion';
 import { fetchSecretAccessLog, listSecretVersions, revealSecret, type SecretAccessEntry, type SecretVersions } from './secretRetrievalApi';
 
 const DISPLAY_SECONDS = 60;
@@ -20,17 +24,20 @@ const failureMessage = (code: string) => failureText[code] ?? 'Conjur could not 
 interface Props {
   packId: string; toolId: string; csrfToken: string;
   account?: string; endpoint?: string; available: boolean; active: boolean;
+  tasks?: Task[]; onOpenRuns?: () => void;
 }
 
 /** ADR-043: one explicit, transient reveal of a current or retained previous secret version. */
-export function ConjurSecretVersions({ packId, toolId, csrfToken, account, endpoint, available, active }: Props) {
+export function ConjurSecretVersions({ packId, toolId, csrfToken, account, endpoint, available, active, tasks = [], onOpenRuns }: Props) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [variableId, setVariableId] = useState('');
   const [versions, setVersions] = useState<SecretVersions | null>(null);
   const [selected, setSelected] = useState(0);
   const [acknowledged, setAcknowledged] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [reading, setBusy] = useState(false);
+  const restoring = useMutationPending(RESTORE_ACTIVITY);
+  const busy = reading || restoring;
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [revealed, setRevealed] = useState<{ version: number; value: string } | null>(null);
@@ -39,6 +46,7 @@ export function ConjurSecretVersions({ packId, toolId, csrfToken, account, endpo
   const [log, setLog] = useState<SecretAccessEntry[]>([]);
   const target = account && endpoint ? { packId, toolId, account, applianceUrl: endpoint } : undefined;
   const allowed = available && target !== undefined;
+  const canRestore = supportedTask(tasks, 'secret-set-value', 'change', { 'variable-id': 'string', value: 'secret' });
   const trimmed = variableId.trim();
 
   const clear = () => { setRevealed(null); setShown(false); setRemaining(0); };
@@ -113,12 +121,13 @@ export function ConjurSecretVersions({ packId, toolId, csrfToken, account, endpo
 
   return (
     <section className="conjur-create-secret" aria-label="Reveal Conjur secret version">
-      <button type="button" className="conjur-action" disabled={!allowed} aria-expanded={open}
+      <button type="button" className="conjur-action" disabled={!allowed || busy} aria-expanded={open}
         onClick={() => { if (open) clear(); else refreshLog(); setOpen(!open); }}>
         <span className="conjur-action-text">
           <strong>View secret versions</strong>
           <span>{allowed
-            ? 'List a variable’s retained versions and reveal the current or a previous value once.'
+            ? canRestore ? 'List retained versions, reveal a value, or restore an older value after review.'
+              : 'List a variable’s retained versions and reveal the current or a previous value once.'
             : 'Unavailable until Conjur is ready and its server and account are known.'}</span>
         </span>
         <span className="task-risk-badge task-risk-badge--change">Reveals value</span>
@@ -142,7 +151,7 @@ export function ConjurSecretVersions({ packId, toolId, csrfToken, account, endpo
               <select value={selected} disabled={busy} onChange={(event) => { setSelected(Number(event.target.value)); clear(); }}>
                 <option value={0}>Current value</option>
                 {versions.versions.map((item, index) => <option key={item.version} value={item.version}>
-                  Version {item.version}{index === 0 ? ' (current)' : ''}{item.expiresAt ? ' · expires ' + item.expiresAt : ''}
+                  Version {item.version}{index === 0 ? ' (current when listed)' : ''}{item.expiresAt ? ' · expires ' + item.expiresAt : ''}
                 </option>)}
               </select>
             </label>
@@ -153,6 +162,10 @@ export function ConjurSecretVersions({ packId, toolId, csrfToken, account, endpo
             <button type="button" className="primary-button" disabled={busy || !acknowledged} onClick={() => void reveal()}>
               Reveal {versionLabel(selected).toLowerCase()}
             </button>
+            {allowed && active && canRestore && selected > 0 && selected < versions.versions[0].version &&
+              <ConjurRestoreSecretVersion key={JSON.stringify([target, versions.variableId, selected, acknowledged])}
+                csrfToken={csrfToken} target={target} variableId={versions.variableId} version={selected}
+                readAcknowledged={acknowledged} onRead={refreshLog} onOpenRuns={onOpenRuns} />}
           </fieldset>)}
         {error && <p role="alert" className="field-error">{error}</p>}
         {revealed && <div className="conjur-secret-reveal" aria-live="polite">

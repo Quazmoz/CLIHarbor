@@ -241,6 +241,7 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
           {taskAction('secret-set-value', 'change', 'Update value', 'Store a new value version in Conjur. Update the credential in its source system separately.')}
           {csrfToken && <ConjurSecretVersions key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
             packId={platform.packId} toolId={platform.toolId} csrfToken={csrfToken} available={ready}
+            tasks={platformTasks} onOpenRuns={onOpenRuns}
             account={ready ? target?.account : undefined} endpoint={ready ? target?.applianceUrl : undefined} active={tab === 'secrets'} />}
         </div>
         <h4 className="conjur-danger-heading">Destructive</h4>
