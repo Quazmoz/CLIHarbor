@@ -208,7 +208,46 @@ try {
         }
     }
 
-    Write-Host 'PASS: parse, invocation, pull reexecution, fail-safe builds, and checksum synchronization.'
+    # Exercise the double-click entry file through real CMD and Windows
+    # PowerShell. Only a fixture helper runs; no application is started/stopped.
+    $launcherRoot = Join-Path -Path $temp -ChildPath 'launch space & ü'
+    $launcherTools = Join-Path -Path $launcherRoot -ChildPath 'tools'
+    New-Item -ItemType Directory -Path $launcherTools -Force | Out-Null
+    $launcher = Join-Path -Path $launcherRoot -ChildPath 'Launch-CLIHarbor.cmd'
+    Copy-Item -LiteralPath (Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath 'Launch-CLIHarbor.cmd') -Destination $launcher
+    $launchMarker = Join-Path -Path $launcherRoot -ChildPath 'invoked'
+    foreach ($expected in @(0, 37)) {
+        Remove-Item -LiteralPath $launchMarker -ErrorAction SilentlyContinue
+        Set-Content -LiteralPath (Join-Path -Path $launcherTools -ChildPath 'dev-restart.ps1') -Encoding UTF8 -Value @(
+            'if ($args.Count -ne 0) { exit 98 }'
+            'Set-Content -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath ''..\invoked'') -Value ''invoked'''
+            "exit $expected"
+        )
+        $start = New-Object System.Diagnostics.ProcessStartInfo
+        $start.FileName = $env:ComSpec
+        $start.Arguments = '/d /c ""' + $launcher + '""'
+        $start.WorkingDirectory = $elsewhere
+        $start.UseShellExecute = $false
+        $start.RedirectStandardInput = $true
+        $start.RedirectStandardOutput = $true
+        $start.RedirectStandardError = $true
+        $process = [System.Diagnostics.Process]::Start($start)
+        try {
+            $process.StandardInput.WriteLine()
+            $process.StandardInput.Close()
+            $launchOutput = $process.StandardOutput.ReadToEnd()
+            $launchError = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+            if ($process.ExitCode -ne $expected -or -not (Test-Path -LiteralPath $launchMarker)) {
+                throw "Quick launcher did not invoke its helper or preserve exit code ${expected}: $launchOutput $launchError"
+            }
+            if ($expected -ne 0 -and $launchOutput -notlike '*CLIHarbor could not start*') {
+                throw 'Quick launcher did not explain the failed launch.'
+            }
+        } finally { $process.Dispose() }
+    }
+
+    Write-Host 'PASS: parse, invocation, pull reexecution, fail-safe builds, checksum synchronization, and quick launch.'
 } finally {
     $env:APPDATA = $initialAppData
     Set-Location -LiteralPath $initialLocation

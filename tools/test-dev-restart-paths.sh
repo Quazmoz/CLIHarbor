@@ -48,3 +48,31 @@ if [[ "$result" != 42 || ! -f "$fixture/fresh" ]]; then
   exit 1
 fi
 echo 'PASS: pull hands off to the updated helper.'
+
+# Exercise the Finder entry file from another CWD, with spaces, Unicode and a
+# shell metacharacter in its checkout path. The stub never builds or launches.
+launcher_fixture="$fixture/checkout space & ü"
+mkdir -p "$launcher_fixture/tools"
+cp "$root/Launch-CLIHarbor.command" "$launcher_fixture/Launch-CLIHarbor.command"
+cat > "$launcher_fixture/tools/dev-restart.sh" <<'HELPER'
+#!/usr/bin/env bash
+[[ $# == 0 ]] || exit 98
+touch "$CLIHARBOR_LAUNCH_TEST_MARKER"
+exit "$CLIHARBOR_LAUNCH_TEST_EXIT"
+HELPER
+chmod +x "$launcher_fixture/Launch-CLIHarbor.command"
+for expected in 0 37; do
+  rm -f "$fixture/launch-marker"
+  result=0
+  CLIHARBOR_LAUNCH_TEST_MARKER="$fixture/launch-marker" CLIHARBOR_LAUNCH_TEST_EXIT="$expected" \
+    "$launcher_fixture/Launch-CLIHarbor.command" < /dev/null > "$fixture/output" 2>&1 || result=$?
+  if [[ "$result" != "$expected" || ! -f "$fixture/launch-marker" ]]; then
+    echo 'FAIL: quick launcher did not invoke its own helper or preserve its exit code.' >&2
+    exit 1
+  fi
+  if (( expected != 0 )) && ! grep -q 'CLIHarbor could not start' "$fixture/output"; then
+    echo 'FAIL: quick launcher did not explain the failed launch.' >&2
+    exit 1
+  fi
+done
+echo 'PASS: quick launcher resolves its own checkout and preserves success/failure.'

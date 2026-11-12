@@ -14,6 +14,10 @@ CLIHarbor runs on Windows and macOS. It wraps official CLIs through reviewed, ve
 
 ## Quickstart
 
+**Have a source checkout? Double-click [Launch-CLIHarbor.cmd](Launch-CLIHarbor.cmd) on Windows or [Launch-CLIHarbor.command](Launch-CLIHarbor.command) on macOS.** Keep the launcher in the checkout's root folder. Install the pinned Go/Node/npm versions below first; Windows also uses its built-in Windows PowerShell under your approved execution policy. The launcher runs the existing restart helper: frontend checks, a fresh embedded build, then the full browser workspace with all built-in packs and dedicated integrations. The first build needs network access for locked dependencies and can take several minutes. Later launches also validate and rebuild; they never fall back to an old executable after a build failure.
+
+Use the newly opened browser tab. Install missing supported tools through **Add a CLI**, then use **Sign in** as needed; available operations depend on your OS, installed CLIs and vendor permissions. Terraform project roots and browser password-sharing certificates still need explicit operator configuration; see [Terraform setup](docs/TERRAFORM_INTEGRATION.md) and [Password sharing](docs/PASSWORD_SHARING.md). Stop a manually launched instance through its own terminal before using the launcher, and wait for active operations/sign-in to finish before relaunching. To stop a launcher-owned instance, use the stop command in [Developer quickstart](#developer-quickstart). Build failures stay visible in the launcher window. These files launch a development checkout; use the qualified Windows bundle procedure below on managed evaluation laptops.
+
 Choose the path that matches your computer:
 
 | You have… | Start here | Requirements |
