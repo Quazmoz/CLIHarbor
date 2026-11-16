@@ -3948,3 +3948,106 @@ a.terraform-download-link:focus-visible { outline: 3px solid var(--focus); outli
 .terraform-removal-result code { overflow-wrap: anywhere; margin-inline-end: .35rem; }
 .danger-button { background: var(--danger); border-color: var(--danger); color: #1a0b0c; font-weight: 600; }
 .danger-button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---------------------------------------------------------------------------
+ * Decision controls: approval checkpoints use large, unmistakable buttons and
+ * consent targets. Kept last so these win over context-specific button rules.
+ * ------------------------------------------------------------------------- */
+button { border-radius: var(--radius-md); }
+
+.mutation-approval {
+  gap: var(--space-4);
+  border-color: var(--warning-border);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  background: linear-gradient(180deg, rgba(242, 179, 61, 0.07), rgba(242, 179, 61, 0) 5rem), var(--surface-3);
+  box-shadow: var(--shadow-pop);
+}
+.mutation-approval h4,
+.mutation-approval h5 { margin: 0; color: var(--text-strong); font-size: 1.08rem; line-height: 1.35; }
+.mutation-approval p { margin: 0; }
+
+/* Primary approve/apply actions. */
+.mutation-approval > button:not(.secondary-button),
+.mutation-approval > div > button:not(.secondary-button),
+.run-button,
+.terraform-removal-actions > button:not(.secondary-button) {
+  min-height: 3.1rem;
+  min-width: 14rem;
+  padding: 0.8rem 1.6rem;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border-radius: var(--radius-md);
+}
+.mutation-approval > button:not(.secondary-button):not(.danger-button),
+.mutation-approval > div > button:not(.secondary-button):not(.danger-button),
+.run-button {
+  border-color: #3b82f6;
+  /* Both stops keep white text at WCAG AA contrast. */
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.terraform-removal-actions > .danger-button { box-shadow: 0 4px 14px rgba(240, 96, 93, 0.3); }
+.mutation-approval > button,
+.mutation-approval > div > button { justify-self: start; }
+.mutation-approval > .secondary-button,
+.mutation-approval > div > .secondary-button,
+.terraform-removal-actions > .secondary-button { min-height: 3.1rem; padding: 0.75rem 1.3rem; }
+.mutation-approval > div:not(.mutation-approval-heading) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.mutation-approval > div:not(.mutation-approval-heading) > :not(button) { flex: 1 1 100%; }
+.terraform-removal-actions { gap: var(--space-3); margin-top: 0.4rem; }
+
+/* Command builder action row: equal heights, prominent approve-and-run. */
+.builder-card .task-actions > button { min-height: 3.1rem; padding-inline: 1.3rem; }
+.validate-button { font-size: 1rem; }
+
+/* Consent checkboxes: a full-row target instead of a 13px box. */
+.conjur-create-consent,
+.conjur-create-form .conjur-create-consent,
+.sharing-consent {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-weight: 600;
+  line-height: 1.45;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.conjur-create-consent:hover,
+.sharing-consent:hover { border-color: var(--button-border); }
+.conjur-create-consent:has(input:checked),
+.sharing-consent:has(input:checked) { border-color: var(--positive-border); background: var(--positive-surface); }
+.conjur-create-consent input[type="checkbox"],
+.conjur-create-form .conjur-create-consent input,
+.sharing-consent input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 1.3rem;
+  height: 1.3rem;
+  margin: 0.05rem 0 0;
+  accent-color: var(--positive);
+  cursor: pointer;
+}
+
+/* Typed confirmations: roomy inputs that match the action size. */
+.typed-approval input,
+.mutation-approval label > input:not([type="checkbox"]),
+.terraform-removal-preview label > input {
+  min-height: 2.9rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 1rem;
+}
+
+@media (max-width: 620px) {
+  .mutation-approval { padding: var(--space-4); }
+  .mutation-approval > button,
+  .mutation-approval > div > button,
+  .terraform-removal-actions > button,
+  .run-button { width: 100%; min-width: 0; justify-self: stretch; }
+}
