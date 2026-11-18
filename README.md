@@ -151,7 +151,7 @@ The built-in catalog currently includes nine CLIs. Only compatible, identity-ver
 | GitHub CLI | Bounded repository, issue, PR, workflow, and run metadata; local version | Existing installation or reviewed download; vendor session for service tasks |
 | AWS CLI v2 | Caller identity and selected S3/EC2/Lambda metadata; local version | Existing installation and normal profile/SSO session |
 | Helm | Release/history/repository metadata | Existing installation; reviewed download on Windows only |
-| HashiCorp Vault | Server status and mount/policy-name metadata | Existing installation and vendor configuration/session |
+| HashiCorp Vault | Server status and mount/policy-name metadata; KV v1/v2 key browsing and explicit, auto-clearing single-secret reveal in dev (ADR-045) | Existing installation and vendor configuration/session (`VAULT_ADDR`, `vault login`); Windows qualification pending |
 | HashiCorp Terraform | Offline help/version, approved local configuration formatting checks, state-address inventory, guarded local state removal in dev | Approved existing CLI; startup-approved project roots; Windows qualification pending |
 
 ![Add a CLI catalog on macOS, with supported-tool search, custom-pack authoring, ready tools, and a missing Idira PAM installation](docs/images/cli-catalog.png)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Quazmoz/CLIHarbor/internal/audittrail"
@@ -17,6 +18,7 @@ import (
 	"github.com/Quazmoz/CLIHarbor/internal/platforms/conjur"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms/idira"
 	"github.com/Quazmoz/CLIHarbor/internal/platforms/terraform"
+	"github.com/Quazmoz/CLIHarbor/internal/platforms/vault"
 	"github.com/Quazmoz/CLIHarbor/internal/runs"
 	"github.com/Quazmoz/CLIHarbor/internal/server"
 	"github.com/Quazmoz/CLIHarbor/internal/toolbootstrap"
@@ -94,7 +96,14 @@ func Run(ctx context.Context, options Options) error {
 	if state, ok := runtimeState.Discovery.Find(discovery.ToolRef{PackID: "terraform-cli", ToolID: "terraform"}); ok {
 		terraformPlatform.ActivateTool(state)
 	}
-	dedicated := platforms.NewSet(runtimeState.Discovery, conjurPlatform, idira.New(), terraformPlatform)
+	// The KV API exists only when the vault-cli pack is loaded.
+	vaultPlatform := vault.New(os.Getenv)
+	var vaultService server.VaultService
+	if state, ok := runtimeState.Discovery.Find(discovery.ToolRef{PackID: vault.PackID, ToolID: vault.ToolID}); ok {
+		vaultPlatform.ActivateTool(state)
+		vaultService = vaultPlatform
+	}
+	dedicated := platforms.NewSet(runtimeState.Discovery, conjurPlatform, idira.New(), terraformPlatform, vaultPlatform)
 	runManager, err := runs.NewManager(ctx, runtimeState.Registry, runtimeState.Discovery, runs.Config{
 		ResolveExecutionContext: dedicated.ResolveExecutionContext,
 		OutputGuard:             idira.OutputGuard,
@@ -154,6 +163,7 @@ func Run(ctx context.Context, options Options) error {
 		SecretRetrieval:            conjurPlatform.Secrets,
 		Platforms:                  dedicated,
 		Terraform:                  terraformPlatform,
+		Vault:                      vaultService,
 		PasswordSharing:            sharing,
 	})
 	if err != nil {

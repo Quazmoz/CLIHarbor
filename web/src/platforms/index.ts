@@ -15,4 +15,5 @@ export type PlatformWorkspaceProps = ComponentProps<typeof ConjurWorkspace>;
 export const dedicatedWorkspace: Readonly<Record<string, ComponentType<PlatformWorkspaceProps>>> = {
   conjur: lazy(() => import('./conjur/ConjurWorkspace').then((module) => ({ default: module.ConjurWorkspace }))),
   terraform: lazy(() => import('./terraform/TerraformWorkspace').then((module) => ({ default: module.TerraformWorkspace }))),
+  vault: lazy(() => import('./vault/VaultWorkspace').then((module) => ({ default: module.VaultWorkspace }))),
 };

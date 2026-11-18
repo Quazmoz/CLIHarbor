@@ -34,6 +34,11 @@ type ReadOnlyProbeConfig struct {
 	// CHECKPOINT_DISABLE=1) to the neutral environment. It must never carry
 	// browser input or secrets; names are restricted to [A-Z_][A-Z0-9_]*.
 	ExtraEnv []string
+	// VendorSession inherits the operator's environment and home directory so
+	// the official CLI can use its own existing session, exactly like a pack
+	// `vendor-session` run. Only dedicated platforms with a reviewed,
+	// fixed argv may set it.
+	VendorSession bool
 }
 
 // ReadOnlyProbeResult preserves process evidence without interpreting command
@@ -114,6 +119,9 @@ func RunReadOnlyProbe(ctx context.Context, executablePath string, args []string,
 		cmd.Stdin = bytes.NewReader(config.Input)
 	}
 	cmd.Env = append(processenv.NeutralHome(workdir), config.ExtraEnv...)
+	if config.VendorSession {
+		cmd.Env = append(os.Environ(), config.ExtraEnv...)
+	}
 	cmd.WaitDelay = readOnlyProbeWaitDelay
 	cmd.Cancel = func() error { return controller.cancel(cmd) }
 	if err := controller.configure(cmd); err != nil {

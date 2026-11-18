@@ -68,6 +68,7 @@ internal/discovery/        executable resolution, version probes, identity
 internal/toolbootstrap/    generic provisioner interface + pack-declared portable installs
 internal/platforms/        dedicated CLI platform interface + routing set (ADR-034)
 internal/platforms/conjur/ dedicated Conjur: sign-in, mutation context, security audit, pinned bootstrap
+internal/platforms/vault/  dedicated Vault: KV key listing and explicit single-secret reveal (ADR-045)
 internal/planner/          typed values -> immutable execution plan
 internal/executor/         direct bounded process execution
 internal/processcontrol/   platform process-lifecycle ownership
@@ -441,6 +442,8 @@ Custom install locations are stored in a bounded (64 KiB) current-user JSON regi
 ## Terraform dedicated integration
 
 `internal/platforms/terraform` owns the approved local roots and read-only Terraform state-v4 address parser, separate from the generic pack executor. The process operator supplies one or more `--terraform-project` directories at launch; the browser only receives opaque project/state IDs and sanitized address metadata over session-protected `GET /api/v1/terraform/projects` and `GET /api/v1/terraform/resources?project=<id>&state=<id>`. These inventory routes accept no browser-provided path, arbitrary CLI argv or mutating action. The trusted Terraform pack retains version and fixed help-only commands; generic `state rm` remains removed. The frontend lives at `web/src/platforms/terraform`, rendered through the established dedicated platform registry. Its source requires regeneration of `internal/webui/static` before packaging; source-only changes are not a release artifact.
+
+`internal/platforms/vault` adds HashiCorp Vault KV browsing beside the read-only `vault-cli` pack. Session-protected `GET /api/v1/vault/context`, CSRF-protected `POST /api/v1/vault/kv/list` and `POST /api/v1/vault/kv/reveal` (body `{mount, path}`), and `GET /api/v1/vault/kv/access-log` run only `vault kv list|get -format=json <mount>/<path>` through the read-only probe with the operator's inherited vendor session. Revealed values are `no-store`, never journaled, and cleared by the browser after 60 seconds; see ADR-045. The frontend lives at `web/src/platforms/vault`.
 
 ADR-040 adds that state-specific adapter through separate `/api/v1/terraform/state-removal/{preview,execute}` endpoints. It delegates to the identity-verified official CLI with fixed arguments, a mandatory dry run, an expiring one-use snapshot-bound approval, typed confirmation, local locking, verified backups and outcome reconciliation. The generic pack still cannot run `state rm`. Native Windows qualification remains blocked on actual path, reparse-point and locking acceptance.
 

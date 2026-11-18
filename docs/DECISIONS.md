@@ -1145,3 +1145,40 @@ submission, remount guards and unknown outcomes. Embedded Chrome acceptance uses
 a synthetic historical read and real planner/approval/fixture-CLI stdin execution
 plus the real mutation journal at 1366/320 px. It does not qualify live credentials
 or native Windows. No GitHub Actions dispatch is implicit.
+
+## ADR-045 — HashiCorp Vault KV browsing and explicit reveal
+
+**Date:** 2026-11-13
+**Status:** Implemented in dev; native Windows and real-server browser acceptance pending.
+
+The user requested a HashiCorp Vault feature. The `vault-cli` pack stays a
+read-only metadata allowlist (PACK_SPEC refuses secret-bearing pack plans).
+KV key listing and a one-secret-at-a-time reveal live in the dedicated
+`internal/platforms/vault` package, mirroring the Conjur reveal contract of
+ADR-043. No Vault SDK or new dependency is added.
+
+The platform runs exactly `vault kv list -format=json <mount>/<path>` or
+`vault kv get -format=json <mount>/<path>` through the official CLI as an
+argument vector, with a 10-second timeout, 64 KiB output cap, one in-flight
+read and an executable identity re-check. Mount and path segments are strictly
+validated (`[A-Za-z0-9_.@+=:,-]`, no `.`/`..`, mount begins alphanumeric), so the
+single target argument can never be parsed as a flag. Reads inherit the operator's
+environment (`ReadOnlyProbeConfig.VendorSession`) so the CLI uses its own
+`VAULT_TOKEN`/`~/.vault-token` and TLS settings; CLIHarbor never asks for, stores
+or transmits a token. A `VAULT_ADDR` that is not a plain http(s) URL (userinfo,
+query or fragment) is refused and never echoed.
+
+KV v1 and v2 responses are parsed; deleted v2 versions report `not_found`. Values
+are bounded (256 fields, 16 KiB total), returned only to an explicit CSRF-protected
+POST with `Cache-Control: no-store`, and never written to run history, logs or
+diagnostics. Vault errors map to a closed set of failure codes. The browser
+requires per-secret consent, masks values by default, clears them after 60
+seconds or when the page is hidden, discards values arriving while hidden, and
+clears copied values from the clipboard after 30 seconds when unchanged. An
+in-memory log keeps only time, address, mount, path and outcome for the session.
+
+Writes, deletes, dynamic secrets, other engines and login flows are out of scope.
+Known ceiling: a KV v1 secret whose only keys are `data` and `metadata.version`
+is indistinguishable from a v2 envelope. Verification used checksum-verified
+Vault 2.2.2 in `-dev` mode for real CLI output shapes; no GitHub Actions dispatch
+is implicit.

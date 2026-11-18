@@ -60,6 +60,7 @@ type Config struct {
 	SecretRetrieval            SecretRetrievalService
 	Platforms                  PlatformService
 	Terraform                  TerraformStateService
+	Vault                      VaultService
 	PasswordSharing            *passwordshare.Service
 	MaxEventStreams            int
 }
@@ -96,6 +97,7 @@ type Server struct {
 	secretRetrieval            SecretRetrievalService
 	platforms                  PlatformService
 	terraform                  TerraformStateService
+	vault                      VaultService
 	passwordSharing            *passwordshare.Service
 	runStreamSlots             chan struct{}
 	streamCtx                  context.Context
@@ -173,6 +175,7 @@ func New(config Config) (*Server, error) {
 		secretRetrieval:            config.SecretRetrieval,
 		platforms:                  config.Platforms,
 		terraform:                  config.Terraform,
+		vault:                      config.Vault,
 		passwordSharing:            config.PasswordSharing,
 		runStreamSlots:             make(chan struct{}, maxEventStreams),
 		streamCtx:                  streamCtx,
@@ -244,6 +247,12 @@ func New(config Config) (*Server, error) {
 			mux.Handle("/api/v1/terraform/state-removal/preview", s.requireSession(http.HandlerFunc(s.handleTerraformStateRemovalPreview)))
 			mux.Handle("/api/v1/terraform/state-removal/execute", s.requireSession(http.HandlerFunc(s.handleTerraformStateRemovalExecute)))
 		}
+	}
+	if s.vault != nil {
+		mux.Handle("/api/v1/vault/context", s.requireSession(http.HandlerFunc(s.handleVaultContext)))
+		mux.Handle("/api/v1/vault/kv/list", s.requireSession(http.HandlerFunc(s.handleVaultList)))
+		mux.Handle("/api/v1/vault/kv/reveal", s.requireSession(http.HandlerFunc(s.handleVaultReveal)))
+		mux.Handle("/api/v1/vault/kv/access-log", s.requireSession(http.HandlerFunc(s.handleVaultAccessLog)))
 	}
 	mux.Handle("/api/", s.requireSession(http.HandlerFunc(s.handleAPINotFound)))
 	mux.Handle("/", s.requireSession(config.Frontend))

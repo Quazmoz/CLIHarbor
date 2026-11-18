@@ -73,6 +73,14 @@ func TestReadOnlyProbeDoesNotPassArbitraryParentEnvironment(t *testing.T) {
 	}
 }
 
+func TestReadOnlyProbeVendorSessionInheritsOperatorEnvironment(t *testing.T) {
+	t.Setenv("CLIHARBOR_TEST_SECRET", "vendor-session-env")
+	result, err := runProbeHelper(t, "environment", ReadOnlyProbeConfig{Timeout: 2 * time.Second, MaxOutputBytes: 8 << 10, VendorSession: true})
+	if err != nil || !bytes.Contains(result.Stdout, []byte("vendor-session-env")) {
+		t.Fatalf("vendor-session probe did not inherit the operator environment: %q err=%v", result.Stdout, err)
+	}
+}
+
 func TestReadOnlyProbePreservesInvalidUTF8ForCallerSanitization(t *testing.T) {
 	result, err := runProbeHelper(t, "invalid-utf8", ReadOnlyProbeConfig{Timeout: 2 * time.Second, MaxOutputBytes: 8 << 10})
 	if err != nil {
