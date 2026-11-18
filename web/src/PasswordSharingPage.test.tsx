@@ -58,7 +58,8 @@ test('a resumed invitation never reconstructs its private link, and reveal clear
   expect(screen.queryByRole('textbox', { name: 'One-use invitation' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Reveal received password once' }));
   const value = await screen.findByRole('textbox', { name: 'Received password' });
-  expect(value).toHaveValue('received-fixture-value'); expect(value).toHaveFocus();
+  expect(value).toHaveValue('received-fixture-value');
+  await waitFor(() => expect(value).toHaveFocus());
   expect(backend.bodies('POST '+root+'/reveal')).toEqual([{ id }]);
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
   fireEvent(document, new Event('visibilitychange'));

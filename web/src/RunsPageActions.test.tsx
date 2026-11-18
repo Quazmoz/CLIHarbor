@@ -34,7 +34,7 @@ test('history cancellation is single-flight, carries CSRF and waits for the obse
   backend.on({ [path]: { body: cancelled }, '/api/v1/runs': { body: { runs: [cancelled] } } });
   fireEvent.click(screen.getByRole('button', { name: 'Refresh run' }));
   await screen.findByText('Run finished: Cancelled.');
-  expect(screen.getByLabelText('Run cancellation')).toHaveFocus();
+  await waitFor(() => expect(screen.getByLabelText('Run cancellation')).toHaveFocus());
   expect(screen.queryByRole('button', { name: /Cancel this run|Cancellation requested/ })).not.toBeInTheDocument();
   expect(backend.requests.filter((request) => request.method === 'POST')).toHaveLength(1);
 });
