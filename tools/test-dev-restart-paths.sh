@@ -9,6 +9,7 @@ cp "$root/tools/dev-restart.sh" "$fixture/tools/dev-restart.sh"
 printf '%s\n' 'invalid-marker-must-survive' > "$fixture/bin/.cliharbor-dev.pid"
 cat > "$fixture/fake-bin/go" <<'GO'
 #!/usr/bin/env bash
+[[ "$*" == 'run ./tools/task web-build-dev' ]] || exit 98
 touch "$CLIHARBOR_RESTART_TEST_BUILD_MARKER"
 echo 'simulated build failure' >&2
 exit 23

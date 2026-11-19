@@ -77,12 +77,13 @@ if [[ "$mode" == '--stop' ]]; then
   exit 0
 fi
 
-# Builds and tests Vite assets, replaces stale embedded files, then builds
+# Builds fresh Vite assets without lint/tests, replaces stale embedded files, then builds
 # exactly the executable this helper will launch before stopping the current
 # instance. Unix permits replacing a running executable; a failed build must
 # leave that instance available. No old web/dist is reused.
 [[ ! -L "$exe" ]] || { echo 'Refusing symlinked CLIHarbor executable.' >&2; exit 1; }
-go run ./tools/task build
+go run ./tools/task web-build-dev
+go run ./tools/task go-build
 [[ -x "$exe" ]] || { echo 'CLIHarbor build did not create an executable.' >&2; exit 1; }
 [[ ! -L "$log_file" && ! -L "$pid_file" ]] || { echo 'Unsafe development log or PID path.' >&2; exit 1; }
 stop_owned

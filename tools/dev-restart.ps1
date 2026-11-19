@@ -136,22 +136,22 @@ if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
     }
 }
 
-# Validate and regenerate the frontend while the current version is still
+# Typecheck and regenerate the frontend while the current version is still
 # running. On Windows, the current executable must be stopped before Go can
-# replace it; failed npm/typecheck/lint/tests must not take a healthy app down.
-Write-Host 'CLIHarbor: validating and rebuilding frontend (npm ci, typecheck, lint, tests, Vite, embed)...'
+# replace it; a failed build must not take a healthy app down.
+Write-Host 'CLIHarbor: rebuilding frontend (npm ci, TypeScript, Vite, embed; no lint or tests)...'
 $global:LASTEXITCODE = 0
 try {
-    & go run ./tools/task web-build
+    & go run ./tools/task web-build-dev
 } catch {
     if ($global:LASTEXITCODE -ne 0) {
-        throw "CLIHarbor frontend validation failed (exit code $global:LASTEXITCODE). Review the 'task:' error above; existing CLIHarbor was not stopped."
+        throw "CLIHarbor frontend build failed (exit code $global:LASTEXITCODE). Review the 'task:' error above; existing CLIHarbor was not stopped."
     }
-    throw "CLIHarbor frontend validation could not start Go: $($_.Exception.Message)"
+    throw "CLIHarbor frontend build could not start Go: $($_.Exception.Message)"
 }
 $buildExit = $global:LASTEXITCODE
 if ($buildExit -ne 0) {
-    throw "CLIHarbor frontend validation failed (exit code $buildExit). Review the 'task:' error above; run 'go run ./tools/task web-build' to reproduce. Existing CLIHarbor was not stopped."
+    throw "CLIHarbor frontend build failed (exit code $buildExit). Review the 'task:' error above; run 'go run ./tools/task web-build-dev' to reproduce. Existing CLIHarbor was not stopped."
 }
 
 # Compile a fully embedded replacement BEFORE stopping a healthy instance.

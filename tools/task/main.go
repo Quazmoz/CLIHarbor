@@ -34,7 +34,9 @@ func main() {
 	case "web-dev":
 		err = run(root, npmCommand(), "run", "dev", "--prefix", filepath.Join(root, "web"))
 	case "web-build":
-		err = webBuild(root)
+		err = webBuild(root, true)
+	case "web-build-dev":
+		err = webBuild(root, false)
 	case "sync-web":
 		err = syncWeb(root)
 	case "verify-web-sync":
@@ -54,7 +56,7 @@ func main() {
 	case "verify-windows-eval-repro":
 		err = verifyWindowsEvaluationReproducible(root)
 	case "build":
-		if err = webBuild(root); err == nil {
+		if err = webBuild(root, true); err == nil {
 			err = goBuild(root)
 		}
 	default:
@@ -67,7 +69,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|sync-web|verify-web-sync|check|go-build|go-build-staged|fixture-build|windows-eval|verify-windows-eval|verify-windows-eval-repro|build>")
+	fmt.Fprintln(os.Stderr, "usage: go run ./tools/task <web-dev|web-build|web-build-dev|sync-web|verify-web-sync|check|go-build|go-build-staged|fixture-build|windows-eval|verify-windows-eval|verify-windows-eval-repro|build>")
 }
 
 func fatal(err error) {
@@ -108,18 +110,23 @@ func npmCommand() string {
 	return "npm"
 }
 
-func webBuild(root string) error {
+func webBuild(root string, checks bool) error {
 	web := filepath.Join(root, "web")
-	steps := []struct {
+	type step struct {
 		name string
 		args []string
-	}{
-		{"install frontend dependencies (npm ci)", []string{"ci", "--prefix", web}},
-		{"TypeScript typecheck", []string{"run", "typecheck", "--prefix", web}},
-		{"frontend ESLint", []string{"run", "lint", "--prefix", web}},
-		{"frontend tests (Vitest)", []string{"test", "--prefix", web}},
-		{"frontend production build (Vite)", []string{"run", "build", "--prefix", web}},
 	}
+	steps := []step{
+		{"install frontend dependencies (npm ci)", []string{"ci", "--prefix", web}},
+	}
+	if checks {
+		steps = append(steps,
+			step{"TypeScript typecheck", []string{"run", "typecheck", "--prefix", web}},
+			step{"frontend ESLint", []string{"run", "lint", "--prefix", web}},
+			step{"frontend tests (Vitest)", []string{"test", "--prefix", web}},
+		)
+	}
+	steps = append(steps, step{"frontend production build (TypeScript + Vite)", []string{"run", "build", "--prefix", web}})
 	for _, step := range steps {
 		fmt.Fprintf(os.Stderr, "task: %s...\n", step.name)
 		if err := run(root, npmCommand(), step.args...); err != nil {
@@ -134,7 +141,7 @@ func webBuild(root string) error {
 }
 
 func check(root string) error {
-	if err := webBuild(root); err != nil {
+	if err := webBuild(root, true); err != nil {
 		return err
 	}
 	if err := verifyWebSync(root); err != nil {

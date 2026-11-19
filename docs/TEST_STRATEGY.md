@@ -38,7 +38,13 @@ The read deadline includes complete success and error bodies, not just headers. 
 
 The same shell/PowerShell regression scripts exercise the root quick-launch files with disposable helpers, including success and failure exit codes, invocation from an unrelated working directory, and checkout paths containing spaces, Unicode and `&`. The Windows entry file is exercised through real CMD and Windows PowerShell; that check requires Windows. These stubs do not establish browser startup. Native acceptance must also double-click the relevant launcher with the pinned toolchains, confirm the full workspace opens from freshly embedded assets, then stop its helper-owned instance. No GitHub Actions dispatch is implicit.
 
-`tools/test-dev-restart-paths.ps1` uses temporary fixture checkouts to exercise the Windows helper's `-Stop` path without building or starting a runtime. It verifies that direct script-file invocation works from an unrelated current directory, that inline evaluation from the repository root works without `$PSScriptRoot`, and that invalid inline working directories fail closed before any build or process stop. Run it using Windows PowerShell or PowerShell 7 on Windows; it also covers a simulated pre-stop frontend build failure and verifies the PID marker is not touched. It is not a substitute for a live Windows stop/build/start acceptance run. The Go task runner labels the failed npm/typecheck/lint/Vitest/Vite/embed/compile stage to support actionable log collection.
+`tools/test-dev-restart-paths.ps1` uses temporary fixture checkouts to exercise the Windows helper's `-Stop` path without building or starting a runtime. It verifies that direct script-file invocation works from an unrelated current directory, that inline evaluation from the repository root works without `$PSScriptRoot`, and that invalid inline working directories fail closed before any build or process stop. Run it using Windows PowerShell or PowerShell 7 on Windows; it also covers a simulated pre-stop frontend build failure and verifies the PID marker is not touched. It is not a substitute for a live Windows stop/build/start acceptance run. The Go task runner labels each failed build/check stage to support actionable log collection.
+
+Development restarts use `web-build-dev` (npm ci, TypeScript/Vite build and
+embedding), without lint or tests. Task-runner regressions record the exact npm
+steps for both development and full builds and prove that failed compilation
+cannot publish stale assets. `web-build`, `build` and `check` retain all frontend
+checks; skipping tests for a restart does not waive commit or release gates.
 
 ### Credential login consistency regressions
 

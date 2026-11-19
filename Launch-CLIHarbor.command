@@ -1,6 +1,6 @@
 #!/bin/bash
 # Finder opens this file in Terminal; the helper builds and opens the full app.
-echo 'CLIHarbor: building the full app and opening your browser...'
+echo 'CLIHarbor: rebuilding and opening your browser (no lint or tests)...'
 echo 'Requires the Go, Node.js and npm versions listed in README.md.'
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || exit 1
 /bin/bash "$root/tools/dev-restart.sh"

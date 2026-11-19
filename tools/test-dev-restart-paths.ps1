@@ -40,13 +40,14 @@ try {
     & $hostExe -NoProfile -NonInteractive -Command $invalidCommand *> $null
     if ($LASTEXITCODE -ne 42) { throw "Expected invalid checkout rejection (42), got $LASTEXITCODE." }
 
-    # Emulate a failed web-build without downloading dependencies or killing a
+    # Emulate a failed web-build-dev without downloading dependencies or killing a
     # process. A deliberately malformed marker proves Stop-OwnedDev was not run.
     $fakeBin = Join-Path -Path $temp -ChildPath 'fake-bin'
     New-Item -ItemType Directory -Path $fakeBin | Out-Null
     Set-Content -LiteralPath (Join-Path -Path $fakeBin -ChildPath 'go.cmd') -Value @(
         '@echo off'
-        'echo simulated frontend validation failure'
+        'if not "%3"=="web-build-dev" exit /b 98'
+        'echo simulated frontend build failure'
         'exit /b 23'
     )
     $markerFile = Join-Path -Path $temp -ChildPath 'bin\.cliharbor-dev.pid.json'
@@ -90,7 +91,7 @@ try {
     } finally {
         $env:PATH = $previousPath
     }
-    if ($failure -notlike '*frontend validation failed (exit code 23)*') {
+    if ($failure -notlike '*frontend build failed (exit code 23)*') {
         throw "Expected frontend-specific build failure, got: $failure"
     }
     if ((Get-Content -LiteralPath $markerFile -Raw).Trim() -cne 'deliberately-invalid-marker') {
@@ -102,7 +103,7 @@ try {
     # attempt to enter Stop-OwnedDev.
     Set-Content -LiteralPath (Join-Path -Path $fakeBin -ChildPath 'go.cmd') -Value @(
         '@echo off'
-        'if "%3"=="web-build" exit /b 0'
+        'if "%3"=="web-build-dev" exit /b 0'
         'if "%3"=="go-build-staged" exit /b 47'
         'exit /b 98'
     )
@@ -126,7 +127,7 @@ try {
     # requested binary, the helper must refuse to stop the existing instance.
     Set-Content -LiteralPath (Join-Path -Path $fakeBin -ChildPath 'go.cmd') -Value @(
         '@echo off'
-        'if "%3"=="web-build" exit /b 0'
+        'if "%3"=="web-build-dev" exit /b 0'
         'if "%3"=="go-build-staged" exit /b 0'
         'exit /b 98'
     )

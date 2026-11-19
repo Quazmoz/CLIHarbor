@@ -1,7 +1,7 @@
 @echo off
 setlocal DisableDelayedExpansion
 title CLIHarbor
-echo CLIHarbor: building the full app and opening your browser...
+echo CLIHarbor: rebuilding and opening your browser ^(no lint or tests^)...
 echo Requires the Go, Node.js and npm versions listed in README.md.
 echo.
 "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -File "%~dp0tools\dev-restart.ps1"

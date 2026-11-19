@@ -5,10 +5,81 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 )
+
+func TestWebBuildDevelopmentAndFullChecks(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		checks bool
+		fail   bool
+		want   string
+	}{
+		{"development", false, false, "ci --prefix\nrun build"},
+		{"full", true, false, "ci --prefix\nrun typecheck\nrun lint\ntest --prefix\nrun build"},
+		{"failed development build", false, true, "ci --prefix\nrun build"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			fakeBin := filepath.Join(root, "fake-bin")
+			dist := filepath.Join(root, "web", "dist")
+			embedded := filepath.Join(root, "internal", "webui", "static")
+			for _, dir := range []string{fakeBin, dist, embedded} {
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for path, content := range map[string]string{
+				filepath.Join(root, "web", "package.json"): "{}",
+				filepath.Join(dist, "index.html"):          "stale",
+				filepath.Join(embedded, "index.html"):      "previous",
+			} {
+				if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			script := "#!/bin/sh\nprintf '%s %s\\n' \"$1\" \"$2\" >> \"$CLIHARBOR_TEST_NPM_LOG\"\n" +
+				"if [ \"$1 $2\" = 'run build' ]; then\n" +
+				"  if [ \"$CLIHARBOR_TEST_NPM_FAIL\" = 1 ]; then exit 23; fi\n" +
+				"  printf fresh > web/dist/index.html\nfi\n"
+			if runtime.GOOS == "windows" {
+				script = "@echo off\r\necho %1 %2>>\"%CLIHARBOR_TEST_NPM_LOG%\"\r\n" +
+					"if not \"%1 %2\"==\"run build\" exit /b 0\r\n" +
+					"if \"%CLIHARBOR_TEST_NPM_FAIL%\"==\"1\" exit /b 23\r\n" +
+					"<nul set /p \"=fresh\">web\\dist\\index.html\r\nexit /b 0\r\n"
+			}
+			if err := os.WriteFile(filepath.Join(fakeBin, npmCommand()), []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			log := filepath.Join(root, "npm.log")
+			t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("CLIHARBOR_TEST_NPM_LOG", log)
+			t.Setenv("CLIHARBOR_TEST_NPM_FAIL", "0")
+			if tc.fail {
+				t.Setenv("CLIHARBOR_TEST_NPM_FAIL", "1")
+			}
+			err := webBuild(root, tc.checks)
+			if (err != nil) != tc.fail {
+				t.Fatalf("webBuild() error = %v, want failure %t", err, tc.fail)
+			}
+			steps, err := os.ReadFile(log)
+			if err != nil || strings.TrimSpace(strings.ReplaceAll(string(steps), "\r\n", "\n")) != tc.want {
+				t.Fatalf("npm steps = %q, err = %v; want %q", steps, err, tc.want)
+			}
+			want := "fresh"
+			if tc.fail {
+				want = "previous"
+			}
+			if got, err := os.ReadFile(filepath.Join(embedded, "index.html")); err != nil || string(got) != want {
+				t.Fatalf("embedded index = %q, err = %v; want %q", got, err, want)
+			}
+		})
+	}
+}
 
 func TestValidateBuildDestinationRejectsRedirectedAndSpecialTargets(t *testing.T) {
 	t.Parallel()

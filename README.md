@@ -14,7 +14,7 @@ CLIHarbor runs on Windows and macOS. It wraps official CLIs through reviewed, ve
 
 ## Quickstart
 
-**Have a source checkout? Double-click [Launch-CLIHarbor.cmd](Launch-CLIHarbor.cmd) on Windows or [Launch-CLIHarbor.command](Launch-CLIHarbor.command) on macOS.** Keep the launcher in the checkout's root folder. Install the pinned Go/Node/npm versions below first; Windows also uses its built-in Windows PowerShell under your approved execution policy. The launcher runs the existing restart helper: frontend checks, a fresh embedded build, then the full browser workspace with all built-in packs and dedicated integrations. The first build needs network access for locked dependencies and can take several minutes. Later launches also validate and rebuild; they never fall back to an old executable after a build failure.
+**Have a source checkout? Double-click [Launch-CLIHarbor.cmd](Launch-CLIHarbor.cmd) on Windows or [Launch-CLIHarbor.command](Launch-CLIHarbor.command) on macOS.** Keep the launcher in the checkout's root folder. Install the pinned Go/Node/npm versions below first; Windows also uses its built-in Windows PowerShell under your approved execution policy. The launcher runs the restart helper: a fresh TypeScript/frontend/Go build, then the full browser workspace with all built-in packs and dedicated integrations. It does **not** run lint or tests. The first build needs network access for locked dependencies and can take several minutes. Later launches also rebuild; they never fall back to an old executable after a build failure.
 
 Use the newly opened browser tab. Install missing supported tools through **Add a CLI**, then use **Sign in** as needed; available operations depend on your OS, installed CLIs and vendor permissions. Terraform project roots and browser password-sharing certificates still need explicit operator configuration; see [Terraform setup](docs/TERRAFORM_INTEGRATION.md) and [Password sharing](docs/PASSWORD_SHARING.md). Stop a manually launched instance through its own terminal before using the launcher, and wait for active operations/sign-in to finish before relaunching. To stop a launcher-owned instance, use the stop command in [Developer quickstart](#developer-quickstart). Build failures stay visible in the launcher window. These files launch a development checkout; use the qualified Windows bundle procedure below on managed evaluation laptops.
 
@@ -45,9 +45,9 @@ npm --version
 bash tools/dev-restart.sh
 ```
 
-Already have the checkout? Start from its root and run the version checks and restart helper. The helper installs the locked frontend dependencies, runs typecheck/lint/tests, rebuilds and embeds the frontend, compiles the native executable, and opens the local browser UI. It works on the first launch as well as after edits. If your default Go differs but Go's toolchain selection is available, use `GOTOOLCHAIN=go1.27.3 bash tools/dev-restart.sh`.
+Already have the checkout? Start from its root and run the version checks and restart helper. The helper installs the locked frontend dependencies, typechecks/builds and embeds the frontend, compiles the native executable, and opens the local browser UI. It skips lint and tests; run the [verification commands](#verification-commands) separately before committing or qualifying a release. It works on the first launch as well as after edits. If your default Go differs but Go's toolchain selection is available, use `GOTOOLCHAIN=go1.27.3 bash tools/dev-restart.sh`.
 
-Validation and compilation finish before the helper stops its previous instance. A failed build leaves that instance running. An intentional `--pull` / `-Pull` hands off to the updated helper so newly checked-out safeguards take effect immediately.
+Compilation finishes before the helper stops its previous instance. A failed build leaves that instance running. An intentional `--pull` / `-Pull` hands off to the updated helper so newly checked-out safeguards take effect immediately.
 
 **Success looks like:** the terminal reports `Fresh CLIHarbor started`, a new browser tab opens on `http://127.0.0.1:<ephemeral-port>`, and **Overview** offers **Open tasks** or setup guidance. Use the newly opened tab: each launch gets a new port and local browser session.
 
@@ -245,13 +245,18 @@ Use the pinned toolchains listed in the macOS quickstart, clone **`dev`**, and w
 
 | Action | macOS / Linux | Windows PowerShell |
 | --- | --- | --- |
-| Validate, rebuild, and launch | `bash tools/dev-restart.sh` | `.\tools\dev-restart.ps1` |
+| Rebuild and launch (no lint/tests) | `bash tools/dev-restart.sh` | `.\tools\dev-restart.ps1` |
 | Stop the helper-owned instance | `bash tools/dev-restart.sh --stop` | `.\tools\dev-restart.ps1 -Stop` |
 | Intentionally update from upstream, then restart | `bash tools/dev-restart.sh --pull` | `.\tools\dev-restart.ps1 -Pull` |
 
 Before adopting a helper, stop manually launched CLIHarbor/Vite processes through their own terminals. Use restart only when no vendor operation or sign-in is in flight. The helpers verify their own process ownership; they do not stop unrelated listeners or clear browser/vendor credentials. Invoke the Windows script as a file; if PowerShell shows `>>`, press **Ctrl+C** before retrying. Follow approved execution policy rather than weakening it.
 
 An optional fast-forward pull requires resolved local changes. Never reset/clean away work to restart. Builds may update `internal/webui/static/`; commit generated assets with frontend source changes. Startup logs under ignored `bin/` are private and may contain a bootstrap URL.
+
+The helpers use `go run ./tools/task web-build-dev`: locked dependency installation,
+TypeScript/Vite compilation and fresh asset embedding, without lint or tests.
+`web-build`, `build` and `check` retain their full frontend checks; a successful
+development restart is not release qualification.
 
 ### Verification commands
 
