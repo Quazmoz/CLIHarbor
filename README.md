@@ -249,6 +249,8 @@ Use the pinned toolchains listed in the macOS quickstart, clone **`dev`**, and w
 | Stop the helper-owned instance | `bash tools/dev-restart.sh --stop` | `.\tools\dev-restart.ps1 -Stop` |
 | Intentionally update from upstream, then restart | `bash tools/dev-restart.sh --pull` | `.\tools\dev-restart.ps1 -Pull` |
 
+On Windows, `.\start.ps1` (accepts `-Pull` / `-Stop`) first checks that Go, Node and npm are on `PATH`, warns on drift from `.go-version` / `.node-version`, then runs `tools\dev-restart.ps1`.
+
 Before adopting a helper, stop manually launched CLIHarbor/Vite processes through their own terminals. Use restart only when no vendor operation or sign-in is in flight. The helpers verify their own process ownership; they do not stop unrelated listeners or clear browser/vendor credentials. Invoke the Windows script as a file; if PowerShell shows `>>`, press **Ctrl+C** before retrying. Follow approved execution policy rather than weakening it.
 
 An optional fast-forward pull requires resolved local changes. Never reset/clean away work to restart. Builds may update `internal/webui/static/`; commit generated assets with frontend source changes. Startup logs under ignored `bin/` are private and may contain a bootstrap URL.
