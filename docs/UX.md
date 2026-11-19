@@ -578,6 +578,17 @@ and clears stale options; manual entry remains explicit for IDs outside the
 first 500 visible IDs per kind, new LDAP names, service IDs and issuer IDs
 without reviewed inventory commands. CLI authorization remains authoritative.
 
+Dedicated action forms offer **Search dropdown IDs** to query Conjur through
+the approved `list-resources --search` task, rather than filtering only the
+loaded options. Each search still loads at most five pages of 100 visible IDs
+per kind; narrow a broad search or enter the ID manually if needed. Clear the
+search and submit it to restore the initial inventory. Search and refresh are
+read-only and never review or execute the configured action.
+
+An existence-check CLI failure, including a DNS or network timeout, blocks value
+update review; it does not mean that the variable is absent. Inspect the failed
+run and restore connectivity before retrying. No update is sent by that check.
+
 Leaving a guided form or changing its inventory context stops further dropdown
 pages and resource-kind queries, closes its read stream and requests cancellation
 of a known running inventory read. Late responses cannot restore abandoned

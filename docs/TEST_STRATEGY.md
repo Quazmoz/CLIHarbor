@@ -442,6 +442,10 @@ changes, catalog removal, StrictMode effect replay, failed refresh recovery and
 already-aborted requests. Abandoned loads cannot fetch another page/kind, restore
 stale options or release the newer load's single-flight guard. These opt-in read
 signals do not cancel approved mutations when an operator leaves their form.
+Search regressions retain the same server-side filter across bounded pages.
+Dedicated action tests select a server-search result outside the initial list,
+restore unfiltered inventory and refuse action approval after a failed existence
+check; inventory searches never send the configured secret value.
 
 Delayed-response regressions hold secret creation at its existence check and each dependent mutation, hold permission mutation and its authoritative refresh, and hold Terraform dry-run/execute requests. They verify busy text/spinners, disabled repeated submissions, no secret in progress messages, partial-failure recovery and terminal cleanup. Command Builder tests cover pending start and validation (including form submission while validation is pending); production browser coverage checks the running notice, disabled action, 1366/320 px geometry, reduced motion, and cancellation cleanup.
 

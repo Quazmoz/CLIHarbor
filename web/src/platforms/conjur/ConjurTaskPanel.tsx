@@ -40,6 +40,7 @@ export function ConjurTaskPanel({ task, tasks, csrfToken, account, endpoint, pre
   const [snapshot, setSnapshot] = useState<RunSnapshot | null>(null);
   const [outcome, setOutcome] = useState<OperationOutcome | null>(null);
   const [mutating, setMutating] = useState(false);
+  const [inventorySearch, setInventorySearch] = useState('');
   const busyRef = useRef(false);
   const alive = useRef(true);
   const beginMutation = useMutationActivity();
@@ -167,9 +168,20 @@ export function ConjurTaskPanel({ task, tasks, csrfToken, account, endpoint, pre
     <p>{task.description}</p>
     <ExecutionContext fields={[{ label: 'Account', value: account ?? 'Unavailable' }, { label: 'Backend', value: endpoint ?? 'Unavailable' }]} target={plan?.impact?.target} />
     {!allowed && <p role="alert">This action is unavailable until the reviewed Conjur tool and environment are ready.</p>}
-    {kinds.length > 0 && <><InventoryStatus state={inventoryState} disabled={busy} onRetry={() => void load()} />
-      <p className="field-help">Dropdowns show up to 500 visible IDs per kind. Enter another ID if it is not listed; inventory is not an authorization check.</p>
-      <button type="button" className="secondary-button" disabled={busy || inventoryState === 'loading'} onClick={() => void load()}>Refresh dropdowns</button></>}
+    {kinds.length > 0 && <><InventoryStatus state={inventoryState} disabled={busy} onRetry={() => void load(inventorySearch)} />
+      <p id={prefix + '-inventory-help'} className="field-help">Dropdowns show up to 500 visible IDs per kind. Search Conjur to find IDs outside this list, narrow the search if it fills the limit, or enter another ID. Inventory is not an authorization check. Clear the search to restore the initial list.</p>
+      <form autoComplete="off" onSubmit={(event: FormEvent) => {
+        event.preventDefault();
+        if (!busy && allowed) void load(inventorySearch);
+      }}>
+        <label className="field"><span>Search dropdown IDs</span>
+          <input type="search" value={inventorySearch} maxLength={512} disabled={busy || !allowed}
+            aria-describedby={prefix + '-inventory-help'} placeholder="Partial ID or name"
+            onChange={(event) => setInventorySearch(event.target.value)} />
+        </label>
+        <button type="submit" className="secondary-button" disabled={busy || !allowed || inventoryState === 'loading'}>Search Conjur</button>
+        <button type="button" className="secondary-button" disabled={busy || !allowed || inventoryState === 'loading'} onClick={() => void load(inventorySearch)}>Refresh dropdowns</button>
+      </form></>}
     <form ref={form} autoComplete="off" onSubmit={(event: FormEvent) => { event.preventDefault(); void perform(mutation); }}>
       <fieldset disabled={busy || !allowed}>
         <div className="conjur-task-fields">{task.inputs.map((input) => {

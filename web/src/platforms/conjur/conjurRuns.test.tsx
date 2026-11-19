@@ -152,3 +152,18 @@ test('an already-aborted inventory request never starts a CLI run', async () => 
   await expect(listIDs('csrf', 'dev', 'variable', controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
   expect(createRun).not.toHaveBeenCalled();
 });
+
+test('server-side inventory search keeps its filter on every page and stops at 500 IDs', async () => {
+  vi.mocked(createRun).mockImplementation(async (_, request) => {
+    const offset = Number(request.values.offset ?? 0);
+    return run(Array.from({ length: 100 }, (_, i) => 'dev:variable:apps/search-' + (offset + i)));
+  });
+  const ids = await listIDs('csrf', 'dev', 'variable', undefined, 'apps/search');
+  expect(ids).toHaveLength(500);
+  expect(ids.at(-1)).toBe('apps/search-499');
+  expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.values)).toEqual(
+    [0, 100, 200, 300, 400].map((offset) => ({
+      kind: 'variable', search: 'apps/search', limit: '100', ...(offset ? { offset } : {}),
+    })),
+  );
+});

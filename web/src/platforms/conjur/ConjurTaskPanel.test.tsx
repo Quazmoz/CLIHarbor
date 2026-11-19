@@ -45,6 +45,42 @@ async function selectVariable() {
   fireEvent.change(select, { target: { value: 'value:apps/db/password' } });
 }
 
+test('searches Conjur beyond the initial options without submitting the action or its secret', async () => {
+  render(<ConjurTaskPanel {...props} task={set} />);
+  await selectVariable();
+  fireEvent.change(screen.getByLabelText(/^value/), { target: { value: 'search-must-not-send-this' } });
+  const search = screen.getByRole('searchbox', { name: 'Search dropdown IDs' });
+  fireEvent.change(search, { target: { value: 'unlisted' } });
+  expect(createRun).toHaveBeenCalledTimes(1);
+  vi.mocked(createRun).mockResolvedValueOnce(run('list-resources', ['dev:variable:apps/unlisted/password']));
+  fireEvent.submit(search.closest('form')!);
+  const select = screen.getByRole('combobox', { name: 'variable-id' });
+  await within(select).findByRole('option', { name: 'apps/unlisted/password' });
+  expect(vi.mocked(createRun).mock.calls.at(-1)?.[1]).toEqual({
+    packId: PACK, commandId: 'list-resources', values: { kind: 'variable', search: 'unlisted', limit: '100' },
+  });
+  expect(previewRun).not.toHaveBeenCalled();
+  fireEvent.change(select, { target: { value: 'value:apps/unlisted/password' } });
+  expect(select).toHaveValue('value:apps/unlisted/password');
+  fireEvent.change(search, { target: { value: '' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Search Conjur' }));
+  await within(select).findByRole('option', { name: 'apps/db/password' });
+  expect(vi.mocked(createRun).mock.calls.at(-1)?.[1].values).toEqual({ kind: 'variable', limit: '100' });
+  expect(screen.getByRole('textbox', { name: 'variable-id — enter ID' })).toHaveValue('apps/unlisted/password');
+  expect(previewRun).not.toHaveBeenCalled();
+});
+
+test('a failed existence check blocks update review even for a listed variable', async () => {
+  render(<ConjurTaskPanel {...props} task={set} />);
+  await selectVariable();
+  fireEvent.change(screen.getByLabelText(/^value/), { target: { value: 'fixture-value' } });
+  vi.mocked(createRun).mockResolvedValueOnce({ ...run('resource-exists', { exists: true }), exitCode: 1 });
+  fireEvent.click(screen.getByRole('button', { name: 'Review action' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('read-only existence check failed; no changes were sent');
+  expect(previewRun).not.toHaveBeenCalled();
+  expect(vi.mocked(createRun).mock.calls.map(([, request]) => request.commandId)).toEqual(['list-resources', 'resource-exists']);
+});
+
 test('offers manual variable entry before inventory and reviews the entered ID', async () => {
   render(<ConjurTaskPanel {...props} task={set} />);
   const select = screen.getByRole('combobox', { name: 'variable-id' });

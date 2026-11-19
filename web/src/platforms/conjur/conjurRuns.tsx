@@ -31,7 +31,7 @@ const KIND_LABELS: Record<InventoryKind, string> = {
   webservice: 'Web services', host_factory: 'Host factories',
 };
 const PAGE = 100;
-// ponytail: first 500 IDs per kind in Conjur's order; add list-resources --search typeahead if tenants outgrow it.
+// Bound each inventory load to 500 IDs per kind; server-side search narrows larger inventories.
 const MAX_PAGES = 5;
 
 export function supportedTask(tasks: Task[], commandId: string, risk: Task['risk'], inputs: Record<string, string>): boolean {
@@ -174,12 +174,12 @@ export async function variableExists(csrfToken: string, fullID: string, account:
 }
 
 /** Local IDs (account and kind stripped) of visible resources of one kind. */
-export async function listIDs(csrfToken: string, account: string, kind: InventoryKind, signal?: AbortSignal): Promise<string[]> {
+export async function listIDs(csrfToken: string, account: string, kind: InventoryKind, signal?: AbortSignal, search = ''): Promise<string[]> {
   const prefix = account + ':' + kind + ':';
   const ids: string[] = [];
   for (let page = 0; page < MAX_PAGES; page++) {
     const entries = parseConjurIDs(await runRead(csrfToken, 'list-resources',
-      { kind, limit: String(PAGE), ...(page ? { offset: page * PAGE } : {}) }, signal), PAGE, account);
+      { kind, limit: String(PAGE), ...(search ? { search } : {}), ...(page ? { offset: page * PAGE } : {}) }, signal), PAGE, account);
     ids.push(...entries.filter((id) => id.startsWith(prefix)).map((id) => id.slice(prefix.length)));
     if (entries.length < PAGE) break;
   }
@@ -205,7 +205,7 @@ export function useConjurInventory(csrfToken: string, account: string | undefine
     loading.current = null;
   }, [scope]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (search = '') => {
     if (!scope.available || !scope.account || loading.current) return;
     const controller = new AbortController();
     loading.current = controller;
@@ -214,7 +214,7 @@ export function useConjurInventory(csrfToken: string, account: string | undefine
       const loaded: Inventory = {};
       for (const kind of scope.kinds) {
         controller.signal.throwIfAborted();
-        loaded[kind] = await listIDs(scope.csrfToken, scope.account, kind, controller.signal);
+        loaded[kind] = await listIDs(scope.csrfToken, scope.account, kind, controller.signal, search);
       }
       if (!controller.signal.aborted) setResult({ scope, inventory: loaded, state: 'idle' });
     } catch {
