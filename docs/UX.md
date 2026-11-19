@@ -40,7 +40,14 @@ change with unchanged discovery context still needs a fresh API read and must
 never be treated as authentication proof.
 
 **Secrets** groups the guarded create flow, variable-ID browsing, write-only
-value update and destructive delete. **Access** links to the read-only Access
+value update, staged rename and destructive delete. Rename reviews all retained
+versions, preserves supported metadata and grant provenance, and displays the
+verified version-number mapping without returning values to the browser.
+Deleting the original is a separate typed confirmation after consumer and policy
+source updates; **Keep both** discards deletion authority. New version numbers,
+timestamps/expirations, bounded scope and the need to pause external changes are
+explained before review. Failed verification never offers cutover or retries a
+write. **Access** links to the read-only Access
 Explorer and backend-approved grant/revoke tasks. **Audit** links to the regex
 pattern explorer and execution/mutation history. **Tools** groups reviewed
 inventory commands and a collapsible migration/template workbench. Hidden tabs

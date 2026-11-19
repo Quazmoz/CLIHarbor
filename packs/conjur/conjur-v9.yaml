@@ -3,7 +3,7 @@ kind: CliPack
 metadata:
   id: cyberark-conjur-v9
   name: Conjur — CyberArk / Idira Secrets Manager CLI 9.x
-  version: 0.8.0
+  version: 0.9.0
   description: >-
     Reviewed Conjur CLI workflows verified from the official cyberark/conjur-cli-go
     v9.3.1 release (commit 7207d6a4a2005130978e10d03d7f6b55ab0216d6).
@@ -1108,6 +1108,86 @@ commands:
       - switch:
           name: --dry-run
           enabledFrom: dry-run
+    output:
+      mode: json
+      renderer: raw
+    requirements:
+      requiresAuth: true
+      authMode: vendor-session
+
+  secret-annotate-owned:
+    name: Set secret variable annotation with owner
+    description: >-
+      Set one metadata annotation while explicitly preserving the variable owner.
+      Used by the guarded rename workflow. Never enter secret material in annotations.
+    tool: conjur
+    risk: change
+    impact:
+      targetInput: variable-id
+      targetLabel: Variable
+      effect: Sets one annotation and the explicit owner on the variable in this policy branch.
+      scope: single
+    stdin:
+      yamlTemplate: |
+        - !variable
+          id: {{variable-id}}
+          owner: !{{owner-kind}} {{owner-id}}
+          annotations:
+            {{annotation-name}}: {{annotation-value}}
+    inputs:
+      - id: policy-branch
+        type: string
+        label: Policy branch
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 512
+          disallowLeadingDash: true
+      - id: variable-id
+        type: string
+        label: Variable ID (relative to the policy branch)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: owner-kind
+        type: enum
+        label: Owner kind
+        required: true
+        validation:
+          enum: [policy, group, host, layer, user]
+          disallowLeadingDash: true
+      - id: owner-id
+        type: string
+        label: Owner ID (start with / for an absolute ID)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 2048
+          disallowLeadingDash: true
+      - id: annotation-name
+        type: string
+        label: Annotation name (not a secret)
+        required: true
+        validation:
+          minLength: 1
+          maxLength: 512
+      - id: annotation-value
+        type: string
+        label: Annotation value (not a secret)
+        required: true
+        validation:
+          minLength: 0
+          maxLength: 4096
+    argv:
+      - literal: policy
+      - literal: update
+      - flag:
+          name: --branch
+          valueFrom: policy-branch
+      - literal: --file
+      - literal: "-"
     output:
       mode: json
       renderer: raw

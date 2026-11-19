@@ -167,6 +167,18 @@ The one exception that reads values is the Conjur security audit (ADR-028/ADR-03
 
 The only path that returns a value to the browser is the dedicated Conjur secret reveal (ADR-043). It is a platform endpoint, never a pack command, so the run manager, History, SSE replay and the mutation journal never see values. Each reveal returns one current or retained previous version of one variable after an explicit acknowledged action, in a `no-store` response bounded to 16 KiB, only when the displayed account and HTTPS backend match vendor configuration. The browser hides the value by default and clears it after 60 seconds, on Hide, tab change, visibility loss and page unload; copy clears the clipboard after 30 seconds only if it still holds the value. A separate in-memory access log records metadata (time, target, variable ID, version, outcome) for every attempt, never value bytes, length or hash. Version listing returns metadata only.
 
+The explicitly approved staged Conjur rename (ADR-046) also reads retained
+versions in backend memory, never through generic secret-returning tasks.
+The browser receives only metadata and version mappings. Writes use the
+existing audited pack/run pipeline and sensitive stdin. Single-use copy
+approval and separately typed deletion approval bind the exact target and
+original fingerprint; deletion rechecks both histories, metadata and grants.
+Unsupported/incomplete copies fail closed, and no failed write is automatically
+replayed or rolled back. This is not an atomic rename: Conjur's supported
+interfaces lack conditional create/delete, so operators must quiesce external
+writes and policy/membership changes. See the bounded scope and remaining
+qualification gates in [Conjur integration](CONJUR_INTEGRATION.md#staged-secret-rename-pack-090).
+
 ### SI-7 — Structured output is data, never authority
 
 Structured parsing occurs only after the authoritative process execution completes.

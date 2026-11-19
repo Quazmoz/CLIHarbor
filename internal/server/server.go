@@ -58,6 +58,7 @@ type Config struct {
 	ToolRefresher              ToolRefreshService
 	SecretAudit                SecretAuditService
 	SecretRetrieval            SecretRetrievalService
+	SecretRename               SecretRenameService
 	Platforms                  PlatformService
 	Terraform                  TerraformStateService
 	Vault                      VaultService
@@ -95,6 +96,7 @@ type Server struct {
 	toolRefresher              ToolRefreshService
 	secretAudit                SecretAuditService
 	secretRetrieval            SecretRetrievalService
+	secretRename               SecretRenameService
 	platforms                  PlatformService
 	terraform                  TerraformStateService
 	vault                      VaultService
@@ -173,6 +175,7 @@ func New(config Config) (*Server, error) {
 		toolRefresher:              config.ToolRefresher,
 		secretAudit:                config.SecretAudit,
 		secretRetrieval:            config.SecretRetrieval,
+		secretRename:               config.SecretRename,
 		platforms:                  config.Platforms,
 		terraform:                  config.Terraform,
 		vault:                      config.Vault,
@@ -235,6 +238,9 @@ func New(config Config) (*Server, error) {
 		mux.Handle("/api/v1/conjur/secrets/versions", s.requireSession(http.HandlerFunc(s.handleSecretVersions)))
 		mux.Handle("/api/v1/conjur/secrets/reveal", s.requireSession(http.HandlerFunc(s.handleSecretReveal)))
 		mux.Handle("/api/v1/conjur/secrets/access-log", s.requireSession(http.HandlerFunc(s.handleSecretAccessLog)))
+	}
+	if s.secretRename != nil {
+		mux.Handle("/api/v1/conjur/secrets/rename/", s.requireSession(http.HandlerFunc(s.handleSecretRename)))
 	}
 	if s.platforms != nil {
 		mux.Handle("/api/v1/platforms", s.requireSession(http.HandlerFunc(s.handlePlatforms)))

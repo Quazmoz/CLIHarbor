@@ -62,6 +62,25 @@ hidden value input, privilege options and page-wide overflow at 1366/320 px,
 alongside the existing approval/run/readback flow. Its Conjur service and CLI
 are isolated fixtures; native Windows and live-tenant acceptance are separate.
 
+### Staged Conjur rename
+
+The rename service fixtures verify sparse retained-version copying with an
+explicit old/new mapping, owner/annotation preservation, grant-policy provenance,
+no deletion during copy, separate typed cutover, single-use approvals and
+expiration. Refusal cases cover existing/unreadable destinations, unsupported
+grants, external/rotation/dynamic annotations and namespaces, oversized values
+or histories, source drift, suppressed destination versions and failed writes.
+Cutover rechecks both values and metadata before permitting deletion. The real
+pack planner verifies quoted annotation-key/value injection resistance and
+sensitive stdin for copied versions.
+
+API tests cover session/Origin/CSRF boundaries, methods, strict JSON and no-store
+responses. React acceptance covers explicit copy approval, typed deletion,
+mapping display, Keep both, failed verification and malformed copy evidence.
+These synthetic tests do not establish atomicity, tenant retention behavior,
+official-CLI Windows integration or live role-membership stability. Quiesced
+real-tenant cutover remains a release gate.
+
 ### Generated frontend authority
 
 `web/` is the authoritative frontend source. Production generation compares the complete, fingerprinted `web/dist` output with `internal/webui/static`: byte-identical trees are left in place, while changed trees are staged and fully replaced so obsolete content-hashed assets are removed rather than accumulated. Staging directories are unique per build; transient Windows rename/sharing failures receive bounded retries, and a failed activation attempts to restore the previously active tree before the restart helper can stop an existing process. The repository-owned `verify-web-sync` gate uses Git status scoped to the embedded tree and rejects tracked modifications/deletions **and** untracked generated files. `go run ./tools/task check` runs this gate immediately after the production frontend build/synchronization, and CI invokes the same repository-owned check on both Linux and Windows. Regression coverage verifies whole-tree replacement across changing content hashes, no-op identity on byte-identical repeats, redirected destination rejection, Windows transient rename error classification, plus tracked/untracked drift detection. The generator also writes `web-source.sha256`, a deterministic SHA-256 digest of the frontend source/package inputs under `web/` (excluding `dist`, `node_modules`, and generated test output). Verification checks this marker **before** inspecting Git status, catching a committed source-only update even on a clean checkout. Regression coverage includes source/lockfile changes, generated-directory exclusion, symlink rejection, and a clean two-commit drift fixture. The fingerprint alone does not verify that Vite actually rebuilt the JavaScript, so use the complete pinned-toolchain `web-build` task and inspect the emitted bundle before qualification.

@@ -1182,3 +1182,37 @@ Known ceiling: a KV v1 secret whose only keys are `data` and `metadata.version`
 is indistinguishable from a v2 envelope. Verification used checksum-verified
 Vault 2.2.2 in `-dev` mode for real CLI output shapes; no GitHub Actions dispatch
 is implicit.
+
+## ADR-046 - Stage Conjur secret renames with verified history copying
+
+**Date:** 2026-11-19
+**Status:** Implemented with synthetic coverage; real-tenant and official-CLI
+Windows acceptance remain release gates.
+
+**Decision:** Implement the explicitly requested same-policy rename as a
+dedicated platform orchestration service. Read every retained version using
+the existing vendor client, but perform writes only through approved pack tasks
+and the ordinary durable-audited run manager. Pack 0.9.0 adds a quoted,
+owner-preserving single-annotation policy template; no schema or dependency
+change is required.
+
+Copy requires an expiring single-use approval, preserves owner/annotations/
+explicit grant provenance, verifies metadata before storing values, copies
+oldest first, and verifies all retained values with a source/destination version
+mapping. Values stay backend-only. Original version numbers, creation times
+and expiration metadata cannot be imported through the qualified CLI; the
+operator explicitly accepted recreated values and new history metadata.
+
+Deletion is never automatic. After consumer and policy-source cutover, a
+separate typed approval revalidates the original fingerprint and the copied
+history, metadata, grants and mapping. Failed/incomplete copies never trigger
+original deletion; an unconfirmed deletion must be inspected rather than
+assumed to have failed. There is no automatic rollback/retry. Approvals/fingerprints are
+in-memory only, with bounded single-flight admission. Unsupported grants,
+annotation semantics, IDs, values or incomplete history refuse execution.
+
+**Limit:** The vendor does not expose atomic rename, create-if-absent or
+conditional deletion through these interfaces. Operators must pause other
+writers/rotation and policy/membership changes; rechecks cannot close the last
+read/write race. Conjur owns history retention and duplicate-value behavior.
+See [the workflow contract](CONJUR_INTEGRATION.md#staged-secret-rename-pack-090).

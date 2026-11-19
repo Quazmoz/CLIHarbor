@@ -7,6 +7,7 @@ import { ConjurCreateSecret } from './ConjurCreateSecret';
 import { ConjurManagePermissions } from './ConjurManagePermissions';
 import { ConjurMigrationWorkbench } from './ConjurMigrationWorkbench';
 import { ConjurSecretVersions } from './ConjurSecretVersions';
+import { ConjurRenameSecret } from './ConjurRenameSecret';
 import { ConjurTaskPanel } from './ConjurTaskPanel';
 import { useOperationActivity } from '../../OperationActivity';
 
@@ -239,6 +240,9 @@ export function ConjurWorkspace({ platform, tasks, tool, csrfToken, onOpenRuns, 
           ) : <Action title="Create secret" detail="Requires a verified browser session." available={false} onOpen={() => {}} />}
           {taskAction('list-variables', 'read', 'Browse variables', 'Find visible variable IDs without exposing their stored values.')}
           {taskAction('secret-set-value', 'change', 'Update value', 'Store a new value version in Conjur. Update the credential in its source system separately.')}
+          {csrfToken && <ConjurRenameSecret key={'rename/' + discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
+            tasks={platformTasks} csrfToken={csrfToken} account={ready ? target?.account : undefined}
+            endpoint={ready ? target?.applianceUrl : undefined} onOpenRuns={onOpenRuns} />}
           {csrfToken && <ConjurSecretVersions key={discoveryKey + '/' + (target?.account ?? '') + '/' + (target?.applianceUrl ?? '')}
             packId={platform.packId} toolId={platform.toolId} csrfToken={csrfToken} available={ready}
             tasks={platformTasks} onOpenRuns={onOpenRuns}

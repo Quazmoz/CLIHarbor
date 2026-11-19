@@ -217,10 +217,63 @@ The current pack exposes reviewed non-secret reads and separately approved chang
 | `issuer-delete` | `conjur issuer delete --id <id> ...` | Destructive; explicit approval |
 | `secret-create` | `conjur policy update --branch <b> --file - [--dry-run]` + `!variable` | Change, approval required |
 | `secret-create-owned` | `conjur policy update --branch <b> --file - [--dry-run]` + `!variable` with `owner:` | Change, approval required |
+| `secret-annotate-owned` | `conjur policy update --branch <b> --file -` + owned `!variable` with one quoted annotation | Change, approval required; metadata only |
 | `secret-delete` | `conjur policy update --branch <b> --file - [--dry-run]` + `!delete` | Destructive, typed approval |
 | `secret-permit` | `conjur policy update --branch <b> --file - [--dry-run]` + `!permit` | Change, approval required |
 | `secret-deny` | `conjur policy update --branch <b> --file - [--dry-run]` + `!deny` | Change, approval required |
 | `secret-set-value` | `conjur variable set --id <id> --file -` + secret on stdin | Change, approval required; value never shown |
+
+### Staged secret rename (pack 0.9.0)
+
+**Secrets -> Rename secret** is a dedicated backend-orchestrated copy and cutover,
+not an atomic vendor rename. Review explicitly authorizes reads of every retained
+version. An expiring, single-use approval binds the displayed account, HTTPS
+backend, original ID, new ID and a salted in-memory fingerprint of the original.
+No secret values or value fingerprints are returned to the browser.
+
+Copy refuses an existing or unreadable destination. It recreates the owner,
+annotations and every supported explicit grant in the grant's original policy,
+verifies that metadata before writing values, then replays all retained values
+oldest first through the official CLI's sensitive stdin path. Readback verifies
+every value and returns the original-to-new version-number mapping. Conjur assigns
+new version numbers, timestamps and expiration metadata; this is **not** an
+identical history import. Retention pruning or deduplicated writes that prevent
+one-to-one readback block deletion.
+
+The original is never removed by copying. Switch application references and
+update the authoritative policy repository before cutover. A separate, one-hour
+deletion approval requires typing `DELETE: <original-ID>` and rechecks the
+original, copied metadata, every copied value and the verified version mapping.
+**Keep both** discards that approval without mutating either variable.
+Restarting CLIHarbor loses approvals; there is no automatic retry, resume,
+rollback, policy-repository edit or alias.
+
+All writes reuse normal pack planning, context/executable revalidation,
+approval consumption, execution bounds and durable mutation auditing. Version
+reads add metadata-only entries to the existing access log. The dedicated
+authenticated, same-origin, CSRF-protected `POST
+/api/v1/conjur/secrets/rename/{review,copy,delete,discard}` endpoints accept only
+typed targets and opaque approvals, never YAML, argv or values. Each request has
+a 90-second operation deadline; incomplete writes require inspection of both
+variables and Execution History, not a blind retry.
+
+Supported scope: the same defining policy; simple slash-separated IDs; at most
+100 retained versions, 100 grants and 100 annotations; text values within the
+existing nonempty 4,096-character write limit. Supported grants are `read`,
+`execute` and `update` to user/host/group/layer roles, from policies able to
+reference the destination. Unsupported grants, annotations owned by another
+policy, the `data/dynamic/` namespace, `dynamic/` or rotation annotations,
+reserved `conjur/` annotations (except
+`conjur/mime_type`), malformed/incomplete metadata and binary values fail closed.
+Inherited access is not flattened: preserving the owner and explicit grants
+retains the role relationships, but cannot freeze concurrent membership changes.
+
+**Maintenance window required:** pause external writers, rotation and policy/
+role-membership changes throughout copying and cutover. The supported Conjur
+interfaces provide neither create-if-absent nor compare-and-delete transactions;
+read/recheck detects observed drift but cannot eliminate the race between the
+final read and a vendor write. Real-tenant and native official-CLI acceptance
+remain release gates; synthetic tests do not establish tenant retention behavior.
 
 ### Bounded resource listing
 

@@ -161,6 +161,7 @@ func Run(ctx context.Context, options Options) error {
 		ToolRefresher:              toolInstaller,
 		SecretAudit:                conjurPlatform.Audit,
 		SecretRetrieval:            conjurPlatform.Secrets,
+		SecretRename:               conjur.NewSecretRenameService(conjurPlatform.Secrets, credentialLogin, runManager),
 		Platforms:                  dedicated,
 		Terraform:                  terraformPlatform,
 		Vault:                      vaultService,
